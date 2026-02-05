@@ -1,0 +1,34 @@
+import React from "react";
+import CreateTicket from './CreateTicket'
+import TicketList from './TicketList'
+
+
+export default function Dashboard({ user, onLogout }) {
+  return (
+    <div className="min-h-screen bg-gray-100 p-4">
+  <CreateTicket user={user} />
+  <TicketList user={user} />
+ <button
+          onClick={onLogout}
+          className="px-4 py-2 bg-red-500 text-white rounded"
+        >
+          ออกจากระบบ
+        </button>
+</div>
+    // <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4">
+    //   <div className="bg-white p-8 rounded-xl shadow max-w-xl w-full">
+    //     <h2 className="text-2xl font-bold">
+    //       ยินดีต้อนรับ, {user?.user_metadata?.full_name || "ผู้ใช้งาน"}
+    //     </h2>
+    //     <p className="text-sm text-gray-500 mb-4">{user?.email}</p>
+
+    //     <button
+    //       onClick={onLogout}
+    //       className="px-4 py-2 bg-red-500 text-white rounded"
+    //     >
+    //       ออกจากระบบ
+    //     </button>
+    //   </div>
+    // </div>
+  );
+}
