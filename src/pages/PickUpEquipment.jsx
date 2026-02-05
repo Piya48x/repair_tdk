@@ -8,10 +8,8 @@ import {
   Download, Laptop, MapPin, User, Building,
   Phone, Mail, Calendar, Briefcase
 } from 'lucide-react';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
-import { SarabunRegular, SarabunBold } from '../assets/fonts/SarabunFonts';
+import { generateITRequestPDF } from '../utils/pdfGenerator';
 
 
 // --- Configuration: Service Catalog ---
@@ -202,202 +200,6 @@ const PickUpEquipment = () => {
     setTimeout(() => setSelectedRequest(null), 300);
   };
 
-  // Generate PDF for service request
-  const generatePDF = (requestData) => {
-    const doc = new jsPDF();
-
-    // === Thai Font Configuration ===
-    // Add Thai fonts to Virtual File System and register them
-    doc.addFileToVFS('Sarabun-Regular.ttf', SarabunRegular);
-    doc.addFileToVFS('Sarabun-Bold.ttf', SarabunBold);
-    doc.addFont('Sarabun-Regular.ttf', 'Sarabun', 'normal');
-    doc.addFont('Sarabun-Bold.ttf', 'Sarabun', 'bold');
-
-    // Set Thai font as default for the document
-    doc.setFont('Sarabun', 'normal');
-
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-
-    // === COMPANY LETTERHEAD ===
-    // Top border
-    doc.setFillColor(0, 71, 171); // TDK Blue
-    doc.rect(0, 0, pageWidth, 3, 'F');
-    doc.setFillColor(220, 53, 69); // TDK Red
-    doc.rect(0, 3, pageWidth, 1, 'F');
-
-    // Company section
-    doc.setFillColor(245, 247, 250);
-    doc.rect(0, 4, pageWidth, 36, 'F');
-
-    // Logo placeholder
-    doc.setFillColor(0, 71, 171);
-    doc.circle(25, 18, 8, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.setFont('Sarabun', 'bold');
-    doc.text('TDK', 25, 20, { align: 'center' });
-
-    // Company name
-    doc.setTextColor(0, 71, 171);
-    doc.setFontSize(16);
-    doc.setFont('Sarabun', 'bold');
-    doc.text('บริษัท ที.ดี.เค.อินดัสเตรียล จำกัด', 40, 16);
-    doc.setFontSize(12);
-    doc.setFont('Sarabun', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('T.D.K. INDUSTRIAL CO., LTD.', 40, 24);
-
-    // Document title
-    doc.setFillColor(0, 71, 171);
-    doc.rect(0, 40, pageWidth, 20, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
-    doc.setFont('Sarabun', 'bold');
-    doc.text('ใบคำร้องขอบริการด้านไอที', pageWidth / 2, 50, { align: 'center' });
-    doc.setFontSize(11);
-    doc.setFont('Sarabun', 'normal');
-    doc.text('IT SERVICE REQUEST FORM', pageWidth / 2, 56, { align: 'center' });
-
-    // Document info
-    doc.setTextColor(0, 0, 0);
-    const currentDate = new Date().toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    const requestNo = `TDK-IT-${Date.now().toString().slice(-8)}`;
-
-    let yPos = 70;
-    doc.setFontSize(10);
-    doc.setFont('Sarabun', 'normal');
-    doc.text(`วันที่ (Date): ${currentDate}`, margin, yPos);
-    doc.text(`เลขที่เอกสาร (Doc. No.): ${requestNo}`, pageWidth - margin, yPos, { align: 'right' });
-
-    // === SECTION 1: ข้อมูลผู้ขอใช้บริการ ===
-    yPos += 12;
-    doc.setFillColor(0, 71, 171);
-    doc.rect(margin, yPos - 5, pageWidth - (2 * margin), 8, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
-    doc.setFont('Sarabun', 'bold');
-    doc.text('1. ข้อมูลผู้ขอใช้บริการ (Requester Information)', margin + 3, yPos);
-
-    yPos += 10;
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-
-    const requesterInfo = [
-      ['ชื่อ-นามสกุล (Name):', requestData.requesterName || currentUser?.name || '-'],
-      ['รหัสพนักงาน (Employee ID):', currentUser?.employeeId || '-'],
-      ['แผนก (Department):', requestData.department || '-'],
-      ['ตำแหน่ง (Position):', currentUser?.position || '-'],
-      ['อีเมล (Email):', requestData.requesterEmail || '-'],
-      ['เบอร์โทรศัพท์ (Tel):', requestData.requesterPhone || '-'],
-    ];
-
-    requesterInfo.forEach(([label, value], index) => {
-      if (index % 2 === 0) {
-        doc.setFillColor(250, 250, 250);
-        doc.rect(margin, yPos - 4, pageWidth - (2 * margin), 7, 'F');
-      }
-      doc.setFont('Sarabun', 'bold');
-      doc.setTextColor(50, 50, 50);
-      doc.text(label, margin + 2, yPos);
-      doc.setFont('Sarabun', 'normal');
-      doc.setTextColor(0, 0, 0);
-      doc.text(value, margin + 65, yPos);
-      yPos += 7;
-    });
-
-    // Request Details Section
-    yPos += 5;
-    doc.setFontSize(14);
-    doc.setFont('Sarabun', 'bold');
-    doc.setFillColor(240, 240, 240);
-    doc.rect(15, yPos - 5, pageWidth - 30, 10, 'F');
-    doc.text('รายละเอียดคำร้อง', 20, yPos + 2);
-
-    yPos += 15;
-    doc.setFontSize(11);
-    doc.setFont('Sarabun', 'normal');
-
-    const requestDetails = [
-      ['หมวดหมู่:', selectedRequest?.categoryName || '-'],
-      ['บริการ:', requestData.title || '-'],
-      ['ความสำคัญ:', requestData.priority || 'Normal'],
-      ['สถานที่:', requestData.location || '-'],
-    ];
-
-    requestDetails.forEach(([label, value]) => {
-      doc.setFont('Sarabun', 'bold');
-      doc.text(label, 20, yPos);
-      doc.setFont('Sarabun', 'normal');
-      doc.text(value, 70, yPos);
-      yPos += 7;
-    });
-
-    // GPS Laptop specific fields
-    if (selectedRequest?.id === 'req_laptop_gps') {
-      yPos += 3;
-      const gpsFields = [
-        ['วันที่ยืม:', requestData.borrowStartDate || '-'],
-        ['วันที่คืน:', requestData.borrowEndDate || '-'],
-        ['วัตถุประสงค์:', requestData.purposeOfUse || '-'],
-      ];
-
-      gpsFields.forEach(([label, value]) => {
-        doc.setFont('Sarabun', 'bold');
-        doc.text(label, 20, yPos);
-        doc.setFont('Sarabun', 'normal');
-        doc.text(value, 70, yPos);
-        yPos += 7;
-      });
-    }
-
-    // Description box
-    yPos += 5;
-    doc.setFont('Sarabun', 'bold');
-    doc.text('รายละเอียดเพิ่มเติม:', 20, yPos);
-    yPos += 7;
-
-    doc.setFont('Sarabun', 'normal');
-    const splitDescription = doc.splitTextToSize(requestData.description || 'ไม่มีรายละเอียดเพิ่มเติม', pageWidth - 40);
-    doc.text(splitDescription, 20, yPos);
-    yPos += splitDescription.length * 7 + 10;
-
-    // Signature section
-    if (yPos > pageHeight - 80) {
-      doc.addPage();
-      yPos = 20;
-    }
-
-    yPos += 10;
-    doc.setFontSize(11);
-    doc.setFont('Sarabun', 'normal');
-
-    // Signature boxes
-    const sigY = yPos;
-    doc.text('ลงชื่อผู้ขอใช้บริการ', 30, sigY);
-    doc.line(30, sigY + 15, 90, sigY + 15);
-    doc.text('(.....................................)', 40, sigY + 20);
-    doc.text(`วันที่ ...../...../.....`, 40, sigY + 27);
-
-    doc.text('ลงชื่อผู้อนุมัติ', pageWidth - 90, sigY);
-    doc.line(pageWidth - 90, sigY + 15, pageWidth - 30, sigY + 15);
-    doc.text('(.....................................)', pageWidth - 85, sigY + 20);
-    doc.text(`วันที่ ...../...../.....`, pageWidth - 85, sigY + 27);
-
-    // Footer
-    doc.setFontSize(9);
-    doc.setTextColor(128, 128, 128);
-    doc.text('เอกสารนี้สร้างโดยระบบ IT Service Portal', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-    // Save PDF
-    const fileName = `IT_REQUEST_${requestData.title.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
-    doc.save(fileName);
-  };
 
 
   // Handle file selection
@@ -515,7 +317,7 @@ const PickUpEquipment = () => {
       }
 
       // Generate PDF
-      generatePDF(formData);
+      await generateITRequestPDF(formData, selectedRequest, currentUser);
 
       setIsSubmitting(false);
       handleCloseForm();

@@ -1,0 +1,217 @@
+import { jsPDF } from 'jspdf';
+import { SarabunRegular, SarabunBold } from '../assets/fonts/SarabunFonts';
+import logoUrl from '../assets/5.png';
+
+const getBase64ImageFromURL = (url) =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+
+export const generateITRequestPDF = async (requestData, selectedRequest, currentUser) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  /* ========= BRAND SETTINGS (Enterprise Palette) ========= */
+  const TDK_BLUE = [0, 71, 171];
+  const TDK_RED = [220, 53, 69];
+  const NEUTRAL_BG = [248, 250, 252];
+  const TEXT_MAIN = [30, 41, 59]; // Slate 800
+  const TEXT_SUB = [100, 116, 139]; // Slate 500
+  
+  const margin = 20;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  /* ========= FONTS CONFIGURATION ========= */
+  doc.addFileToVFS('Sarabun-Regular.ttf', SarabunRegular);
+  doc.addFileToVFS('Sarabun-Bold.ttf', SarabunBold);
+  doc.addFont('Sarabun-Regular.ttf', 'Sarabun', 'normal');
+  doc.addFont('Sarabun-Bold.ttf', 'Sarabun', 'bold');
+  doc.setFont('Sarabun', 'normal');
+
+  /* ========= HEADER TOP ACCENT ========= */
+  doc.setFillColor(...TDK_BLUE);
+  doc.rect(0, 0, pageW, 4, 'F');
+  doc.setFillColor(...TDK_RED);
+  doc.rect(0, 4, pageW, 1, 'F');
+
+  /* ========= LOGO & COMPANY INFO (Premium Alignment) ========= */
+  try {
+    const logo = await getBase64ImageFromURL(logoUrl);
+    const imgProps = doc.getImageProperties(logo);
+    const logoW = 35;
+    const logoH = (imgProps.height * logoW) / imgProps.width;
+    doc.addImage(logo, "PNG", margin, 12, logoW, logoH);
+  } catch (e) { console.warn("Logo load failed"); }
+
+  const headerTextX = margin + 42;
+  doc.setFont('Sarabun', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(...TDK_BLUE);
+  doc.text("บริษัท ที.ดี.เค.อินดัสเตรียล จำกัด", headerTextX, 18);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(...TEXT_SUB);
+  doc.setFont('Sarabun', 'normal');
+  doc.text("T.D.K. INDUSTRIAL CO., LTD. (HEAD OFFICE)", headerTextX, 24);
+  doc.setFontSize(8);
+  doc.text("9/19 MOO 4 T.MUANG, A.MUANG, CHONBURI 20130 THAILAND", headerTextX, 29);
+  doc.text("Tel: +66 38 394337   Fax: +66 38 394340", headerTextX, 33);
+
+  /* ========= DOCUMENT TITLE (Clean Modern Look) ========= */
+  const titleY = 45;
+  doc.setFillColor(...NEUTRAL_BG);
+  doc.rect(margin, titleY, pageW - (margin * 2), 22, 'F');
+  
+  doc.setFont('Sarabun', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(...TEXT_MAIN);
+  doc.text("ใบคำร้องขอบริการด้านไอที", pageW / 2, titleY + 11, { align: 'center' });
+  doc.setFontSize(10);
+  doc.setTextColor(...TEXT_SUB);
+  doc.text("IT SERVICE REQUEST FORM", pageW / 2, titleY + 17, { align: 'center' });
+
+  /* ========= DOC STATUS & DATE ========= */
+  let y = 78;
+  const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+  const docNo = `TDK-IT-${Date.now().toString().slice(-6)}`;
+
+  doc.setFontSize(10);
+  doc.setTextColor(...TEXT_MAIN);
+  doc.setFont('Sarabun', 'bold');
+  doc.text(`วันที่เอกสาร:`, margin, y);
+  doc.setFont('Sarabun', 'normal');
+  doc.text(dateStr, margin + 25, y);
+
+  doc.setFont('Sarabun', 'bold');
+  doc.text(`เลขที่อ้างอิง:`, pageW - margin - 45, y);
+  doc.setFont('Sarabun', 'normal');
+  doc.text(docNo, pageW - margin, y, { align: 'right' });
+
+  /* ========= SECTION HELPERS ========= */
+  const drawSection = (title, currentY) => {
+    doc.setFillColor(...TDK_BLUE);
+    doc.rect(margin, currentY - 6, pageW - (margin * 2), 9, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('Sarabun', 'bold');
+    doc.setFontSize(11);
+    doc.text(title, margin + 4, currentY);
+  };
+
+  const drawRow = (label, value, currentY, isZebra) => {
+    if (isZebra) {
+      doc.setFillColor(252, 253, 255);
+      doc.rect(margin, currentY - 5, pageW - (margin * 2), 9, 'F');
+    }
+    doc.setFont('Sarabun', 'bold');
+    doc.setTextColor(...TEXT_SUB);
+    doc.text(label, margin + 4, currentY + 1);
+    doc.setFont('Sarabun', 'normal');
+    doc.setTextColor(...TEXT_MAIN);
+    doc.text(String(value || '-'), margin + 60, currentY + 1);
+    
+    // Bottom Border Line (Very Light)
+    doc.setDrawColor(240);
+    doc.setLineWidth(0.1);
+    doc.line(margin, currentY + 4, pageW - margin, currentY + 4);
+  };
+
+  /* ========= SECTION 1: REQUESTER ========= */
+  y += 12;
+  drawSection("1. ข้อมูลผู้ใช้บริการ (Requester Information)", y);
+  
+  y += 11;
+  const reqInfo = [
+    ["ชื่อ-นามสกุล", requestData.requesterName || currentUser?.name],
+    ["รหัสพนักงาน", currentUser?.employeeId],
+    ["หน่วยงาน/แผนก", requestData.department],
+    ["อีเมลติดต่อ", requestData.requesterEmail],
+    ["เบอร์โทรศัพท์", requestData.requesterPhone]
+  ];
+
+  reqInfo.forEach((item, idx) => {
+    drawRow(item[0], item[1], y, idx % 2 === 0);
+    y += 9;
+  });
+
+  /* ========= SECTION 2: REQUEST DETAILS ========= */
+  y += 8;
+  drawSection("2. รายละเอียดความประสงค์ (Service Details)", y);
+  
+  y += 11;
+  const serviceInfo = [
+    ["หมวดหมู่", selectedRequest?.categoryName],
+    ["ประเภทบริการ", requestData.title],
+    ["ระดับความสำคัญ", requestData.priority],
+    ["สถานที่ดำเนินการ", requestData.location]
+  ];
+
+  serviceInfo.forEach((item, idx) => {
+    drawRow(item[0], item[1], y, idx % 2 === 0);
+    y += 9;
+  });
+
+  /* ========= DESCRIPTION BOX (Premium Text Wrapping) ========= */
+  y += 6;
+  doc.setFont('Sarabun', 'bold');
+  doc.setTextColor(...TEXT_SUB);
+  doc.text("รายละเอียดเพิ่มเติม และเหตุผลความจำเป็น:", margin + 4, y);
+  
+  y += 4;
+  doc.setDrawColor(...TDK_BLUE);
+  doc.setLineWidth(0.3);
+  doc.line(margin + 4, y, margin + 20, y); // Small accent line
+
+  y += 6;
+  doc.setFont('Sarabun', 'normal');
+  doc.setTextColor(...TEXT_MAIN);
+  const splitDesc = doc.splitTextToSize(requestData.description || 'ไม่มีรายละเอียดเพิ่มเติม', pageW - (margin * 2) - 10);
+  doc.text(splitDesc, margin + 4, y);
+
+  /* ========= SIGNATURE AREA (Symmetrical & Balanced) ========= */
+  const sigY = pageH - 60;
+  const boxW = 65;
+
+  const drawSigBox = (title, x, name) => {
+    doc.setFont('Sarabun', 'bold');
+    doc.setTextColor(...TEXT_MAIN);
+    doc.text(title, x + (boxW / 2), sigY, { align: 'center' });
+    
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.2);
+    doc.line(x, sigY + 15, x + boxW, sigY + 15);
+    
+    doc.setFont('Sarabun', 'normal');
+    doc.setFontSize(10);
+    doc.text(`(${name || '...........................................'})`, x + (boxW / 2), sigY + 21, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setTextColor(...TEXT_SUB);
+    doc.text("วันที่: ......../......../........", x + (boxW / 2), sigY + 28, { align: 'center' });
+  };
+
+  drawSigBox("ผู้ขอใช้บริการ (Requester)", margin + 5, requestData.requesterName || currentUser?.name);
+  drawSigBox("ผู้อนุมัติ (Authorized Manager)", pageW - margin - boxW - 5, "");
+
+  /* ========= FOOTER (Minimalist Corporate) ========= */
+  doc.setDrawColor(230);
+  doc.line(margin, pageH - 15, pageW - margin, pageH - 15);
+  
+  doc.setFontSize(8);
+  doc.setTextColor(...TEXT_SUB);
+  const footerL = "เอกสารนี้สร้างโดยระบบอัตโนมัติ ไม่จำเป็นต้องใช้ตราประทับ";
+  const footerR = "CONFIDENTIAL • TDK IT SERVICE PORTAL";
+  doc.text(footerL, margin, pageH - 10);
+  doc.text(footerR, pageW - margin, pageH - 10, { align: 'right' });
+
+  /* ========= SAVE PDF ========= */
+  doc.save(`IT_REQUEST_${docNo}.pdf`);
+};
