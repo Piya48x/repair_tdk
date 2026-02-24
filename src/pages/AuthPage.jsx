@@ -14,7 +14,12 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
-  const buildEmail = (code) => `emp_${code.toLowerCase()}@company.local`;
+  // New email format: firstname.l@tdk.co.th
+  const constructEmail = (fName, lName) => {
+    const first = fName.toLowerCase().trim();
+    const lastInitial = lName.trim().charAt(0).toLowerCase();
+    return `${first}.${lastInitial}@tdk.co.th`;
+  };
 
   useEffect(() => {
     const savedCode = localStorage.getItem("rememberedCode");
@@ -38,6 +43,30 @@ export default function AuthPage() {
     }
   }, [mode]);
 
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .single();
+
+        if (profile) {
+          switch (profile.role) {
+            case "admin":
+            case "it_support": navigate("/admin-dashboard"); break;
+            case "auditor": navigate("/audit-view"); break;
+            default: navigate("/dashboard");
+          }
+        }
+      }
+    };
+    checkSession();
+  }, [navigate]);
+
   const onLogin = async () => {
     if (!employeeCode || !password) {
       alert("กรุณากรอกข้อมูลให้ครบถ้วน");
@@ -45,7 +74,37 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      const email = buildEmail(employeeCode);
+      let email = employeeCode.trim();
+
+      // If it's a numeric code (Employee ID), we need to find the associated email from profiles
+      if (/^\d+$/.test(email)) {
+        console.log("Attempting to resolve numeric ID:", email);
+        const { data: profileForLogin, error: findError } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("employee_code", email)
+          .maybeSingle();
+
+        if (findError) {
+          console.error("Profile lookup error (Check RLS):", findError);
+        }
+
+        if (profileForLogin?.email) {
+          console.log("Resolved email from profile:", profileForLogin.email);
+          email = profileForLogin.email;
+        } else {
+          console.log("No profile found, falling back to legacy format");
+          // Fallback compatibility: Try the old domain format if profile lookup fails
+          email = `emp_${email.toLowerCase()}@company.local`;
+        }
+      } else if (!email.includes("@") && !email.includes(".")) {
+        // Simple heuristic for first name login attempt: John -> john.l@tdk.co.th
+        // However, we don't have the last name initial easily here.
+        // For now, we remain strict: Numeric ID or Full Email.
+      }
+
+      console.log("DEBUG: Final email sent for Auth:", email);
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -84,13 +143,16 @@ export default function AuthPage() {
   const onRegister = async (regData) => {
     setLoading(true);
     try {
-      const email = buildEmail(regData.employeeCode);
-      const { error } = await supabase.auth.signUp({
+      const email = constructEmail(regData.firstNameEn, regData.lastNameEn);
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password: regData.password,
         options: {
           data: {
             full_name: regData.fullName,
+            first_name_en: regData.firstNameEn,
+            last_name_en: regData.lastNameEn,
+            phone: regData.phone,
             employee_code: regData.employeeCode,
             department: regData.department,
             position: regData.position,
@@ -99,6 +161,30 @@ export default function AuthPage() {
         },
       });
       if (error) throw error;
+
+      // Robustness: Explicitly ensure the profile is created/updated in the profiles table
+      // This is crucial for new users to be able to login with their numeric ID immediately
+      if (signUpData?.user) {
+        console.log("Creating redundant profile for user:", signUpData.user.id);
+        const { error: upsertError } = await supabase.from("profiles").upsert({
+          id: signUpData.user.id,
+          email: email,
+          employee_code: regData.employeeCode,
+          full_name: regData.fullName,
+          first_name_en: regData.firstNameEn,
+          last_name_en: regData.lastNameEn,
+          phone: regData.phone,
+          department: regData.department,
+          position: regData.position,
+          id_card_url: regData.idCardUrl,
+          role: "user",
+        });
+        if (upsertError) {
+          console.error("Profile Upsert Error (Check RLS):", upsertError);
+          // Don't throw, just log. The DB trigger is the primary source of truth.
+        }
+      }
+
       alert("ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบ");
       setMode("login");
     } catch (err) {
@@ -110,28 +196,28 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex font-sans text-slate-900 overflow-hidden bg-[#F8FAFC]">
-      
+
       {/* LEFT SIDE: BRANDING WITH MOTION */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <motion.img 
+        <motion.img
           initial={{ scale: 1.1 }}
           animate={{ scale: 1 }}
           transition={{ duration: 20, repeat: Infinity, repeatType: "reverse" }}
-          src={bgImage} 
-          alt="Branding" 
-          className="absolute inset-0 w-full h-full object-cover" 
+          src={bgImage}
+          alt="Branding"
+          className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-tr from-indigo-950 via-indigo-900/60 to-indigo-800/20" />
-        
+
         {/* Decorative Floating Circles */}
-        <motion.div 
+        <motion.div
           animate={{ y: [0, -20, 0], opacity: [0.2, 0.4, 0.2] }}
           transition={{ duration: 8, repeat: Infinity }}
-          className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl" 
+          className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl"
         />
 
         <div className="relative z-10 flex flex-col justify-between p-16 w-full">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-3"
@@ -141,23 +227,23 @@ export default function AuthPage() {
           </motion.div>
 
           <div className="max-w-xl">
-            <motion.h1 
+            <motion.h1
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
               className="text-7xl font-black text-white leading-tight tracking-tighter mb-6"
             >
-              Empowering <br /> 
-              <span className="text-indigo-400 italic">Industrial</span> <br /> 
+              Empowering <br />
+              <span className="text-indigo-400 italic">Industrial</span> <br />
               Support
             </motion.h1>
-            <motion.div 
+            <motion.div
               initial={{ width: 0 }}
               animate={{ width: 96 }}
               transition={{ delay: 0.5, duration: 1 }}
-              className="h-2 bg-indigo-500 rounded-full mb-8" 
+              className="h-2 bg-indigo-500 rounded-full mb-8"
             />
-            <motion.p 
+            <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.7 }}
@@ -167,7 +253,7 @@ export default function AuthPage() {
             </motion.p>
           </div>
 
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.5 }}
             className="text-indigo-200 text-sm font-bold tracking-[0.3em]"
@@ -183,7 +269,7 @@ export default function AuthPage() {
         <div className="lg:hidden absolute inset-0 bg-indigo-50/50 -z-10" />
 
         <div className="w-full max-w-[480px]">
-          <motion.div 
+          <motion.div
             layout
             className="bg-white rounded-[2.5rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 relative overflow-hidden"
           >
@@ -211,8 +297,8 @@ export default function AuthPage() {
                   />
                   <div className="pt-8 text-center border-t border-slate-50 mt-8">
                     <p className="text-slate-400 font-semibold text-sm">ยังไม่มีบัญชีในระบบ?</p>
-                    <button 
-                      onClick={() => setMode("register")} 
+                    <button
+                      onClick={() => setMode("register")}
                       className="mt-2 text-indigo-600 font-black text-sm uppercase tracking-wider hover:text-indigo-800 transition-colors"
                     >
                       ลงทะเบียนพนักงานใหม่
@@ -230,8 +316,8 @@ export default function AuthPage() {
                   <Register onRegister={onRegister} loading={loading} />
                   <div className="pt-8 text-center border-t border-slate-50 mt-8">
                     <p className="text-slate-400 font-semibold text-sm">มีบัญชีอยู่แล้ว?</p>
-                    <button 
-                      onClick={() => setMode("login")} 
+                    <button
+                      onClick={() => setMode("login")}
                       className="mt-2 text-indigo-600 font-black text-sm uppercase tracking-wider hover:text-indigo-800 transition-colors"
                     >
                       กลับไปหน้าเข้าสู่ระบบ
@@ -241,8 +327,8 @@ export default function AuthPage() {
               )}
             </AnimatePresence>
           </motion.div>
-          
-          <motion.div 
+
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1 }}

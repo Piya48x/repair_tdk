@@ -1,20 +1,15 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-export default function Register({
-  fullName,
-  setFullName,
-  employeeCode,
-  setEmployeeCode,
-  password,
-  setPassword,
-  confirmPassword,
-  setConfirmPassword,
-  showPassword,
-  setShowPassword,
-  onRegister,
-  loading,
-}) {
+export default function Register({ onRegister, loading }) {
+  const [fullName, setFullName] = useState("");
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [firstNameEn, setFirstNameEn] = useState("");
+  const [lastNameEn, setLastNameEn] = useState("");
+  const [phone, setPhone] = useState("");
   const [department, setDepartment] = useState("");
   const [position, setPosition] = useState("");
   const [idCardFile, setIdCardFile] = useState(null);
@@ -71,6 +66,9 @@ export default function Register({
 
     onRegister({
       fullName,
+      firstNameEn,
+      lastNameEn,
+      phone,
       employeeCode,
       department,
       position,
@@ -93,7 +91,7 @@ export default function Register({
       </div>
 
       <form onSubmit={handleSubmitRegister} className="space-y-6">
-        
+
         {/* ===== Section: Employee Info ===== */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
@@ -108,6 +106,25 @@ export default function Register({
             required
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
           />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <input
+              type="text"
+              placeholder="First Name (ภาษาอังกฤษ)"
+              value={firstNameEn}
+              onChange={(e) => setFirstNameEn(e.target.value.replace(/[^a-zA-Z]/g, ''))}
+              required
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            <input
+              type="text"
+              placeholder="Last Name (ภาษาอังกฤษ)"
+              value={lastNameEn}
+              onChange={(e) => setLastNameEn(e.target.value.replace(/[^a-zA-Z]/g, ''))}
+              required
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
 
           <input
             type="text"
@@ -141,6 +158,15 @@ export default function Register({
           <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
             ความปลอดภัยบัญชี
           </h3>
+
+          <input
+            type="tel"
+            placeholder="เบอร์โทรศัพท์"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+            required
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
 
           <div className="relative">
             <input
@@ -202,11 +228,10 @@ export default function Register({
         <button
           type="submit"
           disabled={loading || uploadingImage}
-          className={`w-full py-4 rounded-2xl font-black text-white transition-all ${
-            loading || uploadingImage
-              ? "bg-slate-400 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700 active:scale-[0.98]"
-          }`}
+          className={`w-full py-4 rounded-2xl font-black text-white transition-all ${loading || uploadingImage
+            ? "bg-slate-400 cursor-not-allowed"
+            : "bg-blue-600 hover:bg-blue-700 active:scale-[0.98]"
+            }`}
         >
           {loading || uploadingImage
             ? "กำลังดำเนินการ..."

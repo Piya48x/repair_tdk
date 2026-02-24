@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import {
+  ArrowLeft,
   Monitor, Wifi, ShieldCheck, ShoppingCart,
   Server, FileText, Upload, X, CheckCircle,
   Loader2, ChevronRight, LayoutGrid, Search,
@@ -117,20 +118,21 @@ const PickUpEquipment = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadUserProfile = async () => {
+    const checkSessionAndLoadProfile = async () => {
       try {
         setProfileLoading(true);
 
-        // Get current authenticated user
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        // 1. Get current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (authError || !user) {
-          console.error('Auth error:', authError);
-          navigate('/login');
+        if (sessionError || !session) {
+          // No need to navigate here, ProtectedRoute handles it
           return;
         }
 
-        // Get profile data from profiles table
+        const user = session.user;
+
+        // 2. Fetch profile
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -139,12 +141,10 @@ const PickUpEquipment = () => {
 
         if (!isMounted) return;
 
-        // Extract email username
         const email = user.email;
         const username = email.split('@')[0];
         const derivedEmpId = username.replace(/\D/g, '') || 'EMP-0000';
 
-        // Build user object with fallbacks
         const userData = {
           id: user.id,
           name: profileData?.full_name || user.user_metadata?.full_name || username.toUpperCase(),
@@ -158,7 +158,6 @@ const PickUpEquipment = () => {
 
         setCurrentUser(userData);
 
-        // Auto-fill form with user data
         setFormData(prev => ({
           ...prev,
           requesterName: userData.name,
@@ -170,16 +169,16 @@ const PickUpEquipment = () => {
       } catch (error) {
         console.error('Error loading user profile:', error);
       } finally {
-        setProfileLoading(false);
+        if (isMounted) setProfileLoading(false);
       }
     };
 
-    loadUserProfile();
+    checkSessionAndLoadProfile();
 
     return () => {
       isMounted = false;
     };
-  }, [navigate]);
+  }, []);
 
   const handleOpenForm = (category, action) => {
     setSelectedRequest({ ...action, categoryName: category.title });
@@ -266,6 +265,15 @@ const PickUpEquipment = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Quick session check
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      alert('เซสชันของคุณหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+      navigate('/');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -331,7 +339,7 @@ const PickUpEquipment = () => {
       alert(`✅ บันทึกข้อมูลสำเร็จ!\n\nคำร้องของคุณถูกส่งแล้ว\nไฟล์ PDF ได้ถูกดาวน์โหลดแล้ว${fileInfo}\n\nระบบจะนำท่านไปยังหน้า IT Dashboard`);
 
       // Redirect to dashboard
-      navigate('/it-dashboard');
+      navigate('/dashboard');
 
     } catch (error) {
       console.error('Error submitting request:', error);
@@ -354,18 +362,29 @@ const PickUpEquipment = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800 font-sans selection:bg-blue-100 pb-20">
 
-      {/* --- 1. Enhanced Glassmorphism Header --- */}
+      {/* --- 1. Header (CreateTicket Style) --- */}
       <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/90 border-b border-slate-200/60 shadow-lg transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-24 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-xl flex items-center justify-center text-white shadow-xl shadow-blue-500/30 animate-pulse">
-              <span className="font-bold text-xl">IT</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="rounded-xl border border-slate-200/80 bg-white/90 p-2.5 text-slate-700 shadow-sm transition-all hover:shadow-md hover:bg-slate-50"
+            >
+              <ArrowLeft size={18} />
+            </button>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                Service Portal
-              </h1>
-              <p className="text-xs text-slate-500 font-medium">Enterprise Request Management System</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-black text-slate-900 sm:text-xl">
+                  IT Service Desk
+                </h1>
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-200">
+                  Standard
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                สร้างคำขอแจ้งซ่อม • ระบบมาตรฐานองค์กร
+              </p>
             </div>
           </div>
 

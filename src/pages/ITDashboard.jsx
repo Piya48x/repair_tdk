@@ -262,18 +262,20 @@ const ITDashboard = () => {
   useEffect(() => {
     let isMounted = true;
     const loadUserAndProfile = async () => {
-      // 1. ดึงข้อมูล user จาก auth
+      // 1. Get current session
       const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (authError || !user) {
-        if (isMounted) navigate("/login");
+      if (sessionError || !session) {
+        // No need to navigate here, ProtectedRoute handles it
         return;
       }
 
-      // 1. ตรวจสอบว่าใน useEffect มีการดึงข้อมูลจาก profiles หรือยัง
+      const user = session.user;
+
+      // 2. Fetch profile
       const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
@@ -307,7 +309,6 @@ const ITDashboard = () => {
           user.user_metadata?.position ||
           "IT Technician",
 
-        // ✅ Priority: profiles.avatar_url -> profiles.id_card_url -> user_metadata.avatar_url -> user_metadata.id_card_url -> Google picture
         avatar:
           profileData?.avatar_url ||
           profileData?.id_card_url ||
@@ -321,10 +322,11 @@ const ITDashboard = () => {
     };
 
     loadUserAndProfile();
+
     return () => {
       isMounted = false;
     };
-  }, [navigate]);
+  }, []);
 
   // FIX: Recalculate stats when currentUser is loaded to prevent race condition
   useEffect(() => {
@@ -963,26 +965,24 @@ const ITDashboard = () => {
                   </span>
                 </div>
                 <div class="flex items-center gap-3 mt-2 flex-wrap">
-                  ${
-                    ticket.reporter_phone
-                      ? `
+                  ${ticket.reporter_phone
+          ? `
                   <div class="flex items-center gap-1">
                     <Phone class="w-3 h-3 ${theme === "dark" ? "text-gray-400" : "text-gray-500"}" />
                     <span class="text-xs ${theme === "dark" ? "text-gray-300" : "text-gray-600"}">${ticket.reporter_phone}</span>
                   </div>
                   `
-                      : ""
-                  }
-                  ${
-                    ticket.reporter_email
-                      ? `
+          : ""
+        }
+                  ${ticket.reporter_email
+          ? `
                   <div class="flex items-center gap-1">
                     <Mail class="w-3 h-3 ${theme === "dark" ? "text-gray-400" : "text-gray-500"}" />
                     <span class="text-xs ${theme === "dark" ? "text-gray-300" : "text-gray-600"} truncate max-w-[150px]">${ticket.reporter_email}</span>
                   </div>
                   `
-                      : ""
-                  }
+          : ""
+        }
                 </div>
               </div>
             </div>
@@ -1014,9 +1014,8 @@ const ITDashboard = () => {
                 </span>
               </div>
               
-              ${
-                ticket.started_at
-                  ? `
+              ${ticket.started_at
+          ? `
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
@@ -1027,12 +1026,11 @@ const ITDashboard = () => {
                 </span>
               </div>
               `
-                  : ""
-              }
+          : ""
+        }
               
-              ${
-                ticket.closed_at
-                  ? `
+              ${ticket.closed_at
+          ? `
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
@@ -1043,12 +1041,11 @@ const ITDashboard = () => {
                 </span>
               </div>
               `
-                  : ""
-              }
+          : ""
+        }
               
-              ${
-                ticket.started_at && ticket.closed_at
-                  ? `
+              ${ticket.started_at && ticket.closed_at
+          ? `
               <div class="pt-3 border-t ${theme === "dark" ? "border-blue-800/50" : "border-blue-200"}">
                 <div class="flex items-center justify-between">
                   <span class="text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-600"}">ระยะเวลาซ่อม:</span>
@@ -1058,37 +1055,46 @@ const ITDashboard = () => {
                 </div>
               </div>
               `
-                  : ""
-              }
+          : ""
+        }
             </div>
           </div><br/>
           
-          ${
-            ticket.solution_note
-              ? `
+          ${ticket.solution_note
+          ? `
           <div class="${theme === "dark" ? "bg-gradient-to-r from-emerald-900/30 to-green-900/30" : "bg-emerald-50"} p-4 rounded-xl border ${theme === "dark" ? "border-emerald-700/30" : "border-emerald-200"}">
             <p class="text-xs ${theme === "dark" ? "text-emerald-300" : "text-emerald-600"} font-bold uppercase mb-2">วิธีแก้ไข</p>
             <p class="text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-600"} leading-relaxed">${ticket.solution_note}</p>
           </div>
           `
-              : ""
-          }
+          : ""
+        }
           <br/>
-          ${
-            ticket.parts_used
-              ? `
+          ${ticket.parts_used
+          ? `
           <div class="${theme === "dark" ? "bg-gradient-to-r from-amber-900/30 to-yellow-900/30" : "bg-amber-50"} p-4 rounded-xl border ${theme === "dark" ? "border-amber-700/30" : "border-amber-200"}">
             <p class="text-xs ${theme === "dark" ? "text-amber-300" : "text-amber-600"} font-bold uppercase mb-2">อะไหล่ที่ใช้</p>
             <p class="text-sm ${theme === "dark" ? "text-white" : "text-gray-900"}">${ticket.parts_used}</p>
           </div>
           `
-              : ""
-          }
+          : ""
+        }
           <br/>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            ${
-              ticket.image_url
-                ? `
+            ${ticket.attachments && Array.isArray(ticket.attachments) && ticket.attachments.length > 0
+          ? ticket.attachments.map((url, idx) => `
+            <div class="${theme === "dark" ? "bg-gradient-to-r from-gray-800 to-gray-900" : "bg-gradient-to-r from-gray-50 to-gray-100"} p-4 rounded-xl border ${theme === "dark" ? "border-gray-700" : "border-gray-200"}">
+              <p class="text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"} font-bold uppercase mb-3">รูปภาพประกอบ ${idx + 1}</p>
+              <img 
+                src="${url}" 
+                alt="Attachment ${idx + 1}" 
+                class="w-full h-48 object-cover rounded-lg border ${theme === "dark" ? "border-gray-700" : "border-gray-300"} hover:scale-[1.02] transition-transform cursor-zoom-in"
+                onclick="window.open('${url}', '_blank')"
+              />
+            </div>
+            `).join('')
+          : ticket.image_url
+            ? `
             <div class="${theme === "dark" ? "bg-gradient-to-r from-gray-800 to-gray-900" : "bg-gradient-to-r from-gray-50 to-gray-100"} p-4 rounded-xl border ${theme === "dark" ? "border-gray-700" : "border-gray-200"}">
               <p class="text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"} font-bold uppercase mb-3">รูปก่อนซ่อม</p>
               <img 
@@ -1099,12 +1105,11 @@ const ITDashboard = () => {
               />
             </div>
             `
-                : ""
-            }
+            : ""
+        }
             
-            ${
-              ticket.image_after_url
-                ? `
+            ${ticket.image_after_url
+          ? `
             <div class="${theme === "dark" ? "bg-gradient-to-r from-gray-800 to-gray-900" : "bg-gradient-to-r from-gray-50 to-gray-100"} p-4 rounded-xl border ${theme === "dark" ? "border-gray-700" : "border-gray-200"}">
               <p class="text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"} font-bold uppercase mb-3">รูปหลังซ่อม</p>
               <img 
@@ -1115,13 +1120,12 @@ const ITDashboard = () => {
               />
             </div>
             `
-                : ""
-            }
+          : ""
+        }
           </div><br/>
           
-          ${
-            ticket.status === "CLOSED" && ticket.closed_by_name
-              ? `
+          ${ticket.status === "CLOSED" && ticket.closed_by_name
+          ? `
           <div class="${theme === "dark" ? "bg-gradient-to-r from-emerald-900/30 to-green-900/30" : "bg-emerald-50"} p-4 rounded-xl border ${theme === "dark" ? "border-emerald-700/30" : "border-emerald-200"}">
             <div class="flex items-center justify-between"><br/>
               <div>
@@ -1135,8 +1139,8 @@ const ITDashboard = () => {
             </div>
           </div>
           `
-              : ""
-          }
+          : ""
+        }
         </div>
       `,
       width: isMobile ? "90%" : 700,
@@ -1185,7 +1189,7 @@ const ITDashboard = () => {
         ? ticket.status === "NEW"
         : activeTab === "ACTIVE"
           ? ticket.status === "IN_PROGRESS" &&
-            ticket.assigned_to === currentUser?.id
+          ticket.assigned_to === currentUser?.id
           : activeTab === "HISTORY"
             ? ticket.status === "CLOSED"
             : true;
@@ -1416,18 +1420,18 @@ const ITDashboard = () => {
             : "-",
           startTime: startedDate
             ? startedDate.toLocaleTimeString("th-TH", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+              hour: "2-digit",
+              minute: "2-digit",
+            })
             : "-",
           solution: ticket.solution_note || "-",
           parts: ticket.parts_used || "-",
           closedDate: closedDate ? closedDate.toLocaleDateString("th-TH") : "-",
           closedTime: closedDate
             ? closedDate.toLocaleTimeString("th-TH", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+              hour: "2-digit",
+              minute: "2-digit",
+            })
             : "-",
           closedBy: ticket.closed_by_name || "-",
           durationMin: durationMinutes,
@@ -1932,11 +1936,10 @@ const ITDashboard = () => {
 
     return (
       <div
-        className={`p-4 rounded-2xl shadow-2xl border w-[320px] ${
-          theme === "dark"
-            ? "bg-gray-800 border-gray-700"
-            : "bg-white border-gray-200"
-        }`}
+        className={`p-4 rounded-2xl shadow-2xl border w-[320px] ${theme === "dark"
+          ? "bg-gray-800 border-gray-700"
+          : "bg-white border-gray-200"
+          }`}
       >
         <div className="flex items-center justify-between mb-4">
           <h4
@@ -1966,11 +1969,10 @@ const ITDashboard = () => {
               onChange={(e) =>
                 setDateRange({ ...dateRange, start: e.target.value })
               }
-              className={`w-full p-2 rounded-lg border text-sm outline-none focus:ring-2 focus:ring-blue-500/50 ${
-                theme === "dark"
-                  ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
-                  : "bg-gray-50 border-gray-300 text-gray-900"
-              }`}
+              className={`w-full p-2 rounded-lg border text-sm outline-none focus:ring-2 focus:ring-blue-500/50 ${theme === "dark"
+                ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
+                : "bg-gray-50 border-gray-300 text-gray-900"
+                }`}
             />
           </div>
           <div className="space-y-1">
@@ -1985,11 +1987,10 @@ const ITDashboard = () => {
               onChange={(e) =>
                 setDateRange({ ...dateRange, end: e.target.value })
               }
-              className={`w-full p-2 rounded-lg border text-sm outline-none focus:ring-2 focus:ring-blue-500/50 ${
-                theme === "dark"
-                  ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
-                  : "bg-gray-50 border-gray-300 text-gray-900"
-              }`}
+              className={`w-full p-2 rounded-lg border text-sm outline-none focus:ring-2 focus:ring-blue-500/50 ${theme === "dark"
+                ? "bg-gray-900 border-gray-600 text-white placeholder-gray-500"
+                : "bg-gray-50 border-gray-300 text-gray-900"
+                }`}
             />
           </div>
         </div>
@@ -1998,31 +1999,28 @@ const ITDashboard = () => {
         <div className="mt-4 grid grid-cols-3 gap-2">
           <button
             onClick={() => handlePreset(0)}
-            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-              theme === "dark"
-                ? "border-gray-600 hover:bg-gray-700 text-gray-300"
-                : "border-gray-200 hover:bg-gray-50 text-gray-600"
-            }`}
+            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${theme === "dark"
+              ? "border-gray-600 hover:bg-gray-700 text-gray-300"
+              : "border-gray-200 hover:bg-gray-50 text-gray-600"
+              }`}
           >
             วันนี้
           </button>
           <button
             onClick={() => handlePreset(7)}
-            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-              theme === "dark"
-                ? "border-gray-600 hover:bg-gray-700 text-gray-300"
-                : "border-gray-200 hover:bg-gray-50 text-gray-600"
-            }`}
+            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${theme === "dark"
+              ? "border-gray-600 hover:bg-gray-700 text-gray-300"
+              : "border-gray-200 hover:bg-gray-50 text-gray-600"
+              }`}
           >
             7 วัน
           </button>
           <button
             onClick={() => handlePreset(30)}
-            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-              theme === "dark"
-                ? "border-gray-600 hover:bg-gray-700 text-gray-300"
-                : "border-gray-200 hover:bg-gray-50 text-gray-600"
-            }`}
+            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${theme === "dark"
+              ? "border-gray-600 hover:bg-gray-700 text-gray-300"
+              : "border-gray-200 hover:bg-gray-50 text-gray-600"
+              }`}
           >
             30 วัน
           </button>
@@ -2131,13 +2129,12 @@ const ITDashboard = () => {
               {day && (
                 <>
                   <div
-                    className={`relative text-center text-sm font-medium rounded-xl transition-all duration-300 ${
-                      day === today.getDate()
-                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
-                        : theme === "dark"
-                          ? "text-gray-300 group-hover:bg-gray-800"
-                          : "text-gray-700 group-hover:bg-gray-100"
-                    }`}
+                    className={`relative text-center text-sm font-medium rounded-xl transition-all duration-300 ${day === today.getDate()
+                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+                      : theme === "dark"
+                        ? "text-gray-300 group-hover:bg-gray-800"
+                        : "text-gray-700 group-hover:bg-gray-100"
+                      }`}
                   >
                     <div className="py-2">{day}</div>
                     {ticketsOnDate(day) > 0 && (
@@ -2167,11 +2164,10 @@ const ITDashboard = () => {
       className={`fixed inset-y-0 left-0 z-50 w-80 min-h-screen transform transition-all duration-500 ease-in-out
       ${sidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
       lg:translate-x-0 lg:shadow-xl
-      ${
-        theme === "dark"
+      ${theme === "dark"
           ? "bg-gradient-to-br from-gray-900/95 via-gray-900/90 to-gray-800/95 backdrop-blur-lg border-r border-gray-700/50"
           : "bg-gradient-to-br from-white/95 via-gray-50/95 to-gray-100/95 backdrop-blur-lg border-r border-gray-300/50"
-      }`}
+        }`}
     >
       <div className="flex flex-col h-full">
         {/* Sidebar Header with Branding */}
@@ -2214,11 +2210,10 @@ const ITDashboard = () => {
           <button
             onClick={() => setSidebarOpen(false)}
             className={`lg:hidden absolute top-6 right-6 p-2.5 rounded-xl transition-all duration-200 hover:scale-110 active:scale-95
-            ${
-              theme === "dark"
+            ${theme === "dark"
                 ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
                 : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"
-            }`}
+              }`}
           >
             <XIcon size={20} />
           </button>
@@ -2238,9 +2233,8 @@ const ITDashboard = () => {
                     className={`relative ${isOnline ? "animate-pulse" : ""}`}
                   >
                     <div
-                      className={`w-5 h-5 rounded-full border-2 transition-colors duration-500 ${
-                        theme === "dark" ? "border-gray-900" : "border-white"
-                      } ${isOnline ? "bg-emerald-500" : "bg-gray-400"}`}
+                      className={`w-5 h-5 rounded-full border-2 transition-colors duration-500 ${theme === "dark" ? "border-gray-900" : "border-white"
+                        } ${isOnline ? "bg-emerald-500" : "bg-gray-400"}`}
                     ></div>
                     {isOnline && (
                       <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75"></div>
@@ -2398,19 +2392,17 @@ const ITDashboard = () => {
 
                 {/* Modal Container */}
                 <div
-                  className={`relative z-10 w-full max-w-md rounded-3xl shadow-2xl border ${
-                    theme === "dark"
-                      ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50"
-                      : "bg-gradient-to-br from-white/95 to-gray-50/95 border-gray-300/50"
-                  }`}
+                  className={`relative z-10 w-full max-w-md rounded-3xl shadow-2xl border ${theme === "dark"
+                    ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50"
+                    : "bg-gradient-to-br from-white/95 to-gray-50/95 border-gray-300/50"
+                    }`}
                 >
                   {/* Modal Header */}
                   <div
-                    className={`px-8 py-6 border-b ${
-                      theme === "dark"
-                        ? "border-gray-700/50"
-                        : "border-gray-300/50"
-                    }`}
+                    className={`px-8 py-6 border-b ${theme === "dark"
+                      ? "border-gray-700/50"
+                      : "border-gray-300/50"
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -2428,11 +2420,10 @@ const ITDashboard = () => {
                       </div>
                       <button
                         onClick={() => setShowProfileModal(false)}
-                        className={`p-2 rounded-xl transition-all hover:scale-110 ${
-                          theme === "dark"
-                            ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
-                            : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-                        }`}
+                        className={`p-2 rounded-xl transition-all hover:scale-110 ${theme === "dark"
+                          ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                          : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                          }`}
                       >
                         <X size={24} />
                       </button>
@@ -2455,11 +2446,10 @@ const ITDashboard = () => {
                         />
                         {/* Status Badge */}
                         <div
-                          className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full border-4 ${
-                            theme === "dark"
-                              ? "border-gray-900"
-                              : "border-white"
-                          } ${isOnline ? "bg-emerald-500" : "bg-gray-500"} flex items-center justify-center`}
+                          className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full border-4 ${theme === "dark"
+                            ? "border-gray-900"
+                            : "border-white"
+                            } ${isOnline ? "bg-emerald-500" : "bg-gray-500"} flex items-center justify-center`}
                         >
                           {isOnline ? (
                             <div className="w-3 h-3 bg-white rounded-full"></div>
@@ -2474,9 +2464,8 @@ const ITDashboard = () => {
                     <div className="space-y-6">
                       {/* Name & Position Row */}
                       <div
-                        className={`p-6 rounded-2xl ${
-                          theme === "dark" ? "bg-gray-800/30" : "bg-gray-100/50"
-                        }`}
+                        className={`p-6 rounded-2xl ${theme === "dark" ? "bg-gray-800/30" : "bg-gray-100/50"
+                          }`}
                       >
                         <div className="text-center">
                           <h3
@@ -2485,11 +2474,10 @@ const ITDashboard = () => {
                             {currentUser.name || "IT Technician"}
                           </h3>
                           <div
-                            className={`inline-flex items-center gap-3 px-4 py-2 rounded-full ${
-                              theme === "dark"
-                                ? "bg-blue-500/10 border border-blue-500/20"
-                                : "bg-blue-100 border border-blue-200"
-                            }`}
+                            className={`inline-flex items-center gap-3 px-4 py-2 rounded-full ${theme === "dark"
+                              ? "bg-blue-500/10 border border-blue-500/20"
+                              : "bg-blue-100 border border-blue-200"
+                              }`}
                           >
                             <Wrench
                               size={16}
@@ -2512,19 +2500,17 @@ const ITDashboard = () => {
                       <div className="grid grid-cols-2 gap-4">
                         {/* Employee ID Card */}
                         <div
-                          className={`p-5 rounded-2xl ${
-                            theme === "dark"
-                              ? "bg-gray-800/30"
-                              : "bg-gray-100/50"
-                          }`}
+                          className={`p-5 rounded-2xl ${theme === "dark"
+                            ? "bg-gray-800/30"
+                            : "bg-gray-100/50"
+                            }`}
                         >
                           <div className="flex items-center gap-3 mb-3">
                             <div
-                              className={`p-2.5 rounded-xl ${
-                                theme === "dark"
-                                  ? "bg-blue-500/10"
-                                  : "bg-blue-100"
-                              }`}
+                              className={`p-2.5 rounded-xl ${theme === "dark"
+                                ? "bg-blue-500/10"
+                                : "bg-blue-100"
+                                }`}
                             >
                               <User size={18} className="text-blue-500" />
                             </div>
@@ -2535,11 +2521,10 @@ const ITDashboard = () => {
                                 รหัสพนักงาน
                               </p>
                               <p
-                                className={`text-lg font-bold font-mono mt-1 ${
-                                  theme === "dark"
-                                    ? "text-blue-400"
-                                    : "text-blue-700"
-                                }`}
+                                className={`text-lg font-bold font-mono mt-1 ${theme === "dark"
+                                  ? "text-blue-400"
+                                  : "text-blue-700"
+                                  }`}
                               >
                                 {currentUser.employeeId}
                               </p>
@@ -2549,19 +2534,17 @@ const ITDashboard = () => {
 
                         {/* Department Card */}
                         <div
-                          className={`p-5 rounded-2xl ${
-                            theme === "dark"
-                              ? "bg-gray-800/30"
-                              : "bg-gray-100/50"
-                          }`}
+                          className={`p-5 rounded-2xl ${theme === "dark"
+                            ? "bg-gray-800/30"
+                            : "bg-gray-100/50"
+                            }`}
                         >
                           <div className="flex items-center gap-3 mb-3">
                             <div
-                              className={`p-2.5 rounded-xl ${
-                                theme === "dark"
-                                  ? "bg-emerald-500/10"
-                                  : "bg-emerald-100"
-                              }`}
+                              className={`p-2.5 rounded-xl ${theme === "dark"
+                                ? "bg-emerald-500/10"
+                                : "bg-emerald-100"
+                                }`}
                             >
                               <Building
                                 size={18}
@@ -2575,11 +2558,10 @@ const ITDashboard = () => {
                                 แผนก
                               </p>
                               <p
-                                className={`text-lg font-bold mt-1 ${
-                                  theme === "dark"
-                                    ? "text-emerald-400"
-                                    : "text-emerald-700"
-                                }`}
+                                className={`text-lg font-bold mt-1 ${theme === "dark"
+                                  ? "text-emerald-400"
+                                  : "text-emerald-700"
+                                  }`}
                               >
                                 {currentUser.department}
                               </p>
@@ -2589,19 +2571,17 @@ const ITDashboard = () => {
 
                         {/* Email Card */}
                         <div
-                          className={`p-5 rounded-2xl ${
-                            theme === "dark"
-                              ? "bg-gray-800/30"
-                              : "bg-gray-100/50"
-                          }`}
+                          className={`p-5 rounded-2xl ${theme === "dark"
+                            ? "bg-gray-800/30"
+                            : "bg-gray-100/50"
+                            }`}
                         >
                           <div className="flex items-center gap-3 mb-3">
                             <div
-                              className={`p-2.5 rounded-xl ${
-                                theme === "dark"
-                                  ? "bg-purple-500/10"
-                                  : "bg-purple-100"
-                              }`}
+                              className={`p-2.5 rounded-xl ${theme === "dark"
+                                ? "bg-purple-500/10"
+                                : "bg-purple-100"
+                                }`}
                             >
                               <Mail size={18} className="text-purple-500" />
                             </div>
@@ -2612,11 +2592,10 @@ const ITDashboard = () => {
                                 อีเมล
                               </p>
                               <p
-                                className={`text-sm font-medium mt-1 truncate ${
-                                  theme === "dark"
-                                    ? "text-gray-300"
-                                    : "text-gray-700"
-                                }`}
+                                className={`text-sm font-medium mt-1 truncate ${theme === "dark"
+                                  ? "text-gray-300"
+                                  : "text-gray-700"
+                                  }`}
                               >
                                 {currentUser.email ||
                                   currentUser.user_metadata?.email ||
@@ -2628,19 +2607,17 @@ const ITDashboard = () => {
 
                         {/* Phone Card */}
                         <div
-                          className={`p-5 rounded-2xl ${
-                            theme === "dark"
-                              ? "bg-gray-800/30"
-                              : "bg-gray-100/50"
-                          }`}
+                          className={`p-5 rounded-2xl ${theme === "dark"
+                            ? "bg-gray-800/30"
+                            : "bg-gray-100/50"
+                            }`}
                         >
                           <div className="flex items-center gap-3 mb-3">
                             <div
-                              className={`p-2.5 rounded-xl ${
-                                theme === "dark"
-                                  ? "bg-cyan-500/10"
-                                  : "bg-cyan-100"
-                              }`}
+                              className={`p-2.5 rounded-xl ${theme === "dark"
+                                ? "bg-cyan-500/10"
+                                : "bg-cyan-100"
+                                }`}
                             >
                               <Phone size={18} className="text-cyan-500" />
                             </div>
@@ -2651,11 +2628,10 @@ const ITDashboard = () => {
                                 โทรศัพท์
                               </p>
                               <p
-                                className={`text-sm font-medium mt-1 ${
-                                  theme === "dark"
-                                    ? "text-gray-300"
-                                    : "text-gray-700"
-                                }`}
+                                className={`text-sm font-medium mt-1 ${theme === "dark"
+                                  ? "text-gray-300"
+                                  : "text-gray-700"
+                                  }`}
                               >
                                 {currentUser.phone ||
                                   currentUser.user_metadata?.phone ||
@@ -2668,9 +2644,8 @@ const ITDashboard = () => {
 
                       {/* Additional Info from user_metadata */}
                       <div
-                        className={`p-5 rounded-2xl ${
-                          theme === "dark" ? "bg-gray-800/30" : "bg-gray-100/50"
-                        }`}
+                        className={`p-5 rounded-2xl ${theme === "dark" ? "bg-gray-800/30" : "bg-gray-100/50"
+                          }`}
                       >
                         <h4
                           className={`text-sm font-bold mb-3 ${theme === "dark" ? "text-gray-300" : "text-gray-600"}`}
@@ -2705,8 +2680,8 @@ const ITDashboard = () => {
                             >
                               {currentUser.created_at
                                 ? new Date(
-                                    currentUser.created_at,
-                                  ).toLocaleDateString("th-TH")
+                                  currentUser.created_at,
+                                ).toLocaleDateString("th-TH")
                                 : "ไม่ระบุ"}
                             </p>
                           </div>
@@ -2715,28 +2690,26 @@ const ITDashboard = () => {
 
                       {/* Status Badge */}
                       <div
-                        className={`p-5 rounded-2xl ${
-                          theme === "dark"
-                            ? isOnline
-                              ? "bg-emerald-500/10 border border-emerald-500/20"
-                              : "bg-gray-800/30"
-                            : isOnline
-                              ? "bg-emerald-50 border border-emerald-200"
-                              : "bg-gray-100/50"
-                        }`}
+                        className={`p-5 rounded-2xl ${theme === "dark"
+                          ? isOnline
+                            ? "bg-emerald-500/10 border border-emerald-500/20"
+                            : "bg-gray-800/30"
+                          : isOnline
+                            ? "bg-emerald-50 border border-emerald-200"
+                            : "bg-gray-100/50"
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div
-                              className={`p-2.5 rounded-xl ${
-                                theme === "dark"
-                                  ? isOnline
-                                    ? "bg-emerald-500/20"
-                                    : "bg-gray-700/50"
-                                  : isOnline
-                                    ? "bg-emerald-100"
-                                    : "bg-gray-200"
-                              }`}
+                              className={`p-2.5 rounded-xl ${theme === "dark"
+                                ? isOnline
+                                  ? "bg-emerald-500/20"
+                                  : "bg-gray-700/50"
+                                : isOnline
+                                  ? "bg-emerald-100"
+                                  : "bg-gray-200"
+                                }`}
                             >
                               <Activity
                                 size={18}
@@ -2754,15 +2727,14 @@ const ITDashboard = () => {
                                 สถานะ
                               </p>
                               <p
-                                className={`text-lg font-bold mt-1 ${
-                                  isOnline
-                                    ? theme === "dark"
-                                      ? "text-emerald-400"
-                                      : "text-emerald-700"
-                                    : theme === "dark"
-                                      ? "text-gray-400"
-                                      : "text-gray-600"
-                                }`}
+                                className={`text-lg font-bold mt-1 ${isOnline
+                                  ? theme === "dark"
+                                    ? "text-emerald-400"
+                                    : "text-emerald-700"
+                                  : theme === "dark"
+                                    ? "text-gray-400"
+                                    : "text-gray-600"
+                                  }`}
                               >
                                 {isOnline ? "พร้อมปฏิบัติงาน" : "ออฟไลน์"}
                               </p>
@@ -2770,15 +2742,14 @@ const ITDashboard = () => {
                           </div>
                           <button
                             onClick={() => setIsOnline(!isOnline)}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                              theme === "dark"
-                                ? isOnline
-                                  ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                                  : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                                : isOnline
-                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                  : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-                            }`}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${theme === "dark"
+                              ? isOnline
+                                ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                                : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                              : isOnline
+                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                              }`}
                           >
                             {isOnline ? "ออนไลน์" : "ออฟไลน์"}
                           </button>
@@ -2789,11 +2760,10 @@ const ITDashboard = () => {
 
                   {/* Modal Footer */}
                   <div
-                    className={`px-8 py-6 border-t ${
-                      theme === "dark"
-                        ? "border-gray-700/50"
-                        : "border-gray-300/50"
-                    }`}
+                    className={`px-8 py-6 border-t ${theme === "dark"
+                      ? "border-gray-700/50"
+                      : "border-gray-300/50"
+                      }`}
                   >
                     <div className="flex justify-between items-center">
                       <div
@@ -2838,19 +2808,16 @@ const ITDashboard = () => {
                   setSidebarOpen(false);
                 }}
                 className={`group w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 relative
-                ${
-                  activeTab === "INCOMING"
-                    ? `shadow-lg ${
-                        theme === "dark"
-                          ? "bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-500/30 text-white"
-                          : "bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-400 text-blue-700"
-                      }`
-                    : `hover:scale-[1.02] ${
-                        theme === "dark"
-                          ? "text-gray-400 hover:text-white hover:bg-gray-800/40"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                      }`
-                }`}
+                ${activeTab === "INCOMING"
+                    ? `shadow-lg ${theme === "dark"
+                      ? "bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-500/30 text-white"
+                      : "bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-400 text-blue-700"
+                    }`
+                    : `hover:scale-[1.02] ${theme === "dark"
+                      ? "text-gray-400 hover:text-white hover:bg-gray-800/40"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    }`
+                  }`}
               >
                 <div
                   className={`relative ${activeTab === "INCOMING" ? "text-blue-400" : "text-gray-500 group-hover:text-blue-500"}`}
@@ -2889,19 +2856,16 @@ const ITDashboard = () => {
                   setSidebarOpen(false);
                 }}
                 className={`group w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300
-                ${
-                  activeTab === "ACTIVE"
-                    ? `shadow-lg ${
-                        theme === "dark"
-                          ? "bg-gradient-to-r from-emerald-900/40 to-green-900/40 border border-emerald-500/30 text-white"
-                          : "bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-400 text-emerald-700"
-                      }`
-                    : `hover:scale-[1.02] ${
-                        theme === "dark"
-                          ? "text-gray-400 hover:text-white hover:bg-gray-800/40"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                      }`
-                }`}
+                ${activeTab === "ACTIVE"
+                    ? `shadow-lg ${theme === "dark"
+                      ? "bg-gradient-to-r from-emerald-900/40 to-green-900/40 border border-emerald-500/30 text-white"
+                      : "bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-400 text-emerald-700"
+                    }`
+                    : `hover:scale-[1.02] ${theme === "dark"
+                      ? "text-gray-400 hover:text-white hover:bg-gray-800/40"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    }`
+                  }`}
               >
                 <Activity
                   size={22}
@@ -2940,19 +2904,16 @@ const ITDashboard = () => {
                   setSidebarOpen(false);
                 }}
                 className={`group w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300
-                ${
-                  activeTab === "HISTORY"
-                    ? `shadow-lg ${
-                        theme === "dark"
-                          ? "bg-gradient-to-r from-amber-900/40 to-yellow-900/40 border border-amber-500/30 text-white"
-                          : "bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-400 text-amber-700"
-                      }`
-                    : `hover:scale-[1.02] ${
-                        theme === "dark"
-                          ? "text-gray-400 hover:text-white hover:bg-gray-800/40"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                      }`
-                }`}
+                ${activeTab === "HISTORY"
+                    ? `shadow-lg ${theme === "dark"
+                      ? "bg-gradient-to-r from-amber-900/40 to-yellow-900/40 border border-amber-500/30 text-white"
+                      : "bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-400 text-amber-700"
+                    }`
+                    : `hover:scale-[1.02] ${theme === "dark"
+                      ? "text-gray-400 hover:text-white hover:bg-gray-800/40"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    }`
+                  }`}
               >
                 <History
                   size={22}
@@ -3000,11 +2961,10 @@ const ITDashboard = () => {
                   setSidebarOpen(false);
                 }}
                 className={`group w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 hover:scale-[1.02]
-                ${
-                  theme === "dark"
+                ${theme === "dark"
                     ? "text-gray-400 hover:text-white hover:bg-gray-800/40"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                }`}
+                  }`}
               >
                 <CalendarIcon
                   size={22}
@@ -3026,11 +2986,10 @@ const ITDashboard = () => {
                   setSidebarOpen(false);
                 }}
                 className={`group w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 hover:scale-[1.02]
-                ${
-                  theme === "dark"
+                ${theme === "dark"
                     ? "text-gray-400 hover:text-white hover:bg-gray-800/40"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                }`}
+                  }`}
               >
                 <Filter
                   size={22}
@@ -3048,11 +3007,10 @@ const ITDashboard = () => {
 
             {/* Stats Summary with Glassmorphism */}
             <div
-              className={`p-4 rounded-2xl border backdrop-blur-sm ${
-                theme === "dark"
-                  ? "bg-gradient-to-br from-gray-800/40 to-gray-900/40 border-gray-700/30"
-                  : "bg-gradient-to-br from-white/40 to-gray-100/40 border-gray-300/30"
-              }`}
+              className={`p-4 rounded-2xl border backdrop-blur-sm ${theme === "dark"
+                ? "bg-gradient-to-br from-gray-800/40 to-gray-900/40 border-gray-700/30"
+                : "bg-gradient-to-br from-white/40 to-gray-100/40 border-gray-300/30"
+                }`}
             >
               <div className="flex items-center justify-between mb-4">
                 <h4
@@ -3144,11 +3102,10 @@ const ITDashboard = () => {
             onClick={handleLogout}
             className={`group w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300
             hover:scale-[1.02] active:scale-95 relative overflow-hidden
-            ${
-              theme === "dark"
+            ${theme === "dark"
                 ? "bg-gradient-to-r from-gray-800/50 to-gray-900/50 hover:from-rose-900/30 hover:to-pink-900/30 text-gray-300 hover:text-white border border-gray-700/50 hover:border-rose-500/30"
                 : "bg-gradient-to-r from-gray-100 to-gray-200 hover:from-rose-50 hover:to-pink-50 text-gray-700 hover:text-rose-700 border border-gray-300/50 hover:border-rose-300"
-            }`}
+              }`}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
             <LogOut size={18} className="relative z-10" />
@@ -3206,11 +3163,10 @@ const ITDashboard = () => {
       return (
         <div className="flex flex-col items-center justify-center py-16 w-full">
           <div
-            className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 border ${
-              theme === "dark"
-                ? "bg-gray-800 border-gray-700"
-                : "bg-gray-50 border-gray-200"
-            }`}
+            className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 border ${theme === "dark"
+              ? "bg-gray-800 border-gray-700"
+              : "bg-gray-50 border-gray-200"
+              }`}
           >
             <Search size={40} className="text-gray-600" />
           </div>
@@ -3251,22 +3207,20 @@ const ITDashboard = () => {
             <div className="flex items-center gap-1 p-1 bg-gray-100/80 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
               <button
                 onClick={() => setViewMode("card")}
-                className={`p-2 rounded-lg transition-all duration-200 flex items-center gap-2 ${
-                  viewMode === "card"
-                    ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400 font-medium"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                }`}
+                className={`p-2 rounded-lg transition-all duration-200 flex items-center gap-2 ${viewMode === "card"
+                  ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400 font-medium"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  }`}
               >
                 <LayoutGrid size={18} />
                 <span className="text-xs hidden sm:inline">การ์ด</span>
               </button>
               <button
                 onClick={() => setViewMode("table")}
-                className={`p-2 rounded-lg transition-all duration-200 flex items-center gap-2 ${
-                  viewMode === "table"
-                    ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400 font-medium"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                }`}
+                className={`p-2 rounded-lg transition-all duration-200 flex items-center gap-2 ${viewMode === "table"
+                  ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400 font-medium"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  }`}
               >
                 <List size={18} />
                 <span className="text-xs hidden sm:inline">ตาราง</span>
@@ -3347,13 +3301,12 @@ const ITDashboard = () => {
 
                       <span
                         className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium
-                ${
-                  ticket.priority === "urgent"
-                    ? "bg-rose-500/20 text-rose-400"
-                    : ticket.priority === "normal"
-                      ? "bg-amber-500/20 text-amber-400"
-                      : "bg-emerald-500/20 text-emerald-400"
-                }`}
+                ${ticket.priority === "urgent"
+                            ? "bg-rose-500/20 text-rose-400"
+                            : ticket.priority === "normal"
+                              ? "bg-amber-500/20 text-amber-400"
+                              : "bg-emerald-500/20 text-emerald-400"
+                          }`}
                       >
                         {getPriorityText(ticket.priority)}
                       </span>
@@ -3401,19 +3354,19 @@ const ITDashboard = () => {
                       >
                         {ticket.closed_at
                           ? new Date(ticket.closed_at).toLocaleDateString(
-                              "th-TH",
-                            )
+                            "th-TH",
+                          )
                           : "-"}
                       </div>
                       <div className={`text-xs ${tableTheme.textMuted}`}>
                         {ticket.closed_at
                           ? new Date(ticket.closed_at).toLocaleTimeString(
-                              "th-TH",
-                              {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )
+                            "th-TH",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )
                           : "-"}
                       </div>
                     </td>
@@ -3490,42 +3443,38 @@ const ITDashboard = () => {
             {filteredTickets.map((ticket, index) => (
               <div
                 key={ticket.id}
-                className={`flex flex-col h-full rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 ${
-                  theme === "dark"
-                    ? "bg-gray-800 border border-gray-700"
-                    : "bg-white border border-gray-200"
-                }`}
+                className={`flex flex-col h-full rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 ${theme === "dark"
+                  ? "bg-gray-800 border border-gray-700"
+                  : "bg-white border border-gray-200"
+                  }`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 {/* Header - Status & Priority */}
                 <div
-                  className={`px-4 py-3 rounded-t-2xl ${
-                    ticket.status === "NEW"
-                      ? "bg-gradient-to-r from-rose-500/10 to-pink-500/10"
-                      : ticket.status === "IN_PROGRESS"
-                        ? "bg-gradient-to-r from-amber-500/10 to-yellow-500/10"
-                        : "bg-gradient-to-r from-emerald-500/10 to-green-500/10"
-                  }`}
+                  className={`px-4 py-3 rounded-t-2xl ${ticket.status === "NEW"
+                    ? "bg-gradient-to-r from-rose-500/10 to-pink-500/10"
+                    : ticket.status === "IN_PROGRESS"
+                      ? "bg-gradient-to-r from-amber-500/10 to-yellow-500/10"
+                      : "bg-gradient-to-r from-emerald-500/10 to-green-500/10"
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-2 h-2 rounded-full ${
-                          ticket.status === "NEW"
-                            ? "bg-rose-500"
-                            : ticket.status === "IN_PROGRESS"
-                              ? "bg-amber-500"
-                              : "bg-emerald-500"
-                        }`}
+                        className={`w-2 h-2 rounded-full ${ticket.status === "NEW"
+                          ? "bg-rose-500"
+                          : ticket.status === "IN_PROGRESS"
+                            ? "bg-amber-500"
+                            : "bg-emerald-500"
+                          }`}
                       ></div>
                       <span
-                        className={`text-xs font-bold ${
-                          ticket.status === "NEW"
-                            ? "text-rose-400"
-                            : ticket.status === "IN_PROGRESS"
-                              ? "text-amber-400"
-                              : "text-emerald-400"
-                        }`}
+                        className={`text-xs font-bold ${ticket.status === "NEW"
+                          ? "text-rose-400"
+                          : ticket.status === "IN_PROGRESS"
+                            ? "text-amber-400"
+                            : "text-emerald-400"
+                          }`}
                       >
                         {getStatusText(ticket.status)}
                       </span>
@@ -3578,13 +3527,12 @@ const ITDashboard = () => {
                         IT-{ticket.id.toString().padStart(5, "0")}
                       </p>
                       <div
-                        className={`text-xs px-2 py-1 rounded ${
-                          ticket.priority === "urgent"
-                            ? "bg-rose-500/20 text-rose-400"
-                            : ticket.priority === "normal"
-                              ? "bg-amber-500/20 text-amber-400"
-                              : "bg-emerald-500/20 text-emerald-400"
-                        }`}
+                        className={`text-xs px-2 py-1 rounded ${ticket.priority === "urgent"
+                          ? "bg-rose-500/20 text-rose-400"
+                          : ticket.priority === "normal"
+                            ? "bg-amber-500/20 text-amber-400"
+                            : "bg-emerald-500/20 text-emerald-400"
+                          }`}
                       >
                         {getPriorityText(ticket.priority)}
                       </div>
@@ -3640,11 +3588,10 @@ const ITDashboard = () => {
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              ticket.assigned_to === currentUser?.id
-                                ? "bg-gradient-to-br from-emerald-500 to-green-600"
-                                : "bg-gradient-to-br from-amber-500 to-yellow-600"
-                            } text-white font-bold text-sm`}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center ${ticket.assigned_to === currentUser?.id
+                              ? "bg-gradient-to-br from-emerald-500 to-green-600"
+                              : "bg-gradient-to-br from-amber-500 to-yellow-600"
+                              } text-white font-bold text-sm`}
                           >
                             {ticket.assigned_name?.charAt(0) || "T"}
                           </div>
@@ -3804,9 +3751,9 @@ const ITDashboard = () => {
                         >
                           {ticket.started_at
                             ? new Date(ticket.started_at).toLocaleTimeString(
-                                "th-TH",
-                                { hour: "2-digit", minute: "2-digit" },
-                              )
+                              "th-TH",
+                              { hour: "2-digit", minute: "2-digit" },
+                            )
                             : "--:--"}
                         </p>
                         <p className="text-[10px] text-gray-400 truncate w-full">
@@ -3835,9 +3782,9 @@ const ITDashboard = () => {
                         >
                           {ticket.closed_at
                             ? new Date(ticket.closed_at).toLocaleTimeString(
-                                "th-TH",
-                                { hour: "2-digit", minute: "2-digit" },
-                              )
+                              "th-TH",
+                              { hour: "2-digit", minute: "2-digit" },
+                            )
                             : "--:--"}
                         </p>
                         <p className="text-[10px] text-gray-400">
@@ -3865,11 +3812,10 @@ const ITDashboard = () => {
                             onClick={() =>
                               handleOpenNavigation(ticket.location)
                             }
-                            className={`py-3 rounded-lg font-medium flex items-center justify-center gap-2 border ${
-                              theme === "dark"
-                                ? "border-gray-600 text-gray-300 hover:bg-gray-700"
-                                : "border-gray-300 text-gray-700 hover:bg-gray-100"
-                            }`}
+                            className={`py-3 rounded-lg font-medium flex items-center justify-center gap-2 border ${theme === "dark"
+                              ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                              : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                              }`}
                           >
                             <Navigation size={16} />
                             <span className="text-sm">นำทาง</span>
@@ -3886,11 +3832,10 @@ const ITDashboard = () => {
                     {ticket.status === "IN_PROGRESS" &&
                       ticket.assigned_to !== currentUser?.id && (
                         <div
-                          className={`p-3 rounded-lg text-center border ${
-                            theme === "dark"
-                              ? "border-amber-700/30 bg-amber-500/10"
-                              : "border-amber-200 bg-amber-50"
-                          }`}
+                          className={`p-3 rounded-lg text-center border ${theme === "dark"
+                            ? "border-amber-700/30 bg-amber-500/10"
+                            : "border-amber-200 bg-amber-50"
+                            }`}
                         >
                           <div className="flex items-center justify-center gap-2">
                             <UserCheck size={14} className="text-amber-500" />
@@ -3921,9 +3866,9 @@ const ITDashboard = () => {
                             >
                               {ticket.started_at && ticket.closed_at
                                 ? calculateDuration(
-                                    ticket.started_at,
-                                    ticket.closed_at,
-                                  )
+                                  ticket.started_at,
+                                  ticket.closed_at,
+                                )
                                 : "ไม่ระบุ"}
                             </span>
                           </div>
@@ -3942,11 +3887,10 @@ const ITDashboard = () => {
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleViewDetails(ticket)}
-                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-1 ${
-                              theme === "dark"
-                                ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            }`}
+                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-1 ${theme === "dark"
+                              ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              }`}
                           >
                             <Eye size={14} />
                             รายละเอียด
@@ -3955,22 +3899,20 @@ const ITDashboard = () => {
                             onClick={() =>
                               handleOpenNavigation(ticket.location)
                             }
-                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-1 ${
-                              theme === "dark"
-                                ? "bg-blue-900/30 text-blue-300 hover:bg-blue-900/50"
-                                : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                            }`}
+                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-1 ${theme === "dark"
+                              ? "bg-blue-900/30 text-blue-300 hover:bg-blue-900/50"
+                              : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                              }`}
                           >
                             <MapPin size={14} />
                             ที่ตั้ง
                           </button>
                           <button
                             onClick={() => handleDeleteTicket(ticket)}
-                            className={`p-2.5 rounded-lg font-medium text-sm flex items-center justify-center ${
-                              theme === "dark"
-                                ? "bg-rose-900/30 text-rose-400 hover:bg-rose-900/50"
-                                : "bg-rose-50 text-rose-600 hover:bg-rose-100"
-                            }`}
+                            className={`p-2.5 rounded-lg font-medium text-sm flex items-center justify-center ${theme === "dark"
+                              ? "bg-rose-900/30 text-rose-400 hover:bg-rose-900/50"
+                              : "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                              }`}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -4003,11 +3945,10 @@ const ITDashboard = () => {
 
   return (
     <div
-      className={`min-h-screen transition-colors duration-500 ${
-        theme === "dark"
-          ? "bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950"
-          : "bg-gradient-to-br from-gray-50 via-white to-gray-100"
-      }`}
+      className={`min-h-screen transition-colors duration-500 ${theme === "dark"
+        ? "bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950"
+        : "bg-gradient-to-br from-gray-50 via-white to-gray-100"
+        }`}
     >
       {/* Debug Info */}
       <DebugInfo />
@@ -4019,11 +3960,10 @@ const ITDashboard = () => {
       <div className="lg:ml-80 transition-all duration-500 ease-in-out">
         {/* Enterprise Header */}
         <header
-          className={`sticky top-0 z-40 border-b backdrop-blur-2xl transition-all duration-500 ${
-            theme === "dark"
-              ? "bg-gradient-to-b from-gray-950/95 via-gray-900/95 to-gray-950/95 border-gray-800/30 shadow-2xl shadow-black/40"
-              : "bg-gradient-to-b from-white/97 via-gray-50/97 to-white/97 border-gray-300/30 shadow-xl shadow-gray-200/30"
-          }`}
+          className={`sticky top-0 z-40 border-b backdrop-blur-2xl transition-all duration-500 ${theme === "dark"
+            ? "bg-gradient-to-b from-gray-950/95 via-gray-900/95 to-gray-950/95 border-gray-800/30 shadow-2xl shadow-black/40"
+            : "bg-gradient-to-b from-white/97 via-gray-50/97 to-white/97 border-gray-300/30 shadow-xl shadow-gray-200/30"
+            }`}
         >
           <div className="max-w-[2400px] mx-auto px-4 lg:px-10">
             {/* Top Row */}
@@ -4034,11 +3974,10 @@ const ITDashboard = () => {
                 <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
                   className={`lg:hidden flex flex-col items-center justify-center w-12 h-12 rounded-2xl transition-all duration-300
-    hover:scale-105 active:scale-95 group ${
-      theme === "dark"
-        ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
-        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-    }`}
+    hover:scale-105 active:scale-95 group ${theme === "dark"
+                      ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
                 >
                   {/* Animated Hamburger Icon */}
                   <div className="flex flex-col items-center justify-center w-6 h-6 relative">
@@ -4075,11 +4014,10 @@ const ITDashboard = () => {
                     </div>
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
                       <span
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          theme === "dark"
-                            ? "bg-gradient-to-r from-emerald-500/15 to-green-500/15 text-emerald-400 border border-emerald-500/20"
-                            : "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-300"
-                        }`}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${theme === "dark"
+                          ? "bg-gradient-to-r from-emerald-500/15 to-green-500/15 text-emerald-400 border border-emerald-500/20"
+                          : "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-300"
+                          }`}
                       >
                         Technician Dashboard
                       </span>
@@ -4092,32 +4030,29 @@ const ITDashboard = () => {
               <div className="hidden xl:flex flex-1 max-w-3xl mx-10">
                 <div className="relative w-full group">
                   <Search
-                    className={`absolute left-5 top-1/2 transform -translate-y-1/2 transition-colors duration-300 ${
-                      theme === "dark"
-                        ? "text-gray-500 group-focus-within:text-blue-400"
-                        : "text-gray-400 group-focus-within:text-blue-500"
-                    }`}
+                    className={`absolute left-5 top-1/2 transform -translate-y-1/2 transition-colors duration-300 ${theme === "dark"
+                      ? "text-gray-500 group-focus-within:text-blue-400"
+                      : "text-gray-400 group-focus-within:text-blue-500"
+                      }`}
                     size={22}
                   />
                   <input
                     type="text"
                     placeholder="ค้นหา Ticket ID, ผู้แจ้ง, แผนก, หรือคำค้นหา..."
-                    className={`relative w-full pl-14 pr-12 py-3.5 rounded-2xl text-sm border-2 ${
-                      theme === "dark"
-                        ? "bg-gray-900/60 border-gray-700/60 text-gray-100 placeholder-gray-500 focus:border-blue-500/50"
-                        : "bg-white/80 border-gray-300/80 text-gray-900 placeholder-gray-500 focus:border-blue-400"
-                    }`}
+                    className={`relative w-full pl-14 pr-12 py-3.5 rounded-2xl text-sm border-2 ${theme === "dark"
+                      ? "bg-gray-900/60 border-gray-700/60 text-gray-100 placeholder-gray-500 focus:border-blue-500/50"
+                      : "bg-white/80 border-gray-300/80 text-gray-900 placeholder-gray-500 focus:border-blue-400"
+                      }`}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className={`absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${
-                        theme === "dark"
-                          ? "text-gray-500 hover:text-red-400 hover:bg-gray-800"
-                          : "text-gray-400 hover:text-red-500 hover:bg-gray-100"
-                      }`}
+                      className={`absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${theme === "dark"
+                        ? "text-gray-500 hover:text-red-400 hover:bg-gray-800"
+                        : "text-gray-400 hover:text-red-500 hover:bg-gray-100"
+                        }`}
                     >
                       <X size={16} />
                     </button>
@@ -4129,19 +4064,16 @@ const ITDashboard = () => {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setIsOnline(!isOnline)}
-                  className={`hidden sm:flex items-center gap-3 px-4 py-2.5 rounded-2xl border transition-all duration-300 ${
-                    isOnline
-                      ? `shadow-lg ${
-                          theme === "dark"
-                            ? "bg-gradient-to-r from-emerald-900/20 to-green-900/20 border-emerald-500/30 text-emerald-400"
-                            : "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-400 text-emerald-700"
-                        }`
-                      : `shadow-sm ${
-                          theme === "dark"
-                            ? "bg-gradient-to-r from-gray-800/50 to-gray-900/50 border-gray-700 text-gray-400"
-                            : "bg-gradient-to-r from-gray-100 to-gray-200 border-gray-300 text-gray-600"
-                        }`
-                  }`}
+                  className={`hidden sm:flex items-center gap-3 px-4 py-2.5 rounded-2xl border transition-all duration-300 ${isOnline
+                    ? `shadow-lg ${theme === "dark"
+                      ? "bg-gradient-to-r from-emerald-900/20 to-green-900/20 border-emerald-500/30 text-emerald-400"
+                      : "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-400 text-emerald-700"
+                    }`
+                    : `shadow-sm ${theme === "dark"
+                      ? "bg-gradient-to-r from-gray-800/50 to-gray-900/50 border-gray-700 text-gray-400"
+                      : "bg-gradient-to-r from-gray-100 to-gray-200 border-gray-300 text-gray-600"
+                    }`
+                    }`}
                 >
                   <div
                     className={`w-3 h-3 rounded-full ${isOnline ? "bg-emerald-500" : "bg-gray-400"}`}
@@ -4158,11 +4090,10 @@ const ITDashboard = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={toggleTheme}
-                    className={`p-3 rounded-2xl transition-all duration-300 ${
-                      theme === "dark"
-                        ? "text-yellow-400 hover:bg-gray-800/50"
-                        : "text-gray-700 hover:bg-gray-100"
-                    }`}
+                    className={`p-3 rounded-2xl transition-all duration-300 ${theme === "dark"
+                      ? "text-yellow-400 hover:bg-gray-800/50"
+                      : "text-gray-700 hover:bg-gray-100"
+                      }`}
                   >
                     {theme === "dark" ? <Sun size={22} /> : <Moon size={22} />}
                   </button>
@@ -4173,11 +4104,10 @@ const ITDashboard = () => {
                         setActiveTab("INCOMING");
                         setNotificationCount(0);
                       }}
-                      className={`p-3 rounded-2xl transition-all duration-300 ${
-                        theme === "dark"
-                          ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                      }`}
+                      className={`p-3 rounded-2xl transition-all duration-300 ${theme === "dark"
+                        ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        }`}
                     >
                       <Bell size={22} />
                     </button>
@@ -4197,11 +4127,10 @@ const ITDashboard = () => {
                 <input
                   type="text"
                   placeholder="ค้นหางานซ่อม..."
-                  className={`w-full pl-12 pr-10 py-3.5 rounded-2xl text-sm border-2 ${
-                    theme === "dark"
-                      ? "bg-gray-900/60 border-gray-700 text-white placeholder-gray-500"
-                      : "bg-white/80 border-gray-300 text-gray-900 placeholder-gray-500"
-                  }`}
+                  className={`w-full pl-12 pr-10 py-3.5 rounded-2xl text-sm border-2 ${theme === "dark"
+                    ? "bg-gray-900/60 border-gray-700 text-white placeholder-gray-500"
+                    : "bg-white/80 border-gray-300 text-gray-900 placeholder-gray-500"
+                    }`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -4225,110 +4154,106 @@ const ITDashboard = () => {
               (activeTab === "HISTORY" &&
                 dateRange.start &&
                 dateRange.end)) && (
-              <div className="flex items-center gap-3 flex-wrap pb-4">
-                <div
-                  className={`px-3 py-2 rounded-2xl border flex items-center gap-3 ${
-                    theme === "dark"
+                <div className="flex items-center gap-3 flex-wrap pb-4">
+                  <div
+                    className={`px-3 py-2 rounded-2xl border flex items-center gap-3 ${theme === "dark"
                       ? "bg-gray-900/40 border-gray-700"
                       : "bg-white/70 border-gray-300"
-                  }`}
-                >
-                  <Filter size={16} className="text-blue-500" />
+                      }`}
+                  >
+                    <Filter size={16} className="text-blue-500" />
 
-                  {searchQuery && (
-                    <div
-                      className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 ${
-                        theme === "dark"
+                    {searchQuery && (
+                      <div
+                        className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 ${theme === "dark"
                           ? "bg-blue-900/30 border-blue-700/30"
                           : "bg-blue-50 border-blue-200"
-                      }`}
-                    >
-                      <span
-                        className={`text-xs font-semibold ${theme === "dark" ? "text-blue-400" : "text-blue-600"}`}
+                          }`}
                       >
-                        ค้นหา:
-                      </span>
-                      <span
-                        className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}
-                      >
-                        {searchQuery}
-                      </span>
-                      <button
-                        onClick={() => setSearchQuery("")}
-                        className="p-1 hover:text-red-500"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )}
-
-                  {activeTab === "HISTORY" &&
-                    dateRange.start &&
-                    dateRange.end && (
-                      <div
-                        className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 ${
-                          theme === "dark"
-                            ? "bg-emerald-900/30 border-emerald-700/30"
-                            : "bg-emerald-50 border-emerald-200"
-                        }`}
-                      >
-                        <CalendarIcon
-                          size={12}
-                          className={
-                            theme === "dark"
-                              ? "text-emerald-400"
-                              : "text-emerald-600"
-                          }
-                        />
                         <span
-                          className={`text-xs ${theme === "dark" ? "text-emerald-400" : "text-emerald-600"}`}
+                          className={`text-xs font-semibold ${theme === "dark" ? "text-blue-400" : "text-blue-600"}`}
                         >
-                          วันที่
+                          ค้นหา:
                         </span>
                         <span
-                          className={`text-xs ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}
+                          className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}
                         >
-                          {new Date(dateRange.start).toLocaleDateString(
-                            "th-TH",
-                            { day: "numeric", month: "short" },
-                          )}{" "}
-                          -{" "}
-                          {new Date(dateRange.end).toLocaleDateString("th-TH", {
-                            day: "numeric",
-                            month: "short",
-                          })}
+                          {searchQuery}
                         </span>
                         <button
-                          onClick={() => setDateRange({ start: "", end: "" })}
+                          onClick={() => setSearchQuery("")}
                           className="p-1 hover:text-red-500"
                         >
                           <X size={12} />
                         </button>
                       </div>
                     )}
-                </div>
 
-                {activeTab === "HISTORY" && (
-                  <button
-                    onClick={() => setShowDateFilter(!showDateFilter)}
-                    className={`px-4 py-2 rounded-2xl border text-sm font-semibold ${
-                      dateRange.start && dateRange.end
+                    {activeTab === "HISTORY" &&
+                      dateRange.start &&
+                      dateRange.end && (
+                        <div
+                          className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 ${theme === "dark"
+                            ? "bg-emerald-900/30 border-emerald-700/30"
+                            : "bg-emerald-50 border-emerald-200"
+                            }`}
+                        >
+                          <CalendarIcon
+                            size={12}
+                            className={
+                              theme === "dark"
+                                ? "text-emerald-400"
+                                : "text-emerald-600"
+                            }
+                          />
+                          <span
+                            className={`text-xs ${theme === "dark" ? "text-emerald-400" : "text-emerald-600"}`}
+                          >
+                            วันที่
+                          </span>
+                          <span
+                            className={`text-xs ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}
+                          >
+                            {new Date(dateRange.start).toLocaleDateString(
+                              "th-TH",
+                              { day: "numeric", month: "short" },
+                            )}{" "}
+                            -{" "}
+                            {new Date(dateRange.end).toLocaleDateString("th-TH", {
+                              day: "numeric",
+                              month: "short",
+                            })}
+                          </span>
+                          <button
+                            onClick={() => setDateRange({ start: "", end: "" })}
+                            className="p-1 hover:text-red-500"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
+                  </div>
+
+                  {activeTab === "HISTORY" && (
+                    <button
+                      onClick={() => setShowDateFilter(!showDateFilter)}
+                      className={`px-4 py-2 rounded-2xl border text-sm font-semibold ${dateRange.start && dateRange.end
                         ? theme === "dark"
                           ? "bg-blue-600 text-white border-blue-500"
                           : "bg-blue-500 text-white border-blue-400"
                         : theme === "dark"
                           ? "bg-gray-800 text-gray-300 border-gray-700"
                           : "bg-white text-gray-700 border-gray-300"
-                    }`}
-                  >
-                    <CalendarIcon size={16} />
-                    {dateRange.start && dateRange.end
-                      ? "เปลี่ยนวันที่"
-                      : "ตัวกรองวันที่"}
-                  </button>
-                )}
-              </div>
-            )}
+                        }`}
+                    >
+                      <CalendarIcon size={16} />
+                      {dateRange.start && dateRange.end
+                        ? "เปลี่ยนวันที่"
+                        : "ตัวกรองวันที่"}
+                    </button>
+                  )}
+                </div>
+              )}
           </div>
         </header>
 
@@ -4368,11 +4293,10 @@ const ITDashboard = () => {
             ].map((stat, index) => (
               <div
                 key={index}
-                className={`rounded-2xl p-5 border transition-all ${
-                  theme === "dark"
-                    ? "bg-gray-900/50 border-gray-800"
-                    : "bg-white border-gray-200"
-                }`}
+                className={`rounded-2xl p-5 border transition-all ${theme === "dark"
+                  ? "bg-gray-900/50 border-gray-800"
+                  : "bg-white border-gray-200"
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -4405,11 +4329,10 @@ const ITDashboard = () => {
           {/* Tab Navigation - Clean & Professional */}
           <div className="mb-8">
             <div
-              className={`rounded-2xl border p-2 ${
-                theme === "dark"
-                  ? "bg-gray-900/50 border-gray-800"
-                  : "bg-white border-gray-200"
-              }`}
+              className={`rounded-2xl border p-2 ${theme === "dark"
+                ? "bg-gray-900/50 border-gray-800"
+                : "bg-white border-gray-200"
+                }`}
             >
               <div className="flex space-x-2">
                 {[
@@ -4438,28 +4361,26 @@ const ITDashboard = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex-1 flex items-center justify-center gap-3 py-3 rounded-xl transition-all ${
-                      activeTab === tab.id
-                        ? theme === "dark"
-                          ? `bg-gradient-to-r from-${tab.color}-900/30 to-${tab.color}-800/30 text-${tab.color}-400 border border-${tab.color}-700/30`
-                          : `bg-gradient-to-r from-${tab.color}-100 to-${tab.color}-50 text-${tab.color}-600 border border-${tab.color}-300`
-                        : theme === "dark"
-                          ? "text-gray-400 hover:text-white hover:bg-gray-800"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-3 py-3 rounded-xl transition-all ${activeTab === tab.id
+                      ? theme === "dark"
+                        ? `bg-gradient-to-r from-${tab.color}-900/30 to-${tab.color}-800/30 text-${tab.color}-400 border border-${tab.color}-700/30`
+                        : `bg-gradient-to-r from-${tab.color}-100 to-${tab.color}-50 text-${tab.color}-600 border border-${tab.color}-300`
+                      : theme === "dark"
+                        ? "text-gray-400 hover:text-white hover:bg-gray-800"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                      }`}
                   >
                     <tab.icon size={20} />
                     <span className="font-medium">{tab.label}</span>
                     <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        activeTab === tab.id
-                          ? theme === "dark"
-                            ? `bg-${tab.color}-900/30 text-${tab.color}-300`
-                            : `bg-${tab.color}-500/20 text-${tab.color}-600`
-                          : theme === "dark"
-                            ? "bg-gray-800 text-gray-400"
-                            : "bg-gray-200 text-gray-600"
-                      }`}
+                      className={`px-2 py-1 text-xs rounded-full ${activeTab === tab.id
+                        ? theme === "dark"
+                          ? `bg-${tab.color}-900/30 text-${tab.color}-300`
+                          : `bg-${tab.color}-500/20 text-${tab.color}-600`
+                        : theme === "dark"
+                          ? "bg-gray-800 text-gray-400"
+                          : "bg-gray-200 text-gray-600"
+                        }`}
                     >
                       {tab.count}
                     </span>
@@ -4494,22 +4415,20 @@ const ITDashboard = () => {
               <div
                 className={`
         rounded-2xl shadow-2xl border overflow-hidden
-        ${
-          theme === "dark"
-            ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50 backdrop-blur-xl"
-            : "bg-gradient-to-br from-white/95 to-gray-50/95 border-gray-300/50 backdrop-blur-xl"
-        }
+        ${theme === "dark"
+                    ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50 backdrop-blur-xl"
+                    : "bg-gradient-to-br from-white/95 to-gray-50/95 border-gray-300/50 backdrop-blur-xl"
+                  }
       `}
               >
                 {/* Header with gradient */}
                 <div
                   className={`
           px-6 py-4 border-b relative overflow-hidden
-          ${
-            theme === "dark"
-              ? "bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border-gray-700/30"
-              : "bg-gradient-to-r from-blue-50 to-indigo-50 border-gray-200/50"
-          }
+          ${theme === "dark"
+                      ? "bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border-gray-700/30"
+                      : "bg-gradient-to-r from-blue-50 to-indigo-50 border-gray-200/50"
+                    }
         `}
                 >
                   <div className="flex items-center justify-between relative z-10">
@@ -4538,11 +4457,10 @@ const ITDashboard = () => {
                       onClick={() => setShowDateFilter(false)}
                       className={`
                 p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95
-                ${
-                  theme === "dark"
-                    ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
-                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                }
+                ${theme === "dark"
+                          ? "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                        }
               `}
                     >
                       <X className="w-5 h-5" />
@@ -4578,11 +4496,10 @@ const ITDashboard = () => {
                           className={`
                     w-full pl-12 pr-4 py-3.5 rounded-xl border text-sm
                     transition-all duration-200 outline-none
-                    ${
-                      theme === "dark"
-                        ? "bg-gray-900/50 border-gray-700 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
-                    }
+                    ${theme === "dark"
+                              ? "bg-gray-900/50 border-gray-700 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                              : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
+                            }
                   `}
                           placeholder="เลือกวันที่เริ่มต้น"
                         />
@@ -4617,11 +4534,10 @@ const ITDashboard = () => {
                           className={`
                     w-full pl-12 pr-4 py-3.5 rounded-xl border text-sm
                     transition-all duration-200 outline-none
-                    ${
-                      theme === "dark"
-                        ? "bg-gray-900/50 border-gray-700 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
-                    }
+                    ${theme === "dark"
+                              ? "bg-gray-900/50 border-gray-700 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                              : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
+                            }
                   `}
                           placeholder="เลือกวันที่สิ้นสุด"
                         />
@@ -4663,11 +4579,10 @@ const ITDashboard = () => {
                           className={`
                     py-2.5 px-3 rounded-xl text-xs font-medium border transition-all duration-200
                     hover:scale-[1.02] active:scale-95
-                    ${
-                      theme === "dark"
-                        ? "border-gray-700 bg-gray-800/50 text-gray-300 hover:border-blue-500/50 hover:bg-blue-900/20"
-                        : "border-gray-200 bg-gray-50 text-gray-600 hover:border-blue-400 hover:bg-blue-50"
-                    }
+                    ${theme === "dark"
+                              ? "border-gray-700 bg-gray-800/50 text-gray-300 hover:border-blue-500/50 hover:bg-blue-900/20"
+                              : "border-gray-200 bg-gray-50 text-gray-600 hover:border-blue-400 hover:bg-blue-50"
+                            }
                   `}
                         >
                           {preset.label}
@@ -4687,11 +4602,10 @@ const ITDashboard = () => {
                         className={`
                   flex-1 py-3.5 rounded-xl font-semibold text-sm border
                   transition-all duration-200 hover:scale-[1.02] active:scale-95
-                  ${
-                    theme === "dark"
-                      ? "border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-600"
-                      : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:border-gray-400"
-                  }
+                  ${theme === "dark"
+                            ? "border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-600"
+                            : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:border-gray-400"
+                          }
                 `}
                       >
                         ล้างค่า

@@ -10,6 +10,9 @@ export default defineConfig({
       '@': resolve(__dirname, './src'),
     },
   },
+  server: {
+    allowedHosts: [".ngrok-free.app"]
+  },
   build: {
     rollupOptions: {
       output: {

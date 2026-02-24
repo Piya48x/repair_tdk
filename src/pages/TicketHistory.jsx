@@ -1,21 +1,181 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate, useLocation } from "react-router-dom";
-import { 
-  ArrowLeft, Search, Filter, Download, RefreshCw, Calendar, 
-  Eye, ChevronRight, Clock, CheckCircle2, AlertCircle, X,
-  FileText, Hash, User, Building2, Phone, Mail, Printer,
-  BarChart3, TrendingUp, MoreVertical, CheckCircle, ExternalLink
+import {
+  ArrowLeft,
+  Search,
+  Download,
+  RefreshCw,
+  Calendar,
+  Eye,
+  ChevronRight,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  FileText,
+  Hash,
+  TrendingUp,
+  Filter,
+  ExternalLink,
+  Sparkles,
+  CircleSlash,
+  Hammer,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+
+const STATUS_OPTIONS = [
+  { value: "ALL", label: "ทุกสถานะ" },
+  { value: "PENDING", label: "รอดำเนินการ" },
+  { value: "NEW", label: "งานใหม่" },
+  { value: "IN_PROGRESS", label: "กำลังซ่อม" },
+  { value: "CLOSED", label: "สำเร็จ" },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: "ALL", label: "ทุกความเร่งด่วน" },
+  { value: "urgent", label: "ด่วน" },
+  { value: "high", label: "สูง" },
+  { value: "normal", label: "ปกติ" },
+  { value: "low", label: "ต่ำ" },
+];
+
+const statusConfig = {
+  NEW: {
+    label: "รอดำเนินการ",
+    chipClass: "bg-rose-50 text-rose-700 border-rose-200",
+    dotClass: "bg-rose-500",
+    icon: Clock,
+  },
+  IN_PROGRESS: {
+    label: "กำลังซ่อม",
+    chipClass: "bg-amber-50 text-amber-700 border-amber-200",
+    dotClass: "bg-amber-500",
+    icon: Hammer,
+  },
+  CLOSED: {
+    label: "สำเร็จ",
+    chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    dotClass: "bg-emerald-500",
+    icon: CheckCircle2,
+  },
+  default: {
+    label: "ไม่ระบุ",
+    chipClass: "bg-slate-50 text-slate-700 border-slate-200",
+    dotClass: "bg-slate-400",
+    icon: AlertCircle,
+  },
+};
+
+const priorityConfig = {
+  urgent: {
+    label: "ด่วน",
+    chipClass: "bg-gradient-to-r from-rose-500 to-pink-600 text-white",
+  },
+  high: {
+    label: "สูง",
+    chipClass: "bg-gradient-to-r from-amber-500 to-orange-600 text-white",
+  },
+  normal: {
+    label: "ปกติ",
+    chipClass: "bg-gradient-to-r from-blue-500 to-indigo-600 text-white",
+  },
+  low: {
+    label: "ต่ำ",
+    chipClass: "bg-gradient-to-r from-emerald-500 to-green-600 text-white",
+  },
+  default: {
+    label: "ไม่ระบุ",
+    chipClass: "bg-slate-500 text-white",
+  },
+};
+
+const fallbackTicketNo = (ticket) =>
+  `T${String(ticket?.id || "").slice(-6).toUpperCase().padStart(6, "0")}`;
+
+const toDisplayDate = (dateString) => {
+  if (!dateString) return "ไม่ระบุ";
+  try {
+    return format(new Date(dateString), "dd MMM yyyy", { locale: th });
+  } catch {
+    return "ไม่ระบุ";
+  }
+};
+
+const toDisplayDateTime = (dateString) => {
+  if (!dateString) return "ไม่ระบุ";
+  try {
+    return format(new Date(dateString), "dd MMM yyyy HH:mm", { locale: th });
+  } catch {
+    return "ไม่ระบุ";
+  }
+};
+
+const toTimeAgo = (dateString) => {
+  if (!dateString) return "";
+  try {
+    return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: th });
+  } catch {
+    return "";
+  }
+};
+
+const getTicketImageUrls = (ticket) => {
+  const attachmentUrls = Array.isArray(ticket?.attachments)
+    ? ticket.attachments.filter((url) => typeof url === "string" && url.trim())
+    : [];
+
+  const merged = [...attachmentUrls];
+  if (ticket?.image_url && typeof ticket.image_url === "string") {
+    merged.push(ticket.image_url);
+  }
+
+  return [...new Set(merged)];
+};
+
+const getImageExtension = (url, mimeType = "") => {
+  const mime = mimeType.toLowerCase();
+  if (mime.includes("png")) return "png";
+  if (mime.includes("gif")) return "gif";
+  if (mime.includes("webp")) return "jpeg";
+  if (mime.includes("jpeg") || mime.includes("jpg")) return "jpeg";
+
+  const lower = String(url || "").toLowerCase();
+  if (lower.includes(".png")) return "png";
+  if (lower.includes(".gif")) return "gif";
+  if (lower.includes(".webp")) return "jpeg";
+  return "jpeg";
+};
+
+const fetchImageAsBase64 = async (url) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`โหลดรูปไม่สำเร็จ: ${response.status}`);
+
+  const blob = await response.blob();
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+  return {
+    base64: String(base64),
+    extension: getImageExtension(url, blob.type),
+  };
+};
 
 export default function TicketHistory() {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // State
+
+  const initialFilter = location.state?.initialFilter || "ALL";
+  const initialTickets = Array.isArray(location.state?.tickets) ? location.state.tickets : [];
+
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -23,708 +183,715 @@ export default function TicketHistory() {
   const [priorityFilter, setPriorityFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [selectedTicket, setSelectedTicket] = useState(null);
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    closed: 0,
-    avgResponse: "0h"
-  });
-
-  // รับข้อมูลจาก navigation state
-  const initialFilter = location.state?.initialFilter || "ALL";
-  const initialTickets = location.state?.tickets || [];
 
   useEffect(() => {
-    // ตั้งค่าฟิลเตอร์เริ่มต้นจาก Dashboard
-    if (initialFilter) {
-      setStatusFilter(initialFilter);
-    }
-    
+    if (initialFilter) setStatusFilter(initialFilter);
+
     if (initialTickets.length > 0) {
       setTickets(initialTickets);
-      calculateStats(initialTickets);
       setLoading(false);
-    } else {
-      fetchTickets();
+      return;
     }
+
+    const load = async () => {
+      await fetchTickets();
+    };
+
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!selectedTicket) return;
+
+    const handleEsc = (event) => {
+      if (event.key === "Escape") setSelectedTicket(null);
+    };
+
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [selectedTicket]);
 
   const fetchTickets = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return navigate("/login");
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      const { data: ticketsData, error } = await supabase
+      if (!session) return;
+
+      const { data, error } = await supabase
         .from("tickets")
         .select("*")
-        .eq("creator_id", user.id)
+        .eq("creator_id", session.user.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      setTickets(ticketsData || []);
-      calculateStats(ticketsData || []);
-
+      setTickets(data || []);
     } catch (error) {
       console.error("Error fetching tickets:", error);
       Swal.fire({
-        icon: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        text: 'ไม่สามารถโหลดประวัติได้',
-        confirmButtonColor: '#4f46e5',
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถโหลดประวัติการแจ้งซ่อมได้",
+        confirmButtonColor: "#4f46e5",
       });
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, []);
 
-  const calculateStats = (ticketsData) => {
-    const total = ticketsData.length;
-    const pending = ticketsData.filter(t => t.status !== "CLOSED").length;
-    const closed = ticketsData.filter(t => t.status === "CLOSED").length;
-    
-    // คำนวณเวลาเฉลี่ย
+  const stats = useMemo(() => {
+    const total = tickets.length;
+    const pending = tickets.filter((t) => t.status !== "CLOSED").length;
+    const closed = tickets.filter((t) => t.status === "CLOSED").length;
+
     let totalHours = 0;
     let counted = 0;
-    
-    ticketsData.forEach(ticket => {
+
+    tickets.forEach((ticket) => {
       if (ticket.closed_at && ticket.created_at) {
         const created = new Date(ticket.created_at);
-        const closed = new Date(ticket.closed_at);
-        const hours = (closed - created) / (1000 * 60 * 60);
+        const closedAt = new Date(ticket.closed_at);
+        const hours = (closedAt - created) / (1000 * 60 * 60);
         if (hours > 0) {
           totalHours += hours;
-          counted++;
+          counted += 1;
         }
       }
     });
 
-    const avgResponse = counted > 0 ? `${Math.round(totalHours / counted)}h` : "0h";
-
-    setStats({
+    return {
       total,
       pending,
       closed,
-      avgResponse
-    });
-  };
+      avgResponse: counted > 0 ? `${Math.round(totalHours / counted)} ชม.` : "0 ชม.",
+    };
+  }, [tickets]);
 
-  // ✅ **LOGIC: Filter Tickets**
+  const categories = useMemo(() => {
+    const unique = [...new Set(tickets.map((t) => t.category).filter(Boolean))];
+    return ["ALL", ...unique];
+  }, [tickets]);
+
   const filteredTickets = useMemo(() => {
-    return tickets.filter(ticket => {
-      // Filter by search
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch = 
+    return tickets.filter((ticket) => {
+      const query = searchQuery.trim().toLowerCase();
+      if (query) {
+        const matched =
           (ticket.title || "").toLowerCase().includes(query) ||
           (ticket.ticket_no || "").toLowerCase().includes(query) ||
           (ticket.description || "").toLowerCase().includes(query) ||
           (ticket.category || "").toLowerCase().includes(query);
-        if (!matchesSearch) return false;
+        if (!matched) return false;
       }
 
-      // Filter by status
       if (statusFilter !== "ALL") {
         if (statusFilter === "PENDING" && ticket.status === "CLOSED") return false;
         if (statusFilter === "CLOSED" && ticket.status !== "CLOSED") return false;
-        if (statusFilter !== "PENDING" && statusFilter !== "CLOSED" && ticket.status !== statusFilter) {
-          return false;
-        }
+        if (!["PENDING", "CLOSED"].includes(statusFilter) && ticket.status !== statusFilter) return false;
       }
 
-      // Filter by priority
-      if (priorityFilter !== "ALL" && ticket.priority !== priorityFilter) {
-        return false;
-      }
-
-      // Filter by category
-      if (categoryFilter !== "ALL" && ticket.category !== categoryFilter) {
-        return false;
-      }
+      if (priorityFilter !== "ALL" && ticket.priority !== priorityFilter) return false;
+      if (categoryFilter !== "ALL" && ticket.category !== categoryFilter) return false;
 
       return true;
     });
   }, [tickets, searchQuery, statusFilter, priorityFilter, categoryFilter]);
 
-  // ✅ **LOGIC: Get Status Config**
-  const getStatusConfig = (status) => {
-    switch(status) {
-      case 'NEW':
-        return { 
-          label: 'รอดำเนินการ', 
-          color: 'text-rose-600', 
-          bg: 'bg-rose-50',
-          border: 'border-rose-200',
-          icon: Clock 
-        };
-      case 'IN_PROGRESS':
-        return { 
-          label: 'กำลังซ่อม', 
-          color: 'text-amber-600', 
-          bg: 'bg-amber-50',
-          border: 'border-amber-200',
-          icon: Clock 
-        };
-      case 'CLOSED':
-        return { 
-          label: 'สำเร็จ', 
-          color: 'text-emerald-600', 
-          bg: 'bg-emerald-50',
-          border: 'border-emerald-200',
-          icon: CheckCircle2 
-        };
-      default:
-        return { 
-          label: 'ไม่ระบุ', 
-          color: 'text-slate-600', 
-          bg: 'bg-slate-50',
-          border: 'border-slate-200',
-          icon: AlertCircle 
-        };
-    }
+  const hasActiveFilters =
+    !!searchQuery.trim() || statusFilter !== "ALL" || priorityFilter !== "ALL" || categoryFilter !== "ALL";
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("ALL");
+    setPriorityFilter("ALL");
+    setCategoryFilter("ALL");
   };
 
-  // ✅ **LOGIC: Get Priority Config**
-  const getPriorityConfig = (priority) => {
-    switch(priority) {
-      case 'urgent':
-        return { label: 'ด่วน', color: 'bg-gradient-to-r from-rose-500 to-pink-600' };
-      case 'high':
-        return { label: 'สูง', color: 'bg-gradient-to-r from-amber-500 to-orange-600' };
-      case 'normal':
-        return { label: 'ปกติ', color: 'bg-gradient-to-r from-blue-500 to-indigo-600' };
-      case 'low':
-        return { label: 'ต่ำ', color: 'bg-gradient-to-r from-emerald-500 to-green-600' };
-      default:
-        return { label: 'ไม่ระบุ', color: 'bg-gradient-to-r from-slate-500 to-slate-600' };
+  const handleExport = async () => {
+    if (filteredTickets.length === 0) {
+      Swal.fire({
+        icon: "info",
+        title: "ไม่มีข้อมูลให้ส่งออก",
+        text: "กรุณาปรับตัวกรองหรือลองอีกครั้ง",
+        confirmButtonColor: "#4f46e5",
+      });
+      return;
     }
-  };
 
-  // ✅ **LOGIC: Format Date**
-  const formatDate = (dateString) => {
-    if (!dateString) return 'ไม่ระบุ';
-    try {
-      const date = new Date(dateString);
-      return format(date, 'dd MMM yyyy', { locale: th });
-    } catch {
-      return 'ไม่ระบุ';
-    }
-  };
-
-  // ✅ **LOGIC: Format DateTime**
-  const formatDateTime = (dateString) => {
-    if (!dateString) return 'ไม่ระบุ';
-    try {
-      const date = new Date(dateString);
-      return format(date, 'dd MMM yyyy HH:mm', { locale: th });
-    } catch {
-      return 'ไม่ระบุ';
-    }
-  };
-
-  // ✅ **LOGIC: Get Time Ago**
-  const getTimeAgo = (dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      return formatDistanceToNow(date, { addSuffix: true, locale: th });
-    } catch {
-      return '';
-    }
-  };
-
-  // ✅ **LOGIC: Handle Export**
-  const handleExport = () => {
-    Swal.fire({
-      title: 'ส่งออกข้อมูล',
-      text: 'ต้องการส่งออกข้อมูลเป็นไฟล์ CSV หรือไม่?',
-      icon: 'info',
+    const result = await Swal.fire({
+      title: "ส่งออกข้อมูล",
+      text: "ต้องการส่งออกเป็นไฟล์ Excel (.xlsx) พร้อมรูปประกอบหรือไม่?",
+      icon: "question",
       showCancelButton: true,
-      confirmButtonColor: '#4f46e5',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'ส่งออก CSV',
-      cancelButtonText: 'ยกเลิก'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        const headers = ['เลขที่', 'หัวข้อ', 'สถานะ', 'หมวดหมู่', 'ความเร่งด่วน', 'วันที่แจ้ง', 'วันที่ปิด'];
-        const csvData = filteredTickets.map(ticket => [
-          ticket.ticket_no || `T${ticket.id?.slice(-6) || '000000'}`,
-          ticket.title,
-          getStatusConfig(ticket.status).label,
-          ticket.category,
-          getPriorityConfig(ticket.priority).label,
-          formatDate(ticket.created_at),
-          ticket.closed_at ? formatDate(ticket.closed_at) : 'ยังไม่ปิด'
-        ]);
-        
-        const csv = [headers, ...csvData].map(row => 
-          row.map(cell => `"${cell}"`).join(',')
-        ).join('\n');
-        
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `ticket-history-${format(new Date(), 'yyyy-MM-dd')}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        Swal.fire({
-          icon: 'success',
-          title: 'ส่งออกสำเร็จ',
-          text: 'ไฟล์ CSV ได้ถูกดาวน์โหลดแล้ว',
-          confirmButtonColor: '#4f46e5',
-        });
-      }
+      confirmButtonText: "ส่งออก Excel",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#4f46e5",
+      cancelButtonColor: "#6b7280",
     });
-  };
+    if (!result.isConfirmed) return;
 
-  // ✅ **LOGIC: Get Unique Categories**
-  const categories = useMemo(() => {
-    const uniqueCategories = [...new Set(tickets.map(t => t.category).filter(Boolean))];
-    return ['ALL', ...uniqueCategories];
-  }, [tickets]);
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "IT Service Desk";
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet("Ticket History", {
+        views: [{ state: "frozen", ySplit: 1 }],
+      });
+
+      worksheet.columns = [
+        { header: "เลขที่", key: "ticketNo", width: 16 },
+        { header: "หัวข้อ", key: "title", width: 36 },
+        { header: "สถานะ", key: "status", width: 16 },
+        { header: "หมวดหมู่", key: "category", width: 18 },
+        { header: "ความเร่งด่วน", key: "priority", width: 14 },
+        { header: "วันที่แจ้ง", key: "createdAt", width: 18 },
+        { header: "วันที่ปิด", key: "closedAt", width: 18 },
+        { header: "รูปภาพ", key: "image", width: 14 },
+        { header: "ลิงก์รูปภาพ", key: "imageLinks", width: 48 },
+      ];
+
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 24;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FF1E3A8A" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE0E7FF" },
+        };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFCBD5E1" } },
+          left: { style: "thin", color: { argb: "FFCBD5E1" } },
+          bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+          right: { style: "thin", color: { argb: "FFCBD5E1" } },
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+
+      for (const ticket of filteredTickets) {
+        const status = statusConfig[ticket.status] || statusConfig.default;
+        const priority = priorityConfig[ticket.priority] || priorityConfig.default;
+        const imageUrls = getTicketImageUrls(ticket);
+
+        const row = worksheet.addRow({
+          ticketNo: ticket.ticket_no || fallbackTicketNo(ticket),
+          title: ticket.title || "-",
+          status: status.label,
+          category: ticket.category || "-",
+          priority: priority.label,
+          createdAt: toDisplayDateTime(ticket.created_at),
+          closedAt: ticket.closed_at ? toDisplayDateTime(ticket.closed_at) : "ยังไม่ปิด",
+          image: imageUrls.length > 0 ? "แนบรูปแล้ว" : "-",
+          imageLinks: imageUrls.length > 0 ? imageUrls.join("\n") : "-",
+        });
+
+        row.alignment = { vertical: "middle" };
+        row.getCell("B").alignment = { wrapText: true, vertical: "middle" };
+        row.getCell("I").alignment = { wrapText: true, vertical: "middle" };
+
+        if (imageUrls.length > 0) {
+          const primaryImageUrl = imageUrls[0];
+          try {
+            const { base64, extension } = await fetchImageAsBase64(primaryImageUrl);
+            const imageId = workbook.addImage({ base64, extension });
+            row.height = 68;
+            worksheet.addImage(imageId, {
+              tl: { col: 7.2, row: row.number - 0.85 },
+              ext: { width: 84, height: 84 },
+              editAs: "oneCell",
+            });
+          } catch (imageError) {
+            console.warn("Cannot embed image:", primaryImageUrl, imageError);
+          }
+        }
+      }
+
+      worksheet.autoFilter = {
+        from: "A1",
+        to: "I1",
+      };
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      saveAs(blob, `ticket-history-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+
+      Swal.fire({
+        icon: "success",
+        title: "ส่งออกสำเร็จ",
+        text: "ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว (ระบบจะแนบรูปแรกของแต่ละ Ticket)",
+        confirmButtonColor: "#4f46e5",
+      });
+    } catch (error) {
+      console.error("Export excel error:", error);
+      Swal.fire({
+        icon: "error",
+        title: "ส่งออกไม่สำเร็จ",
+        text: "ไม่สามารถสร้างไฟล์ Excel ได้ กรุณาลองใหม่อีกครั้ง",
+        confirmButtonColor: "#4f46e5",
+      });
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-slate-600 font-medium">กำลังโหลดประวัติ...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center px-4">
+        <div className="text-center rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-xl backdrop-blur-sm">
+          <div className="mx-auto h-14 w-14 rounded-2xl border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
+          <p className="mt-4 text-sm font-semibold text-slate-600">กำลังโหลดประวัติการแจ้งซ่อม...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => navigate("/dashboard")}
-                className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-              >
-                <ArrowLeft size={20} className="text-slate-600" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-black text-slate-800">ประวัติการแจ้งซ่อม</h1>
-                <p className="text-slate-500 text-sm">ทั้งหมด {tickets.length} รายการ</p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-700 transition hover:bg-slate-50 hover:shadow-sm"
+              aria-label="กลับไปหน้า Dashboard"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <p className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+                <Sparkles size={12} />
+                Ticket Center
+              </p>
+              <h1 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">ประวัติการแจ้งซ่อม</h1>
+              <p className="text-xs text-slate-500 sm:text-sm">ทั้งหมด {tickets.length} รายการ</p>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={fetchTickets}
-                className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-                title="รีเฟรช"
-              >
-                <RefreshCw size={20} className="text-slate-600" />
-              </button>
-              <button 
-                onClick={handleExport}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-bold hover:shadow-lg hover:shadow-emerald-500/25 transition-all"
-              >
-                <Download size={18} />
-                <span className="hidden sm:inline">ส่งออก</span>
-              </button>
-            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={fetchTickets}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              title="รีเฟรช"
+            >
+              <RefreshCw size={16} />
+              <span className="hidden sm:inline">รีเฟรช</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 px-3.5 py-2 text-sm font-bold text-white transition hover:shadow-lg hover:shadow-emerald-500/25"
+            >
+              <Download size={16} />
+              <span>ส่งออก Excel</span>
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Stats */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+      <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">ทั้งหมด</p>
-                <p className="text-2xl font-black text-slate-800">{stats.total}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ทั้งหมด</p>
+                <p className="mt-1 text-2xl font-black text-slate-800">{stats.total}</p>
               </div>
-              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-                <FileText size={20} className="text-indigo-600" />
-              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
+                <FileText size={18} className="text-indigo-600" />
+              </span>
             </div>
           </div>
-          
-          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">รอดำเนินการ</p>
-                <p className="text-2xl font-black text-amber-600">{stats.pending}</p>
-              </div>
-              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
-                <Clock size={20} className="text-amber-600" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">สำเร็จ</p>
-                <p className="text-2xl font-black text-emerald-600">{stats.closed}</p>
-              </div>
-              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                <CheckCircle size={20} className="text-emerald-600" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">เวลาเฉลี่ย</p>
-                <p className="text-2xl font-black text-slate-800">{stats.avgResponse}</p>
-              </div>
-              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                <TrendingUp size={20} className="text-blue-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Filter Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="ค้นหาเลขที่แจ้งซ่อม, หัวข้อ, หรือคำอธิบาย..."
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">รอดำเนินการ</p>
+                <p className="mt-1 text-2xl font-black text-amber-600">{stats.pending}</p>
               </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
+                <Clock size={18} className="text-amber-600" />
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">สำเร็จ</p>
+                <p className="mt-1 text-2xl font-black text-emerald-600">{stats.closed}</p>
+              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
+                <CheckCircle2 size={18} className="text-emerald-600" />
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">เวลาเฉลี่ย</p>
+                <p className="mt-1 text-2xl font-black text-slate-800">{stats.avgResponse}</p>
+              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+                <TrendingUp size={18} className="text-blue-600" />
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+            <div className="relative w-full xl:flex-1">
+              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ค้นหาเลขที่แจ้งซ่อม, หัวข้อ, หมวดหมู่, รายละเอียด..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+              />
             </div>
 
-            {/* Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Status Filter */}
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 xl:w-auto">
               <select
-                className="px-4 py-3 bg-slate-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
               >
-                <option value="ALL">ทุกสถานะ</option>
-                <option value="PENDING">รอดำเนินการ</option>
-                <option value="CLOSED">สำเร็จ</option>
-                <option value="NEW">งานใหม่</option>
-                <option value="IN_PROGRESS">กำลังซ่อม</option>
-              </select>
-
-              {/* Priority Filter */}
-              <select
-                className="px-4 py-3 bg-slate-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-              >
-                <option value="ALL">ทุกความเร่งด่วน</option>
-                <option value="urgent">ด่วน</option>
-                <option value="high">สูง</option>
-                <option value="normal">ปกติ</option>
-                <option value="low">ต่ำ</option>
-              </select>
-
-              {/* Category Filter */}
-              <select
-                className="px-4 py-3 bg-slate-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
-                <option value="ALL">ทุกหมวดหมู่</option>
-                {categories.filter(c => c !== "ALL").map((category, index) => (
-                  <option key={index} value={category}>{category}</option>
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
                 ))}
               </select>
+
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+              >
+                {PRIORITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+              >
+                <option value="ALL">ทุกหมวดหมู่</option>
+                {categories
+                  .filter((c) => c !== "ALL")
+                  .map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+              </select>
             </div>
           </div>
-        </div>
 
-        {/* Results */}
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-          {/* Table Header */}
-          <div className="hidden md:grid grid-cols-12 gap-4 p-6 border-b border-slate-100 bg-slate-50">
-            <div className="col-span-4">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">หัวข้อ</p>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-semibold">
+                <Filter size={12} />
+                แสดง {filteredTickets.length} จาก {tickets.length} รายการ
+              </span>
+              {hasActiveFilters && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-700">
+                  มีตัวกรองที่ใช้งาน
+                </span>
+              )}
             </div>
-            <div className="col-span-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">สถานะ</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">ความเร่งด่วน</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">วันที่แจ้ง</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">จัดการ</p>
-            </div>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-100"
+              >
+                <CircleSlash size={13} />
+                ล้างตัวกรองทั้งหมด
+              </button>
+            )}
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="hidden grid-cols-12 gap-3 border-b border-slate-100 bg-slate-50 px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 md:grid">
+            <div className="col-span-4">หัวข้อ</div>
+            <div className="col-span-2">สถานะ</div>
+            <div className="col-span-2">ความเร่งด่วน</div>
+            <div className="col-span-2">วันที่แจ้ง</div>
+            <div className="col-span-2 text-right">จัดการ</div>
           </div>
 
-          {/* Table Body */}
-          <div className="divide-y divide-slate-100">
-            {filteredTickets.length > 0 ? (
-              filteredTickets.map((ticket) => {
-                const statusConfig = getStatusConfig(ticket.status);
-                const priorityConfig = getPriorityConfig(ticket.priority);
-                
-                return (
-                  <div 
-                    key={ticket.id}
-                    className="p-4 md:p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
-                    onClick={() => setSelectedTicket(ticket)}
-                  >
-                    <div className="flex flex-col md:grid md:grid-cols-12 gap-4 items-center">
-                      {/* Ticket Info - Mobile */}
-                      <div className="md:hidden w-full">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <Hash size={12} className="text-slate-400" />
-                            <span className="text-xs font-bold text-slate-500">
-                              {ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase() || '000000'}`}
-                            </span>
-                          </div>
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${statusConfig.bg} ${statusConfig.color}`}>
-                            {statusConfig.label}
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-slate-800 mb-2 line-clamp-2">{ticket.title}</h4>
-                      </div>
-
-                      {/* Desktop View */}
-                      <div className="hidden md:block md:col-span-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <h4 className="font-bold text-slate-800 mb-1">{ticket.title}</h4>
-                            <div className="flex items-center gap-2">
-                              <Hash size={12} className="text-slate-400" />
-                              <span className="text-xs text-slate-500">
-                                {ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase() || '000000'}`}
-                              </span>
-                              <span className="text-xs text-slate-400">•</span>
-                              <span className="text-xs text-slate-500">{ticket.category}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Status - Desktop */}
-                      <div className="hidden md:block md:col-span-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${statusConfig.color.replace('text', 'bg')}`}></div>
-                          <span className="text-sm font-medium text-slate-700">{statusConfig.label}</span>
-                        </div>
-                      </div>
-
-                      {/* Priority - Desktop */}
-                      <div className="hidden md:block md:col-span-2">
-                        <span className={`px-3 py-1 rounded-lg text-xs font-bold text-white ${priorityConfig.color}`}>
-                          {priorityConfig.label}
-                        </span>
-                      </div>
-
-                      {/* Date - Desktop */}
-                      <div className="hidden md:block md:col-span-2">
-                        <div className="flex items-center gap-2">
-                          <Calendar size={14} className="text-slate-400" />
-                          <span className="text-sm text-slate-600">{formatDate(ticket.created_at)}</span>
-                        </div>
-                      </div>
-
-                      {/* Actions - Desktop */}
-                      <div className="hidden md:block md:col-span-2">
-                        <div className="flex items-center justify-end">
-                          <button className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
-                            <Eye size={18} />
-                          </button>
-                          <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-600 transition-colors" />
-                        </div>
-                      </div>
-
-                      {/* Mobile Actions */}
-                      <div className="md:hidden w-full">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Calendar size={14} className="text-slate-400" />
-                            <span className="text-xs text-slate-500">{formatDate(ticket.created_at)}</span>
-                            <span className={`px-2 py-1 rounded text-xs font-bold text-white ${priorityConfig.color}`}>
-                              {priorityConfig.label}
-                            </span>
-                          </div>
-                          <ChevronRight size={18} className="text-slate-300" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="p-12 text-center">
-                <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Search size={32} className="text-slate-300" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-700 mb-2">ไม่พบรายการ</h3>
-                <p className="text-slate-500 mb-6">
-                  {searchQuery || statusFilter !== "ALL" || priorityFilter !== "ALL" || categoryFilter !== "ALL"
-                    ? "ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา"
-                    : "คุณยังไม่ได้แจ้งซ่อมใดๆ"}
-                </p>
+          {filteredTickets.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100">
+                <Search size={30} className="text-slate-300" />
+              </div>
+              <h3 className="mt-4 text-lg font-black text-slate-700">ไม่พบรายการ</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {hasActiveFilters ? "ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา" : "คุณยังไม่มีประวัติการแจ้งซ่อม"}
+              </p>
+              {hasActiveFilters && (
                 <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setStatusFilter("ALL");
-                    setPriorityFilter("ALL");
-                    setCategoryFilter("ALL");
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors"
+                  type="button"
+                  onClick={clearFilters}
+                  className="mt-6 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700"
                 >
                   ล้างตัวกรอง
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Pagination/Filters Summary */}
-          {filteredTickets.length > 0 && (
-            <div className="p-6 border-t border-slate-100 bg-slate-50">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-sm text-slate-600">
-                  แสดง {filteredTickets.length} จาก {tickets.length} รายการ
-                </p>
-                {(searchQuery || statusFilter !== "ALL" || priorityFilter !== "ALL" || categoryFilter !== "ALL") && (
-                  <button
-                    onClick={() => {
-                      setSearchQuery("");
-                      setStatusFilter("ALL");
-                      setPriorityFilter("ALL");
-                      setCategoryFilter("ALL");
-                    }}
-                    className="text-sm font-medium text-rose-600 hover:text-rose-700 transition-colors"
-                  >
-                    ล้างตัวกรองทั้งหมด
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {filteredTickets.map((ticket) => {
+                const status = statusConfig[ticket.status] || statusConfig.default;
+                const priority = priorityConfig[ticket.priority] || priorityConfig.default;
+                const StatusIcon = status.icon;
 
-      {/* Ticket Detail Modal */}
-      {selectedTicket && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div 
-            className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-scale-in"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="p-8">
-              {/* Header */}
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">
-                      {selectedTicket.ticket_no || `T${selectedTicket.id?.slice(-6).toUpperCase() || '000000'}`}
-                    </span>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusConfig(selectedTicket.status).bg} ${getStatusConfig(selectedTicket.status).color} ${getStatusConfig(selectedTicket.status).border} border`}>
-                      {getStatusConfig(selectedTicket.status).label}
-                    </span>
-                  </div>
-                  <h2 className="text-2xl font-black text-slate-800">{selectedTicket.title}</h2>
-                </div>
-                <button 
-                  onClick={() => setSelectedTicket(null)}
-                  className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-                >
-                  <X size={24} className="text-slate-500" />
-                </button>
-              </div>
-
-              {/* Content Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                {/* Left Column */}
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">รายละเอียดปัญหา</h3>
-                    <div className="bg-slate-50 p-4 rounded-2xl">
-                      <p className="text-slate-700 whitespace-pre-line">{selectedTicket.description}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-500 mb-2">หมวดหมู่</h4>
-                      <p className="font-bold text-slate-800">{selectedTicket.category}</p>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-500 mb-2">สถานที่</h4>
-                      <p className="font-bold text-slate-800">{selectedTicket.location || 'ไม่ระบุ'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column */}
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">ข้อมูลการซ่อม</h3>
-                    <div className="bg-indigo-50 p-4 rounded-2xl">
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
-                            {selectedTicket.assigned_name?.charAt(0) || 'T'}
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-800">{selectedTicket.assigned_name || 'รอการมอบหมาย'}</p>
-                            <p className="text-xs text-slate-500">ช่างเทคนิค</p>
-                          </div>
+                return (
+                  <article
+                    key={ticket.id}
+                    onClick={() => setSelectedTicket(ticket)}
+                    className="cursor-pointer px-4 py-4 transition hover:bg-slate-50 sm:px-6"
+                  >
+                    <div className="md:hidden">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+                            <Hash size={12} />
+                            {ticket.ticket_no || fallbackTicketNo(ticket)}
+                          </p>
+                          <h3 className="mt-1 text-sm font-bold text-slate-800 line-clamp-2">{ticket.title || "ไม่ระบุหัวข้อ"}</h3>
                         </div>
-                        {selectedTicket.solution_note && (
-                          <div className="bg-white p-3 rounded-xl border border-emerald-100">
-                            <p className="text-xs font-bold text-emerald-600 mb-1">สรุปการซ่อม:</p>
-                            <p className="text-sm text-emerald-800">{selectedTicket.solution_note}</p>
-                          </div>
-                        )}
+                        <ChevronRight size={18} className="text-slate-300" />
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${status.chipClass}`}>
+                          <StatusIcon size={12} />
+                          {status.label}
+                        </span>
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${priority.chipClass}`}>{priority.label}</span>
+                        <span className="text-[11px] text-slate-500">{ticket.category || "ไม่ระบุหมวดหมู่"}</span>
+                      </div>
+
+                      <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-500">
+                        <Calendar size={12} />
+                        <span>{toDisplayDate(ticket.created_at)}</span>
+                        <span>•</span>
+                        <span>{toTimeAgo(ticket.created_at)}</span>
                       </div>
                     </div>
+
+                    <div className="hidden items-center gap-3 md:grid md:grid-cols-12">
+                      <div className="col-span-4 min-w-0">
+                        <h3 className="truncate text-sm font-bold text-slate-800">{ticket.title || "ไม่ระบุหัวข้อ"}</h3>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                          <span className="inline-flex items-center gap-1">
+                            <Hash size={11} />
+                            {ticket.ticket_no || fallbackTicketNo(ticket)}
+                          </span>
+                          <span>•</span>
+                          <span className="truncate">{ticket.category || "ไม่ระบุหมวดหมู่"}</span>
+                        </div>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${status.chipClass}`}>
+                          <span className={`h-2 w-2 rounded-full ${status.dotClass}`} />
+                          {status.label}
+                        </span>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${priority.chipClass}`}>{priority.label}</span>
+                      </div>
+
+                      <div className="col-span-2 text-sm text-slate-600">
+                        <p>{toDisplayDate(ticket.created_at)}</p>
+                        <p className="text-xs text-slate-400">{toTimeAgo(ticket.created_at)}</p>
+                      </div>
+
+                      <div className="col-span-2 flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          className="rounded-lg p-2 text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600"
+                          aria-label="ดูรายละเอียด"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <ChevronRight size={17} className="text-slate-300" />
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </main>
+
+      {selectedTicket && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedTicket(null)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                      {selectedTicket.ticket_no || fallbackTicketNo(selectedTicket)}
+                    </span>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${(statusConfig[selectedTicket.status] || statusConfig.default).chipClass}`}
+                    >
+                      {(statusConfig[selectedTicket.status] || statusConfig.default).label}
+                    </span>
+                  </div>
+                  <h2 className="truncate text-lg font-black text-slate-900 sm:text-2xl">{selectedTicket.title || "ไม่ระบุหัวข้อ"}</h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTicket(null)}
+                  className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"
+                  aria-label="ปิดหน้าต่างรายละเอียด"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-6 px-5 py-5 sm:px-6 sm:py-6">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <section className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">รายละเอียดปัญหา</p>
+                    <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                        {selectedTicket.description || "ไม่ระบุรายละเอียด"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  {(selectedTicket.attachments || selectedTicket.image_url) && (
                     <div>
-                      <h4 className="text-sm font-bold text-slate-500 mb-2">วันที่แจ้ง</h4>
-                      <p className="font-bold text-slate-800">{formatDateTime(selectedTicket.created_at)}</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">หลักฐานที่แนบมา</p>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        {Array.isArray(selectedTicket.attachments) && selectedTicket.attachments.length > 0
+                          ? selectedTicket.attachments.map((url, index) => (
+                              <button
+                                key={`${url}-${index}`}
+                                type="button"
+                                onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+                                className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                                title="เปิดรูปแนบ"
+                              >
+                                <img
+                                  src={url}
+                                  alt={`หลักฐานแนบ ${index + 1}`}
+                                  className="h-24 w-24 object-cover transition hover:scale-105"
+                                />
+                              </button>
+                            ))
+                          : selectedTicket.image_url && (
+                              <button
+                                type="button"
+                                onClick={() => window.open(selectedTicket.image_url, "_blank", "noopener,noreferrer")}
+                                className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                                title="เปิดรูปแนบ"
+                              >
+                                <img
+                                  src={selectedTicket.image_url}
+                                  alt="หลักฐานแนบ"
+                                  className="h-24 w-24 object-cover transition hover:scale-105"
+                                />
+                              </button>
+                            )}
+                      </div>
                     </div>
-                    {selectedTicket.closed_at && (
+                  )}
+                </section>
+
+                <section className="space-y-4">
+                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">ข้อมูลการซ่อม</p>
+                    <div className="mt-3 flex items-center gap-3">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+                        {selectedTicket.assigned_name?.charAt(0) || "T"}
+                      </div>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-500 mb-2">วันที่ปิด</h4>
-                        <p className="font-bold text-slate-800">{formatDateTime(selectedTicket.closed_at)}</p>
+                        <p className="text-sm font-bold text-slate-800">{selectedTicket.assigned_name || "รอการมอบหมาย"}</p>
+                        <p className="text-xs text-slate-500">ผู้รับผิดชอบ</p>
+                      </div>
+                    </div>
+
+                    {selectedTicket.solution_note && (
+                      <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-3">
+                        <p className="text-xs font-bold text-emerald-700">สรุปการซ่อม</p>
+                        <p className="mt-1 text-sm text-slate-700">{selectedTicket.solution_note}</p>
                       </div>
                     )}
                   </div>
-                </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">หมวดหมู่</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-800">{selectedTicket.category || "ไม่ระบุ"}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">สถานที่</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-800">{selectedTicket.location || "ไม่ระบุ"}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">วันที่แจ้ง</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-800">{toDisplayDateTime(selectedTicket.created_at)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">วันที่ปิด</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-800">
+                        {selectedTicket.closed_at ? toDisplayDateTime(selectedTicket.closed_at) : "ยังไม่ปิด"}
+                      </p>
+                    </div>
+                  </div>
+                </section>
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row">
                 <button
+                  type="button"
                   onClick={() => setSelectedTicket(null)}
-                  className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-colors"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
                 >
+                  <X size={16} />
                   ปิด
                 </button>
                 <button
+                  type="button"
                   onClick={() => navigate("/create-ticket")}
-                  className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg hover:shadow-indigo-500/25 transition-all"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:shadow-lg hover:shadow-indigo-500/30"
                 >
+                  <ExternalLink size={16} />
                   สร้างใบแจ้งซ่อมใหม่
                 </button>
               </div>

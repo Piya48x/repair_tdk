@@ -12,6 +12,7 @@ import ITDashboard from "./pages/ITDashboard"; // สร้างไฟล์น
 import AuditView from "./pages/AuditView";     // สร้างไฟล์นี้ในโฟลเดอร์ pages
 import { Ticket } from "lucide-react";
 import PickUpEquipment from "./pages/PickUpEquipment.jsx";
+import { Toaster } from "react-hot-toast";
 
 function AppInner() {
   const [user, setUser] = useState(null);
@@ -82,6 +83,7 @@ function AppInner() {
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster />
       <AppInner />
     </BrowserRouter>
   );

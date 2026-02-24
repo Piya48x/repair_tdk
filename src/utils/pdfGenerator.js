@@ -183,19 +183,22 @@ export const generateITRequestPDF = async (requestData, selectedRequest, current
 
     const drawSigBox = (title, x, name) => {
         doc.setFont('Sarabun', 'bold');
+        doc.setFontSize(11); // กำหนดขนาด Font ให้ Title (11px)
         doc.setTextColor(...TEXT_MAIN);
         doc.text(title, x + (boxW / 2), sigY, { align: 'center' });
 
         doc.setDrawColor(200);
         doc.setLineWidth(0.2);
-        doc.line(x, sigY + 15, x + boxW, sigY + 15);
+        doc.line(x, sigY + 12, x + boxW, sigY + 12); // ปรับระยะเส้นประเล็กน้อย
 
         doc.setFont('Sarabun', 'normal');
-        doc.setFontSize(10);
-        doc.text(`(${name || '...........................................'})`, x + (boxW / 2), sigY + 26, { align: 'center' });
-        doc.setFontSize(13);
+        doc.setFontSize(10); // ขนาดชื่อ (10px)
+        doc.setTextColor(...TEXT_MAIN);
+        doc.text(`(${name || '...........................................'})`, x + (boxW / 2), sigY + 18, { align: 'center' });
+
+        doc.setFontSize(10); // ปรับวันที่ให้เท่ากับชื่อ (10px)
         doc.setTextColor(...TEXT_SUB);
-        doc.text("วันที่: ......../......../........", x + (boxW / 2), sigY + 34, { align: 'center' });
+        doc.text("วันที่: ......../......../........", x + (boxW / 2), sigY + 25, { align: 'center' });
     };
 
     drawSigBox("ผู้ขอใช้บริการ (Requester)", margin + 5, requestData.requesterName || currentUser?.name);

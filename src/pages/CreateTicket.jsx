@@ -1,931 +1,1282 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
-import { supabase } from "../lib/supabaseClient";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Monitor, Globe, Printer, Mail, Lock, Camera, CheckCircle,
-  ArrowLeft, Loader2, User, AlertCircle, Building,
-  RotateCcw, FlipHorizontal, FlipVertical, Video, Image as ImageIcon,
-  X, Maximize2, Minimize2, Zap, Sparkles, Smartphone, Tablet, Laptop, Settings
-} from "lucide-react";
+import { supabase } from "../lib/supabaseClient";
+import { motion, AnimatePresence } from "framer-motion";
 import Webcam from "react-webcam";
+import { toast, Toaster } from "react-hot-toast";
+import {
+  ArrowLeft,
+  Building,
+  Calendar,
+  Camera,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Info,
+  LayoutGrid,
+  Loader2,
+  Mail,
+  Monitor,
+  Printer,
+  Server,
+  Upload,
+  User,
+  Wifi,
+  X,
+  AlertTriangle,
+  FlipHorizontal,
+  ShieldCheck,
+  CircleDashed,
+  FileText,
+  Briefcase,
+  Hash,
+  Crown,
+  Gem,
+  Heart,
+  Sparkles,
+  Layers,
+  HardDrive,
+  Image as ImageIcon,
+  Zap,
+  Shield,
+  Clock,
+  Award
+} from "lucide-react";
 
-/* ================= CONFIG ================= */
 const CATEGORIES = [
-  { id: "Hardware", label: "Computer", icon: Monitor, activeColor: "bg-blue-600", gradient: "from-blue-500 to-blue-700" },
-  { id: "Network", label: "Network", icon: Globe, activeColor: "bg-cyan-600", gradient: "from-cyan-500 to-cyan-700" },
-  { id: "Printer", label: "Printer", icon: Printer, activeColor: "bg-orange-600", gradient: "from-orange-500 to-orange-700" },
-  { id: "Email", label: "Email", icon: Mail, activeColor: "bg-purple-600", gradient: "from-purple-500 to-purple-700" },
-  { id: "System", label: "System", icon: Lock, activeColor: "bg-slate-800", gradient: "from-slate-700 to-slate-900" },
+  {
+    id: "Hardware",
+    label: "คอมพิวเตอร์ / อุปกรณ์",
+    desc: "PC, Notebook, จอภาพ, อุปกรณ์ต่อพ่วง",
+    icon: Monitor,
+    selectedClass: "from-blue-600 to-indigo-600 border-blue-200",
+    iconClass: "text-blue-600",
+    softClass: "bg-blue-50",
+    gradient: "from-blue-500 via-indigo-500 to-blue-600"
+  },
+  {
+    id: "Network",
+    label: "เครือข่าย / Wi-Fi",
+    desc: "LAN, Wi-Fi, VPN, Internet",
+    icon: Wifi,
+    selectedClass: "from-cyan-600 to-teal-600 border-cyan-200",
+    iconClass: "text-cyan-600",
+    softClass: "bg-cyan-50",
+    gradient: "from-cyan-500 via-teal-500 to-cyan-600"
+  },
+  {
+    id: "Printer",
+    label: "เครื่องพิมพ์ / สแกน",
+    desc: "Printer, Scanner, Copier",
+    icon: Printer,
+    selectedClass: "from-orange-500 to-amber-500 border-orange-200",
+    iconClass: "text-orange-600",
+    softClass: "bg-orange-50",
+    gradient: "from-orange-500 via-amber-500 to-orange-600"
+  },
+  {
+    id: "Email",
+    label: "อีเมลองค์กร",
+    desc: "Outlook, Exchange, การส่งรับเมล",
+    icon: Mail,
+    selectedClass: "from-fuchsia-600 to-pink-600 border-fuchsia-200",
+    iconClass: "text-fuchsia-600",
+    softClass: "bg-fuchsia-50",
+    gradient: "from-fuchsia-500 via-pink-500 to-fuchsia-600"
+  },
+  {
+    id: "System",
+    label: "ระบบงาน / ซอฟต์แวร์",
+    desc: "OS, แอปพลิเคชัน, สิทธิ์การใช้งาน",
+    icon: Server,
+    selectedClass: "from-slate-700 to-slate-900 border-slate-200",
+    iconClass: "text-slate-700",
+    softClass: "bg-slate-100",
+    gradient: "from-slate-700 via-slate-800 to-slate-900"
+  },
 ];
 
 const ISSUES = {
-  Hardware: ["เปิดไม่ติด", "เครื่องช้า", "อุปกรณ์เสริม", "หน้าจอแตก", "เสียงดังผิดปกติ"],
-  Network: ["WiFi ไม่ได้", "เน็ตช้า", "เข้า Server ไม่ได้", "อินเทอร์เน็ตขาด", "VPN ใช้งานไม่ได้"],
-  Printer: ["พิมพ์ไม่ออก", "หมึกหมด", "กระดาษติด", "พิมพ์สีเพี้ยน", "เครื่องส่งเสียงดัง"],
-  Email: ["ส่งไม่ได้", "Outlook ค้าง", "ลืมรหัส", "สแปมมากเกิน", "แนบไฟล์ไม่ได้"],
-  System: ["Login ไม่ได้", "ขอสิทธิ์", "โปรแกรม Error", "ไวรัส/มัลแวร์", "Windows Update"],
+  Hardware: [
+    "เครื่องเปิดไม่ติด",
+    "เครื่องทำงานช้ามาก",
+    "จอฟ้า (Blue Screen)",
+    "อุปกรณ์ต่อพ่วงใช้งานไม่ได้",
+    "พัดลมหรือเสียงเครื่องผิดปกติ",
+  ],
+  Network: [
+    "เชื่อมต่อ Wi-Fi ไม่ได้",
+    "อินเทอร์เน็ตช้า/หลุดบ่อย",
+    "VPN เชื่อมต่อไม่ได้",
+    "เข้า Shared Folder ไม่ได้",
+    "DNS / IP Error",
+  ],
+  Printer: [
+    "สั่งพิมพ์ไม่ออก",
+    "กระดาษติด",
+    "หมึกหมด/สีเพี้ยน",
+    "สแกนเอกสารไม่ได้",
+    "Driver มีปัญหา",
+  ],
+  Email: [
+    "รับส่งอีเมลไม่ได้",
+    "ลืมรหัสผ่าน",
+    "Outlook ไม่ซิงก์",
+    "กล่องเมลเต็ม",
+    "ตั้งค่า Signature",
+  ],
+  System: [
+    "โปรแกรมค้าง / Error",
+    "ขอสิทธิ์ Admin",
+    "ติดตั้งโปรแกรม",
+    "อัปเดตระบบไม่ผ่าน",
+    "เข้าใช้งานระบบภายในไม่ได้",
+  ],
 };
 
 const URGENCY = [
-  { 
-    id: "Low", 
-    label: "รอได้", 
-    color: "text-emerald-600", 
-    bg: "bg-emerald-50", 
+  {
+    id: "low",
+    label: "ปกติ",
+    desc: "ภายใน 48 ชั่วโมง",
+    priority: "P3",
+    dot: "bg-emerald-500",
     border: "border-emerald-200",
-    icon: "⏳",
-    description: "สามารถรอได้ 1-3 วัน"
+    chip: "bg-emerald-100 text-emerald-700",
+    selectedBg: "bg-emerald-50",
+    gradient: "from-emerald-500 to-teal-500",
+    color: "emerald"
   },
-  { 
-    id: "Normal", 
-    label: "เร็วหน่อยก็ดี", 
-    color: "text-amber-600", 
-    bg: "bg-amber-50", 
+  {
+    id: "normal",
+    label: "เร่งด่วน",
+    desc: "ภายใน 24 ชั่วโมง",
+    priority: "P2",
+    dot: "bg-amber-500",
     border: "border-amber-200",
-    icon: "⚡",
-    description: "ควรแก้ไขภายในวันนี้"
+    chip: "bg-amber-100 text-amber-700",
+    selectedBg: "bg-amber-50",
+    gradient: "from-amber-500 to-orange-500",
+    color: "amber"
   },
-  { 
-    id: "Urgent", 
-    label: "ให้ไว้น้อง", 
-    color: "text-rose-600", 
-    bg: "bg-rose-50", 
+  {
+    id: "urgent",
+    label: "วิกฤต",
+    desc: "ต้องการความช่วยเหลือทันที",
+    priority: "P1",
+    dot: "bg-rose-500",
     border: "border-rose-200",
-    icon: "🚨",
-    description: "ต้องการความช่วยเหลือด่วน"
+    chip: "bg-rose-100 text-rose-700",
+    selectedBg: "bg-rose-50",
+    gradient: "from-rose-500 to-red-500",
+    color: "rose"
   },
 ];
+
+function formatThaiDateTime(date) {
+  const thaiMonths = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+  ];
+  const day = date.getDate();
+  const month = thaiMonths[date.getMonth()];
+  const year = date.getFullYear() + 543;
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return { date: `${day} ${month} ${year}`, time: `${hours}:${minutes}` };
+}
+
+const sectionAnim = {
+  initial: { y: 15, opacity: 0 },
+  animate: { y: 0, opacity: 1 },
+  transition: { duration: 0.4 },
+};
 
 const CreateTicket = () => {
   const navigate = useNavigate();
   const webcamRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const [facingMode, setFacingMode] = useState("user");
-  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [ticketRef, setTicketRef] = useState("");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [deviceInfo, setDeviceInfo] = useState({
-    isMobile: false,
-    isTablet: false,
-    isDesktop: true
-  });
-  const [animationStep, setAnimationStep] = useState(0);
+  const [facingMode, setFacingMode] = useState("user");
+  const [tempImage, setTempImage] = useState(null);
+  const [isReviewing, setIsReviewing] = useState(false);
 
   const [form, setForm] = useState({
     employeeId: "",
     employeeName: "",
     department: "",
+    position: "",
     category: "",
     issue: "",
-    urgency: "Normal",
+    urgency: "normal",
     attachment: null,
-    cameraImage: null,
+    profilePic: null,
   });
 
   const [preview, setPreview] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [ticketRef, setTicketRef] = useState("");
-  const [cameraError, setCameraError] = useState(null);
-  const [capturedImages, setCapturedImages] = useState([]);
-  const [showCameraControls, setShowCameraControls] = useState(false);
-  const [cameraLoading, setCameraLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
-  // Detect device type and screen size
   useEffect(() => {
-    const checkDevice = () => {
-      const width = window.innerWidth;
-      setDeviceInfo({
-        isMobile: width < 768,
-        isTablet: width >= 768 && width < 1024,
-        isDesktop: width >= 1024
-      });
-    };
-
-    checkDevice();
-    window.addEventListener('resize', checkDevice);
-    
-    // Animation sequence
-    const animTimer = setInterval(() => {
-      setAnimationStep(prev => (prev + 1) % 3);
-    }, 2000);
-
-    return () => {
-      window.removeEventListener('resize', checkDevice);
-      clearInterval(animTimer);
-    };
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Get user data
   useEffect(() => {
     const init = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data?.user) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
 
-      const email = data.user.email;
-      const username = email.split("@")[0];
-      const empId = username.replace(/\D/g, "") || "EMP";
-      
-      const userMetadata = data.user.user_metadata || {};
-      
-      setForm(p => ({ 
-        ...p, 
-        employeeId: empId,
-        employeeName: userMetadata.full_name || username.toUpperCase(),
-        department: userMetadata.department || "ไม่ระบุแผนก"
-      }));
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          let avatarUrl = profile.avatar_url || profile.id_card_url || null;
+
+          setForm((p) => ({
+            ...p,
+            employeeId: profile.employee_code || "EMP-001",
+            employeeName: profile.full_name || "พนักงาน",
+            department: profile.department || "ฝ่ายเทคโนโลยีสารสนเทศ",
+            position: profile.position || "เจ้าหน้าที่ระบบ",
+            profilePic: avatarUrl,
+          }));
+        }
+      } catch (err) {
+        console.error("Profile Error:", err);
+      }
     };
     init();
   }, []);
 
-  // Handle file upload
-  const handleFile = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert("ไฟล์ขนาดเกิน 5MB กรุณาเลือกรูปที่มีขนาดเล็กกว่า");
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      alert("กรุณาเลือกไฟล์รูปภาพเท่านั้น");
-      return;
-    }
-
-    setForm(p => ({ ...p, attachment: file }));
-    setPreview(URL.createObjectURL(file));
-    setIsCameraActive(false);
-  };
-
-  // Webcam capture
-  const capture = useCallback(() => {
-    if (!webcamRef.current) return;
-    
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) return;
-
-    // Convert base64 to blob
-    fetch(imageSrc)
-      .then(res => res.blob())
-      .then(blob => {
-        const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        setForm(p => ({ ...p, attachment: file, cameraImage: imageSrc }));
-        setPreview(imageSrc);
-        setCapturedImages(prev => [...prev.slice(-2), imageSrc]); // Keep last 3 images
-        
-        // Success animation feedback
-        const captureBtn = document.querySelector('.capture-btn');
-        if (captureBtn) {
-          captureBtn.classList.add('scale-90');
-          setTimeout(() => captureBtn.classList.remove('scale-90'), 300);
-        }
-      });
-  }, [webcamRef]);
-
-  // Toggle camera
-  const toggleCamera = () => {
-    if (isCameraActive) {
-      setIsCameraActive(false);
-      setCameraError(null);
-    } else {
-      setCameraLoading(true);
-      setIsCameraActive(true);
-      setShowCameraControls(true);
-      setTimeout(() => setCameraLoading(false), 500);
-    }
-  };
-
-  // Switch camera (front/back)
-  const switchCamera = () => {
-    setFacingMode(prev => prev === "user" ? "environment" : "user");
-  };
-
-  // Camera error handling
-  const handleCameraError = (error) => {
-    console.error("Camera error:", error);
-    setCameraError("ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบการอนุญาตใช้งานกล้อง");
-    setIsCameraActive(false);
-    setCameraLoading(false);
-  };
-
-  // Toggle fullscreen
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
-
- 
-  // ค้นหาฟังก์ชัน handleSubmit ใน CreateTicket.jsx
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!form.category || !form.issue) {
-    alert("กรุณากรอกประเภทอุปกรณ์และอาการที่พบ");
-    return;
-  }
-  setLoading(true);
-
-  try {
-    const { data: auth } = await supabase.auth.getUser();
-    let fileUrl = null;
-
-    if (form.attachment) {
-      const ext = form.attachment.name.split(".").pop();
-      const path = `${auth.user.id}/${Date.now()}.${ext}`;
-      await supabase.storage.from("ticket-attachments").upload(path, form.attachment);
-      fileUrl = supabase.storage.from("ticket-attachments").getPublicUrl(path).data.publicUrl;
-    }
-
-    // --- แก้ไขส่วนนี้ ---
-    const { data, error } = await supabase
-      .from("tickets")
-      .insert({
-        creator_id: auth.user.id,
-        reporter_name: form.employeeName,
-        reporter_emp_id: form.employeeId,
-        reporter_dept: form.department,
-        reporter_phone: "",
-        reporter_email: auth.user.email,
-        title: form.issue.slice(0, 50),
-        description: form.issue,
-        category: form.category,
-        priority: form.urgency.toLowerCase(),
-        status: "NEW",
-        image_url: fileUrl,
-        image_source: form.cameraImage ? 'camera' : 'upload',
-        device_type: deviceInfo.isMobile ? 'mobile' : deviceInfo.isTablet ? 'tablet' : 'desktop'
-      })
-      .select("ticket_no") // สั่งให้คืนค่า ticket_no ที่ DB สร้างให้
-      .single();
-
-    if (error) throw error;
-    
-    // ตั้งค่ารหัสที่ได้จาก database ไปยัง State เพื่อแสดงในหน้า Success
-    setTicketRef(data.ticket_no); 
-    setSuccess(true);
-    // ------------------
-    
-    if (typeof window !== 'undefined' && window.Audio) {
-      try {
-        const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3');
-        audio.volume = 0.3;
-        audio.play();
-      } catch (e) {
-        console.log("Audio play failed", e);
+  useEffect(() => {
+    return () => {
+      if (preview && preview.startsWith("blob:")) {
+        URL.revokeObjectURL(preview);
       }
-    }
-  } catch (err) {
-    console.error("Submit error:", err);
-    alert("เกิดข้อผิดพลาดในการส่งข้อมูล: " + err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+    };
+  }, [preview]);
 
-  // Success screen
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("ไฟล์แนบต้องมีขนาดไม่เกิน 5MB");
+      return;
+    }
+
+    if (preview && preview.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+    }
+
+    const url = URL.createObjectURL(file);
+    setForm((p) => ({ ...p, attachment: file }));
+    setPreview(url);
+    setIsCameraActive(false);
+  };
+
+  const clearAttachment = () => {
+    if (preview && preview.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+    }
+    setPreview(null);
+    setTempImage(null);
+    setIsReviewing(false);
+    setForm((p) => ({ ...p, attachment: null }));
+  };
+
+  const capture = useCallback(() => {
+    if (!webcamRef.current || typeof webcamRef.current.getScreenshot !== "function") {
+      toast.error("กล้องไม่พร้อมใช้งาน");
+      return;
+    }
+
+    try {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        setTempImage(imageSrc);
+        setIsReviewing(true);
+      }
+    } catch (err) {
+      console.error("Capture error", err);
+      toast.error("ไม่สามารถถ่ายรูปได้");
+    }
+  }, []);
+
+  const confirmCapture = () => {
+    if (!tempImage) return;
+    fetch(tempImage)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const file = new File([blob], `camera_${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
+        setForm((p) => ({ ...p, attachment: file }));
+        setPreview(tempImage);
+        setIsReviewing(false);
+        setIsCameraActive(false);
+        toast.success("แนบรูปภาพเรียบร้อย");
+      })
+      .catch(() => toast.error("ไม่สามารถบันทึกรูปได้"));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.category || !form.issue.trim()) {
+      toast.error("กรุณาเลือกหมวดหมู่และระบุรายละเอียดปัญหา");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) throw new Error("ไม่พบผู้ใช้งาน");
+
+      let fileUrl = null;
+      if (form.attachment) {
+        try {
+          const ext = form.attachment.name.split('.').pop();
+          const fileName = `${user.id}/${Date.now()}_ticket.${ext}`;
+          const { error: uploadError } = await supabase
+            .storage
+            .from("ticket-attachments")
+            .upload(fileName, form.attachment);
+
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase
+              .storage
+              .from("ticket-attachments")
+              .getPublicUrl(fileName);
+            fileUrl = publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn("Upload warning:", uploadErr?.message || uploadErr);
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("tickets")
+        .insert({
+          creator_id: user.id,
+          reporter_name: form.employeeName,
+          reporter_email: user.email || "",
+          department: form.department,
+          location: form.position,
+          category: form.category,
+          title: form.issue.substring(0, 60),
+          description: form.issue,
+          priority: form.urgency,
+          status: "NEW",
+          image_url: fileUrl
+        })
+        .select("id,ticket_no")
+        .single();
+
+      if (error) throw error;
+
+      const ref = data?.ticket_no || `T${String(data.id).padStart(6, "0")}`;
+      setTicketRef(ref);
+      setSuccess(true);
+      toast.success("ส่งคำขอเรียบร้อยแล้ว");
+    } catch (err) {
+      toast.error(`เกิดข้อผิดพลาด: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const thaiDateTime = formatThaiDateTime(currentTime);
+  const selectedCategory = CATEGORIES.find((c) => c.id === form.category);
+  const selectedUrgency = URGENCY.find((u) => u.id === form.urgency);
+  const canSubmit = !!form.category && !!form.issue.trim() && !loading;
+
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 p-4 animate-fade-in">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-10 text-center max-w-md w-full border border-emerald-100 transform transition-all duration-500 scale-100 hover:scale-[1.02]">
-          <div className="relative mb-8">
-            <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-20"></div>
-            <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center mx-auto border-4 border-white shadow-lg relative">
-              <CheckCircle className="text-white" size={48} />
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-50 p-6"
+      >
+        <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
+        <motion.div
+          initial={{ scale: 0.95, y: 20, opacity: 0 }}
+          animate={{ scale: 1, y: 0, opacity: 1 }}
+          transition={{ type: "spring", damping: 25 }}
+          className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/50 bg-white/90 p-8 shadow-2xl backdrop-blur-xl"
+        >
+          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+          <div className="relative">
+            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center">
+              <div className="absolute h-24 w-24 animate-pulse rounded-3xl bg-emerald-400/20 blur-xl" />
+              <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-2xl shadow-emerald-200">
+                <CheckCircle2 className="text-white" size={48} />
+              </div>
             </div>
-          </div>
-          
-          <div className="space-y-4">
-            <h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-2 animate-bounce-subtle">
-              ส่งเรื่องเรียบร้อย! 🎉
-            </h2>
-            <p className="text-slate-500 text-lg mb-6 px-4">
-              ระบบได้รับเรื่องแล้ว เจ้าหน้าที่จะติดต่อกลับโดยเร็วที่สุด
+
+            <h1 className="text-center text-3xl font-black tracking-tight text-slate-900">
+              แจ้งปัญหาสำเร็จ
+            </h1>
+            <p className="mt-2 text-center text-slate-500">
+              ระบบบันทึกคำขอเรียบร้อยแล้ว ทีม IT จะติดต่อกลับตามระดับความเร่งด่วน
             </p>
-            
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 mb-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-2 opacity-10 font-black text-6xl">#</div>
-              <p className="text-xs font-bold text-indigo-100 uppercase tracking-widest mb-2">Ticket Reference</p>
-              <p className="text-5xl md:text-6xl font-black text-white tracking-tighter">
+
+            <div className="mt-8 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-6 shadow-inner">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                Ticket Reference
+              </p>
+              <p className="mt-2 text-4xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 #{ticketRef}
               </p>
-              <p className="text-indigo-100 text-sm mt-4">
-                สามารถใช้รหัสนี้ในการติดตามสถานะ
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 hover:scale-[1.02] active:scale-95 transition-all duration-300 flex items-center justify-center gap-2"
-              >
-                <span>กลับหน้าหลัก</span>
-                <ArrowLeft size={20} />
-              </button>
-              
-              <button
-                onClick={() => {
-                  setSuccess(false);
-                  setForm({
-                    employeeId: form.employeeId,
-                    employeeName: form.employeeName,
-                    department: form.department,
-                    category: "",
-                    issue: "",
-                    urgency: "Normal",
-                    attachment: null,
-                    cameraImage: null,
-                  });
-                  setPreview(null);
-                  setCapturedImages([]);
-                }}
-                className="w-full py-4 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 hover:scale-[1.02] active:scale-95 transition-all duration-300"
-              >
-                ส่งเรื่องใหม่
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Camera view
-  const renderCameraView = () => (
-    <div className={`relative rounded-2xl overflow-hidden border-2 ${isCameraActive ? 'border-blue-500' : 'border-gray-200'} shadow-xl transition-all duration-300`}>
-      {cameraLoading ? (
-        <div className="w-full h-64 md:h-80 bg-gray-900 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-white text-sm">กำลังเปิดกล้อง...</p>
-          </div>
-        </div>
-      ) : cameraError ? (
-        <div className="w-full h-64 md:h-80 bg-gray-900 flex items-center justify-center p-6">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <X className="text-rose-600" size={24} />
-            </div>
-            <p className="text-white mb-4">{cameraError}</p>
-            <button
-              onClick={() => {
-                setCameraError(null);
-                toggleCamera();
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              ลองอีกครั้ง
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <Webcam
-            ref={webcamRef}
-            audio={false}
-            screenshotFormat="image/jpeg"
-            videoConstraints={{
-              facingMode: facingMode,
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
-            }}
-            onUserMediaError={handleCameraError}
-            className="w-full h-64 md:h-80 object-cover"
-            mirrored={facingMode === "user"}
-          />
-          
-          {/* Camera overlay grid */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute inset-0 opacity-30" style={{
-              backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-              backgroundSize: '40px 40px'
-            }}></div>
-          </div>
-          
-          {/* Camera controls */}
-          {showCameraControls && (
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
-              <button
-                onClick={switchCamera}
-                className="p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:bg-white transition-all hover:scale-110 active:scale-95"
-                title="สลับกล้อง"
-              >
-                <FlipHorizontal size={20} className="text-gray-700" />
-              </button>
-              
-              <button
-                onClick={capture}
-                className="capture-btn p-4 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:bg-white transition-all hover:scale-110 active:scale-95"
-                title="ถ่ายภาพ"
-              >
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                  <Camera size={24} className="text-white" />
-                </div>
-              </button>
-              
-              <button
-                onClick={toggleFullscreen}
-                className="p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:bg-white transition-all hover:scale-110 active:scale-95"
-                title={isFullscreen ? "ยุบหน้าจอ" : "ขยายเต็มจอ"}
-              >
-                {isFullscreen ? (
-                  <Minimize2 size={20} className="text-gray-700" />
-                ) : (
-                  <Maximize2 size={20} className="text-gray-700" />
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedCategory && (
+                  <span className="rounded-full bg-indigo-100 px-3 py-1.5 text-xs font-bold text-indigo-700">
+                    {selectedCategory.label}
+                  </span>
                 )}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-
-  // Preview gallery
-  const renderPreviewGallery = () => {
-    if (!preview && capturedImages.length === 0) return null;
-    
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <ImageIcon className="w-5 h-5 text-blue-500" />
-          <p className="text-sm font-bold text-slate-700 uppercase">ภาพประกอบ</p>
-        </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {preview && (
-            <div className="relative group">
-              <img 
-                src={preview} 
-                alt="Current preview" 
-                className="w-full h-32 object-cover rounded-xl border-2 border-blue-300 shadow-lg group-hover:scale-[1.02] transition-transform"
-              />
-              <div className="absolute top-2 right-2 px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
-                ปัจจุบัน
-              </div>
-              <button
-                onClick={() => {
-                  setPreview(null);
-                  setForm(p => ({ ...p, attachment: null, cameraImage: null }));
-                }}
-                className="absolute top-2 left-2 p-1.5 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          )}
-          
-          {capturedImages.map((img, index) => (
-            <div key={index} className="relative group">
-              <img 
-                src={img} 
-                alt={`Capture ${index + 1}`} 
-                className="w-full h-32 object-cover rounded-xl border border-gray-300 opacity-75 hover:opacity-100 transition-opacity"
-              />
-              <button
-                onClick={() => {
-                  setPreview(img);
-                  // Convert base64 to file
-                  fetch(img)
-                    .then(res => res.blob())
-                    .then(blob => {
-                      const file = new File([blob], `selected_${Date.now()}.jpg`, { type: 'image/jpeg' });
-                      setForm(p => ({ ...p, attachment: file, cameraImage: img }));
-                    });
-                }}
-                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-sm font-medium"
-              >
-                เลือกใช้ภาพนี้
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // Device indicator
-  const renderDeviceIndicator = () => (
-    <div className="flex items-center justify-center gap-3 mb-6">
-   
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-5 flex items-center justify-between sticky top-0 z-50">
-  <div className="flex items-center gap-4">
-    <button 
-      onClick={() => navigate("/dashboard")}
-      className="p-2 hover:bg-gray-50 rounded-lg transition-colors"
-    >
-      <ArrowLeft size={20} className="text-gray-700" />
-    </button>
-    
-    <div className="h-6 w-px bg-gray-200 hidden md:block"></div>
-    
-    <div>
-      <h1 className="text-xl font-bold text-gray-900">สร้างใบแจ้งซ่อม</h1>
-      <p className="text-sm text-gray-600 mt-0.5 hidden md:block">ระบบแจ้งซ่อม • บริษัท ที.ดี.เค. อินดัสเตรียล</p>
-    </div>
-  </div>
-  
-  <div className="flex items-center gap-2">
-    <span className="text-sm text-gray-500 hidden md:block">
-      {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-    </span>
-    <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
-      U
-    </div>
-  </div>
-</div>
-
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 md:px-6 mt-6 md:mt-8">
-        {renderDeviceIndicator()}
-
-        {/* User Info Card */}
-        <div className="bg-white rounded-3xl p-6 md:p-8 shadow-lg border border-slate-100 mb-8 transform transition-all duration-300 hover:shadow-xl">
-          <div className="flex items-center gap-4 md:gap-6">
-            <div className="relative">
-              <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg rotate-3 animate-float-subtle">
-                <User className="text-white" size={deviceInfo.isMobile ? 24 : 32} />
-              </div>
-              <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full border-4 border-white flex items-center justify-center">
-                <CheckCircle size={12} className="text-white" />
-              </div>
-            </div>
-            
-            <div className="flex-1">
-              <h2 className="text-xl md:text-2xl font-black text-slate-800 mb-1">
-                {form.employeeName}
-              </h2>
-              
-              <div className="flex flex-wrap gap-2 mt-2">
-                <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full border border-indigo-200">
-                  ID: {form.employeeId}
-                </span>
-                
-                {form.department && form.department !== "ไม่ระบุแผนก" && (
-                  <span className="px-3 py-1.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full border border-purple-200 flex items-center gap-1">
-                    <Building size={10} />
-                    {form.department}
+                {selectedUrgency && (
+                  <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${selectedUrgency.chip}`}>
+                    {selectedUrgency.label} ({selectedUrgency.priority})
                   </span>
                 )}
               </div>
-              
-              {(!form.department || form.department === "ไม่ระบุแผนก") && (
-                <p className="text-xs text-amber-600 mt-3 font-medium flex items-center gap-1 animate-pulse">
-                  <AlertCircle size={12} />
-                  กรุณาเพิ่มข้อมูลแผนกในโปรไฟล์ของคุณ
-                </p>
-              )}
+            </div>
+
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="mt-6 w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3.5 text-sm font-bold text-white transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+            >
+              ไปยัง Dashboard
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800 font-sans selection:bg-blue-100 antialiased">
+      <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
+
+      {/* Clean enterprise background */}
+
+      {/* Premium Header */}
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-4">
+            <motion.button
+              whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={() => navigate(-1)}
+              className="rounded-xl border border-slate-200/80 bg-white/90 p-2.5 text-slate-700 shadow-sm transition-all hover:shadow-md"
+            >
+              <ArrowLeft size={18} />
+            </motion.button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-black text-slate-900 sm:text-xl">
+                  IT Service Desk
+                </h1>
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-200">
+                  Standard
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                สร้างคำขอแจ้งซ่อม • ระบบมาตรฐานองค์กร
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="hidden items-center gap-3 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-2 backdrop-blur-sm shadow-sm sm:flex"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md">
+                <Calendar size={16} className="text-white" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-700">{thaiDateTime.date}</p>
+                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">{thaiDateTime.time} น.</p>
+              </div>
+            </motion.div>
+
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
+              <div className="relative">
+                <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                <div className="absolute -inset-1 animate-ping rounded-full bg-emerald-500 opacity-20" />
+              </div>
+              <span className="text-xs font-bold text-emerald-700">พร้อมใช้งาน</span>
             </div>
           </div>
         </div>
+      </header>
 
-        <form onSubmit={handleSubmit} className="space-y-8 md:space-y-10">
-          {/* Category Selector */}
-          <section className="animate-slide-up">
-            <div className="flex items-center gap-2 mb-4 md:mb-6">
-              <div className="w-2 h-8 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
-              <div>
-                <p className="text-sm md:text-base font-black text-slate-700 uppercase tracking-wide">ประเภทอุปกรณ์</p>
-                <p className="text-xs text-slate-500">เลือกประเภทอุปกรณ์ที่ต้องการแจ้งซ่อม</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
-              {CATEGORIES.map((c) => {
-                const isActive = form.category === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setForm(p => ({ ...p, category: c.id, issue: "" }))}
-                    className={`group relative flex flex-col items-center gap-3 p-4 md:p-5 rounded-2xl md:rounded-3xl transition-all duration-300 transform ${
-                      isActive 
-                        ? `bg-gradient-to-r ${c.gradient} text-white shadow-xl scale-105 -translate-y-1`
-                        : "bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:border-blue-300 hover:scale-[1.02]"
-                    }`}
-                  >
-                    {isActive && (
-                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-lg">
-                        <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full"></div>
-                      </div>
-                    )}
-                    
-                    <div className={`p-3 rounded-xl transition-all duration-300 ${
-                      isActive 
-                        ? "bg-white/20 backdrop-blur-sm" 
-                        : "bg-slate-100 group-hover:bg-blue-50"
-                    }`}>
-                      <c.icon size={deviceInfo.isMobile ? 20 : 24} className={isActive ? "animate-pulse" : ""} />
-                    </div>
-                    
-                    <span className={`text-xs md:text-sm font-bold ${isActive ? "opacity-100" : "opacity-60"}`}>
-                      {c.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Issue Details */}
-          {form.category && (
-            <section className="animate-slide-up">
-              <div className="flex items-center gap-2 mb-4 md:mb-6">
-                <div className="w-2 h-8 bg-gradient-to-b from-amber-500 to-orange-600 rounded-full"></div>
-                <div>
-                  <p className="text-sm md:text-base font-black text-slate-700 uppercase tracking-wide">อาการที่พบ</p>
-                  <p className="text-xs text-slate-500">เลือกอาการหรือระบุรายละเอียดเพิ่มเติม</p>
-                </div>
-              </div>
-              
-              <div className="bg-white rounded-2xl md:rounded-3xl p-5 md:p-6 border border-slate-100 shadow-sm">
-                <div className="flex flex-wrap gap-2 mb-4 md:mb-6">
-                  {ISSUES[form.category]?.map((i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setForm(p => ({ ...p, issue: i }))}
-                      className={`px-4 py-2.5 md:px-5 md:py-3 rounded-xl md:rounded-2xl text-xs md:text-sm font-bold transition-all duration-300 ${
-                        form.issue === i
-                          ? "bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-md scale-105"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
-                      }`}
-                    >
-                      {i}
-                    </button>
-                  ))}
-                </div>
-                
-                <textarea
-                  required
-                  rows={4}
-                  value={form.issue}
-                  onChange={(e) => setForm(p => ({ ...p, issue: e.target.value }))}
-                  className="w-full rounded-xl md:rounded-2xl bg-slate-50 p-4 md:p-5 text-sm md:text-base border-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none resize-none"
-                  placeholder="ระบุรายละเอียดเพิ่มเติม เช่น เลขเครื่อง, รุ่นอุปกรณ์, อาการโดยละเอียด..."
-                />
-              </div>
-            </section>
-          )}
-
-          {/* Urgency & Camera */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-            {/* Urgency */}
-            <section>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-2 h-6 bg-gradient-to-b from-rose-500 to-pink-600 rounded-full"></div>
-                <p className="text-sm md:text-base font-black text-slate-700 uppercase">ความเร่งด่วน</p>
-              </div>
-              
-              <div className="space-y-3 md:space-y-4">
-                {URGENCY.map((u) => {
-                  const isActive = form.urgency === u.id;
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => setForm(p => ({ ...p, urgency: u.id }))}
-                      className={`w-full flex items-center justify-between p-4 md:p-5 rounded-xl md:rounded-2xl border-2 transition-all duration-300 transform ${
-                        isActive 
-                          ? `${u.bg} ${u.border} ${u.color} scale-[1.02] shadow-lg`
-                          : "bg-white border-slate-200 text-slate-400 hover:border-blue-300 hover:scale-[1.01]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 md:gap-4">
-                        <div className={`text-2xl ${isActive ? '' : 'opacity-50'}`}>
-                          {u.icon}
+      <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 px-4 py-6 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:py-8">
+        {/* Left Column - Main Form */}
+        <div className="lg:col-span-8 space-y-6">
+          <form id="create-ticket-form" onSubmit={handleSubmit} className="space-y-6">
+            {/* Premium Profile Card */}
+            <motion.section
+              {...sectionAnim}
+              transition={{ duration: 0.4, delay: 0.05 }}
+              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+            >
+              <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
+                <div className="relative">
+                  <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 p-0.5 shadow-xl shadow-indigo-200/50 sm:h-24 sm:w-24">
+                    <div className="h-full w-full rounded-2xl bg-white overflow-hidden border-2 border-white/50">
+                      {form.profilePic ? (
+                        <img
+                          src={form.profilePic}
+                          alt="Profile"
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://ui-avatars.com/api/?name=${form.employeeName}&background=6366f1&color=fff&size=96`;
+                          }}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-purple-100">
+                          <User size={36} className="text-indigo-600" />
                         </div>
-                        <div className="text-left">
-                          <div className="font-bold text-sm md:text-base">{u.label}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">{u.description}</div>
-                        </div>
-                      </div>
-                      
-                      {isActive && (
-                        <div className={`w-3 h-3 rounded-full ${u.color.replace('text', 'bg')} animate-pulse`}></div>
                       )}
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-2 -right-2">
+                    <div className="relative">
+                      <div className="h-6 w-6 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 border-2 border-white flex items-center justify-center shadow-lg">
+                        <CheckCircle2 size={12} className="text-white" />
+                      </div>
+                      <div className="absolute -inset-1 animate-ping rounded-full bg-emerald-500/30" />
+                    </div>
+                  </div>
+                  <div className="absolute -top-2 -left-2">
+                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 border-2 border-white flex items-center justify-center shadow-lg">
+                      <Crown size={10} className="text-white" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                        Employee Profile
+                      </p>
+                      <h2 className="text-xl font-black text-slate-800 sm:text-2xl">
+                        {form.employeeName || "พนักงาน"}
+                      </h2>
+                    </div>
+                    <span className="w-fit rounded-full bg-gradient-to-r from-indigo-50 to-purple-50 px-3 py-1.5 text-xs font-bold text-indigo-700 border border-indigo-200 shadow-sm">
+                      <Hash size={12} className="inline mr-1" />
+                      {form.employeeId || "EMP-001"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Briefcase size={16} className="text-indigo-500" />
+                      <span className="font-medium">{form.position || "เจ้าหน้าที่ระบบ"}</span>
+                    </div>
+                    <div className="w-px h-4 bg-slate-200" />
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Building size={16} className="text-indigo-500" />
+                      <span className="font-medium">{form.department || "ฝ่ายเทคโนโลยีสารสนเทศ"}</span>
+                    </div>
+                    <div className="w-px h-4 bg-slate-200" />
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Award size={16} className="text-amber-500" />
+                      <span className="font-medium">ระดับพนักงาน</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.section>
+
+            {/* Category Selection */}
+            <motion.section
+              {...sectionAnim}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+            >
+              <div className="relative">
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-indigo-600 to-purple-600" />
+                      <div className="absolute -inset-1 animate-pulse rounded-full bg-indigo-500/20 blur-sm" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 sm:text-base">หมวดหมู่ปัญหา</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">เลือกหมวดหมู่ที่ตรงกับปัญหาของคุณ</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                    จำเป็น *
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {CATEGORIES.map((cat) => {
+                    const Icon = cat.icon;
+                    const selected = form.category === cat.id;
+                    return (
+                      <motion.button
+                        key={cat.id}
+                        type="button"
+                        whileHover={{ y: -2, scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => setForm((p) => ({ ...p, category: cat.id, issue: "" }))}
+                        className={`
+                          relative overflow-hidden rounded-2xl border-2 p-5 text-left transition-all duration-300
+                          ${selected
+                            ? `bg-gradient-to-br ${cat.selectedClass} text-white shadow-md`
+                            : "bg-white border-slate-200/80 hover:border-slate-400 hover:shadow-sm"
+                          }
+                        `}
+                      >
+                        <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/5 blur-2xl" />
+
+                        <div className="relative">
+                          <div className="mb-4 flex items-center justify-between">
+                            <div className={`
+                              rounded-xl p-2.5 transition-all duration-300
+                              ${selected ? 'bg-white' : cat.softClass}
+                            `}>
+                              <Icon size={20} className={cat.iconClass} />
+                            </div>
+                            {selected && (
+                              <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="rounded-full bg-white/20 p-1"
+                              >
+                                <CheckCircle2 size={16} className="text-white" />
+                              </motion.div>
+                            )}
+                          </div>
+
+                          <p className={`text-sm font-bold mb-1 ${selected ? 'text-white' : 'text-slate-800'}`}>
+                            {cat.label}
+                          </p>
+                          <p className={`text-xs ${selected ? 'text-white/80' : 'text-slate-500'}`}>
+                            {cat.desc}
+                          </p>
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.section>
+
+            {/* Issue Details */}
+            <AnimatePresence mode="wait">
+              {form.category && (
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+                >
+                  <div className="relative">
+                    <div className="mb-6 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-amber-500 to-orange-500" />
+                          <div className="absolute -inset-1 animate-pulse rounded-full bg-amber-500/20 blur-sm" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-800 sm:text-base">รายละเอียดปัญหา</h3>
+                          <p className="text-xs text-slate-500 mt-0.5">กรุณาอธิบายปัญหาให้ชัดเจน</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                        จำเป็น *
+                      </span>
+                    </div>
+
+                    <div className="mb-5">
+                      <label className="mb-3 flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                        <Sparkles size={14} className="text-amber-500" />
+                        ปัญหาที่พบบ่อย
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {(ISSUES[form.category] || []).map((item, idx) => (
+                          <motion.button
+                            key={item}
+                            type="button"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: idx * 0.03 }}
+                            whileHover={{ y: -1 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => setForm((p) => ({ ...p, issue: item }))}
+                            className={`
+                              rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 border-2
+                              ${form.issue === item
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-lg shadow-amber-200/50"
+                                : "bg-slate-100 border-transparent text-slate-700 hover:bg-amber-50 hover:border-amber-300"
+                              }
+                            `}
+                          >
+                            {item}
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                        <FileText size={14} className="text-blue-500" />
+                        คำอธิบายเพิ่มเติม
+                      </label>
+                      <div className="relative group/textarea">
+                        <textarea
+                          required
+                          maxLength={500}
+                          value={form.issue}
+                          onChange={(e) => setForm((p) => ({ ...p, issue: e.target.value }))}
+                          onFocus={() => setFocusedField('description')}
+                          onBlur={() => setFocusedField(null)}
+                          placeholder="ระบุอาการที่พบ ข้อความผิดพลาด เวลาที่เกิดเหตุ และสิ่งที่ได้ลองแก้ไขแล้ว..."
+                          className={`
+                            min-h-[180px] w-full rounded-2xl border-2 px-5 py-4 text-sm
+                            outline-none transition-all duration-300 resize-none
+                            bg-slate-50/80 placeholder:text-slate-400
+                            ${focusedField === 'description'
+                              ? 'border-indigo-500 bg-white ring-4 ring-indigo-100/50 shadow-md'
+                              : 'border-slate-200/80 hover:border-slate-300'
+                            }
+                          `}
+                        />
+                        <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                          <div className="px-3 py-1.5 bg-white/90 backdrop-blur rounded-lg border border-slate-200 shadow-sm">
+                            <span className="text-xs font-bold text-slate-500">
+                              {form.issue.length}/500
+                            </span>
+                          </div>
+                          {form.issue.length > 20 && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="h-7 w-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg"
+                            >
+                              <CheckCircle2 size={14} className="text-white" />
+                            </motion.div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <Info size={14} />
+                        การระบุรายละเอียดที่ชัดเจนช่วยให้ทีมงานแก้ไขปัญหาได้เร็วขึ้น
+                      </p>
+                    </div>
+                  </div>
+                </motion.section>
+              )}
+            </AnimatePresence>
+
+            {/* Attachment Section */}
+            <motion.section
+              {...sectionAnim}
+              transition={{ duration: 0.4, delay: 0.15 }}
+              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+            >
+              <div className="relative">
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-cyan-600 to-teal-600" />
+                      <div className="absolute -inset-1 animate-pulse rounded-full bg-cyan-500/20 blur-sm" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 sm:text-base">หลักฐานประกอบ</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">รูปภาพ, เอกสาร, หรือภาพหน้าจอ</p>
+                    </div>
+                  </div>
+                  <div className={`
+                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                    ${preview
+                      ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-lg shadow-cyan-200/50'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    }
+                  `}>
+                    <Camera size={14} />
+                    {preview ? 'แนบแล้ว' : 'ไม่บังคับ'}
+                  </div>
+                </div>
+
+                {isCameraActive ? (
+                  <div className="space-y-4">
+                    <div className="relative overflow-hidden rounded-2xl border-2 border-indigo-200 bg-black/5 shadow-lg">
+                      {isReviewing ? (
+                        <img src={tempImage} alt="preview capture" className="aspect-video w-full object-cover" />
+                      ) : (
+                        <Webcam
+                          ref={webcamRef}
+                          screenshotFormat="image/jpeg"
+                          mirrored={facingMode === "user"}
+                          videoConstraints={{ facingMode }}
+                          className="aspect-video w-full object-cover"
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      {!isReviewing && (
+                        <>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            type="button"
+                            onClick={capture}
+                            className="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 text-sm font-bold text-white shadow-md hover:shadow-lg transition-all"
+                          >
+                            ถ่ายภาพ
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.98 }}
+                            type="button"
+                            onClick={() => setFacingMode((p) => (p === "user" ? "environment" : "user"))}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+                          >
+                            <FlipHorizontal size={18} />
+                          </motion.button>
+                        </>
+                      )}
+                      {isReviewing && (
+                        <>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            type="button"
+                            onClick={() => setIsReviewing(false)}
+                            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+                          >
+                            ถ่ายใหม่
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            type="button"
+                            onClick={confirmCapture}
+                            className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-sm font-bold text-white shadow-md hover:shadow-lg transition-all"
+                          >
+                            ใช้รูปนี้
+                          </motion.button>
+                        </>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCameraActive(false);
+                        setIsReviewing(false);
+                        setTempImage(null);
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all"
+                    >
+                      ปิดกล้อง
                     </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <motion.button
+                      whileHover={{ y: -2, scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="button"
+                      onClick={() => setIsCameraActive(true)}
+                      className="group rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50/80 to-white p-6 text-center transition-all hover:border-indigo-400 hover:bg-gradient-to-br hover:from-indigo-50/50 hover:to-white"
+                    >
+                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 group-hover:scale-110 transition-transform">
+                        <Camera size={24} className="text-indigo-600" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-700 mb-1">เปิดกล้อง</p>
+                      <p className="text-xs text-slate-500">ถ่ายภาพหน้างานทันที</p>
+                    </motion.button>
+
+                    <label className="group cursor-pointer rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50/80 to-white p-6 text-center transition-all hover:border-emerald-400 hover:bg-gradient-to-br hover:from-emerald-50/50 hover:to-white">
+                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 group-hover:scale-110 transition-transform">
+                        <Upload size={24} className="text-emerald-600" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-700 mb-1">อัปโหลดไฟล์</p>
+                      <p className="text-xs text-slate-500">JPG / PNG ไม่เกิน 5MB</p>
+                      <input type="file" hidden accept="image/*" onChange={handleFile} />
+                    </label>
+                  </div>
+                )}
+
+                {preview && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-5 overflow-hidden rounded-2xl border-2 border-slate-200/80 bg-white shadow-lg"
+                  >
+                    <img src={preview} alt="attachment preview" className="aspect-video w-full object-cover" />
+                    <div className="flex items-center justify-between border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                          <ImageIcon size={16} className="text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-700">ไฟล์แนบ</p>
+                          <p className="text-[9px] text-slate-500">พร้อมใช้งาน</p>
+                        </div>
+                      </div>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="button"
+                        onClick={clearAttachment}
+                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
+                      >
+                        <X size={16} />
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </motion.section>
+          </form>
+        </div>
+
+        {/* Right Column - Summary & Submit */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Priority Card */}
+          <motion.section
+            {...sectionAnim}
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+          >
+            <div className="relative">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="relative">
+                  <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-amber-500 to-red-500" />
+                  <div className="absolute -inset-1 animate-pulse rounded-full bg-amber-500/20 blur-sm" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 sm:text-base">ระดับความเร่งด่วน</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">เลือกตามผลกระทบ</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {URGENCY.map((item, idx) => {
+                  const active = form.urgency === item.id;
+                  return (
+                    <motion.button
+                      key={item.id}
+                      type="button"
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: idx * 0.05 }}
+                      whileHover={{ x: 2 }}
+                      whileTap={{ scale: 0.99 }}
+                      onClick={() => setForm((p) => ({ ...p, urgency: item.id }))}
+                      className={`
+                        w-full rounded-xl border-2 p-4 text-left transition-all duration-300
+                        ${active
+                          ? `${item.border} ${item.selectedBg} shadow-lg`
+                          : "bg-white border-slate-200/80 hover:border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-white"
+                        }
+                      `}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${item.dot} ${active ? 'animate-pulse' : ''}`} />
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className={`text-sm font-bold ${active ? `text-${item.color}-700` : 'text-slate-800'}`}>
+                                {item.label}
+                              </p>
+                              <span className={`
+                                rounded-full px-2 py-0.5 text-[9px] font-bold font-mono
+                                ${active ? item.chip : 'bg-slate-100 text-slate-600 border border-slate-200'}
+                              `}>
+                                {item.priority}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600">SLA: {item.desc}</p>
+                          </div>
+                        </div>
+                        {active && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className={`h-2 w-2 rounded-full bg-${item.color}-500 animate-pulse`}
+                          />
+                        )}
+                      </div>
+                    </motion.button>
                   );
                 })}
               </div>
-            </section>
 
-            {/* Camera & Upload */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-6 bg-gradient-to-b from-blue-500 to-cyan-600 rounded-full"></div>
-                  <p className="text-sm md:text-base font-black text-slate-700 uppercase">ภาพประกอบ</p>
+              {/* SLA Timeline */}
+              <div className="mt-6 pt-4 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock size={14} className="text-slate-500" />
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">SLA Response</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {URGENCY.map((u) => (
+                      <div
+                        key={u.id}
+                        className={`
+                          h-1.5 rounded-full transition-all duration-300
+                          ${form.urgency === u.id
+                            ? `w-8 bg-gradient-to-r ${u.gradient}`
+                            : 'w-4 bg-slate-200'
+                          }
+                        `}
+                      />
+                    ))}
+                  </div>
                 </div>
-                
+                {selectedUrgency && (
+                  <p className="text-[9px] text-slate-500 mt-2">
+                    เวลาดำเนินการ: <span className="font-bold text-slate-700">{selectedUrgency.desc}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          </motion.section>
+
+          {/* Premium Summary Card */}
+          <motion.section
+            {...sectionAnim}
+            transition={{ duration: 0.4, delay: 0.25 }}
+            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+          >
+            <div className="relative">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="relative">
+                  <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-indigo-600 to-purple-600" />
+                  <div className="absolute -inset-1 animate-pulse rounded-full bg-indigo-500/20 blur-sm" />
+                </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 hidden md:block">อัปโหลดหรือถ่ายภาพ</span>
+                  <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                    <FileText size={16} className="text-white" />
+                  </div>
+                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                    สรุปคำขอ
+                  </h3>
+                </div>
+                {canSubmit && (
+                  <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
+                    <Sparkles size={12} className="text-amber-600" />
+                    <span className="text-[9px] font-bold text-amber-700 uppercase tracking-wider">พร้อมส่ง</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Grid */}
+              <div className="space-y-3">
+                <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-4 border border-slate-200/80 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                      <User size={16} className="text-indigo-600" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">ผู้แจ้ง</p>
+                      <p className="text-sm font-bold text-slate-800">{form.employeeName || "-"}</p>
+                      <p className="text-[10px] text-slate-500">{form.position || "-"} • {form.department || "-"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">หมวดหมู่</p>
+                    {selectedCategory ? (
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-6 w-6 rounded-lg ${selectedCategory.softClass} flex items-center justify-center`}>
+                          <selectedCategory.icon size={14} className={selectedCategory.iconClass} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-800">{selectedCategory.label}</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">ยังไม่เลือก</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">ความเร่งด่วน</p>
+                    {selectedUrgency ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className={`h-2 w-2 rounded-full ${selectedUrgency.dot} animate-pulse`} />
+                        <span className="text-xs font-bold text-slate-800">{selectedUrgency.label}</span>
+                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${selectedUrgency.chip}`}>
+                          {selectedUrgency.priority}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">ยังไม่เลือก</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">หลักฐานแนบ</p>
+                  {preview ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-100 to-teal-100 flex items-center justify-center">
+                        <ImageIcon size={16} className="text-cyan-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">มีไฟล์แนบ</p>
+                        <p className="text-[8px] text-slate-500">พร้อมส่ง</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                        <Camera size={16} className="text-slate-400" />
+                      </div>
+                      <p className="text-xs text-slate-500">ไม่มีไฟล์แนบ</p>
+                    </div>
+                  )}
+                </div>
+
+                {form.issue && (
+                  <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">รายละเอียด</p>
+                    <p className="text-xs text-slate-700 line-clamp-2">{form.issue}</p>
+                    <p className="text-[8px] text-slate-400 mt-1">{form.issue.length}/500 ตัวอักษร</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Premium Submit Button */}
+              <div className="relative mt-6">
+                <button
+                  type="submit"
+                  form="create-ticket-form"
+                  disabled={!canSubmit}
+                  className={`
+                    relative w-full py-4 px-6 rounded-xl font-bold text-sm
+                    flex items-center justify-center gap-3 transition-all duration-300
+                    overflow-hidden group/btn
+                    ${canSubmit && !loading
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }
+                  `}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000" />
+
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      <span className="bg-gradient-to-r from-white via-indigo-100 to-white bg-clip-text text-transparent">
+                        กำลังส่งคำขอ...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <Zap size={18} className="text-yellow-300 fill-yellow-300 group-hover/btn:rotate-12 group-hover/btn:scale-125 transition-all duration-300" />
+                        <div className="absolute -inset-1 bg-white/30 rounded-full blur-sm animate-ping opacity-0 group-hover/btn:opacity-100" />
+                      </div>
+                      <span className="bg-gradient-to-r from-white via-indigo-100 to-white bg-clip-text text-transparent">
+                        ยืนยันการแจ้งซ่อม
+                      </span>
+                      <ChevronRight size={18} className="group-hover/btn:translate-x-2 transition-transform duration-300" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Security & Time Footer */}
+              <div className="mt-5 flex items-center justify-center gap-4">
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/80 backdrop-blur rounded-lg border border-slate-200/80 shadow-sm">
+                  <Shield size={12} className="text-indigo-600" />
+                  <span className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">Secure</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/80 backdrop-blur rounded-lg border border-slate-200/80 shadow-sm">
+                  <Clock size={12} className="text-indigo-600" />
+                  <span className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">{thaiDateTime.time} น.</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 rounded-lg border border-slate-200 shadow-sm">
+                  <Crown size={12} className="text-amber-600" />
+                  <span className="text-[8px] font-bold text-slate-700 uppercase tracking-wider">Standard</span>
                 </div>
               </div>
-              
-              {/* Camera View */}
-              {isCameraActive && renderCameraView()}
-              
-              {/* Upload/Camera Controls */}
-              {!isCameraActive && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={toggleCamera}
-                      className="group p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200 hover:border-blue-400 transition-all duration-300 hover:scale-[1.02] active:scale-95"
-                    >
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                          <Camera className="text-white" size={24} />
-                        </div>
-                        <p className="text-sm font-bold text-blue-700">ถ่ายภาพ</p>
-                        <p className="text-xs text-blue-500 mt-1">ใช้กล้องถ่ายภาพ</p>
-                      </div>
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="group p-5 bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl border-2 border-emerald-200 hover:border-emerald-400 transition-all duration-300 hover:scale-[1.02] active:scale-95"
-                    >
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                          <ImageIcon className="text-white" size={24} />
-                        </div>
-                        <p className="text-sm font-bold text-emerald-700">อัปโหลด</p>
-                        <p className="text-xs text-emerald-500 mt-1">เลือกรูปจากอุปกรณ์</p>
-                      </div>
-                    </button>
-                  </div>
-                  
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    onChange={handleFile}
-                    capture={deviceInfo.isMobile ? "environment" : undefined}
-                  />
-                </div>
-              )}
-              
-              {/* Preview Gallery */}
-              {renderPreviewGallery()}
-              
-              {/* Camera Controls Footer */}
-              {isCameraActive && (
-                <div className="mt-4 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={toggleCamera}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-2"
-                  >
-                    <X size={16} />
-                    ปิดกล้อง
-                  </button>
-                  
-                  <div className="text-xs text-slate-500">
-                    📸 กดปุ่มกลมเพื่อถ่ายภาพ
-                  </div>
-                </div>
-              )}
-            </section>
-          </div>
+            </div>
+          </motion.section>
 
-          {/* Submit Button */}
-          <div className="pt-4 md:pt-6">
-            <button
-              type="submit"
-              disabled={loading || !form.category || !form.issue}
-              className={`w-full py-4 md:py-5 rounded-2xl md:rounded-3xl font-bold text-white shadow-xl transition-all duration-300 transform ${
-                loading || !form.category || !form.issue
-                  ? "bg-slate-300 cursor-not-allowed"
-                  : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 active:scale-[0.98] hover:shadow-2xl"
-              }`}
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-3">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  <span className="text-lg">กำลังส่งข้อมูล...</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-3">
-                  <Zap className="w-6 h-6" />
-                  <span className="text-lg">ส่งข้อมูลแจ้งซ่อม</span>
-                  <Zap className="w-6 h-6" />
-                </div>
-              )}
-            </button>
-            
-            <p className="text-center text-xs text-slate-500 mt-4">
-              ระบบจะบันทึกข้อมูลของคุณและแจ้งไปยังแผนกไอทีทันที
-            </p>
-          </div>
-        </form>
-      </div>
+          {/* Help Tip */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="rounded-2xl border border-slate-200 bg-white/80 p-4 backdrop-blur-sm shadow-sm"
+          >
+            <div className="flex items-start gap-3">
+              <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <Info size={16} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-700 mb-1">เคล็ดลับการแจ้งซ่อม</p>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  ระบุขั้นตอนที่ทำก่อนเกิดปัญหา เวลาที่เริ่มเกิดปัญหา และแนบภาพหน้าจอหรือภาพหน้างาน
+                  เพื่อให้ทีมงานแก้ไขปัญหาได้รวดเร็วขึ้น
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </main>
 
-      {/* Global Styles */}
-      <style jsx global>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+      {/* Premium Footer */}
+      <footer className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-6 sm:px-6">
+        <div className="flex flex-wrap items-center justify-center gap-4 border-t border-slate-200/80 pt-5 text-[9px] text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <Building size={12} className="text-indigo-400" />
+            IT Service Management System v3.0
+          </span>
+          <span className="w-px h-3 bg-slate-200" />
+          <span className="flex items-center gap-1.5">
+            <Gem size={12} className="text-indigo-400" />
+            Enterprise Edition
+          </span>
+          <span className="w-px h-3 bg-slate-200" />
+          <span className="flex items-center gap-1.5">
+            <Heart size={12} className="text-indigo-400" />
+            24/7 Support
+          </span>
+          <span className="w-px h-3 bg-slate-200" />
+          <span className="flex items-center gap-1.5">
+            <Calendar size={12} className="text-indigo-400" />
+            {thaiDateTime.date}
+          </span>
+        </div>
+      </footer>
+
+      <style jsx>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
-        
-        @keyframes slide-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes float-subtle {
-          0%, 100% {
-            transform: translateY(0) rotate(3deg);
-          }
-          50% {
-            transform: translateY(-5px) rotate(3deg);
-          }
-        }
-        
-        @keyframes bounce-subtle {
-          0%, 100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-5px);
-          }
-        }
-        
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-out;
-        }
-        
-        .animate-slide-up {
-          animation: slide-up 0.5s ease-out;
-        }
-        
-        .animate-float-subtle {
-          animation: float-subtle 3s ease-in-out infinite;
-        }
-        
-        .animate-bounce-subtle {
-          animation: bounce-subtle 2s ease-in-out infinite;
-        }
-        
-        /* Smooth scrollbar */
-        ::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-          background: #f1f5f9;
-          border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-          background: #94a3b8;
-        }
-        
-        /* Selection */
-        ::selection {
-          background: rgba(99, 102, 241, 0.2);
-          color: #1f2937;
-        }
-        
-        /* Reduced motion */
-        @media (prefers-reduced-motion: reduce) {
-          * {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-          }
+        .animate-spin-slow {
+          animation: spin-slow 8s linear infinite;
         }
       `}</style>
     </div>
@@ -933,3 +1284,5 @@ const handleSubmit = async (e) => {
 };
 
 export default CreateTicket;
+
+

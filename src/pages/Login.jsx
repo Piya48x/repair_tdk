@@ -51,7 +51,7 @@ export default function Login({
 
   return (
     <div className="w-full max-w-xl mx-auto animate-in fade-in duration-700">
-      
+
       {/* Header */}
       <div className="mb-10 text-center md:text-left">
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-3">
@@ -63,22 +63,20 @@ export default function Login({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-7">
-        
+
         {/* Employee Code */}
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-700 ml-1">
-            Employee Code
+            Employee Code / Email
           </label>
           <input
             type="text"
             value={employeeCode}
-            onChange={(e) =>
-              setEmployeeCode(e.target.value.toUpperCase())
-            }
-            placeholder="เช่น 4383"
+            onChange={(e) => setEmployeeCode(e.target.value)}
+            placeholder="รหัสพนักงาน หรือ Email"
             className="
               w-full px-5 py-4 rounded-2xl border-2 border-slate-200
-              bg-white font-bold uppercase text-lg
+              bg-white font-bold text-lg
               focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600
               outline-none transition-all
             "
@@ -182,10 +180,9 @@ export default function Login({
           className={`
             w-full py-5 rounded-2xl text-xl font-black text-white
             transition-all duration-300 shadow-xl
-            ${
-              loading
-                ? "bg-slate-300 cursor-not-allowed shadow-none"
-                : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 active:scale-[0.98] shadow-blue-200"
+            ${loading
+              ? "bg-slate-300 cursor-not-allowed shadow-none"
+              : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 active:scale-[0.98] shadow-blue-200"
             }
           `}
         >
