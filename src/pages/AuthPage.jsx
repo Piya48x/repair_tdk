@@ -4,7 +4,8 @@ import Register from "./Register";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion"; // เพิ่ม Motion
-import bgImage from "../assets/1.png";
+import MessageAlert from "../components/MessageAlert"; // Import the custom alert
+import bgImage from "../assets/9.png";
 
 export default function AuthPage() {
   const [mode, setMode] = useState("login");
@@ -12,6 +13,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null); // State for the alert message
 
   const navigate = useNavigate();
   // New email format: firstname.l@tdk.co.th
@@ -69,7 +71,7 @@ export default function AuthPage() {
 
   const onLogin = async () => {
     if (!employeeCode || !password) {
-      alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+      setMessage({ type: "error", text: "กรุณากรอกข้อมูลให้ครบถ้วน" });
       return;
     }
     setLoading(true);
@@ -134,7 +136,7 @@ export default function AuthPage() {
         default: navigate("/dashboard");
       }
     } catch (err) {
-      alert("เข้าสู่ระบบไม่สำเร็จ: " + err.message);
+      setMessage({ type: "error", text: "เข้าสู่ระบบไม่สำเร็จ: " + err.message });
     } finally {
       setLoading(false);
     }
@@ -185,17 +187,28 @@ export default function AuthPage() {
         }
       }
 
-      alert("ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบ");
+      setMessage({ type: "success", text: "ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบ" });
       setMode("login");
     } catch (err) {
-      alert(err.message);
+      setMessage({ type: "error", text: err.message });
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage(null);
+      }, 5000); // Clear message after 5 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
+
   return (
     <div className="min-h-screen flex font-sans text-slate-900 overflow-hidden bg-[#F8FAFC]">
+      <MessageAlert message={message} />
 
       {/* LEFT SIDE: BRANDING WITH MOTION */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
@@ -214,6 +227,11 @@ export default function AuthPage() {
           animate={{ y: [0, -20, 0], opacity: [0.2, 0.4, 0.2] }}
           transition={{ duration: 8, repeat: Infinity }}
           className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl"
+        />
+        <motion.div
+          animate={{ y: [0, 15, 0], x: [0, 10, 0], opacity: [0.1, 0.3, 0.1] }}
+          transition={{ duration: 10, repeat: Infinity, delay: 2 }}
+          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-300/10 rounded-full blur-3xl"
         />
 
         <div className="relative z-10 flex flex-col justify-between p-16 w-full">

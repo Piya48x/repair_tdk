@@ -1,51 +1,20 @@
-import React, { useState, useEffect } from "react";
-
-const STORAGE_KEY = "remember_login";
+import React, { useState } from "react";
 
 export default function Login({
   employeeCode,
   setEmployeeCode,
   password,
   setPassword,
+  rememberMe,
+  setRememberMe,
   onLogin,
   loading,
 }) {
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-
-  // ===== โหลดค่าที่จำไว้ =====
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        if (data.employeeCode && data.password) {
-          setEmployeeCode(data.employeeCode);
-          setPassword(data.password);
-          setRememberMe(true);
-        }
-      } catch (err) {
-        console.error("Invalid saved login data");
-      }
-    }
-  }, [setEmployeeCode, setPassword]);
 
   // ===== Submit =====
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    if (rememberMe) {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          employeeCode,
-          password,
-        })
-      );
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-
     onLogin();
   };
 

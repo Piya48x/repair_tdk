@@ -8,11 +8,13 @@ import {
   AlertCircle, X, Plus, Search, Download, RefreshCw,
   BarChart3, Calendar, Hash, Phone, Mail, Shield, Zap,
   TrendingUp, Timer, Battery, Activity, Cpu, Server,
-  Globe, Database, HardDrive, Smartphone, Wifi, ShieldCheck
+  Globe, Database, HardDrive, Smartphone, Wifi, ShieldCheck,
+  SlidersHorizontal, BookmarkPlus, Trash2, Moon, Sun
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
+import tdkLogo from "../assets/4.png";
 
 // ============================================
 // CONSTANTS & CONFIGURATION (Build-Safe)
@@ -97,6 +99,105 @@ const FILTER_OPTIONS = [
   { id: 'CLOSED', label: 'สำเร็จ', color: 'bg-emerald-100 text-emerald-700' }
 ];
 
+const PRIORITY_FILTER_OPTIONS = [
+  { id: 'ALL', label: 'ทุกความเร่งด่วน' },
+  { id: 'urgent', label: 'ด่วน' },
+  { id: 'high', label: 'สูง' },
+  { id: 'normal', label: 'ปกติ' },
+  { id: 'low', label: 'ต่ำ' },
+];
+
+const SLA_FILTER_OPTIONS = [
+  { id: 'ALL', label: 'SLA ทั้งหมด' },
+  { id: 'ON_TRACK', label: 'อยู่ใน SLA' },
+  { id: 'RISK', label: 'เสี่ยงหลุด SLA' },
+  { id: 'OVERDUE', label: 'หลุด SLA' },
+];
+
+const SMART_FILTER_PRESET_KEY = "dashboard-smart-filter-presets-v1";
+const DASHBOARD_THEME_KEY = "dashboard-theme-v1";
+
+const ROLE_LABELS = {
+  user: "ผู้ใช้งาน",
+  it_support: "ทีม IT Support",
+  admin: "ผู้ดูแลระบบ",
+  auditor: "ผู้ตรวจสอบ",
+};
+
+const ROLE_BASED_VIEWS = {
+  user: [
+    {
+      id: "user-my-open",
+      label: "งานที่ต้องตาม",
+      description: "งานที่ยังไม่ปิดทั้งหมด",
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
+    },
+    {
+      id: "user-sla-risk",
+      label: "งานเสี่ยง SLA",
+      description: "โฟกัสงานที่ต้องเร่งติดตาม",
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "RISK", searchQuery: "" },
+    },
+  ],
+  it_support: [
+    {
+      id: "it-overdue",
+      label: "Overdue Queue",
+      description: "งานหลุด SLA ที่ต้องเร่งปิด",
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "OVERDUE", searchQuery: "" },
+    },
+    {
+      id: "it-priority",
+      label: "งาน Priority สูง",
+      description: "ด่วนและสูงเพื่อจัดคิวช่าง",
+      filters: { activeFilter: "PENDING", priorityFilter: "high", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
+    },
+  ],
+  admin: [
+    {
+      id: "admin-ops",
+      label: "Ops Control",
+      description: "ภาพรวมงานค้างทุกประเภท",
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
+    },
+    {
+      id: "admin-sla",
+      label: "SLA Critical",
+      description: "รวมงานเสี่ยงและหลุด SLA",
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "RISK", searchQuery: "" },
+    },
+  ],
+  auditor: [
+    {
+      id: "audit-closed",
+      label: "Closed Tickets",
+      description: "ตรวจสอบงานที่ปิดแล้ว",
+      filters: { activeFilter: "CLOSED", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
+    },
+    {
+      id: "audit-sla",
+      label: "SLA Findings",
+      description: "ดูงานหลุด SLA สำหรับตรวจสอบ",
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "OVERDUE", searchQuery: "" },
+    },
+  ],
+};
+
+const getSlaState = (ticket) => {
+  if (!ticket?.created_at || ticket.status === "CLOSED") return "CLOSED";
+
+  const created = new Date(ticket.created_at);
+  const now = new Date();
+  const hoursPassed = (now - created) / (1000 * 60 * 60);
+  const priority = ticket.priority || "normal";
+  const slaHours = PRIORITY_CONFIG[priority]?.slaHours || 8;
+  const remaining = slaHours - hoursPassed;
+
+  if (remaining <= 0) return "OVERDUE";
+  if (remaining <= 2) return "RISK";
+  return "ON_TRACK";
+};
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -111,11 +212,33 @@ export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [slaFilter, setSlaFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [savedFilterPresets, setSavedFilterPresets] = useState([]);
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [activeRoleViewId, setActiveRoleViewId] = useState("");
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [activeTicketId, setActiveTicketId] = useState(null);
+  const [themeMode, setThemeMode] = useState(() => {
+    try {
+      const persisted = localStorage.getItem(DASHBOARD_THEME_KEY);
+      return persisted === "dark" || persisted === "light" ? persisted : "light";
+    } catch {
+      return "light";
+    }
+  });
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [dashboardError, setDashboardError] = useState("");
   const [realtimeChannel, setRealtimeChannel] = useState(null);
   const [slaStats, setSlaStats] = useState({ onTime: 0, total: 0, percentage: 100 });
+  const [isMobileView, setIsMobileView] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 1023px)").matches;
+  });
   const channelRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   // ============================================
   // âœ… REAL-TIME SUBSCRIPTION (Supabase Realtime)
@@ -193,6 +316,7 @@ export default function Dashboard() {
   const initDashboard = useCallback(async () => {
     try {
       setLoading(true);
+      setDashboardError("");
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
@@ -208,6 +332,9 @@ export default function Dashboard() {
         .select("*")
         .eq("id", user.id)
         .single();
+      if (profileRes.error && profileRes.error.code !== "PGRST116") {
+        throw profileRes.error;
+      }
 
       if (profileRes.data) setProfile(profileRes.data);
 
@@ -217,6 +344,7 @@ export default function Dashboard() {
         .select("*")
         .eq("creator_id", user.id)
         .order("created_at", { ascending: false });
+      if (ticketsRes.error) throw ticketsRes.error;
 
       if (ticketsRes.data) {
         const ticketsData = ticketsRes.data || [];
@@ -236,13 +364,7 @@ export default function Dashboard() {
 
     } catch (error) {
       console.error("Dashboard Error:", error);
-      Swal.fire({
-        icon: 'error',
-        title: 'ระบบขัดข้อง',
-        text: 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่ในภายหลัง',
-        confirmButtonColor: '#4f46e5',
-        backdrop: 'rgba(0,0,0,0.7)'
-      });
+      setDashboardError("ไม่สามารถโหลดข้อมูล Dashboard ได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setLoading(false);
     }
@@ -251,6 +373,65 @@ export default function Dashboard() {
   useEffect(() => {
     initDashboard();
   }, [initDashboard]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SMART_FILTER_PRESET_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) setSavedFilterPresets(parsed);
+    } catch (error) {
+      console.error("Load preset error:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(SMART_FILTER_PRESET_KEY, JSON.stringify(savedFilterPresets));
+  }, [savedFilterPresets]);
+
+  useEffect(() => {
+    localStorage.setItem(DASHBOARD_THEME_KEY, themeMode);
+  }, [themeMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
+    const handleChange = (event) => setIsMobileView(event.matches);
+
+    setIsMobileView(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  useEffect(() => {
+    const handleDashboardShortcuts = (event) => {
+      const activeElement = document.activeElement;
+      const isTypingField =
+        activeElement?.tagName === "INPUT" ||
+        activeElement?.tagName === "TEXTAREA" ||
+        activeElement?.tagName === "SELECT" ||
+        activeElement?.isContentEditable;
+
+      if (event.key === "/" && !isTypingField) {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      if (event.key?.toLowerCase() === "n" && !isTypingField && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        navigate("/create-ticket");
+      }
+    };
+
+    window.addEventListener("keydown", handleDashboardShortcuts);
+    return () => window.removeEventListener("keydown", handleDashboardShortcuts);
+  }, [navigate]);
 
   // ============================================
   // âœ… BUSINESS LOGIC
@@ -291,18 +472,127 @@ export default function Dashboard() {
     });
   };
 
-  // Filter tickets based on active filter
+  const categoryOptions = useMemo(() => {
+    const uniq = [...new Set(tickets.map((t) => t.category).filter(Boolean))];
+    return ["ALL", ...uniq];
+  }, [tickets]);
+
+  // Smart filter: status + priority + category + SLA + search
   const filteredTickets = useMemo(() => {
     let filtered = [...tickets];
 
     if (activeFilter === "CLOSED") {
-      filtered = filtered.filter(t => t.status === "CLOSED");
+      filtered = filtered.filter((t) => t.status === "CLOSED");
     } else if (activeFilter === "PENDING") {
-      filtered = filtered.filter(t => t.status !== "CLOSED");
+      filtered = filtered.filter((t) => t.status !== "CLOSED");
     }
 
-    return filtered.slice(0, 5);
-  }, [tickets, activeFilter]);
+    if (priorityFilter !== "ALL") {
+      filtered = filtered.filter((t) => (t.priority || "normal") === priorityFilter);
+    }
+
+    if (categoryFilter !== "ALL") {
+      filtered = filtered.filter((t) => (t.category || "") === categoryFilter);
+    }
+
+    if (slaFilter !== "ALL") {
+      filtered = filtered.filter((t) => getSlaState(t) === slaFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const searchTerms = searchQuery
+        .trim()
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(Boolean);
+
+      filtered = filtered.filter((t) => {
+        const statusSearchLabel = t.status === "NEW"
+          ? "รอดำเนินการ"
+          : t.status === "IN_PROGRESS"
+            ? "กำลังซ่อม"
+            : t.status === "CLOSED"
+              ? "สำเร็จ ปิดงาน"
+              : "";
+
+        const prioritySearchLabel = PRIORITY_CONFIG[t.priority || "normal"]?.label || "";
+
+        const haystack = [
+          t.ticket_no,
+          t.title,
+          t.description,
+          t.category,
+          t.location,
+          t.assigned_name,
+          t.solution_note,
+          t.status,
+          statusSearchLabel,
+          prioritySearchLabel,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return searchTerms.every((term) => haystack.includes(term));
+      });
+    }
+
+    return filtered;
+  }, [tickets, activeFilter, priorityFilter, categoryFilter, slaFilter, searchQuery]);
+
+  const visibleTickets = useMemo(() => filteredTickets.slice(0, 8), [filteredTickets]);
+
+  const roleViews = useMemo(() => {
+    const role = profile?.role || "user";
+    return ROLE_BASED_VIEWS[role] || ROLE_BASED_VIEWS.user;
+  }, [profile?.role]);
+
+  const priorityInbox = useMemo(() => {
+    const priorityRank = { urgent: 4, high: 3, normal: 2, low: 1 };
+    const slaRank = { OVERDUE: 3, RISK: 2, ON_TRACK: 1, CLOSED: 0 };
+
+    return tickets
+      .filter((ticket) => ticket.status !== "CLOSED")
+      .map((ticket) => ({
+        ...ticket,
+        slaState: getSlaState(ticket),
+      }))
+      .sort((a, b) => {
+        const slaDiff = (slaRank[b.slaState] || 0) - (slaRank[a.slaState] || 0);
+        if (slaDiff !== 0) return slaDiff;
+
+        const priorityDiff = (priorityRank[b.priority || "normal"] || 0) - (priorityRank[a.priority || "normal"] || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+
+        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      })
+      .slice(0, 4);
+  }, [tickets]);
+
+  const activeTicket = useMemo(() => {
+    if (!filteredTickets.length) return null;
+    return filteredTickets.find((ticket) => ticket.id === activeTicketId) || filteredTickets[0];
+  }, [filteredTickets, activeTicketId]);
+
+  const hasActiveSmartFilters = Boolean(
+    searchQuery.trim() ||
+    activeFilter !== "ALL" ||
+    priorityFilter !== "ALL" ||
+    categoryFilter !== "ALL" ||
+    slaFilter !== "ALL"
+  );
+
+  useEffect(() => {
+    if (!filteredTickets.length) {
+      setActiveTicketId(null);
+      return;
+    }
+
+    const hasSelected = filteredTickets.some((ticket) => ticket.id === activeTicketId);
+    if (!hasSelected) {
+      setActiveTicketId(filteredTickets[0].id);
+    }
+  }, [filteredTickets, activeTicketId]);
 
   // Get time since last update
   const getTimeSinceUpdate = () => {
@@ -331,8 +621,8 @@ export default function Dashboard() {
     const slaHours = PRIORITY_CONFIG[priority]?.slaHours || 8;
     const remainingHours = slaHours - hoursPassed;
 
-    if (remainingHours <= 0) return { overdue: true, hours: Math.abs(remainingHours).toFixed(1) };
-    return { overdue: false, hours: remainingHours.toFixed(1) };
+    if (remainingHours <= 0) return { overdue: true, atRisk: false, hours: Math.abs(remainingHours) };
+    return { overdue: false, atRisk: remainingHours <= 2, hours: remainingHours };
   };
 
   // Format date safely
@@ -343,6 +633,16 @@ export default function Dashboard() {
       return format(date, 'dd MMM yyyy', { locale: th });
     } catch {
       return 'ไม่ระบุ';
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return "ไม่ระบุ";
+    try {
+      const date = new Date(dateString);
+      return format(date, "dd MMM yyyy HH:mm", { locale: th });
+    } catch {
+      return "ไม่ระบุ";
     }
   };
 
@@ -375,6 +675,279 @@ export default function Dashboard() {
     return <Icon size={16} />;
   };
 
+  const buildTimelineEvents = (ticket) => {
+    if (!ticket) return [];
+
+    const events = [
+      {
+        id: "created",
+        label: "สร้างใบแจ้งซ่อม",
+        detail: "ระบบรับเรื่องเรียบร้อยและเริ่มนับ SLA",
+        date: ticket.created_at,
+      },
+    ];
+
+    if (ticket.assigned_name || ticket.status === "IN_PROGRESS") {
+      events.push({
+        id: "assigned",
+        label: "อยู่ระหว่างดำเนินการ",
+        detail: ticket.assigned_name ? `ผู้รับผิดชอบ: ${ticket.assigned_name}` : "กำลังรอช่างเข้าดำเนินการ",
+        date: ticket.updated_at || ticket.created_at,
+      });
+    }
+
+    if (ticket.status === "CLOSED" || ticket.closed_at) {
+      events.push({
+        id: "closed",
+        label: "ปิดงานสำเร็จ",
+        detail: ticket.solution_note || "งานนี้ถูกปิดเรียบร้อยแล้ว",
+        date: ticket.closed_at || ticket.updated_at || ticket.created_at,
+      });
+    } else {
+      events.push({
+        id: "monitoring",
+        label: "ติดตาม SLA",
+        detail: `สถานะปัจจุบัน: ${getStatusConfig(ticket.status).label}`,
+        date: ticket.updated_at || ticket.created_at,
+      });
+    }
+
+    return events.sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+  };
+
+  const trendMeta = (current, previous) => {
+    const diff = current - previous;
+    const direction = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
+    return { diff, direction };
+  };
+
+  // KPI strip: current 7 days vs previous 7 days
+  const kpiMetrics = useMemo(() => {
+    const role = profile?.role || "user";
+    const now = new Date();
+    const startCurrent = new Date(now);
+    startCurrent.setDate(startCurrent.getDate() - 7);
+    const startPrevious = new Date(startCurrent);
+    startPrevious.setDate(startPrevious.getDate() - 7);
+
+    const isInRange = (value, start, end) => {
+      if (!value) return false;
+      const date = new Date(value);
+      return date >= start && date < end;
+    };
+
+    const openCurrent = tickets.filter((t) => t.status !== "CLOSED" && isInRange(t.created_at, startCurrent, now)).length;
+    const openPrevious = tickets.filter((t) => t.status !== "CLOSED" && isInRange(t.created_at, startPrevious, startCurrent)).length;
+
+    const riskCurrent = tickets.filter((t) => t.status !== "CLOSED" && getSlaState(t) === "RISK").length;
+    const riskPrevious = tickets.filter((t) => t.status !== "CLOSED" && isInRange(t.created_at, startPrevious, startCurrent) && getSlaState(t) !== "ON_TRACK").length;
+
+    const overdueCurrent = tickets.filter((t) => t.status !== "CLOSED" && getSlaState(t) === "OVERDUE").length;
+    const overduePrevious = tickets.filter((t) => t.status !== "CLOSED" && isInRange(t.created_at, startPrevious, startCurrent) && getSlaState(t) === "OVERDUE").length;
+
+    const closedCurrent = tickets.filter((t) => t.status === "CLOSED" && isInRange(t.closed_at, startCurrent, now)).length;
+    const closedPrevious = tickets.filter((t) => t.status === "CLOSED" && isInRange(t.closed_at, startPrevious, startCurrent)).length;
+
+    if (role !== "auditor") {
+      const newCount = tickets.filter((t) => t.status === "NEW").length;
+      const inProgressCount = tickets.filter((t) => t.status === "IN_PROGRESS").length;
+      const closedCount = tickets.filter((t) => t.status === "CLOSED").length;
+      const totalCount = tickets.length;
+      const pendingCount = Math.max(newCount + inProgressCount, 1);
+      const toPercent = (value, base) => Math.round((value / base) * 100);
+
+      return [
+        {
+          key: "status-new",
+          mode: "status",
+          label: "รอดำเนินการ",
+          value: newCount,
+          icon: Clock,
+          iconWrap: "bg-amber-50",
+          iconColor: "text-amber-600",
+          valueColor: "text-amber-700",
+          helperText: `${toPercent(newCount, pendingCount)}% ของงานค้าง`,
+        },
+        {
+          key: "status-progress",
+          mode: "status",
+          label: "กำลังซ่อม",
+          value: inProgressCount,
+          icon: Wrench,
+          iconWrap: "bg-blue-50",
+          iconColor: "text-blue-600",
+          valueColor: "text-blue-700",
+          helperText: `${toPercent(inProgressCount, pendingCount)}% ของงานค้าง`,
+        },
+        {
+          key: "status-closed",
+          mode: "status",
+          label: "ปิดงานแล้ว",
+          value: closedCount,
+          icon: CheckCircle2,
+          iconWrap: "bg-emerald-50",
+          iconColor: "text-emerald-600",
+          valueColor: "text-emerald-700",
+          helperText: `${toPercent(closedCount, Math.max(totalCount, 1))}% ของงานทั้งหมด`,
+        },
+        {
+          key: "status-total",
+          mode: "status",
+          label: "งานที่แจ้งทั้งหมด",
+          value: totalCount,
+          icon: BarChart3,
+          iconWrap: "bg-indigo-50",
+          iconColor: "text-indigo-600",
+          valueColor: "text-indigo-700",
+          helperText: "อัปเดตสถานะล่าสุดแบบเรียลไทม์",
+        },
+      ];
+    }
+
+    return [
+      {
+        key: "open",
+        label: "งานเปิดใหม่ (7 วัน)",
+        value: openCurrent,
+        icon: Clock,
+        iconWrap: "bg-amber-50",
+        iconColor: "text-amber-600",
+        valueColor: "text-amber-700",
+        trend: trendMeta(openCurrent, openPrevious),
+      },
+      {
+        key: "risk",
+        label: "งานเสี่ยง SLA",
+        value: riskCurrent,
+        icon: Timer,
+        iconWrap: "bg-orange-50",
+        iconColor: "text-orange-600",
+        valueColor: "text-orange-700",
+        trend: trendMeta(riskCurrent, riskPrevious),
+      },
+      {
+        key: "overdue",
+        label: "งานเกิน SLA",
+        value: overdueCurrent,
+        icon: AlertCircle,
+        iconWrap: "bg-rose-50",
+        iconColor: "text-rose-600",
+        valueColor: "text-rose-700",
+        trend: trendMeta(overdueCurrent, overduePrevious),
+      },
+      {
+        key: "closed",
+        label: "งานปิดแล้ว (7 วัน)",
+        value: closedCurrent,
+        icon: CheckCircle2,
+        iconWrap: "bg-emerald-50",
+        iconColor: "text-emerald-600",
+        valueColor: "text-emerald-700",
+        trend: trendMeta(closedCurrent, closedPrevious),
+      },
+    ];
+  }, [tickets, profile?.role]);
+
+  const quickActions = useMemo(() => {
+    const role = profile?.role || "user";
+    const items = [
+      {
+        id: "create-ticket",
+        label: "แจ้งซ่อม IT",
+        description: "รายงานปัญหาและติดตามผลตาม SLA",
+        icon: Wrench,
+        accent: "indigo",
+        cta: "ดำเนินการทันที",
+        onClick: () => navigate("/create-ticket"),
+        roles: ["user", "it_support", "admin"],
+      },
+      {
+        id: "pick-up",
+        label: "เบิกอุปกรณ์",
+        description: "ขออุปกรณ์หรือวัสดุสิ้นเปลืองผ่าน workflow",
+        icon: Package,
+        accent: "emerald",
+        cta: "ตรวจสอบสต็อก",
+        onClick: () => navigate("/pick-up-equipment"),
+        roles: ["user", "it_support", "admin"],
+      },
+      {
+        id: "history",
+        label: "ประวัติ Ticket",
+        description: "ค้นหาและติดตาม Ticket ที่เคยแจ้งทั้งหมด",
+        icon: BarChart3,
+        accent: "sky",
+        cta: "เปิดรายการ",
+        onClick: () =>
+          navigate("/ticket-history", {
+            state: {
+              initialFilter: activeFilter,
+              tickets,
+            },
+          }),
+        roles: ["user", "it_support", "admin", "auditor"],
+      },
+      {
+        id: "admin-dashboard",
+        label: "Technician Dashboard",
+        description: "จัดคิวงาน, SLA และการมอบหมายระดับ IT",
+        icon: ShieldCheck,
+        accent: "violet",
+        cta: "เข้าสู่โหมดช่าง",
+        onClick: () => navigate("/admin-dashboard"),
+        roles: ["it_support", "admin"],
+      },
+      {
+        id: "audit-view",
+        label: "Audit View",
+        description: "ตรวจสอบ Log และรายงานเพื่อการกำกับดูแล",
+        icon: Shield,
+        accent: "slate",
+        cta: "เปิดมุมมองตรวจสอบ",
+        onClick: () => navigate("/audit-view"),
+        roles: ["auditor", "admin"],
+      },
+    ];
+
+    return items.filter((item) => item.roles.includes(role));
+  }, [profile?.role, navigate, activeFilter, tickets]);
+
+  const canSeePriorityInbox = useMemo(() => {
+    const role = profile?.role || "user";
+    return role === "it_support" || role === "admin";
+  }, [profile?.role]);
+
+  const isDarkTheme = themeMode === "dark";
+  const currentRole = profile?.role || "user";
+  const isUserSearchMode = currentRole === "user";
+  const roleLabel = ROLE_LABELS[currentRole] || ROLE_LABELS.user;
+  const canOpenAuditView = currentRole === "admin" || currentRole === "auditor";
+
+  const toggleTheme = () => {
+    setThemeMode((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  // Dark-mode-aware CSS classes
+  const FORM_CONTROL_CLASS = isDarkTheme
+    ? "w-full rounded-xl border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400"
+    : "w-full rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300";
+  const SEARCH_CONTROL_CLASS = isDarkTheme
+    ? "w-full rounded-xl border border-slate-600 bg-slate-700 pl-9 pr-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400"
+    : "w-full rounded-xl border border-blue-200 bg-blue-50/70 pl-9 pr-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300";
+  const SECONDARY_BUTTON_CLASS = isDarkTheme
+    ? "rounded-xl border border-slate-600 bg-slate-700 px-3 py-2 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+    : "rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300";
+  const SURFACE_SECTION_CLASS = isDarkTheme
+    ? "border-slate-700/70 bg-slate-900/75"
+    : "border-blue-100/80 bg-white/90 shadow-blue-100/40";
+  const SURFACE_PANEL_CLASS = isDarkTheme
+    ? "border-slate-700 bg-slate-800/80"
+    : "border-blue-100 bg-blue-50/70";
+  const TEXT_PRIMARY_CLASS = isDarkTheme ? "text-slate-100" : "text-slate-800";
+  const TEXT_SECONDARY_CLASS = isDarkTheme ? "text-slate-300" : "text-slate-700";
+  const TEXT_MUTED_CLASS = isDarkTheme ? "text-slate-400" : "text-slate-600";
+  const TEXT_SUBTLE_CLASS = isDarkTheme ? "text-slate-500" : "text-slate-400";
+
   // ============================================
   // âœ… EVENT HANDLERS
   // ============================================
@@ -403,6 +976,100 @@ export default function Dashboard() {
       }
     });
   };
+
+  const clearSmartFilters = () => {
+    setActiveFilter("ALL");
+    setPriorityFilter("ALL");
+    setCategoryFilter("ALL");
+    setSlaFilter("ALL");
+    setSearchQuery("");
+    setSelectedPresetId("");
+    setActiveRoleViewId("");
+  };
+
+  const applySelectedPreset = () => {
+    const preset = savedFilterPresets.find((item) => item.id === selectedPresetId);
+    if (!preset) return;
+
+    setActiveFilter(preset.filters?.activeFilter || "ALL");
+    setPriorityFilter(preset.filters?.priorityFilter || "ALL");
+    setCategoryFilter(preset.filters?.categoryFilter || "ALL");
+    setSlaFilter(preset.filters?.slaFilter || "ALL");
+    setSearchQuery(preset.filters?.searchQuery || "");
+    setActiveRoleViewId("");
+  };
+
+  const applyRoleView = (view) => {
+    if (!view) return;
+    setActiveRoleViewId(view.id);
+    setSelectedPresetId("");
+    setActiveFilter(view.filters?.activeFilter || "ALL");
+    setPriorityFilter(view.filters?.priorityFilter || "ALL");
+    setCategoryFilter(view.filters?.categoryFilter || "ALL");
+    setSlaFilter(view.filters?.slaFilter || "ALL");
+    setSearchQuery(view.filters?.searchQuery || "");
+  };
+
+  const saveCurrentPreset = async () => {
+    const { value: presetName, isConfirmed } = await Swal.fire({
+      title: "บันทึกมุมมองตัวกรอง",
+      input: "text",
+      inputLabel: "ชื่อมุมมอง",
+      inputPlaceholder: "เช่น งานด่วนของฉัน",
+      confirmButtonText: "บันทึก",
+      cancelButtonText: "ยกเลิก",
+      showCancelButton: true,
+      confirmButtonColor: "#4f46e5",
+      inputValidator: (value) => {
+        if (!value || !value.trim()) return "กรุณาระบุชื่อมุมมอง";
+        return undefined;
+      },
+    });
+
+    if (!isConfirmed || !presetName?.trim()) return;
+
+    const normalized = presetName.trim();
+    const preset = {
+      id: `preset-${Date.now()}`,
+      name: normalized,
+      filters: {
+        activeFilter,
+        priorityFilter,
+        categoryFilter,
+        slaFilter,
+        searchQuery,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+
+    setSavedFilterPresets((prev) => [preset, ...prev.filter((item) => item.name !== normalized)].slice(0, 10));
+    setSelectedPresetId(preset.id);
+  };
+
+  const deleteSelectedPreset = () => {
+    if (!selectedPresetId) return;
+    setSavedFilterPresets((prev) => prev.filter((item) => item.id !== selectedPresetId));
+    setSelectedPresetId("");
+  };
+
+  useEffect(() => {
+    if (!activeRoleViewId) return;
+    const view = roleViews.find((item) => item.id === activeRoleViewId);
+    if (!view) {
+      setActiveRoleViewId("");
+      return;
+    }
+
+    const filters = view.filters || {};
+    const isSameView =
+      (filters.activeFilter || "ALL") === activeFilter &&
+      (filters.priorityFilter || "ALL") === priorityFilter &&
+      (filters.categoryFilter || "ALL") === categoryFilter &&
+      (filters.slaFilter || "ALL") === slaFilter &&
+      (filters.searchQuery || "") === searchQuery;
+
+    if (!isSameView) setActiveRoleViewId("");
+  }, [activeRoleViewId, roleViews, activeFilter, priorityFilter, categoryFilter, slaFilter, searchQuery]);
 
   const showUpdateNotification = (title, message) => {
     // Create notification element
@@ -458,7 +1125,16 @@ export default function Dashboard() {
       return (
         <div className="flex items-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-md">
           <Timer size={10} />
-          <span>เลยกำหนด {slaInfo.hours} ชม.</span>
+          <span>เลยกำหนด {slaInfo.hours.toFixed(1)} ชม.</span>
+        </div>
+      );
+    }
+
+    if (slaInfo.atRisk) {
+      return (
+        <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-md">
+          <Timer size={10} />
+          <span>เสี่ยงหลุดใน {slaInfo.hours.toFixed(1)} ชม.</span>
         </div>
       );
     }
@@ -466,85 +1142,56 @@ export default function Dashboard() {
     return (
       <div className="flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-md">
         <Timer size={10} />
-        <span>เหลือ {slaInfo.hours} ชม.</span>
+        <span>เหลือ {slaInfo.hours.toFixed(1)} ชม.</span>
       </div>
     );
   };
 
   const renderStatsCards = () => {
-    const pendingCount = tickets.filter((t) => t.status !== "CLOSED").length;
-    const closedCount = tickets.filter((t) => t.status === "CLOSED").length;
-    const maxCount = Math.max(tickets.length, pendingCount, closedCount, 1);
-
-    const cards = [
-      {
-        label: "ทั้งหมด",
-        value: tickets.length,
-        icon: BarChart3,
-        iconWrap: "bg-indigo-50",
-        iconColor: "text-indigo-600",
-        valueColor: "text-slate-800",
-        barColor: "bg-indigo-500",
-        barWidth: `${Math.max((tickets.length / maxCount) * 100, 8)}%`,
-      },
-      {
-        label: "รอดำเนินการ",
-        value: pendingCount,
-        icon: Clock,
-        iconWrap: "bg-amber-50",
-        iconColor: "text-amber-600",
-        valueColor: "text-amber-600",
-        barColor: "bg-amber-500",
-        barWidth: `${Math.max((pendingCount / maxCount) * 100, 8)}%`,
-      },
-      {
-        label: "สำเร็จ",
-        value: closedCount,
-        icon: CheckCircle2,
-        iconWrap: "bg-emerald-50",
-        iconColor: "text-emerald-600",
-        valueColor: "text-emerald-600",
-        barColor: "bg-emerald-500",
-        barWidth: `${Math.max((closedCount / maxCount) * 100, 8)}%`,
-      },
-      {
-        label: "SLA Compliance",
-        value: `${slaStats.percentage}%`,
-        icon: ShieldCheck,
-        iconWrap: "bg-blue-50",
-        iconColor: "text-blue-600",
-        valueColor: "text-blue-600",
-        barColor: "bg-blue-500",
-        barWidth: `${Math.max(slaStats.percentage, 8)}%`,
-      },
-    ];
-
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded-2xl border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{card.label}</p>
-                <p className={`mt-1 text-2xl font-black ${card.valueColor}`}>{card.value}</p>
+        {kpiMetrics.map((card) => {
+          const isTrendCard = card.mode !== "status";
+          const isReverseTrend = card.key === "risk" || card.key === "overdue";
+          const trendColor = !isTrendCard
+            ? "text-slate-500"
+            : card.trend.direction === "flat"
+              ? "text-slate-500"
+              : isReverseTrend
+                ? (card.trend.direction === "up" ? "text-rose-600" : "text-emerald-600")
+                : (card.trend.direction === "up" ? "text-emerald-600" : "text-rose-600");
+
+          return (
+            <div
+              key={card.key}
+              className={`rounded-2xl border p-5 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75" : "border-blue-100/80 bg-white/90 shadow-blue-100/40"}`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-[10px] font-bold uppercase tracking-wider ${TEXT_SUBTLE_CLASS}`}>{card.label}</p>
+                  <p className={`mt-1 text-2xl font-black ${card.valueColor}`}>{card.value}</p>
+                </div>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.iconWrap}`}>
+                  <card.icon className={`w-5 h-5 ${card.iconColor}`} />
+                </div>
               </div>
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.iconWrap}`}>
-                <card.icon className={`w-5 h-5 ${card.iconColor}`} />
-              </div>
+              {isTrendCard ? (
+                <div className={`mt-3 flex items-center justify-between rounded-lg border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50"}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>เทียบ 7 วันก่อน</p>
+                  <p className={`text-[11px] font-black ${trendColor}`}>
+                    {card.trend.diff > 0 ? "+" : ""}
+                    {card.trend.diff}
+                  </p>
+                </div>
+              ) : (
+                <div className={`mt-3 flex items-center justify-between rounded-lg border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50"}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>สถานะปัจจุบัน</p>
+                  <p className={`text-[11px] font-bold ${TEXT_MUTED_CLASS}`}>{card.helperText}</p>
+                </div>
+              )}
             </div>
-            <div className="mt-3 h-1.5 w-full rounded-full bg-slate-100">
-              <div className={`h-1.5 rounded-full ${card.barColor}`} style={{ width: card.barWidth }} />
-            </div>
-            {card.label === "SLA Compliance" && (
-              <p className="mt-2 text-[10px] text-slate-500">
-                {slaStats.onTime}/{slaStats.total} งานเสร็จตรงเวลา
-              </p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -554,12 +1201,24 @@ export default function Dashboard() {
     const priorityConfig = getPriorityConfig(ticket.priority);
     const StatusIcon = statusConfig.icon;
     const slaIndicator = renderSLAIndicator(ticket);
+    const isActive = activeTicket?.id === ticket.id;
 
     return (
-      <div
+      <button
         key={ticket.id}
-        onClick={() => setSelectedTicket(ticket)}
-        className="group cursor-pointer rounded-2xl border border-slate-100 bg-white/95 p-4 shadow-sm transition-all duration-300 transform hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg"
+        type="button"
+        onClick={() => {
+          setActiveTicketId(ticket.id);
+          if (isMobileView) {
+            setSelectedTicket(ticket);
+          }
+        }}
+        role="option"
+        aria-selected={isActive}
+        className={`group w-full text-left rounded-2xl border p-4 shadow-sm transition-all duration-300 transform hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isActive
+          ? (isDarkTheme ? "border-indigo-500 ring-2 ring-indigo-900/40 shadow-md bg-slate-900/90" : "border-indigo-300 ring-2 ring-indigo-100 shadow-md bg-white/95")
+          : (isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-100 bg-white/95")
+          }`}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -570,7 +1229,7 @@ export default function Dashboard() {
 
             <div className="flex-1 min-w-0">
               <div className="mb-1 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded ${isDarkTheme ? "text-indigo-300 bg-indigo-900/40" : "text-indigo-600 bg-indigo-50"}`}>
                   {ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase()}`}
                 </span>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded ${priorityConfig.color} text-white`}>
@@ -579,14 +1238,14 @@ export default function Dashboard() {
                 {slaIndicator}
               </div>
 
-              <h4 className="font-bold text-slate-800 truncate">{ticket.title}</h4>
+              <h4 className={`font-bold truncate ${TEXT_PRIMARY_CLASS}`}>{ticket.title}</h4>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-slate-500 flex items-center gap-1">
+                <span className={`text-xs flex items-center gap-1 ${TEXT_MUTED_CLASS}`}>
                   {getCategoryIcon(ticket.category)}
                   {ticket.category}
                 </span>
-                <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs text-slate-500">{formatDate(ticket.created_at)}</span>
+                <span className={`text-xs ${TEXT_SUBTLE_CLASS}`}>•</span>
+                <span className={`text-xs ${TEXT_MUTED_CLASS}`}>{formatDate(ticket.created_at)}</span>
               </div>
             </div>
           </div>
@@ -595,10 +1254,10 @@ export default function Dashboard() {
             <span className={`text-xs font-bold px-3 py-1 rounded-full ${statusConfig.bg} ${statusConfig.color} ${statusConfig.border} border`}>
               {statusConfig.label}
             </span>
-            <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-600 transition-colors transform group-hover:translate-x-1" />
+            <ChevronRight size={16} className={`transition-colors transform group-hover:translate-x-1 ${isDarkTheme ? "text-slate-500 group-hover:text-indigo-400" : "text-slate-300 group-hover:text-indigo-600"}`} />
           </div>
         </div>
-      </div>
+      </button>
     );
   };
 
@@ -608,40 +1267,102 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-        <div className="text-center">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-indigo-200 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Wrench className="w-8 h-8 text-indigo-600 animate-pulse" />
+      <div className={`min-h-screen px-4 py-10 ${isDarkTheme ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" : "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/80"}`}>
+        <div className="mx-auto max-w-7xl animate-pulse">
+          <div className={`mb-6 h-14 w-full rounded-2xl ${isDarkTheme ? "bg-slate-800/80" : "bg-white/90 ring-1 ring-blue-100"}`} />
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={`sk-card-${index}`} className={`h-28 rounded-2xl shadow-sm ${isDarkTheme ? "bg-slate-800/80" : "bg-white/90 ring-1 ring-blue-100"}`} />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+            <div className="lg:col-span-4">
+              <div className={`h-[480px] rounded-3xl shadow-sm ${isDarkTheme ? "bg-slate-800/80" : "bg-white/90 ring-1 ring-blue-100"}`} />
+            </div>
+            <div className="lg:col-span-8 space-y-5">
+              <div className={`h-36 rounded-3xl shadow-sm ${isDarkTheme ? "bg-slate-800/80" : "bg-white/90 ring-1 ring-blue-100"}`} />
+              <div className={`h-[360px] rounded-3xl shadow-sm ${isDarkTheme ? "bg-slate-800/80" : "bg-white/90 ring-1 ring-blue-100"}`} />
             </div>
           </div>
-          <p className="mt-6 text-slate-600 font-medium animate-pulse">กำลังเตรียมระบบให้คุณ...</p>
+          <p className={`mt-6 text-center text-sm font-medium ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>กำลังเตรียมข้อมูล Dashboard...</p>
         </div>
       </div>
     );
   }
 
+  const activeTimeline = buildTimelineEvents(activeTicket);
+  const activeTicketStatus = activeTicket ? getStatusConfig(activeTicket.status) : null;
+  const activeTicketPriority = activeTicket ? getPriorityConfig(activeTicket.priority) : null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800 font-sans selection:bg-blue-100">
+    <div
+      className={`dashboard-theme dashboard-theme--${themeMode} min-h-screen font-sans transition-colors duration-300 ${isDarkTheme
+        ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 selection:bg-slate-700/60"
+        : "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/80 text-slate-800 selection:bg-blue-100"
+        }`}
+    >
+      <a
+        href="#dashboard-main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-indigo-700 focus:shadow-lg"
+      >
+        ข้ามไปยังเนื้อหาหลัก
+      </a>
       {/* Status Bar - Real-time Indicator */}
-      <div className="border-b border-white/70 bg-white/50 py-2 px-4 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
+      <div className={`border-b py-2 px-4 backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
+        <div className="max-w-7xl mx-auto flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between text-sm">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className="text-slate-600">ระบบเชื่อมต่อเรียบร้อย</span>
+            <span className={`font-semibold ${isDarkTheme ? "text-slate-300" : "text-slate-700"}`}>ระบบพร้อมใช้งาน</span>
+            <span className={`hidden sm:inline ${isDarkTheme ? "text-slate-500" : "text-slate-500"}`}>แหล่งข้อมูล: Supabase Realtime</span>
           </div>
-          <div className="text-slate-500">
-            <span className="hidden sm:inline">อัปเดตล่าสุด: </span>
-            <span className="font-medium">{getTimeSinceUpdate()}</span>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`hidden sm:inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
+              <Calendar size={12} />
+              Sync: {lastUpdated ? formatDateTime(lastUpdated) : "กำลังโหลด..."}
+            </span>
+            <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
+              <RefreshCw size={12} />
+              {getTimeSinceUpdate()}
+            </span>
+            <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-400" : "border-blue-200 bg-blue-100 text-blue-800"}`}>
+              <ShieldCheck size={12} />
+              Role: {roleLabel}
+            </span>
+            {canOpenAuditView && (
+              <button
+                type="button"
+                onClick={() => navigate("/audit-view")}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
+              >
+                <Shield size={12} />
+                Audit Log
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={initDashboard}
+              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
+            >
+              <RefreshCw size={12} />
+              รีเฟรชข้อมูล
+            </button>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="sticky top-0 z-40 border-b border-white/80 bg-white/65 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex justify-between items-center">
-          <div className="flex items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/80 p-1.5 shadow-sm">
+      <nav className={`sticky top-0 z-40 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex justify-between items-center">
+          <div className={`flex items-center gap-2 rounded-2xl border p-1.5 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
+            {/* <div className="relative">
+              <img
+                src={tdkLogo}
+                alt="TDK Industrial logo"
+                className="h-10 w-10 rounded-xl bg-white object-contain p-1 shadow-lg shadow-blue-200 animate-float"
+              />
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white animate-pulse"></div>
+            </div> */}
             <div className="relative">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 animate-float">
                 <Wrench size={20} className="text-white" />
@@ -649,16 +1370,42 @@ export default function Dashboard() {
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white animate-pulse"></div>
             </div>
             <div>
-              <h1 className="text-lg font-black tracking-tight leading-none bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                IT SERVICE PLATFORM
+              <h1 className="text-sm sm:text-lg font-black tracking-tight leading-none bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                TDK INDUSTRIAL
               </h1>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                Enterprise Service Management
+              <p className={`hidden sm:block text-[10px] font-bold uppercase tracking-widest mt-1 ${TEXT_SUBTLE_CLASS}`}>
+                บริษัท ที.ดี.เค.อินดัสเตรียล จำกัด
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className={`hidden lg:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+              <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
+                <Hash size={12} />
+                ID: {profile?.employee_code || "ไม่ระบุ"}
+              </span>
+              <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
+                <Building2 size={12} />
+                {profile?.department || "ไม่ระบุแผนก"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={isDarkTheme ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
+              className={`inline-flex items-center gap-2 rounded-xl border px-2.5 sm:px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+            >
+              {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
+              <span className="hidden sm:inline">{isDarkTheme ? "โหมดสว่าง" : "โหมดมืด"}</span>
+            </button>
+            <button
+              onClick={() => navigate("/create-ticket")}
+              className="inline-flex sm:hidden items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-white shadow-sm"
+              aria-label="แจ้งซ่อมใหม่"
+            >
+              <Plus size={18} />
+            </button>
             <button
               onClick={() => navigate("/create-ticket")}
               className="hidden sm:flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-white font-bold transition-all transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 active:translate-y-0"
@@ -668,7 +1415,7 @@ export default function Dashboard() {
             </button>
             <button
               onClick={() => setIsLogoutConfirmOpen(true)}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-rose-600 transition-all hover:bg-rose-50"
+              className={`flex items-center gap-2 rounded-xl px-2.5 sm:px-4 py-2 text-sm font-bold text-rose-600 transition-all ${isDarkTheme ? "hover:bg-rose-900/30" : "hover:bg-rose-50"}`}
             >
               <LogOut size={18} />
               <span className="hidden sm:inline">ออกจากระบบ</span>
@@ -678,63 +1425,46 @@ export default function Dashboard() {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 lg:pt-12 pb-24">
+      <main id="dashboard-main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 lg:pt-12 pb-20 sm:pb-24">
         {/* Header Section */}
-        <header className="mb-12">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight animate-fade-in">
-                สวัสดี, คุณ{profile?.full_name?.split(" ")[0] || 'ผู้ใช้งาน'} 👋
-              </h2>
-              <p className="text-slate-500 mt-1 font-medium">
-                ยินดีต้อนรับสู่ระบบบริการไอทีระดับองค์กร
-              </p>
-              <div className="flex items-center gap-4 mt-3 text-sm">
-                <span className="flex items-center gap-1 text-slate-500">
-                  <Hash size={14} />
-                  ID: {profile?.employee_code || "ไม่ระบุ"}
-                </span>
-                <span className="flex items-center gap-1 text-slate-500">
-                  <Building2 size={14} />
-                  {profile?.department || "ไม่ระบุแผนก"}
-                </span>
-                <span className="flex items-center gap-1 text-slate-500">
-                  <Briefcase size={14} />
-                  {profile?.position || "พนักงาน"}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => navigate("/create-ticket")}
-              className="flex sm:hidden items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg hover:shadow-blue-500/25 transition-all transform hover:-translate-y-0.5"
-            >
-              <Plus size={18} />
-              <span>แจ้งซ่อมใหม่</span>
-            </button>
-          </div>
-
+        <header className="mb-8 sm:mb-12">
           {/* Stats Overview */}
           {renderStatsCards()}
         </header>
 
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
+        {dashboardError && (
+          <div className={`mb-8 flex flex-col gap-3 rounded-2xl border p-4 md:flex-row md:items-center md:justify-between ${isDarkTheme ? "border-rose-700/60 bg-rose-900/30" : "border-rose-200 bg-rose-50/80"}`} role="alert">
+            <div>
+              <p className={`text-sm font-black ${isDarkTheme ? "text-rose-300" : "text-rose-700"}`}>มีปัญหาในการโหลดข้อมูลบางส่วน</p>
+              <p className={`text-xs font-medium ${isDarkTheme ? "text-rose-200" : "text-rose-600"}`}>{dashboardError}</p>
+            </div>
+            <button
+              onClick={initDashboard}
+              className={`inline-flex items-center gap-2 self-start rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${isDarkTheme ? "border-rose-600 bg-slate-800 text-rose-300 hover:bg-slate-700" : "border-rose-300 bg-white text-rose-700 hover:bg-rose-100"}`}
+            >
+              <RefreshCw size={14} />
+              ลองโหลดอีกครั้ง
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-6 sm:gap-10 lg:grid-cols-12">
           {/* Profile Section */}
           <div className="lg:col-span-4">
-            <div className="sticky top-32 overflow-hidden rounded-3xl border border-white/80 bg-white/75 shadow-lg shadow-slate-200/60 backdrop-blur-md group transition-all duration-500 hover:shadow-2xl">
-              <div className="h-32 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20"></div>
-                <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
-                <div className="absolute bottom-4 right-6 text-white/10 font-black text-4xl">PRO</div>
+            <div className={`lg:sticky lg:top-32 overflow-hidden rounded-3xl shadow-lg backdrop-blur-md group transition-all duration-500 hover:shadow-2xl ${isDarkTheme ? "bg-slate-900/75 shadow-slate-900/40" : "bg-white/90 shadow-[0_14px_40px_-16px_rgba(31,81,255,0.85)]"}`}>
+              <div className={`h-24 sm:h-32 relative overflow-hidden ${isDarkTheme ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600" : "bg-gradient-to-r from-[#1F51FF] via-[#2B66FF] to-[#4A7AFF]"}`}>
+                <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20" : "bg-gradient-to-r from-[#1F51FF]/25 via-[#4A7AFF]/20 to-[#8BA7FF]/15"}`}></div>
+                <div className="absolute -bottom-8 -right-8 w-32 h-32 sm:w-40 sm:h-40 bg-white/10 rounded-full blur-2xl"></div>
+                <div className="absolute bottom-3 sm:bottom-4 right-4 sm:right-6 text-white/10 font-black text-2xl sm:text-4xl">TDK</div>
               </div>
 
-              <div className="px-7 pb-9">
-                <div className="relative -mt-16 mb-7 flex justify-center">
+              <div className="px-4 sm:px-7 pb-6 sm:pb-9">
+                <div className="relative -mt-12 sm:-mt-16 mb-5 sm:mb-7 flex justify-center">
                   <div
-                    className="w-32 h-32 rounded-3xl bg-white p-1.5 shadow-2xl cursor-pointer relative group/profile overflow-hidden"
+                    className={`w-24 h-24 sm:w-32 sm:h-32 rounded-3xl p-1.5 shadow-2xl cursor-pointer relative group/profile overflow-hidden ${isDarkTheme ? "bg-slate-800" : "bg-white"}`}
                     onClick={() => profile?.id_card_url && setIsModalOpen(true)}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10"></div>
+                    <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-br from-indigo-500/10 to-purple-500/10" : "bg-gradient-to-br from-[#1F51FF]/15 to-[#5D84FF]/15"}`}></div>
                     {profile?.id_card_url ? (
                       <>
                         <img
@@ -747,38 +1477,38 @@ export default function Dashboard() {
                         </div>
                       </>
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center text-slate-300">
+                      <div className={`w-full h-full rounded-2xl flex items-center justify-center ${isDarkTheme ? "bg-gradient-to-br from-slate-700 to-slate-800 text-slate-400" : "bg-gradient-to-br from-[#EEF3FF] to-[#DCE8FF] text-[#1F51FF]"}`}>
                         <User size={48} />
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="mb-7 text-center">
-                  <h2 className="text-xl font-black text-slate-800">{profile?.full_name || "ไม่พบชื่อ"}</h2>
-                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mt-1">
+                <div className="mb-5 sm:mb-7 text-center">
+                  <h2 className={`text-lg sm:text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{profile?.full_name || "ไม่พบชื่อ"}</h2>
+                  <p className={`mt-1 text-xs font-bold uppercase tracking-widest ${isDarkTheme ? "text-indigo-300" : "text-[#1F51FF]"}`}>
                     {profile?.position || "พนักงาน"}
                   </p>
                 </div>
 
                 <div className="space-y-3.5">
-                  <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 transition-all group/item hover:bg-white">
-                    <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center">
+                  <div className={`flex items-center gap-3 rounded-xl p-3.5 transition-all group/item ${isDarkTheme ? "bg-slate-800/80 hover:bg-slate-800" : "bg-[#EEF3FF]/70 hover:bg-white"}`}>
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#1F51FF] to-[#4A7AFF] rounded-lg flex items-center justify-center">
                       <Building2 size={16} className="text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-[10px] text-slate-400 uppercase font-bold">แผนก</p>
-                      <p className="text-sm font-bold text-slate-700">{profile?.department || "ไม่ระบุ"}</p>
+                      <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>แผนก</p>
+                      <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.department || "ไม่ระบุ"}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 transition-all group/item hover:bg-white">
-                    <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-green-500 rounded-lg flex items-center justify-center">
+                  <div className={`flex items-center gap-3 rounded-xl p-3.5 transition-all group/item ${isDarkTheme ? "bg-slate-800/80 hover:bg-slate-800" : "bg-[#EEF3FF]/70 hover:bg-white"}`}>
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#2C5BFF] to-[#6B8FFF] rounded-lg flex items-center justify-center">
                       <Briefcase size={16} className="text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-[10px] text-slate-400 uppercase font-bold">ตำแหน่ง</p>
-                      <p className="text-sm font-bold text-slate-700">{profile?.position || "พนักงาน"}</p>
+                      <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>ตำแหน่ง</p>
+                      <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.position || "พนักงาน"}</p>
                     </div>
                   </div>
                 </div>
@@ -787,118 +1517,509 @@ export default function Dashboard() {
           </div>
 
           {/* Main Content Area */}
-          <div className="lg:col-span-8 space-y-10">
+          <div className="lg:col-span-8 flex flex-col gap-10">
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <button
-                onClick={() => navigate("/create-ticket")}
-                className="group rounded-3xl border border-white/80 bg-white/80 p-7 text-left shadow-sm backdrop-blur-sm transition-all duration-500 transform hover:-translate-y-1 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-600/10"
-              >
-                <div className="relative">
-                  <div className="w-12 h-12 bg-gradient-to-br from-indigo-50 to-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
-                    <Wrench size={24} />
-                  </div>
-                  <div className="absolute top-0 right-0 w-4 h-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full animate-ping opacity-75"></div>
-                </div>
-                <h4 className="text-lg font-black text-slate-800">แจ้งซ่อม IT</h4>
-                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                  รายงานปัญหาอุปกรณ์หรือระบบไอที รับการแก้ไขภายใน SLA ที่กำหนด
-                </p>
-                <div className="mt-4 flex items-center gap-1 text-xs font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <span>ดำเนินการทันที</span>
-                  <ChevronRight size={12} className="transform group-hover:translate-x-1 transition-transform" />
-                </div>
-              </button>
+            <div className="order-1 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>Quick Actions</h3>
+                <span className={`text-[10px] font-black border rounded-full px-2.5 py-1 uppercase tracking-wider ${isDarkTheme ? "text-indigo-300 bg-indigo-900/40 border-indigo-500/40" : "text-indigo-600 bg-indigo-50 border-indigo-200"}`}>
+                  role: {profile?.role || "user"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {quickActions.map((action) => {
+                  const Icon = action.icon;
+                  const accentClassMap = {
+                    indigo: {
+                      hoverBorder: "hover:border-indigo-500",
+                      hoverShadow: "hover:shadow-indigo-600/10",
+                      text: "text-indigo-600",
+                      gradient: "from-indigo-50 to-indigo-100",
+                      hoverBg: "group-hover:bg-indigo-100",
+                    },
+                    emerald: {
+                      hoverBorder: "hover:border-emerald-600",
+                      hoverShadow: "hover:shadow-emerald-600/10",
+                      text: "text-emerald-600",
+                      gradient: "from-emerald-50 to-emerald-100",
+                      hoverBg: "group-hover:bg-emerald-100",
+                    },
+                    sky: {
+                      hoverBorder: "hover:border-sky-500",
+                      hoverShadow: "hover:shadow-sky-600/10",
+                      text: "text-sky-600",
+                      gradient: "from-sky-50 to-sky-100",
+                      hoverBg: "group-hover:bg-sky-100",
+                    },
+                    violet: {
+                      hoverBorder: "hover:border-violet-600",
+                      hoverShadow: "hover:shadow-violet-600/10",
+                      text: "text-violet-600",
+                      gradient: "from-violet-50 to-violet-100",
+                      hoverBg: "group-hover:bg-violet-100",
+                    },
+                    slate: {
+                      hoverBorder: "hover:border-slate-500",
+                      hoverShadow: "hover:shadow-slate-600/10",
+                      text: "text-slate-600",
+                      gradient: "from-slate-50 to-slate-100",
+                      hoverBg: "group-hover:bg-slate-200",
+                    },
+                  };
 
-              <button
-                onClick={() => navigate("/pick-up-equipment")}
-                className="group rounded-3xl border border-white/80 bg-white/80 p-7 text-left shadow-sm backdrop-blur-sm transition-all duration-500 transform hover:-translate-y-1 hover:border-emerald-600 hover:shadow-2xl hover:shadow-emerald-600/10"
-              >
-                <div className="w-12 h-12 bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
-                  <Package size={24} />
-                </div>
-                <h4 className="text-lg font-black text-slate-800">เบิกอุปกรณ์</h4>
-                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                  ขออุปกรณ์ใหม่หรือวัสดุสิ้นเปลืองผ่านระบบอนุมัติอัตโนมัติ
-                </p>
-                <div className="mt-4 flex items-center gap-1 text-xs font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <span>ตรวจสอบสต็อก</span>
-                  <ChevronRight size={12} className="transform group-hover:translate-x-1 transition-transform" />
-                </div>
-              </button>
+                  const accent = accentClassMap[action.accent] || accentClassMap.indigo;
+
+                  return (
+                    <button
+                      key={action.id}
+                      onClick={action.onClick}
+                      className={`group h-full rounded-3xl border p-4 sm:p-5 text-left shadow-sm backdrop-blur-sm transition-all duration-500 transform hover:-translate-y-1 hover:shadow-2xl ${isDarkTheme ? "border-slate-700 bg-slate-900/75" : "border-blue-100/80 bg-white/90"} ${accent.hoverBorder} ${accent.hoverShadow}`}
+                    >
+                      <div className={`w-12 h-12 bg-gradient-to-br ${accent.gradient} ${accent.text} rounded-2xl flex items-center justify-center mb-4 transition-all duration-300 ${accent.hoverBg}`}>
+                        <Icon size={24} />
+                      </div>
+                      <h4 className={`text-lg font-black ${TEXT_PRIMARY_CLASS}`}>{action.label}</h4>
+                      <p className={`text-sm mt-2 leading-relaxed ${TEXT_MUTED_CLASS}`}>{action.description}</p>
+                      <div className={`mt-4 flex items-center gap-1 text-xs font-bold ${accent.text} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}>
+                        <span>{action.cta}</span>
+                        <ChevronRight size={12} className="transform group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Recent Activity */}
-            <section className="rounded-3xl border border-white/80 bg-white/80 p-7 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md">
-              <div className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">กิจกรรมล่าสุด</h3>
-                    <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
+            {/* Priority Inbox */}
+            {canSeePriorityInbox && (
+              <section className={`order-3 rounded-3xl border p-4 sm:p-6 shadow-sm backdrop-blur-sm ${SURFACE_SECTION_CLASS}`}>
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>Priority Inbox</h3>
+                    <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>งานที่ควรจัดการก่อน เรียงตามความเสี่ยง SLA และความเร่งด่วน</p>
                   </div>
-                  <p className="text-xs text-slate-500">
-                    แสดง {filteredTickets.length} จาก {tickets.length} รายการ
-                    {activeFilter !== "ALL" && ` (${activeFilter === "PENDING" ? "รอดำเนินการ" : "สำเร็จ"})`}
-                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyRoleView(roleViews[0])}
+                      className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${isDarkTheme ? "border-indigo-500/40 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}
+                    >
+                      เปิดมุมมองมาตรฐาน
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveFilter("PENDING");
+                        setPriorityFilter("ALL");
+                        setSlaFilter("OVERDUE");
+                        setCategoryFilter("ALL");
+                        setSearchQuery("");
+                        setSelectedPresetId("");
+                        setActiveRoleViewId("");
+                      }}
+                      className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${isDarkTheme ? "border-rose-700 bg-rose-900/40 text-rose-300" : "border-rose-200 bg-rose-50 text-rose-700"}`}
+                    >
+                      ดูงานหลุด SLA
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="flex rounded-xl border border-slate-200 bg-slate-100/80 p-1">
-                    {FILTER_OPTIONS.map((filter) => (
+                {priorityInbox.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {priorityInbox.map((ticket) => {
+                      const status = getStatusConfig(ticket.status);
+                      const priority = getPriorityConfig(ticket.priority);
+                      return (
+                        <button
+                          key={`inbox-${ticket.id}`}
+                          type="button"
+                          onClick={() => {
+                            setActiveFilter("PENDING");
+                            setPriorityFilter("ALL");
+                            setCategoryFilter("ALL");
+                            setSlaFilter("ALL");
+                            setSearchQuery("");
+                            setSelectedPresetId("");
+                            setActiveRoleViewId("");
+                            setActiveTicketId(ticket.id);
+                          }}
+                          className={`group rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-100 bg-white"}`}
+                        >
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
+                              {ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase()}`}
+                            </span>
+                            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${status.bg} ${status.color} ${status.border}`}>
+                              {status.label}
+                            </span>
+                          </div>
+                          <p className={`truncate text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{ticket.title || "ไม่มีหัวข้อ"}</p>
+                          <div className={`mt-2 flex items-center gap-2 text-xs ${TEXT_MUTED_CLASS}`}>
+                            <span className={`rounded-md px-2 py-0.5 text-white ${priority.color}`}>{priority.label}</span>
+                            {renderSLAIndicator(ticket)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={`rounded-2xl border border-dashed p-6 text-center ${isDarkTheme ? "border-slate-700 bg-slate-800/70" : "border-blue-100 bg-blue-50/70"}`}>
+                    <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ไม่มีงานค้างใน Priority Inbox</p>
+                    <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>ตอนนี้คิวงานอยู่ในเกณฑ์ปกติ</p>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Recent Activity */}
+            <section className={`order-2 rounded-3xl border p-4 sm:p-7 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md ${SURFACE_SECTION_CLASS}`}>
+              <div className="mb-7">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <div className="mb-1 flex items-center gap-2">
+                      <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>กิจกรรมล่าสุด</h3>
+                      <div className="h-2 w-2 rounded-full bg-indigo-600 animate-pulse"></div>
+                    </div>
+                    <p className={`text-xs ${TEXT_MUTED_CLASS}`}>
+                      แสดง {visibleTickets.length} จาก {filteredTickets.length} รายการที่ผ่านตัวกรอง
+                    </p>
+                  </div>
+                  <p className={`text-[11px] font-semibold ${TEXT_MUTED_CLASS}`}>
+                    คีย์ลัด: <span className={`font-black ${TEXT_SECONDARY_CLASS}`}>/</span> ค้นหา, <span className={`font-black ${TEXT_SECONDARY_CLASS}`}>n</span> สร้าง Ticket
+                  </p>
+                </div>
+              </div>
+
+              <div className={`mb-6 rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                <div className="mb-3 flex items-center gap-2">
+                  <SlidersHorizontal size={15} className="text-indigo-600" />
+                  <p className={`text-xs font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>Smart Filter Bar</p>
+                </div>
+
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {roleViews.map((view) => (
+                    <button
+                      key={view.id}
+                      type="button"
+                      onClick={() => applyRoleView(view)}
+                      className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 ${activeRoleViewId === view.id
+                        ? (isDarkTheme
+                          ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300 focus-visible:ring-indigo-400"
+                          : "border-indigo-300 bg-indigo-50 text-indigo-700 focus-visible:ring-indigo-300")
+                        : isDarkTheme
+                          ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 focus-visible:ring-indigo-400"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 focus-visible:ring-indigo-300"
+                        }`}
+                      title={view.description}
+                    >
+                      {view.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+                  <div className={`relative ${isUserSearchMode ? "lg:col-span-6" : "lg:col-span-4"}`}>
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="ค้นหาเลขที่งาน / หัวข้อ / รายละเอียด..."
+                      aria-label="ค้นหา Ticket"
+                      className={SEARCH_CONTROL_CLASS}
+                    />
+                    {searchQuery.trim() && (
                       <button
-                        key={filter.id}
-                        onClick={() => setActiveFilter(filter.id)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all duration-200 ${activeFilter === filter.id
-                          ? "bg-white text-indigo-600 shadow-sm shadow-indigo-100"
-                          : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
-                          }`}
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-600 text-slate-200" : "bg-slate-100 text-slate-600"}`}
                       >
-                        {filter.label}
+                        ล้าง
                       </button>
-                    ))}
+                    )}
+                  </div>
+
+                  <div className={`${isUserSearchMode ? "lg:col-span-3" : "lg:col-span-2"}`}>
+                    <select
+                      value={activeFilter}
+                      onChange={(e) => setActiveFilter(e.target.value)}
+                      aria-label="กรองตามสถานะ"
+                      className={FORM_CONTROL_CLASS}
+                    >
+                      {FILTER_OPTIONS.map((filter) => (
+                        <option key={filter.id} value={filter.id}>{filter.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={`${isUserSearchMode ? "lg:col-span-3" : "lg:col-span-2"}`}>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      aria-label="กรองตามหมวดหมู่"
+                      className={FORM_CONTROL_CLASS}
+                    >
+                      {categoryOptions.map((category) => (
+                        <option key={category} value={category}>
+                          {category === "ALL" ? "ทุกหมวดหมู่" : category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {!isUserSearchMode && (
+                    <div className="lg:col-span-2">
+                      <select
+                        value={priorityFilter}
+                        onChange={(e) => setPriorityFilter(e.target.value)}
+                        aria-label="กรองตามความเร่งด่วน"
+                        className={FORM_CONTROL_CLASS}
+                      >
+                        {PRIORITY_FILTER_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {!isUserSearchMode && (
+                    <div className="lg:col-span-2">
+                      <select
+                        value={slaFilter}
+                        onChange={(e) => setSlaFilter(e.target.value)}
+                        aria-label="กรองตาม SLA"
+                        className={FORM_CONTROL_CLASS}
+                      >
+                        {SLA_FILTER_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <p className={`mt-2 text-[11px] ${TEXT_MUTED_CLASS}`}>
+                  ค้นหาได้จาก: เลขงาน, หัวข้อ, รายละเอียด, หมวดหมู่, สถานที่, สถานะ, ความเร่งด่วน
+                </p>
+
+                <div className="mt-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  {!isUserSearchMode && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={selectedPresetId}
+                        onChange={(e) => setSelectedPresetId(e.target.value)}
+                        aria-label="เลือกมุมมองที่บันทึกไว้"
+                        className={`min-w-[220px] ${FORM_CONTROL_CLASS}`}
+                      >
+                        <option value="">เลือกมุมมองที่บันทึกไว้</option>
+                        {savedFilterPresets.map((preset) => (
+                          <option key={preset.id} value={preset.id}>{preset.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={applySelectedPreset}
+                        disabled={!selectedPresetId}
+                        className={`${SECONDARY_BUTTON_CLASS} disabled:opacity-40`}
+                      >
+                        ใช้มุมมอง
+                      </button>
+                      <button
+                        type="button"
+                        onClick={deleteSelectedPreset}
+                        disabled={!selectedPresetId}
+                        className={`rounded-xl border px-3 py-2 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 disabled:opacity-40 ${isDarkTheme ? "border-rose-700 bg-rose-900/40 text-rose-300 hover:bg-rose-900/60 focus-visible:ring-rose-400" : "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus-visible:ring-rose-200"}`}
+                        aria-label="ลบมุมมองที่เลือก"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    {!isUserSearchMode && (
+                      <button
+                        type="button"
+                        onClick={saveCurrentPreset}
+                        className="inline-flex items-center gap-1 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
+                      >
+                        <BookmarkPlus size={14} />
+                        บันทึกมุมมอง
+                      </button>
+                    )}
+                    {hasActiveSmartFilters && (
+                      <button
+                        type="button"
+                        onClick={clearSmartFilters}
+                        className={SECONDARY_BUTTON_CLASS}
+                      >
+                        ล้างตัวกรอง
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
 
               {filteredTickets.length > 0 ? (
-                <div className="space-y-3">
-                  {filteredTickets.map(renderTicketItem)}
+                isMobileView ? (
+                  <div className="space-y-3">
+                    <p className={`text-[11px] font-semibold ${TEXT_MUTED_CLASS}`}>แตะแถวเพื่อเปิดรายละเอียดทันที</p>
+                    <div className={`overflow-hidden rounded-2xl border ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-blue-100 bg-white/95"}`}>
+                      <div className={`grid grid-cols-[92px_minmax(0,1fr)_88px] items-center gap-2 border-b px-3 py-2 text-[11px] font-black uppercase tracking-wider ${isDarkTheme ? "border-slate-700 text-slate-400" : "border-blue-100 text-slate-500"}`}>
+                        <span>เลขงาน</span>
+                        <span>หัวข้อ</span>
+                        <span className="text-right">สถานะ</span>
+                      </div>
 
-                  {/* View All Button */}
-                  <button
-                    onClick={handleViewAllClick}
-                    className="w-full py-3 text-center text-sm font-bold text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-300 border border-dashed border-indigo-200 mt-4 hover:border-indigo-400 group/view-all"
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <span>ดูประวัติทั้งหมด ({tickets.length} รายการ)</span>
-                      <ChevronRight size={14} className="transform group-hover/view-all:translate-x-1 transition-transform" />
+                      <div className={`max-h-[360px] overflow-y-auto ${isDarkTheme ? "divide-y divide-slate-700/80" : "divide-y divide-blue-50"}`}>
+                        {visibleTickets.map((ticket) => {
+                          const status = getStatusConfig(ticket.status);
+                          return (
+                            <button
+                              key={`mobile-row-${ticket.id}`}
+                              type="button"
+                              onClick={() => {
+                                setActiveTicketId(ticket.id);
+                                setSelectedTicket(ticket);
+                              }}
+                              className={`grid w-full grid-cols-[92px_minmax(0,1fr)_88px] items-center gap-2 px-3 py-2.5 text-left transition-colors ${isDarkTheme ? "hover:bg-slate-800/80" : "hover:bg-blue-50/70"}`}
+                            >
+                              <span className={`inline-flex w-fit rounded-md px-2 py-0.5 text-[10px] font-bold ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
+                                {ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase()}`}
+                              </span>
+                              <div className="min-w-0">
+                                <p className={`truncate text-xs font-bold ${TEXT_SECONDARY_CLASS}`}>{ticket.title || "ไม่มีหัวข้อ"}</p>
+                                <p className={`mt-0.5 text-[10px] ${TEXT_SUBTLE_CLASS}`}>{formatDate(ticket.created_at)}</p>
+                              </div>
+                              <span className={`ml-auto inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${status.bg} ${status.color} ${status.border}`}>
+                                {status.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </button>
-                </div>
+
+                    <button
+                      type="button"
+                      onClick={handleViewAllClick}
+                      className={`group/view-all w-full rounded-xl border border-dashed py-3 text-center text-sm font-bold transition-all duration-300 ${isDarkTheme ? "border-indigo-500/40 text-indigo-300 hover:border-indigo-400 hover:bg-indigo-900/30" : "border-indigo-200 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50"}`}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <span>ดูประวัติทั้งหมด ({tickets.length} รายการ)</span>
+                        <ChevronRight size={14} className="transform transition-transform group-hover/view-all:translate-x-1" />
+                      </div>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+                    <div className="space-y-3" role="listbox" aria-label="รายการ Ticket ล่าสุด">
+                      {visibleTickets.map(renderTicketItem)}
+
+                      <button
+                        type="button"
+                        onClick={handleViewAllClick}
+                        className={`group/view-all mt-4 w-full rounded-xl border border-dashed py-3 text-center text-sm font-bold transition-all duration-300 ${isDarkTheme ? "border-indigo-500/40 text-indigo-300 hover:border-indigo-400 hover:bg-indigo-900/30" : "border-indigo-200 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50"}`}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <span>ดูประวัติทั้งหมด ({tickets.length} รายการ)</span>
+                          <ChevronRight size={14} className="transform transition-transform group-hover/view-all:translate-x-1" />
+                        </div>
+                      </button>
+                    </div>
+
+                    <aside className={`h-fit rounded-2xl border p-4 lg:sticky lg:top-28 ${isDarkTheme ? "border-slate-700 bg-slate-800/60" : "border-blue-100 bg-blue-50/70"}`}>
+                      {activeTicket ? (
+                        <div>
+                          <div className="mb-4">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-700">
+                                {activeTicket.ticket_no || `T${activeTicket.id?.slice(-6).toUpperCase()}`}
+                              </span>
+                              <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${activeTicketStatus.bg} ${activeTicketStatus.color} ${activeTicketStatus.border}`}>
+                                {activeTicketStatus.label}
+                              </span>
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-bold text-white ${activeTicketPriority.color}`}>
+                                {activeTicketPriority.label}
+                              </span>
+                            </div>
+                            <h4 className={`text-base font-black ${TEXT_PRIMARY_CLASS}`}>{activeTicket.title || "ไม่มีหัวข้อ"}</h4>
+                            <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{activeTicket.category || "ไม่ระบุหมวดหมู่"} • {formatDate(activeTicket.created_at)}</p>
+                            <p className={`mt-3 rounded-xl border p-3 text-xs leading-relaxed ${isDarkTheme ? "border-slate-700 bg-slate-900/80 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}>
+                              {activeTicket.description || "ไม่มีรายละเอียด"}
+                            </p>
+                          </div>
+
+                          <div className={`mb-4 rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white"}`}>
+                            <p className={`mb-2 text-[11px] font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>Activity Timeline</p>
+                            <div className="space-y-3">
+                              {activeTimeline.map((event, index) => (
+                                <div key={event.id} className="relative pl-5">
+                                  {index < activeTimeline.length - 1 && (
+                                    <span className={`absolute left-[6px] top-4 h-8 w-px ${isDarkTheme ? "bg-slate-700" : "bg-slate-200"}`}></span>
+                                  )}
+                                  <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-indigo-500"></span>
+                                  <p className={`text-xs font-bold ${TEXT_SECONDARY_CLASS}`}>{event.label}</p>
+                                  <p className={`text-[11px] ${TEXT_MUTED_CLASS}`}>{event.detail}</p>
+                                  <p className={`text-[10px] font-semibold ${TEXT_SUBTLE_CLASS}`}>{formatDateTime(event.date)}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTicket(activeTicket)}
+                            className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-bold text-white transition-all hover:shadow-lg hover:shadow-indigo-500/25"
+                          >
+                            เปิดรายละเอียดเต็ม
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={`rounded-xl border border-dashed p-5 text-center ${isDarkTheme ? "border-slate-700" : "border-slate-300"}`}>
+                          <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ยังไม่มีรายการที่เลือก</p>
+                          <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>เลือก Ticket จากรายการด้านซ้ายเพื่อดูรายละเอียด</p>
+                        </div>
+                      )}
+                    </aside>
+                  </div>
+                )
               ) : (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gradient-to-br from-slate-50 to-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="py-12 text-center">
+                  <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br ${isDarkTheme ? "from-slate-700 to-slate-800" : "from-slate-50 to-slate-100"}`}>
                     <AlertCircle size={24} className="text-slate-300" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-700 mb-2">ไม่พบรายการแจ้งซ่อม</h3>
-                  <p className="text-slate-500 text-sm mb-6 max-w-md mx-auto">
-                    {activeFilter !== "ALL"
-                      ? `ไม่มีรายการที่อยู่ในสถานะ "${FILTER_OPTIONS.find(f => f.id === activeFilter)?.label}"`
+                  <h3 className={`mb-2 text-lg font-bold ${TEXT_SECONDARY_CLASS}`}>ไม่พบรายการแจ้งซ่อม</h3>
+                  <p className={`mx-auto mb-6 max-w-md text-sm ${TEXT_MUTED_CLASS}`}>
+                    {hasActiveSmartFilters
+                      ? "ไม่พบรายการที่ตรงกับ Smart Filter ปัจจุบัน"
                       : "เริ่มต้นใช้งานระบบโดยการแจ้งซ่อมครั้งแรกของคุณ"}
                   </p>
-                  <button
-                    onClick={() => navigate("/create-ticket")}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold rounded-lg hover:shadow-lg hover:shadow-indigo-500/25 transition-all transform hover:-translate-y-0.5"
-                  >
-                    <Plus size={16} />
-                    สร้างใบแจ้งซ่อมแรก
-                  </button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {hasActiveSmartFilters && (
+                      <button
+                        type="button"
+                        onClick={clearSmartFilters}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-5 py-2.5 text-sm font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}
+                      >
+                        ล้างตัวกรอง
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/create-ticket")}
+                      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/25"
+                    >
+                      <Plus size={16} />
+                      สร้างใบแจ้งซ่อมแรก
+                    </button>
+                  </div>
                 </div>
               )}
             </section>
-
             {/* Support Section */}
-            <div className="relative overflow-hidden rounded-3xl border border-slate-700/70 bg-gradient-to-r from-slate-900 to-slate-800 p-7 md:p-9 text-white shadow-xl group hover:shadow-2xl transition-shadow duration-500">
+            <div className="order-4 relative overflow-hidden rounded-3xl border border-slate-700/70 bg-gradient-to-r from-slate-900 to-slate-800 p-5 sm:p-7 md:p-9 text-white shadow-xl group hover:shadow-2xl transition-shadow duration-500">
               <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10"></div>
               <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
 
@@ -914,13 +2035,13 @@ export default function Dashboard() {
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5 backdrop-blur-sm">
-                    <button className="group/chat flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-3 font-bold transition-all transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-900/50">
+                  <div className="flex w-full sm:w-auto flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5 backdrop-blur-sm">
+                    <button className="group/chat flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-4 sm:px-5 py-3 font-bold transition-all transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-900/50">
                       <MessageCircle size={18} />
                       <span>แชทกับ Support</span>
                       <ChevronRight size={14} className="transform group-hover/chat:translate-x-1 transition-transform" />
                     </button>
-                    <button className="flex items-center gap-2 rounded-xl bg-white/10 px-5 py-3 font-bold transition-all hover:bg-white/20">
+                    <button className="flex items-center justify-center gap-2 rounded-xl bg-white/10 px-4 sm:px-5 py-3 font-bold transition-all hover:bg-white/20">
                       <Phone size={18} />
                       โทรด่วน
                     </button>
@@ -1104,6 +2225,85 @@ export default function Dashboard() {
         .animate-float {
           animation: float 3s ease-in-out infinite;
         }
+
+        .dashboard-theme {
+          transition: background-color 0.25s ease, color 0.25s ease;
+        }
+
+        .dashboard-theme--light .border-white\/70,
+        .dashboard-theme--light .border-white\/80,
+        .dashboard-theme--light .border-slate-100,
+        .dashboard-theme--light .border-slate-200 {
+          border-color: rgba(191, 219, 254, 0.78) !important;
+        }
+
+        .dashboard-theme--light .bg-white\/95,
+        .dashboard-theme--light .bg-white\/90,
+        .dashboard-theme--light .bg-white\/85,
+        .dashboard-theme--light .bg-white\/80,
+        .dashboard-theme--light .bg-white\/75,
+        .dashboard-theme--light .bg-white\/65,
+        .dashboard-theme--light .bg-white\/50 {
+          background-color: rgba(255, 255, 255, 0.86) !important;
+        }
+
+        .dashboard-theme--light .bg-slate-50,
+        .dashboard-theme--light .bg-slate-50\/80,
+        .dashboard-theme--light .bg-slate-50\/70,
+        .dashboard-theme--light .bg-slate-100 {
+          background-color: rgba(239, 246, 255, 0.82) !important;
+        }
+
+        .dashboard-theme--light .hover\:bg-slate-50:hover {
+          background-color: rgba(219, 234, 254, 0.85) !important;
+        }
+
+        .dashboard-theme--dark .border-white\/70,
+        .dashboard-theme--dark .border-white\/80,
+        .dashboard-theme--dark .border-slate-100,
+        .dashboard-theme--dark .border-slate-200,
+        .dashboard-theme--dark .border-slate-700\/70 {
+          border-color: rgba(100, 116, 139, 0.38) !important;
+        }
+
+        .dashboard-theme--dark .bg-white,
+        .dashboard-theme--dark .bg-white\/95,
+        .dashboard-theme--dark .bg-white\/85,
+        .dashboard-theme--dark .bg-white\/80,
+        .dashboard-theme--dark .bg-white\/75,
+        .dashboard-theme--dark .bg-white\/65,
+        .dashboard-theme--dark .bg-white\/50 {
+          background-color: rgba(15, 23, 42, 0.82) !important;
+        }
+
+        .dashboard-theme--dark .bg-slate-50,
+        .dashboard-theme--dark .bg-slate-50\/80,
+        .dashboard-theme--dark .bg-slate-50\/70,
+        .dashboard-theme--dark .bg-slate-100 {
+          background-color: rgba(30, 41, 59, 0.72) !important;
+        }
+
+        .dashboard-theme--dark .text-slate-900,
+        .dashboard-theme--dark .text-slate-800,
+        .dashboard-theme--dark .text-slate-700 {
+          color: #e2e8f0 !important;
+        }
+
+        .dashboard-theme--dark .text-slate-600,
+        .dashboard-theme--dark .text-slate-500,
+        .dashboard-theme--dark .text-slate-400 {
+          color: #94a3b8 !important;
+        }
+
+        .dashboard-theme--dark .hover\:bg-slate-50:hover {
+          background-color: rgba(51, 65, 85, 0.75) !important;
+        }
+
+        .dashboard-theme--dark .from-slate-50,
+        .dashboard-theme--dark .to-slate-100 {
+          --tw-gradient-from: rgba(30, 41, 59, 0.7) var(--tw-gradient-from-position) !important;
+          --tw-gradient-to: rgba(51, 65, 85, 0.7) var(--tw-gradient-to-position) !important;
+        }
         
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
@@ -1123,6 +2323,18 @@ export default function Dashboard() {
         
         ::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
+        }
+
+        .dashboard-theme--dark ::-webkit-scrollbar-track {
+          background: #0f172a;
+        }
+
+        .dashboard-theme--dark ::-webkit-scrollbar-thumb {
+          background: #475569;
+        }
+
+        .dashboard-theme--dark ::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
         }
       `}</style>
     </div>
@@ -1267,4 +2479,5 @@ const FileText = (props) => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
   </svg>
 );
+
 
