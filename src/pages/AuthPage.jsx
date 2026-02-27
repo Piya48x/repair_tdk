@@ -5,7 +5,71 @@ import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion"; // เพิ่ม Motion
 import MessageAlert from "../components/MessageAlert"; // Import the custom alert
-import bgImage from "../assets/9.png";
+import bgImage1 from "../assets/1.png";
+import bgImage2 from "../assets/14.png";
+import bgImage3 from "../assets/9.png";
+import bgImage4 from "../assets/6.png";
+import bgImage5 from "../assets/4.png";
+
+const HERO_IMAGES = [bgImage1, bgImage2, bgImage3, bgImage4, bgImage5];
+
+const heroTextContainerVariants = {
+  hidden: { opacity: 1 },
+  visible: {
+    opacity: 1,
+    transition: {
+      delayChildren: 0.15,
+      staggerChildren: 0.16,
+    },
+  },
+  exit: {
+    opacity: 0,
+    transition: {
+      staggerChildren: 0.07,
+      staggerDirection: -1,
+    },
+  },
+};
+
+const heroTextLineVariants = {
+  hidden: { opacity: 0, x: -42 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.65,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+  exit: {
+    opacity: 0,
+    x: 42,
+    transition: {
+      duration: 0.45,
+      ease: "easeInOut",
+    },
+  },
+};
+
+const heroBarVariants = {
+  hidden: { width: 0, opacity: 0 },
+  visible: {
+    width: 96,
+    opacity: 1,
+    transition: {
+      duration: 0.9,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+  exit: {
+    width: 0,
+    opacity: 0,
+    transition: {
+      duration: 0.5,
+      ease: "easeInOut",
+    },
+  },
+};
 
 export default function AuthPage() {
   const [mode, setMode] = useState("login");
@@ -14,6 +78,8 @@ export default function AuthPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null); // State for the alert message
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const isFinalSlide = currentImageIndex === HERO_IMAGES.length - 1;
 
   const navigate = useNavigate();
   // New email format: firstname.l@tdk.co.th
@@ -205,6 +271,14 @@ export default function AuthPage() {
     }
   }, [message]);
 
+  useEffect(() => {
+    const slider = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % HERO_IMAGES.length);
+    }, 8000);
+
+    return () => clearInterval(slider);
+  }, []);
+
 
   return (
     <div className="min-h-screen flex font-sans text-slate-900 overflow-hidden bg-[#F8FAFC]">
@@ -212,14 +286,18 @@ export default function AuthPage() {
 
       {/* LEFT SIDE: BRANDING WITH MOTION */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <motion.img
-          initial={{ scale: 1.1 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 20, repeat: Infinity, repeatType: "reverse" }}
-          src={bgImage}
-          alt="Branding"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        <AnimatePresence initial={false}>
+         <motion.img
+  key={HERO_IMAGES[currentImageIndex]}
+  src={HERO_IMAGES[currentImageIndex]}
+  alt="Branding"
+ initial={{ opacity: 0, scale: 1.08 }}
+animate={{ opacity: 1, scale: 1 }}
+exit={{ opacity: 0, scale: 1.05 }}
+transition={{ duration: 4, ease: "easeInOut" }}
+  className="absolute inset-0 w-full h-full object-cover"
+/>
+        </AnimatePresence>
         <div className="absolute inset-0 bg-gradient-to-tr from-indigo-950 via-indigo-900/60 to-indigo-800/20" />
 
         {/* Decorative Floating Circles */}
@@ -245,30 +323,45 @@ export default function AuthPage() {
           </motion.div>
 
           <div className="max-w-xl">
-            <motion.h1
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-7xl font-black text-white leading-tight tracking-tighter mb-6"
-            >
-              Empowering <br />
-              <span className="text-indigo-400 italic">Industrial</span> <br />
-              Support
-            </motion.h1>
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: 96 }}
-              transition={{ delay: 0.5, duration: 1 }}
-              className="h-2 bg-indigo-500 rounded-full mb-8"
-            />
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
-              className="text-indigo-100/80 text-xl leading-relaxed font-medium"
-            >
-              ระบบ IT Helpdesk อัจฉริยะ ออกแบบมาเพื่อยกระดับ <br />ประสิทธิภาพการทำงานของพนักงาน TDK ทุกแผนก
-            </motion.p>
+            <AnimatePresence mode="wait">
+              {!isFinalSlide && (
+                <motion.div
+                  key="hero-copy"
+                  variants={heroTextContainerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                >
+                  <motion.h1 className="text-7xl font-black text-white leading-tight tracking-tighter mb-6">
+                    <motion.span variants={heroTextLineVariants} className="block">
+                      Empowering
+                    </motion.span>
+                    <motion.span variants={heroTextLineVariants} className="block text-indigo-400 italic">
+                      Industrial
+                    </motion.span>
+                    <motion.span variants={heroTextLineVariants} className="block">
+                      Support
+                    </motion.span>
+                  </motion.h1>
+
+                  <div className="mb-8">
+                    <motion.div
+                      variants={heroBarVariants}
+                      className="h-2 bg-indigo-500 rounded-full"
+                    />
+                  </div>
+
+                  <motion.p className="text-indigo-100/80 text-xl leading-relaxed font-medium">
+                    <motion.span variants={heroTextLineVariants} className="block">
+                      ระบบ IT Helpdesk อัจฉริยะ ออกแบบมาเพื่อยกระดับ
+                    </motion.span>
+                    <motion.span variants={heroTextLineVariants} className="block">
+                      ประสิทธิภาพการทำงานของพนักงาน TDK ทุกแผนก
+                    </motion.span>
+                  </motion.p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <motion.div

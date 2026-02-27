@@ -943,10 +943,17 @@ export default function Dashboard() {
   const SURFACE_PANEL_CLASS = isDarkTheme
     ? "border-slate-700 bg-slate-800/80"
     : "border-blue-100 bg-blue-50/70";
-  const TEXT_PRIMARY_CLASS = isDarkTheme ? "text-slate-100" : "text-slate-800";
-  const TEXT_SECONDARY_CLASS = isDarkTheme ? "text-slate-300" : "text-slate-700";
-  const TEXT_MUTED_CLASS = isDarkTheme ? "text-slate-400" : "text-slate-600";
-  const TEXT_SUBTLE_CLASS = isDarkTheme ? "text-slate-500" : "text-slate-400";
+  const TEXT_PRIMARY_CLASS = isDarkTheme ? "text-slate-100" : "text-black";
+  const TEXT_SECONDARY_CLASS = isDarkTheme ? "text-slate-300" : "text-slate-800";
+  const TEXT_MUTED_CLASS = isDarkTheme ? "text-slate-400" : "text-slate-700";
+  const TEXT_SUBTLE_CLASS = isDarkTheme ? "text-slate-500" : "text-slate-600";
+  const QUICK_ACTIONS_HEADING_CLASS = `text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`;
+  const QUICK_ACTIONS_TITLE_CLASS = `text-lg font-black ${TEXT_PRIMARY_CLASS}`;
+  const QUICK_ACTIONS_DESCRIPTION_CLASS = `text-sm leading-relaxed ${TEXT_MUTED_CLASS}`;
+  const STAT_LABEL_CLASS = `text-xs font-bold uppercase tracking-wide ${TEXT_SUBTLE_CLASS}`;
+  const STAT_VALUE_CLASS = "mt-2 text-4xl font-black leading-none tracking-tight tabular-nums";
+  const STAT_HELPER_LABEL_CLASS = `text-xs font-bold uppercase tracking-wide ${TEXT_SUBTLE_CLASS}`;
+  const STAT_HELPER_TEXT_CLASS = `text-sm font-semibold leading-relaxed ${TEXT_MUTED_CLASS}`;
 
   // ============================================
   // âœ… EVENT HANDLERS
@@ -1164,29 +1171,29 @@ export default function Dashboard() {
           return (
             <div
               key={card.key}
-              className={`rounded-2xl border p-5 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75" : "border-blue-100/80 bg-white/90 shadow-blue-100/40"}`}
+              className={`rounded-2xl border p-5 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75" : "border-blue-100/80 bg-white/95 shadow-blue-100/40"}`}
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-wider ${TEXT_SUBTLE_CLASS}`}>{card.label}</p>
-                  <p className={`mt-1 text-2xl font-black ${card.valueColor}`}>{card.value}</p>
+                  <p className={STAT_LABEL_CLASS}>{card.label}</p>
+                  <p className={`${STAT_VALUE_CLASS} ${card.valueColor}`}>{card.value}</p>
                 </div>
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.iconWrap}`}>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${card.iconWrap}`}>
                   <card.icon className={`w-5 h-5 ${card.iconColor}`} />
                 </div>
               </div>
               {isTrendCard ? (
-                <div className={`mt-3 flex items-center justify-between rounded-lg border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50"}`}>
-                  <p className={`text-[10px] font-bold uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>เทียบ 7 วันก่อน</p>
-                  <p className={`text-[11px] font-black ${trendColor}`}>
+                <div className={`mt-4 flex items-center justify-between rounded-xl border px-3 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
+                  <p className={STAT_HELPER_LABEL_CLASS}>เทียบ 7 วันก่อน</p>
+                  <p className={`text-sm font-black tabular-nums ${trendColor}`}>
                     {card.trend.diff > 0 ? "+" : ""}
                     {card.trend.diff}
                   </p>
                 </div>
               ) : (
-                <div className={`mt-3 flex items-center justify-between rounded-lg border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50"}`}>
-                  <p className={`text-[10px] font-bold uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>สถานะปัจจุบัน</p>
-                  <p className={`text-[11px] font-bold ${TEXT_MUTED_CLASS}`}>{card.helperText}</p>
+                <div className={`mt-4 rounded-xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
+                  <p className={STAT_HELPER_LABEL_CLASS}>สถานะปัจจุบัน</p>
+                  <p className={`mt-1 ${STAT_HELPER_TEXT_CLASS}`}>{card.helperText}</p>
                 </div>
               )}
             </div>
@@ -1521,7 +1528,7 @@ export default function Dashboard() {
             {/* Quick Actions */}
             <div className="order-1 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>Quick Actions</h3>
+                <h3 className={QUICK_ACTIONS_HEADING_CLASS}>Quick Actions</h3>
                 <span className={`text-[10px] font-black border rounded-full px-2.5 py-1 uppercase tracking-wider ${isDarkTheme ? "text-indigo-300 bg-indigo-900/40 border-indigo-500/40" : "text-indigo-600 bg-indigo-50 border-indigo-200"}`}>
                   role: {profile?.role || "user"}
                 </span>
@@ -1578,8 +1585,8 @@ export default function Dashboard() {
                       <div className={`w-12 h-12 bg-gradient-to-br ${accent.gradient} ${accent.text} rounded-2xl flex items-center justify-center mb-4 transition-all duration-300 ${accent.hoverBg}`}>
                         <Icon size={24} />
                       </div>
-                      <h4 className={`text-lg font-black ${TEXT_PRIMARY_CLASS}`}>{action.label}</h4>
-                      <p className={`text-sm mt-2 leading-relaxed ${TEXT_MUTED_CLASS}`}>{action.description}</p>
+                      <h4 className={QUICK_ACTIONS_TITLE_CLASS}>{action.label}</h4>
+                      <p className={`mt-2 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
                       <div className={`mt-4 flex items-center gap-1 text-xs font-bold ${accent.text} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}>
                         <span>{action.cta}</span>
                         <ChevronRight size={12} className="transform group-hover:translate-x-1 transition-transform" />
