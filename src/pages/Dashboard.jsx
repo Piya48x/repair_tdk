@@ -3,200 +3,34 @@
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import {
-  LogOut, Wrench, Package, MessageCircle, Bell, ChevronRight,
+  LogOut, Wrench, Package, ChevronRight,
   User, Briefcase, Building2, ExternalLink, Clock, CheckCircle2,
-  AlertCircle, X, Plus, Search, Download, RefreshCw,
-  BarChart3, Calendar, Hash, Phone, Mail, Shield, Zap,
-  TrendingUp, Timer, Battery, Activity, Cpu, Server,
-  Globe, Database, HardDrive, Smartphone, Wifi, ShieldCheck,
+  AlertCircle, Plus, Search, RefreshCw,
+  BarChart3, Calendar, Hash, Shield,
+  Timer, ShieldCheck,
   SlidersHorizontal, BookmarkPlus, Trash2, Moon, Sun
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
-import tdkLogo from "../assets/4.png";
-
-// ============================================
-// CONSTANTS & CONFIGURATION (Build-Safe)
-// ============================================
-
-// 1. Static Status Configuration Map (No Dynamic Classes)
-const STATUS_CONFIG = {
-  'NEW': {
-    label: 'รอดำเนินการ',
-    color: 'text-rose-600',
-    bg: 'bg-rose-50',
-    border: 'border-rose-200',
-    icon: Clock,
-    gradient: 'from-rose-50 to-rose-100',
-    badgeGradient: 'from-rose-500 to-rose-600'
-  },
-  'IN_PROGRESS': {
-    label: 'กำลังซ่อม',
-    color: 'text-amber-600',
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    icon: Clock,
-    gradient: 'from-amber-50 to-amber-100',
-    badgeGradient: 'from-amber-500 to-orange-600'
-  },
-  'CLOSED': {
-    label: 'สำเร็จ',
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    icon: CheckCircle2,
-    gradient: 'from-emerald-50 to-emerald-100',
-    badgeGradient: 'from-emerald-500 to-green-600'
-  }
-};
-
-// 2. Priority Configuration Map
-const PRIORITY_CONFIG = {
-  'urgent': {
-    label: 'ด่วน',
-    color: 'bg-gradient-to-r from-rose-500 to-pink-600',
-    icon: Zap,
-    slaHours: 2
-  },
-  'high': {
-    label: 'สูง',
-    color: 'bg-gradient-to-r from-amber-500 to-orange-600',
-    icon: Activity,
-    slaHours: 4
-  },
-  'normal': {
-    label: 'ปกติ',
-    color: 'bg-gradient-to-r from-blue-500 to-indigo-600',
-    icon: Timer,
-    slaHours: 8
-  },
-  'low': {
-    label: 'ต่ำ',
-    color: 'bg-gradient-to-r from-emerald-500 to-green-600',
-    icon: Battery,
-    slaHours: 24
-  }
-};
-
-// 3. Category Icons Map
-const CATEGORY_ICONS = {
-  'Hardware': Cpu,
-  'Network': Wifi,
-  'Software': Database,
-  'System': Server,
-  'Email': Mail,
-  'Printer': HardDrive,
-  'Phone': Smartphone,
-  'Security': ShieldCheck,
-  'Website': Globe
-};
-
-// 4. Filter Options
-const FILTER_OPTIONS = [
-  { id: 'ALL', label: 'ทั้งหมด', color: 'bg-slate-100 text-slate-700' },
-  { id: 'PENDING', label: 'รอดำเนินการ', color: 'bg-amber-100 text-amber-700' },
-  { id: 'CLOSED', label: 'สำเร็จ', color: 'bg-emerald-100 text-emerald-700' }
-];
-
-const PRIORITY_FILTER_OPTIONS = [
-  { id: 'ALL', label: 'ทุกความเร่งด่วน' },
-  { id: 'urgent', label: 'ด่วน' },
-  { id: 'high', label: 'สูง' },
-  { id: 'normal', label: 'ปกติ' },
-  { id: 'low', label: 'ต่ำ' },
-];
-
-const SLA_FILTER_OPTIONS = [
-  { id: 'ALL', label: 'SLA ทั้งหมด' },
-  { id: 'ON_TRACK', label: 'อยู่ใน SLA' },
-  { id: 'RISK', label: 'เสี่ยงหลุด SLA' },
-  { id: 'OVERDUE', label: 'หลุด SLA' },
-];
-
-const SMART_FILTER_PRESET_KEY = "dashboard-smart-filter-presets-v1";
-const DASHBOARD_THEME_KEY = "dashboard-theme-v1";
-
-const ROLE_LABELS = {
-  user: "ผู้ใช้งาน",
-  it_support: "ทีม IT Support",
-  admin: "ผู้ดูแลระบบ",
-  auditor: "ผู้ตรวจสอบ",
-};
-
-const ROLE_BASED_VIEWS = {
-  user: [
-    {
-      id: "user-my-open",
-      label: "งานที่ต้องตาม",
-      description: "งานที่ยังไม่ปิดทั้งหมด",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
-    },
-    {
-      id: "user-sla-risk",
-      label: "งานเสี่ยง SLA",
-      description: "โฟกัสงานที่ต้องเร่งติดตาม",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "RISK", searchQuery: "" },
-    },
-  ],
-  it_support: [
-    {
-      id: "it-overdue",
-      label: "Overdue Queue",
-      description: "งานหลุด SLA ที่ต้องเร่งปิด",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "OVERDUE", searchQuery: "" },
-    },
-    {
-      id: "it-priority",
-      label: "งาน Priority สูง",
-      description: "ด่วนและสูงเพื่อจัดคิวช่าง",
-      filters: { activeFilter: "PENDING", priorityFilter: "high", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
-    },
-  ],
-  admin: [
-    {
-      id: "admin-ops",
-      label: "Ops Control",
-      description: "ภาพรวมงานค้างทุกประเภท",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
-    },
-    {
-      id: "admin-sla",
-      label: "SLA Critical",
-      description: "รวมงานเสี่ยงและหลุด SLA",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "RISK", searchQuery: "" },
-    },
-  ],
-  auditor: [
-    {
-      id: "audit-closed",
-      label: "Closed Tickets",
-      description: "ตรวจสอบงานที่ปิดแล้ว",
-      filters: { activeFilter: "CLOSED", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
-    },
-    {
-      id: "audit-sla",
-      label: "SLA Findings",
-      description: "ดูงานหลุด SLA สำหรับตรวจสอบ",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "OVERDUE", searchQuery: "" },
-    },
-  ],
-};
-
-const getSlaState = (ticket) => {
-  if (!ticket?.created_at || ticket.status === "CLOSED") return "CLOSED";
-
-  const created = new Date(ticket.created_at);
-  const now = new Date();
-  const hoursPassed = (now - created) / (1000 * 60 * 60);
-  const priority = ticket.priority || "normal";
-  const slaHours = PRIORITY_CONFIG[priority]?.slaHours || 8;
-  const remaining = slaHours - hoursPassed;
-
-  if (remaining <= 0) return "OVERDUE";
-  if (remaining <= 2) return "RISK";
-  return "ON_TRACK";
-};
+import {
+  DASHBOARD_THEME_KEY,
+  FILTER_OPTIONS,
+  PRIORITY_CONFIG,
+  PRIORITY_FILTER_OPTIONS,
+  ROLE_BASED_VIEWS,
+  ROLE_LABELS,
+  SLA_FILTER_OPTIONS,
+  SMART_FILTER_PRESET_KEY,
+  STATUS_CONFIG,
+  getSlaState,
+  resolveCategoryIcon,
+} from "./dashboard/constants";
+import TicketDetailModal from "./dashboard/components/TicketDetailModal";
+import ProfileImageModal from "./dashboard/components/ProfileImageModal";
+import LogoutConfirmModal from "./dashboard/components/LogoutConfirmModal";
+import DashboardGlobalStyles from "./dashboard/components/DashboardGlobalStyles";
+import SupportSection from "./dashboard/components/SupportSection";
 
 // ============================================
 // MAIN COMPONENT
@@ -231,7 +65,6 @@ export default function Dashboard() {
   });
   const [lastUpdated, setLastUpdated] = useState(null);
   const [dashboardError, setDashboardError] = useState("");
-  const [realtimeChannel, setRealtimeChannel] = useState(null);
   const [slaStats, setSlaStats] = useState({ onTime: 0, total: 0, percentage: 100 });
   const [isMobileView, setIsMobileView] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -300,15 +133,6 @@ export default function Dashboard() {
       }
     };
   }, []);
-
-  // Cleanup subscription on unmount
-  useEffect(() => {
-    return () => {
-      if (realtimeChannel) {
-        supabase.removeChannel(realtimeChannel);
-      }
-    };
-  }, [realtimeChannel]);
 
   // ============================================
   // âœ… INITIALIZATION
@@ -671,7 +495,7 @@ export default function Dashboard() {
 
   // Get category icon
   const getCategoryIcon = (category) => {
-    const Icon = CATEGORY_ICONS[category] || HardDrive;
+    const Icon = resolveCategoryIcon(category);
     return <Icon size={16} />;
   };
 
@@ -2026,53 +1850,7 @@ export default function Dashboard() {
               )}
             </section>
             {/* Support Section */}
-            <div className="order-4 relative overflow-hidden rounded-3xl border border-slate-700/70 bg-gradient-to-r from-slate-900 to-slate-800 p-5 sm:p-7 md:p-9 text-white shadow-xl group hover:shadow-2xl transition-shadow duration-500">
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10"></div>
-              <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
-
-              <div className="relative z-10">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Shield size={20} className="text-indigo-400" />
-                      <h3 className="text-xl md:text-2xl font-black">บริการช่วยเหลือด่วน</h3>
-                    </div>
-                    <p className="text-slate-400 text-sm">
-                      ทีมเทคนิคพร้อมให้บริการตลอด 24 ชั่วโมงตาม SLA ที่กำหนด
-                    </p>
-                  </div>
-
-                  <div className="flex w-full sm:w-auto flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5 backdrop-blur-sm">
-                    <button className="group/chat flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-4 sm:px-5 py-3 font-bold transition-all transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-900/50">
-                      <MessageCircle size={18} />
-                      <span>แชทกับ Support</span>
-                      <ChevronRight size={14} className="transform group-hover/chat:translate-x-1 transition-transform" />
-                    </button>
-                    <button className="flex items-center justify-center gap-2 rounded-xl bg-white/10 px-4 sm:px-5 py-3 font-bold transition-all hover:bg-white/20">
-                      <Phone size={18} />
-                      โทรด่วน
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { icon: Phone, label: 'เบอร์ด่วน', value: '02-XXX-XXXX ต่อ 199' },
-                    { icon: Mail, label: 'อีเมล', value: 'helpdesk@company.co.th' },
-                    { icon: MessageCircle, label: 'ไลน์ OA', value: '@IT_Support_Official' },
-                    { icon: Timer, label: 'SLA Response', value: 'ภายใน 15 นาที' }
-                  ].map((item, index) => (
-                    <div key={index} className="bg-white/5 backdrop-blur-sm p-3 rounded-xl border border-white/10 hover:border-white/20 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <item.icon size={14} className="text-indigo-400" />
-                        <p className="text-xs font-bold text-slate-300">{item.label}</p>
-                      </div>
-                      <p className="text-sm font-medium">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <SupportSection />
           </div>
         </div>
       </main>
@@ -2082,409 +1860,33 @@ export default function Dashboard() {
       ============================================ */}
 
       {/* Profile Image Modal */}
-      {isModalOpen && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in"
-          onClick={() => setIsModalOpen(false)}
-        >
-          <div
-            className="relative max-w-2xl w-full animate-scale-in"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              className="absolute -top-12 right-0 text-white flex items-center gap-2 font-bold hover:text-slate-200 transition-colors group/close"
-              onClick={() => setIsModalOpen(false)}
-            >
-              <span>ปิด</span>
-              <X size={20} className="transform group-hover/close:rotate-90 transition-transform" />
-            </button>
-            {profile?.id_card_url ? (
-              <img
-                src={profile.id_card_url}
-                className="w-full h-auto rounded-3xl shadow-2xl border-4 border-white/20"
-                alt="Profile"
-              />
-            ) : (
-              <div className="bg-white rounded-3xl p-12 text-center">
-                <User size={64} className="text-slate-300 mx-auto mb-4" />
-                <p className="text-slate-600">ไม่มีรูปภาพโปรไฟล์</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <ProfileImageModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        profile={profile}
+      />
 
       {/* Logout Confirmation Modal */}
-      {isLogoutConfirmOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div
-            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-scale-in"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-rose-50 to-pink-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <LogOut size={32} />
-              </div>
-              <h3 className="text-xl font-black text-slate-800 mb-2">ยืนยันการออกจากระบบ?</h3>
-              <p className="text-slate-500 text-sm font-medium">
-                การออกจากระบบจะยกเลิกการเชื่อมต่อแบบเรียลไทม์ทั้งหมด
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setIsLogoutConfirmOpen(false)}
-                className="py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-all border border-slate-200 transform hover:-translate-y-0.5 active:translate-y-0"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleLogout}
-                className="py-3 rounded-xl font-bold bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:shadow-lg hover:shadow-rose-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
-              >
-                ออกจากระบบ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LogoutConfirmModal
+        isOpen={isLogoutConfirmOpen}
+        onClose={() => setIsLogoutConfirmOpen(false)}
+        onConfirm={handleLogout}
+      />
 
       {/* Ticket Detail Modal */}
-      {selectedTicket && (
-        <TicketDetailModal
-          ticket={selectedTicket}
-          onClose={() => setSelectedTicket(null)}
-          onNewTicket={() => navigate("/create-ticket")}
-          getStatusConfig={getStatusConfig}
-          getPriorityConfig={getPriorityConfig}
-          formatDate={formatDate}
-        />
-      )}
+      <TicketDetailModal
+        ticket={selectedTicket}
+        onClose={() => setSelectedTicket(null)}
+        onNewTicket={() => navigate("/create-ticket")}
+        getStatusConfig={getStatusConfig}
+        getPriorityConfig={getPriorityConfig}
+        formatDate={formatDate}
+      />
 
       {/* Global Styles */}
-      <style jsx global>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes scale-in {
-          from {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        
-        @keyframes slide-in-right {
-          from {
-            opacity: 0;
-            transform: translateX(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        
-        @keyframes fade-out {
-          from {
-            opacity: 1;
-          }
-          to {
-            opacity: 0;
-          }
-        }
-        
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-5px);
-          }
-        }
-        
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out;
-        }
-        
-        .animate-scale-in {
-          animation: scale-in 0.3s ease-out;
-        }
-        
-        .animate-slide-in-right {
-          animation: slide-in-right 0.3s ease-out;
-        }
-        
-        .animate-fade-out {
-          animation: fade-out 0.3s ease-out;
-        }
-        
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
-        }
-
-        .dashboard-theme {
-          transition: background-color 0.25s ease, color 0.25s ease;
-        }
-
-        .dashboard-theme--light .border-white\/70,
-        .dashboard-theme--light .border-white\/80,
-        .dashboard-theme--light .border-slate-100,
-        .dashboard-theme--light .border-slate-200 {
-          border-color: rgba(191, 219, 254, 0.78) !important;
-        }
-
-        .dashboard-theme--light .bg-white\/95,
-        .dashboard-theme--light .bg-white\/90,
-        .dashboard-theme--light .bg-white\/85,
-        .dashboard-theme--light .bg-white\/80,
-        .dashboard-theme--light .bg-white\/75,
-        .dashboard-theme--light .bg-white\/65,
-        .dashboard-theme--light .bg-white\/50 {
-          background-color: rgba(255, 255, 255, 0.86) !important;
-        }
-
-        .dashboard-theme--light .bg-slate-50,
-        .dashboard-theme--light .bg-slate-50\/80,
-        .dashboard-theme--light .bg-slate-50\/70,
-        .dashboard-theme--light .bg-slate-100 {
-          background-color: rgba(239, 246, 255, 0.82) !important;
-        }
-
-        .dashboard-theme--light .hover\:bg-slate-50:hover {
-          background-color: rgba(219, 234, 254, 0.85) !important;
-        }
-
-        .dashboard-theme--dark .border-white\/70,
-        .dashboard-theme--dark .border-white\/80,
-        .dashboard-theme--dark .border-slate-100,
-        .dashboard-theme--dark .border-slate-200,
-        .dashboard-theme--dark .border-slate-700\/70 {
-          border-color: rgba(100, 116, 139, 0.38) !important;
-        }
-
-        .dashboard-theme--dark .bg-white,
-        .dashboard-theme--dark .bg-white\/95,
-        .dashboard-theme--dark .bg-white\/85,
-        .dashboard-theme--dark .bg-white\/80,
-        .dashboard-theme--dark .bg-white\/75,
-        .dashboard-theme--dark .bg-white\/65,
-        .dashboard-theme--dark .bg-white\/50 {
-          background-color: rgba(15, 23, 42, 0.82) !important;
-        }
-
-        .dashboard-theme--dark .bg-slate-50,
-        .dashboard-theme--dark .bg-slate-50\/80,
-        .dashboard-theme--dark .bg-slate-50\/70,
-        .dashboard-theme--dark .bg-slate-100 {
-          background-color: rgba(30, 41, 59, 0.72) !important;
-        }
-
-        .dashboard-theme--dark .text-slate-900,
-        .dashboard-theme--dark .text-slate-800,
-        .dashboard-theme--dark .text-slate-700 {
-          color: #e2e8f0 !important;
-        }
-
-        .dashboard-theme--dark .text-slate-600,
-        .dashboard-theme--dark .text-slate-500,
-        .dashboard-theme--dark .text-slate-400 {
-          color: #94a3b8 !important;
-        }
-
-        .dashboard-theme--dark .hover\:bg-slate-50:hover {
-          background-color: rgba(51, 65, 85, 0.75) !important;
-        }
-
-        .dashboard-theme--dark .from-slate-50,
-        .dashboard-theme--dark .to-slate-100 {
-          --tw-gradient-from: rgba(30, 41, 59, 0.7) var(--tw-gradient-from-position) !important;
-          --tw-gradient-to: rgba(51, 65, 85, 0.7) var(--tw-gradient-to-position) !important;
-        }
-        
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-          background: #f1f5f9;
-          border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-          background: #94a3b8;
-        }
-
-        .dashboard-theme--dark ::-webkit-scrollbar-track {
-          background: #0f172a;
-        }
-
-        .dashboard-theme--dark ::-webkit-scrollbar-thumb {
-          background: #475569;
-        }
-
-        .dashboard-theme--dark ::-webkit-scrollbar-thumb:hover {
-          background: #64748b;
-        }
-      `}</style>
+      <DashboardGlobalStyles />
     </div>
   );
 }
-
-// ============================================
-// SUBCOMPONENT: Ticket Detail Modal
-// ============================================
-
-const TicketDetailModal = ({ ticket, onClose, onNewTicket, getStatusConfig, getPriorityConfig, formatDate }) => {
-  const statusConfig = getStatusConfig(ticket.status);
-  const priorityConfig = getPriorityConfig(ticket.priority);
-  const StatusIcon = statusConfig.icon;
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div
-        className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-scale-in"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="p-8">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">
-                  {ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase() || '000000'}`}
-                </span>
-                <span className={`text-xs font-bold px-3 py-1 rounded-full ${statusConfig.bg} ${statusConfig.color} ${statusConfig.border} border`}>
-                  {statusConfig.label}
-                </span>
-                <span className={`text-xs font-bold px-3 py-1 rounded-full text-white ${priorityConfig.color}`}>
-                  {priorityConfig.label}
-                </span>
-              </div>
-              <h2 className="text-2xl font-black text-slate-800">{ticket.title || "ไม่มีหัวข้อ"}</h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-slate-100 rounded-xl transition-colors transform hover:rotate-90 duration-300"
-            >
-              <X size={24} className="text-slate-500" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <FileText size={14} />
-                รายละเอียดปัญหา
-              </h3>
-              <div className="bg-slate-50 p-4 rounded-2xl">
-                <p className="text-slate-700 whitespace-pre-line">{ticket.description || "ไม่มีรายละเอียด"}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">ข้อมูลงาน</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-slate-600">หมวดหมู่</span>
-                    <span className="font-bold text-slate-800">{ticket.category || "ไม่ระบุ"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-slate-600">วันที่แจ้ง</span>
-                    <span className="font-bold text-slate-800">{formatDate(ticket.created_at)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-slate-600">สถานที่</span>
-                    <span className="font-bold text-slate-800">{ticket.location || "ไม่ระบุ"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {ticket.assigned_name && (
-                <div>
-                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">ช่างผู้ดูแล</h3>
-                  <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100">
-                    <div className="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {ticket.assigned_name?.charAt(0) || 'T'}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800">{ticket.assigned_name}</p>
-                      <p className="text-xs text-slate-500">ช่างเทคนิค</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {ticket.solution_note && (
-              <div className="bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-2xl border border-emerald-100">
-                <h3 className="text-sm font-bold text-emerald-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <CheckCircle2 size={14} />
-                  สรุปการซ่อม
-                </h3>
-                <p className="text-emerald-800">{ticket.solution_note}</p>
-              </div>
-            )}
-
-            {ticket.image_url && (
-              <div>
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">รูปภาพประกอบ</h3>
-                <img
-                  src={ticket.image_url}
-                  alt="Ticket attachment"
-                  className="w-full h-48 object-cover rounded-2xl shadow-inner"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-slate-200">
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={onClose}
-                className="py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-all border border-slate-200"
-              >
-                ปิด
-              </button>
-              <button
-                onClick={onNewTicket}
-                className="py-3 rounded-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-lg hover:shadow-indigo-500/25 transition-all"
-              >
-                สร้างใบแจ้งซ่อมใหม่
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Helper component for FileText icon
-const FileText = (props) => (
-  <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-  </svg>
-);
 
 

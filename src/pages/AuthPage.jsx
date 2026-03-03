@@ -291,6 +291,9 @@ export default function AuthPage() {
   key={HERO_IMAGES[currentImageIndex]}
   src={HERO_IMAGES[currentImageIndex]}
   alt="Branding"
+  onError={() =>
+    setCurrentImageIndex((prev) => (prev + 1) % HERO_IMAGES.length)
+  }
  initial={{ opacity: 0, scale: 1.08 }}
 animate={{ opacity: 1, scale: 1 }}
 exit={{ opacity: 0, scale: 1.05 }}
@@ -376,6 +379,25 @@ transition={{ duration: 4, ease: "easeInOut" }}
 
       {/* RIGHT SIDE: FORM WITH ANIMATED PRESENCE */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-10 relative bg-white lg:bg-transparent">
+        <div className="lg:hidden absolute inset-0 -z-20 overflow-hidden">
+          <AnimatePresence initial={false}>
+            <motion.img
+              key={`mobile-${HERO_IMAGES[currentImageIndex]}`}
+              src={HERO_IMAGES[currentImageIndex]}
+              alt="Branding mobile"
+              onError={() =>
+                setCurrentImageIndex((prev) => (prev + 1) % HERO_IMAGES.length)
+              }
+              initial={{ opacity: 0, scale: 1.06 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.04 }}
+              transition={{ duration: 2.5, ease: "easeInOut" }}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          </AnimatePresence>
+          <div className="absolute inset-0 bg-gradient-to-b from-white/90 via-sky-50/85 to-white/95" />
+        </div>
+
         {/* Mobile Background Glow */}
         <div className="lg:hidden absolute inset-0 bg-indigo-50/50 -z-10" />
 
