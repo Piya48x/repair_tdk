@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import Login from "./Login";
 import Register from "./Register";
 import { supabase } from "../lib/supabaseClient";
@@ -281,7 +281,7 @@ export default function AuthPage() {
 
 
   return (
-    <div className="min-h-screen flex font-sans text-slate-900 overflow-hidden bg-[#F8FAFC]">
+    <div className="app-theme min-h-screen flex  text-slate-900 overflow-hidden bg-[#F8FAFC]">
       <MessageAlert message={message} />
 
       {/* LEFT SIDE: BRANDING WITH MOTION */}
@@ -477,3 +477,4 @@ transition={{ duration: 4, ease: "easeInOut" }}
     </div>
   );
 }
+

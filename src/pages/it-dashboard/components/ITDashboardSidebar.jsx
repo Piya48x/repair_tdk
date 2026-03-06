@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   LayoutDashboard,
   Ticket,
@@ -10,9 +10,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X as XIcon,
-  Wrench,
 } from "lucide-react";
 import { getITDashboardTheme } from "../theme/itDashboardTheme";
+import tdkLogo from "../../../assets/2.png";
 
 const ITDashboardSidebar = ({
   sidebarOpen,
@@ -51,14 +51,18 @@ const ITDashboardSidebar = ({
       <div className="flex h-full flex-col">
         <div className={`border-b px-3 py-3 ${uiTheme.sidebarSectionBorder}`}>
           <div className="flex items-center justify-between gap-2">
-            <div className={`flex items-center gap-2 ${sidebarCollapsed ? "lg:justify-center lg:w-full" : ""}`}>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1F51FF] text-white shadow-sm">
-                <Wrench size={18} />
+            <div
+              className={`flex items-center gap-2 ${sidebarCollapsed ? "lg:justify-center lg:w-full" : ""}`}
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#2b59b0]/20 bg-white p-1 shadow-sm">
+                <img src={tdkLogo} alt="TDK Industrial logo" className="h-full w-full object-contain" />
               </div>
               {!sidebarCollapsed && (
                 <div className="min-w-0">
-                  <p className={`truncate text-sm font-black ${uiTheme.sidebarHeading}`}>ศูนย์บริการไอที</p>
-                  <p className={`text-[11px] ${uiTheme.sidebarVersion}`}>ช่างเทคนิค</p>
+                  <p className={`truncate text-sm font-black ${uiTheme.sidebarHeading}`}>TDK INDUSTRIAL</p>
+                  <p className={`truncate text-[11px] ${uiTheme.sidebarVersion}`}>
+                    บริษัท ที.ดี.เค.อินดัสเตรียล จำกัด
+                  </p>
                 </div>
               )}
             </div>

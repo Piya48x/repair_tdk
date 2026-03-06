@@ -1,12 +1,12 @@
-const IT_DASHBOARD_THEME_TOKENS = {
+﻿const IT_DASHBOARD_THEME_TOKENS = {
   dark: {
-    appFont: "font-sans",
+    appFont: "",
     pageBackground: "bg-[#0b1220]",
     surfaceCard: "bg-[#0f172a] border-slate-700",
     elevatedSurface: "bg-[#162136] border-slate-700",
     statusBar: "border-slate-700 bg-[#0f172a]",
     statusBadge: "border-slate-600 bg-[#162136] text-slate-200",
-    statusBadgeAccent: "border-sky-400/40 bg-sky-500/15 text-sky-200",
+    statusBadgeAccent: "border-[#2b59b0]/45 bg-[#2b59b0]/20 text-[#b9d0ff]",
     statusText: "text-slate-100",
     statusSubtle: "text-slate-400",
     statusButton:
@@ -16,8 +16,8 @@ const IT_DASHBOARD_THEME_TOKENS = {
     textMuted: "text-slate-400",
     textSubtle: "text-slate-500",
     tabInactive: "text-slate-400 hover:text-slate-100 hover:bg-[#162136]",
-    tabActive: "border border-sky-400/35 bg-sky-500/15 text-sky-100",
-    tabBadgeActive: "border border-sky-400/35 bg-transparent text-sky-100",
+    tabActive: "border border-[#2b59b0]/50 bg-[#2b59b0]/20 text-[#dbe7ff]",
+    tabBadgeActive: "border border-[#2b59b0]/50 bg-transparent text-[#dbe7ff]",
     badgeMuted: "border border-slate-600 bg-transparent text-slate-300",
 
     headerShell: "bg-[#0f172a] border-slate-700 shadow-sm",
@@ -27,9 +27,9 @@ const IT_DASHBOARD_THEME_TOKENS = {
       "text-slate-400 hover:text-rose-300 hover:bg-[#1f2436]",
     hamburgerLine: "bg-slate-300 group-hover:bg-slate-100",
     divider: "bg-slate-700",
-    searchIcon: "text-slate-400 group-focus-within:text-sky-300",
+    searchIcon: "text-slate-400 group-focus-within:text-[#93b6ff]",
     searchInput:
-      "bg-[#162136] border-slate-600 text-slate-100 placeholder-slate-400 focus:border-sky-400/60",
+      "bg-[#162136] border-slate-600 text-slate-100 placeholder-slate-400 focus:border-[#2b59b0]/70",
     searchInputMobile:
       "bg-[#162136] border-slate-600 text-slate-100 placeholder-slate-400",
     filterContainer: "bg-[#0f172a] border-slate-700",
@@ -44,7 +44,7 @@ const IT_DASHBOARD_THEME_TOKENS = {
     dateFilterButtonIdle: "bg-[#162136] text-slate-200 border-slate-600",
     quickRangeBtn:
       "border-slate-600 bg-transparent text-slate-200 hover:bg-[#162136]",
-    quickRangeBtnActive: "border-sky-400/40 bg-sky-500/20 text-sky-100",
+    quickRangeBtnActive: "border-[#2b59b0]/50 bg-[#2b59b0]/25 text-[#dbe7ff]",
     clearFilterButton:
       "border-rose-400/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20",
     filterSummary: "text-slate-400",
@@ -57,7 +57,7 @@ const IT_DASHBOARD_THEME_TOKENS = {
     sidebarCloseButton: "text-slate-300 hover:text-slate-100 hover:bg-[#162136]",
     sidebarNavIdle:
       "text-slate-300 hover:text-slate-100 hover:bg-[#162136] hover:border-slate-600",
-    sidebarNavActive: "border-sky-400/35 bg-sky-500/15 text-sky-100",
+    sidebarNavActive: "border-[#2b59b0]/50 bg-[#2b59b0]/20 text-[#dbe7ff]",
     sidebarToolsLabel: "text-slate-400",
     sidebarStatsCard: "bg-[#162136] border-slate-700",
     sidebarStatsHeading: "text-slate-100",
@@ -94,10 +94,10 @@ const IT_DASHBOARD_THEME_TOKENS = {
     modalDot: "bg-slate-500",
     modalLabel: "text-slate-300",
     modalInput:
-      "bg-[#162136] border-slate-600 text-slate-100 placeholder-slate-400 focus:border-sky-400/60 focus:ring-0",
+      "bg-[#162136] border-slate-600 text-slate-100 placeholder-slate-400 focus:border-[#2b59b0]/70 focus:ring-0",
     modalInputIconWrap: "bg-[#162136]",
     modalPreset:
-      "border-slate-600 bg-transparent text-slate-200 hover:border-sky-400/40 hover:bg-[#162136]",
+      "border-slate-600 bg-transparent text-slate-200 hover:border-[#2b59b0]/60 hover:bg-[#162136]",
     modalPresetLabel: "text-slate-400",
     modalFooterBorder: "border-slate-700",
     modalSecondaryButton:
@@ -112,12 +112,12 @@ const IT_DASHBOARD_THEME_TOKENS = {
     selectionText: "#e2e8f0",
   },
   light: {
-    appFont: "font-sans",
+    appFont: "",
     pageBackground: "bg-[#f4f7fb]",
     surfaceCard: "bg-white border-slate-200",
     statusBar: "border-slate-200 bg-white",
     statusBadge: "border-slate-200 bg-slate-100 text-slate-600",
-    statusBadgeAccent: "border-blue-200 bg-blue-50 text-blue-700",
+    statusBadgeAccent: "border-[#2b59b0]/20 bg-[#2b59b0]/10 text-[#2b59b0]",
     statusText: "text-slate-900",
     statusSubtle: "text-slate-500",
     statusButton: "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -127,8 +127,8 @@ const IT_DASHBOARD_THEME_TOKENS = {
     textSubtle: "text-slate-400",
     tabInactive: "text-slate-600 hover:text-slate-900 hover:bg-slate-100",
     tabActive:
-      "border border-blue-300 bg-blue-50 text-blue-700 shadow-sm shadow-blue-100/70",
-    tabBadgeActive: "border border-blue-200 bg-blue-100/60 text-blue-700",
+      "border border-[#2b59b0]/30 bg-[#2b59b0]/10 text-[#2b59b0] shadow-sm shadow-[#2b59b0]/15",
+    tabBadgeActive: "border border-[#2b59b0]/25 bg-[#2b59b0]/10 text-[#2b59b0]",
     badgeMuted: "border border-slate-200 bg-slate-100 text-slate-600",
 
     headerShell: "bg-white border-slate-200 shadow-sm backdrop-blur-xl",
@@ -137,15 +137,15 @@ const IT_DASHBOARD_THEME_TOKENS = {
     iconButtonDanger: "text-slate-500 hover:text-rose-600 hover:bg-rose-50",
     hamburgerLine: "bg-slate-500 group-hover:bg-slate-700",
     divider: "bg-slate-200",
-    searchIcon: "text-slate-400 group-focus-within:text-blue-500",
+    searchIcon: "text-slate-400 group-focus-within:text-[#2b59b0]",
     searchInput:
-      "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-400",
+      "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-[#2b59b0]",
     searchInputMobile:
       "bg-white border-slate-300 text-slate-900 placeholder-slate-400",
     filterContainer: "bg-white border-slate-200",
     filterBar: "bg-white border-slate-200",
-    filterSearchChip: "bg-blue-50 border-blue-200",
-    filterSearchLabel: "text-blue-700",
+    filterSearchChip: "bg-[#2b59b0]/10 border-[#2b59b0]/20",
+    filterSearchLabel: "text-[#2b59b0]",
     filterSearchValue: "text-slate-700",
     filterDateChip: "bg-emerald-50 border-emerald-200",
     filterDateIcon: "text-emerald-600",
@@ -153,9 +153,9 @@ const IT_DASHBOARD_THEME_TOKENS = {
     filterDateValue: "text-slate-700",
     dateFilterButtonIdle: "bg-white text-slate-700 border-slate-300",
     quickRangeBtn:
-      "border-slate-300 bg-slate-50 text-slate-700 hover:border-blue-300 hover:bg-blue-50",
+      "border-slate-300 bg-slate-50 text-slate-700 hover:border-[#2b59b0]/35 hover:bg-[#2b59b0]/10",
     quickRangeBtnActive:
-      "border-blue-500 bg-blue-600 text-white shadow-sm shadow-blue-200/80",
+      "border-[#2b59b0] bg-[#2b59b0] text-white shadow-sm shadow-[#2b59b0]/30",
     clearFilterButton:
       "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
     filterSummary: "text-slate-600",
@@ -169,7 +169,7 @@ const IT_DASHBOARD_THEME_TOKENS = {
     sidebarNavIdle:
       "text-slate-600 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-200",
     sidebarNavActive:
-      "border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-100/70",
+      "border-[#2b59b0]/25 bg-[#2b59b0]/10 text-[#2b59b0] shadow-sm shadow-[#2b59b0]/15",
     sidebarToolsLabel: "text-slate-500",
     sidebarStatsCard: "bg-slate-50 border-slate-200",
     sidebarStatsHeading: "text-slate-700",
@@ -194,22 +194,22 @@ const IT_DASHBOARD_THEME_TOKENS = {
       totalBadgeValue: "text-slate-900",
     },
     historySwitchWrap: "bg-slate-100 border-slate-200",
-    historySwitchActive: "bg-white text-blue-700 shadow-sm font-medium",
+    historySwitchActive: "bg-white text-[#2b59b0] shadow-sm font-medium",
     historySwitchIdle: "text-slate-500 hover:text-slate-800",
 
     modalShell: "bg-white border-slate-200 backdrop-blur-xl",
     modalHeader: "bg-slate-50 border-slate-200",
-    modalHeaderIconWrap: "bg-blue-100",
+    modalHeaderIconWrap: "bg-[#2b59b0]/10",
     modalTitle: "text-slate-900",
     modalSubtitle: "text-slate-500",
     modalCloseButton: "text-slate-500 hover:text-slate-700 hover:bg-slate-100",
-    modalDot: "bg-blue-600",
+    modalDot: "bg-[#2b59b0]",
     modalLabel: "text-slate-700",
     modalInput:
-      "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10",
+      "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/12",
     modalInputIconWrap: "bg-slate-100",
     modalPreset:
-      "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-400 hover:bg-blue-50",
+      "border-slate-200 bg-slate-50 text-slate-600 hover:border-[#2b59b0] hover:bg-[#2b59b0]/10",
     modalPresetLabel: "text-slate-500",
     modalFooterBorder: "border-slate-200/70",
     modalSecondaryButton:
@@ -227,3 +227,4 @@ const IT_DASHBOARD_THEME_TOKENS = {
 
 export const getITDashboardTheme = (themeMode) =>
   IT_DASHBOARD_THEME_TOKENS[themeMode === "dark" ? "dark" : "light"];
+

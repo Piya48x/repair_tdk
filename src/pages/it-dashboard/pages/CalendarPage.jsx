@@ -268,7 +268,7 @@ const CalendarPage = ({ theme, uiTheme, tickets = [], currentUser }) => {
                   onClick={() => setSelectedDateKey(key)}
                   className={`h-16 rounded-lg border p-1 text-left transition ${
                     isSelected
-                      ? "border-blue-500 bg-blue-500/10"
+                      ? "border-[#2b59b0] bg-[#2b59b0]/10"
                       : theme === "dark"
                         ? "border-slate-700 hover:border-slate-500 hover:bg-slate-800/60"
                         : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
@@ -278,7 +278,7 @@ const CalendarPage = ({ theme, uiTheme, tickets = [], currentUser }) => {
                     <span
                       className={`text-sm font-semibold ${
                         isToday
-                          ? "text-blue-600"
+                          ? "text-[#2b59b0]"
                           : theme === "dark"
                             ? "text-slate-200"
                             : "text-slate-700"
@@ -289,7 +289,7 @@ const CalendarPage = ({ theme, uiTheme, tickets = [], currentUser }) => {
                     {noteCount > 0 && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
                   </div>
                   <div className="mt-1 space-y-0.5">
-                    {ticketCount > 0 && <p className="text-[10px] text-blue-500">งาน {ticketCount}</p>}
+                    {ticketCount > 0 && <p className="text-[10px] text-[#2b59b0]">งาน {ticketCount}</p>}
                     {noteCount > 0 && <p className="text-[10px] text-emerald-500">นัด {noteCount}</p>}
                   </div>
                 </button>
@@ -332,7 +332,7 @@ const CalendarPage = ({ theme, uiTheme, tickets = [], currentUser }) => {
           <button
             type="button"
             onClick={handleOpenForm}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#244a95]"
           >
             <Plus size={14} />
             {isFutureDate ? "บันทึกนัดหมายล่วงหน้า" : "บันทึกโน้ตประจำวัน"}
@@ -365,7 +365,7 @@ const CalendarPage = ({ theme, uiTheme, tickets = [], currentUser }) => {
                     <p className={`text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
                       {note.title}
                     </p>
-                    <p className="mt-0.5 text-xs text-blue-500">ผู้นัดหมาย: {note.requestedBy}</p>
+                    <p className="mt-0.5 text-xs text-[#2b59b0]">ผู้นัดหมาย: {note.requestedBy}</p>
                   </div>
                   <button
                     type="button"
@@ -535,7 +535,7 @@ const CalendarPage = ({ theme, uiTheme, tickets = [], currentUser }) => {
               >
                 ยกเลิก
               </button>
-              <button type="submit" className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+              <button type="submit" className="rounded-lg bg-[#2b59b0] px-3 py-2 text-sm font-semibold text-white hover:bg-[#244a95]">
                 บันทึกนัดหมาย
               </button>
             </div>

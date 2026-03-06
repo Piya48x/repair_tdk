@@ -127,7 +127,7 @@ const ITDashboardGlobalStyles = ({ theme }) => {
       }
 
       ::selection {
-        background: rgba(59, 130, 246, 0.3);
+        background: rgba(43, 89, 176, 0.3);
         color: ${uiTheme.selectionText};
       }
     `}</style>

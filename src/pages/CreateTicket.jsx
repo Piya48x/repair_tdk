@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
+import { insertTicketWithSchemaFallback } from "../lib/ticketSchemaCompat";
 import { motion, AnimatePresence } from "framer-motion";
 import Webcam from "react-webcam";
 import { toast, Toaster } from "react-hot-toast";
@@ -49,50 +50,50 @@ const CATEGORIES = [
     label: "คอมพิวเตอร์ / อุปกรณ์",
     desc: "PC, Notebook, จอภาพ, อุปกรณ์ต่อพ่วง",
     icon: Monitor,
-    selectedClass: "from-blue-600 to-indigo-600 border-blue-200",
-    iconClass: "text-blue-600",
-    softClass: "bg-blue-50",
-    gradient: "from-blue-500 via-indigo-500 to-blue-600"
+    selectedClass: "from-[#2b59b0] to-[#244a95] border-[#2b59b0]/30",
+    iconClass: "text-[#2b59b0]",
+    softClass: "bg-[#2b59b0]/10",
+    gradient: "from-[#2b59b0] via-[#2b59b0] to-[#244a95]"
   },
   {
     id: "Network",
     label: "เครือข่าย / Wi-Fi",
     desc: "LAN, Wi-Fi, VPN, Internet",
     icon: Wifi,
-    selectedClass: "from-cyan-600 to-teal-600 border-cyan-200",
-    iconClass: "text-cyan-600",
-    softClass: "bg-cyan-50",
-    gradient: "from-cyan-500 via-teal-500 to-cyan-600"
+    selectedClass: "from-[#2b59b0] to-[#244a95] border-[#2b59b0]/30",
+    iconClass: "text-[#2b59b0]",
+    softClass: "bg-[#2b59b0]/10",
+    gradient: "from-[#2b59b0] via-[#2b59b0] to-[#244a95]"
   },
   {
     id: "Printer",
     label: "เครื่องพิมพ์ / สแกน",
     desc: "Printer, Scanner, Copier",
     icon: Printer,
-    selectedClass: "from-orange-500 to-amber-500 border-orange-200",
-    iconClass: "text-orange-600",
-    softClass: "bg-orange-50",
-    gradient: "from-orange-500 via-amber-500 to-orange-600"
+    selectedClass: "from-[#2b59b0] to-[#244a95] border-[#2b59b0]/30",
+    iconClass: "text-[#2b59b0]",
+    softClass: "bg-[#2b59b0]/10",
+    gradient: "from-[#2b59b0] via-[#2b59b0] to-[#244a95]"
   },
   {
     id: "Email",
     label: "อีเมลองค์กร",
     desc: "Outlook, Exchange, การส่งรับเมล",
     icon: Mail,
-    selectedClass: "from-fuchsia-600 to-pink-600 border-fuchsia-200",
-    iconClass: "text-fuchsia-600",
-    softClass: "bg-fuchsia-50",
-    gradient: "from-fuchsia-500 via-pink-500 to-fuchsia-600"
+    selectedClass: "from-[#2b59b0] to-[#244a95] border-[#2b59b0]/30",
+    iconClass: "text-[#2b59b0]",
+    softClass: "bg-[#2b59b0]/10",
+    gradient: "from-[#2b59b0] via-[#2b59b0] to-[#244a95]"
   },
   {
     id: "System",
     label: "ระบบงาน / ซอฟต์แวร์",
     desc: "OS, แอปพลิเคชัน, สิทธิ์การใช้งาน",
     icon: Server,
-    selectedClass: "from-slate-700 to-slate-900 border-slate-200",
-    iconClass: "text-slate-700",
-    softClass: "bg-slate-100",
-    gradient: "from-slate-700 via-slate-800 to-slate-900"
+    selectedClass: "from-[#2b59b0] to-[#244a95] border-[#2b59b0]/30",
+    iconClass: "text-[#2b59b0]",
+    softClass: "bg-[#2b59b0]/10",
+    gradient: "from-[#2b59b0] via-[#2b59b0] to-[#244a95]"
   },
 ];
 
@@ -365,23 +366,28 @@ const CreateTicket = () => {
         }
       }
 
-      const { data, error } = await supabase
-        .from("tickets")
-        .insert({
-          creator_id: user.id,
-          reporter_name: form.employeeName,
-          reporter_email: user.email || "",
-          department: form.department,
-          location: form.position,
-          category: form.category,
-          title: form.issue.substring(0, 60),
-          description: form.issue,
-          priority: form.urgency,
-          status: "NEW",
-          image_url: fileUrl
-        })
-        .select("id,ticket_no")
-        .single();
+      const ticketPayload = {
+        creator_id: user.id,
+        reporter_name: form.employeeName,
+        reporter_emp_id: form.employeeId || null,
+        reporter_dept: form.department || null,
+        reporter_avatar_url: form.profilePic || null,
+        reporter_email: user.email || "",
+        department: form.department,
+        location: form.position,
+        category: form.category,
+        title: form.issue.substring(0, 60),
+        description: form.issue,
+        priority: form.urgency,
+        status: "NEW",
+        image_url: fileUrl,
+      };
+
+      const { data, error } = await insertTicketWithSchemaFallback(
+        supabase,
+        ticketPayload,
+        { select: "id,ticket_no", single: true },
+      );
 
       if (error) throw error;
 
@@ -406,46 +412,46 @@ const CreateTicket = () => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-50 p-6"
+        className="app-theme min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/40 to-slate-50 p-6 "
       >
         <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
         <motion.div
           initial={{ scale: 0.95, y: 20, opacity: 0 }}
           animate={{ scale: 1, y: 0, opacity: 1 }}
           transition={{ type: "spring", damping: 25 }}
-          className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/50 bg-white/90 p-8 shadow-2xl backdrop-blur-xl"
+          className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white p-7 shadow-xl sm:p-8"
         >
-          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+          <div className="absolute inset-x-0 top-0 h-1 bg-[#2b59b0]" />
           <div className="relative">
             <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center">
-              <div className="absolute h-24 w-24 animate-pulse rounded-3xl bg-emerald-400/20 blur-xl" />
-              <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-2xl shadow-emerald-200">
+              <div className="absolute h-24 w-24 animate-pulse rounded-3xl bg-[#2b59b0]/15 blur-xl" />
+              <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-[#2b59b0] shadow-lg shadow-[#2b59b0]/25">
                 <CheckCircle2 className="text-white" size={48} />
               </div>
             </div>
 
-            <h1 className="text-center text-3xl font-black tracking-tight text-slate-900">
+            <h1 className="text-center text-2xl font-semibold text-slate-900 sm:text-[30px]">
               แจ้งปัญหาสำเร็จ
             </h1>
-            <p className="mt-2 text-center text-slate-500">
+            <p className="mt-2 text-center text-sm text-slate-600 sm:text-base">
               ระบบบันทึกคำขอเรียบร้อยแล้ว ทีม IT จะติดต่อกลับตามระดับความเร่งด่วน
             </p>
 
-            <div className="mt-8 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-6 shadow-inner">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+            <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+              <p className="text-[11px] font-medium tracking-wide text-slate-500">
                 Ticket Reference
               </p>
-              <p className="mt-2 text-4xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                #{ticketRef}
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-[#2b59b0] sm:text-4xl">
+                #{String(ticketRef || "").toUpperCase()}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {selectedCategory && (
-                  <span className="rounded-full bg-indigo-100 px-3 py-1.5 text-xs font-bold text-indigo-700">
+                  <span className="rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-3 py-1.5 text-xs font-semibold text-[#2b59b0]">
                     {selectedCategory.label}
                   </span>
                 )}
                 {selectedUrgency && (
-                  <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${selectedUrgency.chip}`}>
+                  <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${selectedUrgency.chip}`}>
                     {selectedUrgency.label} ({selectedUrgency.priority})
                   </span>
                 )}
@@ -454,7 +460,7 @@ const CreateTicket = () => {
 
             <button
               onClick={() => navigate("/dashboard")}
-              className="mt-6 w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3.5 text-sm font-bold text-white transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+              className="mt-6 w-full rounded-xl bg-[#2b59b0] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#244a95] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/30"
             >
               ไปยัง Dashboard
             </button>
@@ -465,7 +471,7 @@ const CreateTicket = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800 font-sans selection:bg-blue-100 antialiased">
+    <div className="app-theme min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800  selection:bg-blue-100 antialiased">
       <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
 
       {/* Clean enterprise background */}
@@ -1284,5 +1290,4 @@ const CreateTicket = () => {
 };
 
 export default CreateTicket;
-
 

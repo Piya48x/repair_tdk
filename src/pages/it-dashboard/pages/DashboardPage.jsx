@@ -5,8 +5,6 @@ const DashboardPage = (props) => (
   <TicketWorkspacePage
     title="ภาพรวมงานช่างเทคนิค"
     subtitle="ติดตามภาระงานและประสิทธิภาพในหน้าจอเดียว"
-    showCalendar={false}
-    showReports={false}
     {...props}
   />
 );

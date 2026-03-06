@@ -91,7 +91,7 @@ export const getDeviceIcon = (categoryName) => {
     const cat = categoryName?.toLowerCase() || "";
 
     if (cat.includes("hardware") || cat.includes("computer"))
-        return <Monitor size={14} className="text-blue-500" />;
+        return <Monitor size={14} className="text-[#2b59b0]" />;
 
     if (cat.includes("network"))
         return <Globe size={14} className="text-cyan-500" />;
@@ -430,7 +430,7 @@ export const handleExportExcelWithImages = async (
             icon: "success",
             title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">✅ Export Excel สำเร็จ!</span>`,
             html: `
-<div class="text-left font-sans">
+<div class="text-left ">
   <div class="mb-4 pb-4 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
     <div class="flex items-center gap-3">
       <div class="p-2 rounded-xl ${theme === "dark" ? "bg-emerald-900/30" : "bg-emerald-100"}">
@@ -461,8 +461,8 @@ export const handleExportExcelWithImages = async (
       <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-emerald-500"></div><span>สรุปสถิติ</span></div>
     </div>
   </div>
-  <div class="flex items-start gap-2 py-3 px-4 rounded-xl ${theme === "dark" ? "bg-blue-900/20" : "bg-blue-50"} border ${theme === "dark" ? "border-blue-800/30" : "border-blue-200"}">
-    <span class="text-xs ${theme === "dark" ? "text-blue-300" : "text-blue-700"}">📄 รายงานนี้พร้อมสำหรับการตรวจสอบ Audit และการนำเสนอผู้บริหาร</span>
+  <div class="flex items-start gap-2 py-3 px-4 rounded-xl ${theme === "dark" ? "bg-[#2b59b0]/20" : "bg-[#2b59b0]/10"} border ${theme === "dark" ? "border-[#2b59b0]/40" : "border-[#2b59b0]/25"}">
+    <span class="text-xs ${theme === "dark" ? "text-[#c7d9ff]" : "text-[#2b59b0]"}">📄 รายงานนี้พร้อมสำหรับการตรวจสอบ Audit และการนำเสนอผู้บริหาร</span>
   </div>
 </div>
 `,
@@ -485,4 +485,5 @@ export const handleExportExcelWithImages = async (
         });
     }
 };
+
 

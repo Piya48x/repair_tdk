@@ -1,8 +1,6 @@
 import React from "react";
 import { Search, Filter, Plus, ChevronDown, X } from "lucide-react";
-import CalendarView from "../components/CalendarView";
 import TicketList from "../components/TicketList";
-import ITServiceOverviewPanel from "../components/ITServiceOverviewPanel";
 
 const QUICK_FILTERS = [
   { id: "ALL", label: "ทั้งหมด" },
@@ -41,12 +39,6 @@ const TicketWorkspacePage = ({
   onQuickFilterChange,
   sortedTickets,
   tickets,
-  showCalendar,
-  onCloseCalendar,
-  setSelectedDate,
-  showReports,
-  onOpenRepairFromOverview,
-  onPickUpEquipment,
   loading,
   isMobile,
   dateRange,
@@ -193,37 +185,6 @@ const TicketWorkspacePage = ({
           </div>
         </div>
       </section>
-
-      {showCalendar && (
-        <section className="mb-6">
-          <CalendarView
-            tickets={tickets}
-            theme={theme}
-            setShowCalendar={onCloseCalendar}
-            setSelectedDate={setSelectedDate}
-          />
-        </section>
-      )}
-
-      {showReports && (
-        <section className="mb-6">
-          <div className={`mb-3 rounded-lg border px-4 py-3 ${uiTheme.surfaceCard}`}>
-            <h3 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-              รายงานภาพรวม
-            </h3>
-            <p className={`text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-              สรุป KPI และกราฟวิเคราะห์สำหรับฝ่ายซ่อมและคลัง
-            </p>
-          </div>
-
-          <ITServiceOverviewPanel
-            tickets={tickets}
-            onCreateTicket={onCreateTicket}
-            onPickUpEquipment={onPickUpEquipment}
-            onOpenRepair={onOpenRepairFromOverview}
-          />
-        </section>
-      )}
 
       <section>
         <TicketList

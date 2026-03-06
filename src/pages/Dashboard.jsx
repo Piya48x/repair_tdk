@@ -8,7 +8,7 @@ import {
   AlertCircle, Plus, Search, RefreshCw,
   BarChart3, Calendar, Hash, Shield,
   Timer, ShieldCheck,
-  SlidersHorizontal, BookmarkPlus, Trash2, Moon, Sun
+  SlidersHorizontal, BookmarkPlus, Trash2, Moon, Sun, MessageSquare, FileText, DoorOpen
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
@@ -31,6 +31,28 @@ import ProfileImageModal from "./dashboard/components/ProfileImageModal";
 import LogoutConfirmModal from "./dashboard/components/LogoutConfirmModal";
 import DashboardGlobalStyles from "./dashboard/components/DashboardGlobalStyles";
 import SupportSection from "./dashboard/components/SupportSection";
+import tdkLogo from "../../src/assets/2.png";
+
+const MEETING_ROOMS = ["Room A", "Room B", "Room C", "Room D"];
+const MEETING_DAY_START_MINUTES = 8 * 60;
+const MEETING_DAY_END_MINUTES = 18 * 60;
+
+const normalizeClock = (value) => String(value || "").slice(0, 5);
+
+const clockToMinutes = (value) => {
+  const [hourRaw, minuteRaw] = normalizeClock(value).split(":");
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
+  return hour * 60 + minute;
+};
+
+const minutesToClock = (value) => {
+  const safeValue = Math.max(0, Number(value) || 0);
+  const hour = Math.floor(safeValue / 60);
+  const minute = safeValue % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
 
 // ============================================
 // MAIN COMPONENT
@@ -66,11 +88,16 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [dashboardError, setDashboardError] = useState("");
   const [slaStats, setSlaStats] = useState({ onTime: 0, total: 0, percentage: 100 });
+  const [todayMeetingBookings, setTodayMeetingBookings] = useState([]);
+  const [tomorrowMeetingBookings, setTomorrowMeetingBookings] = useState([]);
+  const [meetingRoomLoading, setMeetingRoomLoading] = useState(true);
+  const [meetingRoomError, setMeetingRoomError] = useState("");
   const [isMobileView, setIsMobileView] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 1023px)").matches;
   });
   const channelRef = useRef(null);
+  const meetingRoomChannelRef = useRef(null);
   const searchInputRef = useRef(null);
 
   // ============================================
@@ -125,11 +152,68 @@ export default function Dashboard() {
     channelRef.current = channel;
   }, []); // Dependency à¹€à¸›à¹‡à¸™à¸§à¹ˆà¸²à¸‡à¹€à¸›à¸¥à¹ˆà¸²à¹€à¸žà¸·à¹ˆà¸­à¹„à¸¡à¹ˆà¹ƒà¸«à¹‰à¹€à¸à¸´à¸”à¸à¸²à¸£à¸ªà¸£à¹‰à¸²à¸‡ function à¹ƒà¸«à¸¡à¹ˆà¸§à¸™à¸¥à¸¹à¸›
 
+  const fetchMeetingRoomBookings = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setMeetingRoomLoading(true);
+
+    try {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const tomorrowDate = new Date();
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrow = format(tomorrowDate, "yyyy-MM-dd");
+
+      const { data, error } = await supabase
+        .from("meeting_room_bookings")
+        .select("*")
+        .in("booking_date", [today, tomorrow])
+        .neq("status", "cancelled")
+        .order("booking_date", { ascending: true })
+        .order("start_time", { ascending: true });
+
+      if (error) throw error;
+
+      const rows = data || [];
+      setTodayMeetingBookings(rows.filter((item) => item.booking_date === today));
+      setTomorrowMeetingBookings(rows.filter((item) => item.booking_date === tomorrow));
+      setMeetingRoomError("");
+    } catch (error) {
+      console.error("Meeting room load error:", error);
+      setMeetingRoomError("ไม่สามารถโหลดสถานะห้องประชุมได้");
+    } finally {
+      if (!silent) setMeetingRoomLoading(false);
+    }
+  }, []);
+
+  const setupMeetingRoomRealtime = useCallback(() => {
+    if (meetingRoomChannelRef.current) {
+      supabase.removeChannel(meetingRoomChannelRef.current);
+    }
+
+    const channel = supabase
+      .channel("meeting-room-status-dashboard")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "meeting_room_bookings",
+        },
+        () => {
+          fetchMeetingRoomBookings({ silent: true });
+        }
+      )
+      .subscribe();
+
+    meetingRoomChannelRef.current = channel;
+  }, [fetchMeetingRoomBookings]);
+
   // Cleanup à¹€à¸¡à¸·à¹ˆà¸­à¸›à¸´à¸”à¸«à¸™à¹‰à¸²à¸ˆà¸­
   useEffect(() => {
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
+      }
+      if (meetingRoomChannelRef.current) {
+        supabase.removeChannel(meetingRoomChannelRef.current);
       }
     };
   }, []);
@@ -197,6 +281,11 @@ export default function Dashboard() {
   useEffect(() => {
     initDashboard();
   }, [initDashboard]);
+
+  useEffect(() => {
+    fetchMeetingRoomBookings();
+    setupMeetingRoomRealtime();
+  }, [fetchMeetingRoomBookings, setupMeetingRoomRealtime]);
 
   useEffect(() => {
     try {
@@ -300,6 +389,87 @@ export default function Dashboard() {
     const uniq = [...new Set(tickets.map((t) => t.category).filter(Boolean))];
     return ["ALL", ...uniq];
   }, [tickets]);
+
+  const todayRoomStatusCards = useMemo(() => {
+    const dynamicRooms = [...MEETING_ROOMS];
+    const bookingRooms = [...todayMeetingBookings, ...tomorrowMeetingBookings]
+      .map((item) => item.room_name)
+      .filter((name) => typeof name === "string" && name.trim());
+
+    bookingRooms.forEach((roomName) => {
+      if (!dynamicRooms.includes(roomName)) dynamicRooms.push(roomName);
+    });
+
+    return dynamicRooms.map((roomName) => {
+      const roomBookings = todayMeetingBookings
+        .filter((item) => item.room_name === roomName)
+        .sort((left, right) => clockToMinutes(left.start_time) - clockToMinutes(right.start_time));
+
+      if (!roomBookings.length) {
+        return {
+          roomName,
+          slots: [
+            {
+              type: "available",
+              startMinutes: MEETING_DAY_START_MINUTES,
+              endMinutes: MEETING_DAY_END_MINUTES,
+              isAllDay: true,
+            },
+          ],
+          bookedCount: 0,
+        };
+      }
+
+      const slots = [];
+      let cursor = MEETING_DAY_START_MINUTES;
+
+      roomBookings.forEach((booking) => {
+        const bookingStart = Math.max(MEETING_DAY_START_MINUTES, clockToMinutes(booking.start_time));
+        const bookingEnd = Math.min(MEETING_DAY_END_MINUTES, clockToMinutes(booking.end_time));
+
+        if (bookingStart > cursor) {
+          slots.push({
+            type: "available",
+            startMinutes: cursor,
+            endMinutes: bookingStart,
+          });
+        }
+
+        slots.push({
+          type: "booked",
+          startMinutes: bookingStart,
+          endMinutes: bookingEnd,
+          title: booking.title || "มีการจอง",
+          bookedBy: booking.booked_by || "ไม่ระบุผู้จอง",
+          id: booking.id,
+        });
+
+        cursor = Math.max(cursor, bookingEnd);
+      });
+
+      if (cursor < MEETING_DAY_END_MINUTES) {
+        slots.push({
+          type: "available",
+          startMinutes: cursor,
+          endMinutes: MEETING_DAY_END_MINUTES,
+        });
+      }
+
+      return { roomName, slots, bookedCount: roomBookings.length };
+    });
+  }, [todayMeetingBookings, tomorrowMeetingBookings]);
+
+  const nextMeetingBooking = useMemo(() => {
+    const now = new Date();
+
+    return [...todayMeetingBookings, ...tomorrowMeetingBookings]
+      .map((booking) => {
+        const startsAt = new Date(`${booking.booking_date}T${normalizeClock(booking.start_time)}:00`);
+        return { ...booking, startsAt };
+      })
+      .filter((booking) => booking.startsAt.getTime() >= now.getTime())
+      .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime())[0] || null;
+  }, [todayMeetingBookings, tomorrowMeetingBookings]);
 
   // Smart filter: status + priority + category + SLA + search
   const filteredTickets = useMemo(() => {
@@ -696,6 +866,26 @@ export default function Dashboard() {
         roles: ["user", "it_support", "admin"],
       },
       {
+        id: "meeting-room-booking",
+        label: "จองห้องประชุม",
+        description: "จองห้องประชุมและจัดตารางเวลาการใช้งาน",
+        icon: Calendar,
+        accent: "sky",
+        cta: "เปิดหน้าจอง",
+        onClick: () => navigate("/meeting-room-booking"),
+        roles: ["user", "it_support", "admin"],
+      },
+      {
+        id: "work-notes",
+        label: "โน้ตงาน / Work Notes",
+        description: "บันทึกงาน วางแผนงาน และตั้งเตือนความจำส่วนตัว",
+        icon: FileText,
+        accent: "indigo",
+        cta: "เปิดหน้าโน้ต",
+        onClick: () => navigate("/work-notes"),
+        roles: ["user", "it_support", "admin", "auditor"],
+      },
+      {
         id: "history",
         label: "ประวัติ Ticket",
         description: "ค้นหาและติดตาม Ticket ที่เคยแจ้งทั้งหมด",
@@ -788,6 +978,9 @@ export default function Dashboard() {
       // à¸›à¸´à¸”à¸à¸²à¸£à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­ Realtime à¸à¹ˆà¸­à¸™à¸­à¸­à¸ (à¸–à¹‰à¸²à¸¡à¸µ)
       if (channelRef.current) {
         await supabase.removeChannel(channelRef.current);
+      }
+      if (meetingRoomChannelRef.current) {
+        await supabase.removeChannel(meetingRoomChannelRef.current);
       }
 
       await supabase.auth.signOut();
@@ -1085,6 +1278,21 @@ export default function Dashboard() {
             <span className={`text-xs font-bold px-3 py-1 rounded-full ${statusConfig.bg} ${statusConfig.color} ${statusConfig.border} border`}>
               {statusConfig.label}
             </span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedTicket(ticket);
+              }}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isDarkTheme
+                  ? "border-indigo-500/40 bg-indigo-900/30 text-indigo-300"
+                  : "border-indigo-200 bg-indigo-50 text-indigo-600"
+                }`}
+              title="เปิดแชทเคส"
+              aria-label="open case chat"
+            >
+              <MessageSquare size={14} />
+            </button>
             <ChevronRight size={16} className={`transition-colors transform group-hover:translate-x-1 ${isDarkTheme ? "text-slate-500 group-hover:text-indigo-400" : "text-slate-300 group-hover:text-indigo-600"}`} />
           </div>
         </div>
@@ -1127,7 +1335,7 @@ export default function Dashboard() {
 
   return (
     <div
-      className={`dashboard-theme dashboard-theme--${themeMode} min-h-screen font-sans transition-colors duration-300 ${isDarkTheme
+      className={`app-theme dashboard-theme dashboard-theme--${themeMode} min-h-screen  transition-colors duration-300 ${isDarkTheme
         ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 selection:bg-slate-700/60"
         : "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/80 text-slate-800 selection:bg-blue-100"
         }`}
@@ -1186,20 +1394,20 @@ export default function Dashboard() {
       <nav className={`sticky top-0 z-40 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex justify-between items-center">
           <div className={`flex items-center gap-2 rounded-2xl border p-1.5 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
-            {/* <div className="relative">
+            <div className="relative">
               <img
                 src={tdkLogo}
                 alt="TDK Industrial logo"
                 className="h-10 w-10 rounded-xl bg-white object-contain p-1 shadow-lg shadow-blue-200 animate-float"
               />
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white animate-pulse"></div>
-            </div> */}
-            <div className="relative">
+            </div>
+            {/* <div className="relative">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 animate-float">
                 <Wrench size={20} className="text-white" />
               </div>
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white animate-pulse"></div>
-            </div>
+            </div> */}
             <div>
               <h1 className="text-sm sm:text-lg font-black tracking-tight leading-none bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                 TDK INDUSTRIAL
@@ -1282,9 +1490,9 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-6 sm:gap-10 lg:grid-cols-12">
           {/* Profile Section */}
           <div className="lg:col-span-4">
-            <div className={`lg:sticky lg:top-32 overflow-hidden rounded-3xl shadow-lg backdrop-blur-md group transition-all duration-500 hover:shadow-2xl ${isDarkTheme ? "bg-slate-900/75 shadow-slate-900/40" : "bg-white/90 shadow-[0_14px_40px_-16px_rgba(31,81,255,0.85)]"}`}>
-              <div className={`h-24 sm:h-32 relative overflow-hidden ${isDarkTheme ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600" : "bg-gradient-to-r from-[#1F51FF] via-[#2B66FF] to-[#4A7AFF]"}`}>
-                <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20" : "bg-gradient-to-r from-[#1F51FF]/25 via-[#4A7AFF]/20 to-[#8BA7FF]/15"}`}></div>
+            <div className={`lg:sticky lg:top-32 overflow-hidden rounded-3xl shadow-lg backdrop-blur-md group transition-all duration-500 hover:shadow-2xl ${isDarkTheme ? "bg-slate-900/75 shadow-slate-900/40" : "bg-white/90 shadow-[0_14px_40px_-16px_rgba(43,89,176,0.4)]"}`}>
+              <div className={`h-24 sm:h-32 relative overflow-hidden ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]" : "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]"}`}>
+                <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0]/20 via-[#2b59b0]/20 to-[#244a95]/20" : "bg-gradient-to-r from-[#2b59b0]/25 via-[#2b59b0]/18 to-[#244a95]/15"}`}></div>
                 <div className="absolute -bottom-8 -right-8 w-32 h-32 sm:w-40 sm:h-40 bg-white/10 rounded-full blur-2xl"></div>
                 <div className="absolute bottom-3 sm:bottom-4 right-4 sm:right-6 text-white/10 font-black text-2xl sm:text-4xl">TDK</div>
               </div>
@@ -1295,7 +1503,7 @@ export default function Dashboard() {
                     className={`w-24 h-24 sm:w-32 sm:h-32 rounded-3xl p-1.5 shadow-2xl cursor-pointer relative group/profile overflow-hidden ${isDarkTheme ? "bg-slate-800" : "bg-white"}`}
                     onClick={() => profile?.id_card_url && setIsModalOpen(true)}
                   >
-                    <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-br from-indigo-500/10 to-purple-500/10" : "bg-gradient-to-br from-[#1F51FF]/15 to-[#5D84FF]/15"}`}></div>
+                    <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-br from-[#2b59b0]/12 to-[#244a95]/12" : "bg-gradient-to-br from-[#2b59b0]/15 to-[#244a95]/15"}`}></div>
                     {profile?.id_card_url ? (
                       <>
                         <img
@@ -1308,7 +1516,7 @@ export default function Dashboard() {
                         </div>
                       </>
                     ) : (
-                      <div className={`w-full h-full rounded-2xl flex items-center justify-center ${isDarkTheme ? "bg-gradient-to-br from-slate-700 to-slate-800 text-slate-400" : "bg-gradient-to-br from-[#EEF3FF] to-[#DCE8FF] text-[#1F51FF]"}`}>
+                      <div className={`w-full h-full rounded-2xl flex items-center justify-center ${isDarkTheme ? "bg-gradient-to-br from-slate-700 to-slate-800 text-slate-400" : "bg-gradient-to-br from-[#EEF3FF] to-[#DCE8FF] text-[#2b59b0]"}`}>
                         <User size={48} />
                       </div>
                     )}
@@ -1317,14 +1525,14 @@ export default function Dashboard() {
 
                 <div className="mb-5 sm:mb-7 text-center">
                   <h2 className={`text-lg sm:text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{profile?.full_name || "ไม่พบชื่อ"}</h2>
-                  <p className={`mt-1 text-xs font-bold uppercase tracking-widest ${isDarkTheme ? "text-indigo-300" : "text-[#1F51FF]"}`}>
+                  <p className={`mt-1 text-xs font-bold uppercase tracking-widest ${isDarkTheme ? "text-indigo-300" : "text-[#2b59b0]"}`}>
                     {profile?.position || "พนักงาน"}
                   </p>
                 </div>
 
                 <div className="space-y-3.5">
                   <div className={`flex items-center gap-3 rounded-xl p-3.5 transition-all group/item ${isDarkTheme ? "bg-slate-800/80 hover:bg-slate-800" : "bg-[#EEF3FF]/70 hover:bg-white"}`}>
-                    <div className="w-8 h-8 bg-gradient-to-br from-[#1F51FF] to-[#4A7AFF] rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#2b59b0] to-[#244a95] rounded-lg flex items-center justify-center">
                       <Building2 size={16} className="text-white" />
                     </div>
                     <div className="flex-1">
@@ -1334,7 +1542,7 @@ export default function Dashboard() {
                   </div>
 
                   <div className={`flex items-center gap-3 rounded-xl p-3.5 transition-all group/item ${isDarkTheme ? "bg-slate-800/80 hover:bg-slate-800" : "bg-[#EEF3FF]/70 hover:bg-white"}`}>
-                    <div className="w-8 h-8 bg-gradient-to-br from-[#2C5BFF] to-[#6B8FFF] rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#2b59b0] to-[#244a95] rounded-lg flex items-center justify-center">
                       <Briefcase size={16} className="text-white" />
                     </div>
                     <div className="flex-1">
@@ -1421,6 +1629,96 @@ export default function Dashboard() {
               </div>
             </div>
 
+            <section className={`order-2 rounded-3xl border p-4 sm:p-6 shadow-sm backdrop-blur-sm ${SURFACE_SECTION_CLASS}`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="mb-1 flex items-center gap-2">
+                    <Calendar size={16} className="text-indigo-600" />
+                    <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>Meeting Room Status</h3>
+                  </div>
+                  <p className={`text-xs ${TEXT_MUTED_CLASS}`}>สถานะห้องประชุมของวันนี้แบบเรียลไทม์สำหรับพนักงานทั้งองค์กร</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/meeting-room-booking")}
+                  className={SECONDARY_BUTTON_CLASS}
+                >
+                  ไปหน้าจองห้องประชุม
+                </button>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
+                  Today: {todayMeetingBookings.length} รายการ
+                </span>
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
+                  Tomorrow: {tomorrowMeetingBookings.length} รายการ
+                </span>
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}>
+                  Next booking: {nextMeetingBooking
+                    ? `${nextMeetingBooking.room_name} ${format(new Date(`${nextMeetingBooking.booking_date}T${normalizeClock(nextMeetingBooking.start_time)}:00`), "dd MMM HH:mm", { locale: th })}`
+                    : "ไม่มีคิวถัดไป"}
+                </span>
+              </div>
+
+              {meetingRoomLoading ? (
+                <div className="mt-5 flex items-center justify-center py-8">
+                  <div className={`h-8 w-8 animate-spin rounded-full border-2 ${isDarkTheme ? "border-slate-600 border-t-indigo-400" : "border-indigo-200 border-t-indigo-600"}`}></div>
+                </div>
+              ) : meetingRoomError ? (
+                <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm font-semibold ${isDarkTheme ? "border-rose-700/60 bg-rose-900/30 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                  {meetingRoomError}
+                </div>
+              ) : todayMeetingBookings.length === 0 ? (
+                <div className={`mt-5 rounded-2xl border border-dashed p-6 text-center ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/20 text-emerald-200" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                  วันนี้ห้องประชุมว่าง
+                </div>
+              ) : (
+                <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {todayRoomStatusCards.map((roomCard) => (
+                    <article key={roomCard.roomName} className={`rounded-2xl border p-4 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white"}`}>
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <DoorOpen size={15} className={isDarkTheme ? "text-slate-300" : "text-slate-600"} />
+                          <h4 className={`text-sm font-black ${TEXT_SECONDARY_CLASS}`}>{roomCard.roomName}</h4>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${roomCard.bookedCount > 0
+                          ? (isDarkTheme ? "bg-rose-900/40 text-rose-300" : "bg-rose-50 text-rose-700")
+                          : (isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700")
+                          }`}>
+                          {roomCard.bookedCount > 0 ? "Booked" : "Available"}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {roomCard.slots.map((slot, index) => (
+                          <div
+                            key={`${roomCard.roomName}-slot-${index}`}
+                            className={`rounded-xl border px-3 py-2 text-xs ${slot.type === "booked"
+                              ? (isDarkTheme ? "border-rose-700/50 bg-rose-900/20 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700")
+                              : (isDarkTheme ? "border-emerald-700/40 bg-emerald-900/20 text-emerald-200" : "border-emerald-200 bg-emerald-50 text-emerald-700")
+                              }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold">
+                                {minutesToClock(slot.startMinutes)} - {minutesToClock(slot.endMinutes)}
+                              </span>
+                              <span className="font-black">{slot.type === "booked" ? "Booked" : "Available"}</span>
+                            </div>
+                            {slot.type === "booked" && (
+                              <p className={`mt-1 ${isDarkTheme ? "text-rose-100" : "text-rose-600"}`}>
+                                {slot.title} • {slot.bookedBy}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
             {/* Priority Inbox */}
             {canSeePriorityInbox && (
               <section className={`order-3 rounded-3xl border p-4 sm:p-6 shadow-sm backdrop-blur-sm ${SURFACE_SECTION_CLASS}`}>
@@ -1503,7 +1801,7 @@ export default function Dashboard() {
             )}
 
             {/* Recent Activity */}
-            <section className={`order-2 rounded-3xl border p-4 sm:p-7 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md ${SURFACE_SECTION_CLASS}`}>
+            <section className={`order-4 rounded-3xl border p-4 sm:p-7 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md ${SURFACE_SECTION_CLASS}`}>
               <div className="mb-7">
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                   <div>
@@ -1881,6 +2179,12 @@ export default function Dashboard() {
         getStatusConfig={getStatusConfig}
         getPriorityConfig={getPriorityConfig}
         formatDate={formatDate}
+        currentUser={{
+          id: profile?.id,
+          name: profile?.full_name || profile?.employee_code || profile?.email || "User",
+          role: profile?.role || "user",
+          avatar: profile?.avatar_url || profile?.id_card_url || "",
+        }}
       />
 
       {/* Global Styles */}
@@ -1888,5 +2192,6 @@ export default function Dashboard() {
     </div>
   );
 }
+
 
 

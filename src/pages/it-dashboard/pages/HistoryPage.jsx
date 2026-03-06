@@ -5,8 +5,6 @@ const HistoryPage = (props) => (
   <TicketWorkspacePage
     title="ประวัติ"
     subtitle="ตรวจสอบงานที่ปิดแล้วและข้อมูลย้อนหลัง"
-    showCalendar={false}
-    showReports={false}
     {...props}
   />
 );

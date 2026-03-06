@@ -243,7 +243,7 @@ const StatusBadge = ({ status }) => {
   const normalized = String(status || "").toUpperCase();
 
   if (normalized === "NEW") {
-    return <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">ตั๋วใหม่</span>;
+    return <span className="inline-flex rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2.5 py-1 text-xs font-semibold text-[#2b59b0]">ตั๋วใหม่</span>;
   }
 
   if (normalized === "IN_PROGRESS") {
@@ -448,7 +448,7 @@ const ITServiceOverviewPanel = ({
               onClick={() => setPeriod(option.id)}
               className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
                 period === option.id
-                  ? "bg-[#0056b3] text-white"
+                  ? "bg-[#2b59b0] text-white"
                   : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
@@ -477,7 +477,7 @@ const ITServiceOverviewPanel = ({
           value={formatCount(kpiNew)}
           subtitle="งานรับแจ้งใหม่"
           icon={Ticket}
-          iconWrapClass="bg-blue-50 text-blue-700"
+          iconWrapClass="bg-[#2b59b0]/10 text-[#2b59b0]"
           valueClass="text-slate-900"
           onClick={() => onOpenRepair?.({ tab: "INCOMING", searchQuery: "", quickFilter: "ALL", sortBy: "latest" })}
         />
@@ -513,8 +513,8 @@ const ITServiceOverviewPanel = ({
           value={formatCount(kpiAvailableAssets)}
           subtitle="พร้อมจ่ายใช้งาน"
           icon={Boxes}
-          iconWrapClass="bg-blue-50 text-blue-700"
-          valueClass="text-blue-700"
+          iconWrapClass="bg-[#2b59b0]/10 text-[#2b59b0]"
+          valueClass="text-[#2b59b0]"
           onClick={() => onOpenRepair?.({ tab: "HISTORY", searchQuery: "", quickFilter: "HARDWARE", sortBy: "latest" })}
         />
         <MetricCard
@@ -561,7 +561,7 @@ const ITServiceOverviewPanel = ({
                   formatter={(value, name) => [value, name === "reported" ? "รับแจ้งซ่อม" : "ปิดงาน"]}
                 />
                 <Legend formatter={(value) => (value === "reported" ? "รับแจ้งซ่อม" : "ปิดงาน")} />
-                <Line type="monotone" dataKey="reported" stroke="#0056b3" strokeWidth={3} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="reported" stroke="#2b59b0" strokeWidth={3} dot={{ r: 3 }} />
                 <Line type="monotone" dataKey="completed" stroke="#16a34a" strokeWidth={3} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
@@ -583,7 +583,7 @@ const ITServiceOverviewPanel = ({
                 />
                 <Bar dataKey="count" radius={[8, 8, 0, 0]}>
                   {topAssetData.map((entry, index) => {
-                    const color = entry.group === "hardware" ? "#2563eb" : entry.group === "software" ? "#7c3aed" : "#64748b";
+                    const color = entry.group === "hardware" ? "#2b59b0" : entry.group === "software" ? "#7c3aed" : "#64748b";
                     return <Cell key={`asset-${index}`} fill={color} />;
                   })}
                 </Bar>
@@ -591,7 +591,7 @@ const ITServiceOverviewPanel = ({
             </ResponsiveContainer>
           </div>
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
-            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">Hardware</span>
+            <span className="rounded-full bg-[#2b59b0]/10 px-2.5 py-1 text-[#2b59b0]">Hardware</span>
             <span className="rounded-full bg-violet-50 px-2.5 py-1 text-violet-700">Software</span>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Other</span>
           </div>
@@ -635,7 +635,7 @@ const ITServiceOverviewPanel = ({
                     <td className="px-3 py-3">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          item.type === "ซ่อม" ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700"
+                          item.type === "ซ่อม" ? "bg-[#2b59b0]/10 text-[#2b59b0]" : "bg-violet-50 text-violet-700"
                         }`}
                       >
                         {item.type}
@@ -647,7 +647,7 @@ const ITServiceOverviewPanel = ({
                     </td>
                     <td className="px-3 py-3 text-slate-600">{item.duration}</td>
                     <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#0056b3]">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#2b59b0]">
                         เปิดงาน
                         <ExternalLink size={12} />
                       </span>
@@ -673,7 +673,7 @@ const ITServiceOverviewPanel = ({
             <div className="mt-3 space-y-2">
               <button
                 onClick={onCreateTicket}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0056b3] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2b59b0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#244a95]"
               >
                 <Plus size={16} />
                 เปิดตั๋วแจ้งซ่อมใหม่

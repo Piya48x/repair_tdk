@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -37,8 +37,8 @@ import {
   Check,
   X,
   Star,
-  Globe, // เพิ่มตัวนี้ (สำหรับ Network)
-  Lock, // เพิ่มตัวนี้ (สำหรับ System)
+  Globe,
+  Lock,
   Award,
   TrendingUp,
   BarChart3,
@@ -92,6 +92,7 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import ITDashboardGlobalStyles from "./it-dashboard/components/ITDashboardGlobalStyles";
+import TicketDetailModal from "./dashboard/components/TicketDetailModal";
 
 // New Refactored Components
 import ITDashboardHeader from "./it-dashboard/components/ITDashboardHeader";
@@ -102,12 +103,54 @@ import { getITDashboardTheme } from "./it-dashboard/theme/itDashboardTheme";
 
 // Utilities
 import {
-  getStatusColor,
   getStatusText,
-  getPriorityColor,
   getPriorityText,
-  calculateDuration,
 } from "./it-dashboard/utils/ticketUtils";
+
+function buildStructuredRepairReport({
+  problem,
+  rootCause,
+  solution,
+  partsUsed,
+  result,
+}) {
+  return [
+    `ปัญหาที่พบ (Problem): ${problem}`,
+    `สาเหตุของปัญหา (Root Cause): ${rootCause}`,
+    `วิธีการแก้ไข (Solution): ${solution}`,
+    `อะไหล่ที่ใช้ (Parts Used): ${partsUsed || "ไม่มีการเปลี่ยนอะไหล่"}`,
+    `ผลการทดสอบหลังแก้ไข (Result): ${result}`,
+  ].join("\n");
+}
+
+function buildAvatarFallback(name, color = "2b59b0") {
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(String(name || "U"))}&background=${color}&color=fff&size=96`;
+}
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function isUuidLike(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    normalizeText(value),
+  );
+}
+
+function deriveEmployeeCodeFromEmail(email) {
+  const localPart = normalizeText(email).split("@")[0] || "";
+  const match = localPart.match(/\d{3,}/);
+  return match ? match[0] : "";
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 const ITDashboard = () => {
   const navigate = useNavigate();
@@ -118,8 +161,7 @@ const ITDashboard = () => {
   const [activeTab, setActiveTab] = useState("INCOMING");
   const [isOnline, setIsOnline] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(null);
-  // ใช้แค่อันนี้พอ
+  // Date range filter state
   const [dateRange, setDateRange] = useState({
     start: "",
     end: "",
@@ -144,8 +186,9 @@ const ITDashboard = () => {
   const [selectedTickets, setSelectedTickets] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+  const [detailTicket, setDetailTicket] = useState(null);
 
-  // 2. ฟังก์ชัน Export ข้อมูลเป็น CSV (เปิดใน Excel ได้)
+  // Export/report related state
 
   const [stats, setStats] = useState({
     todayCompleted: 0,
@@ -156,10 +199,47 @@ const ITDashboard = () => {
     inProgressCount: 0,
   });
   const uiTheme = getITDashboardTheme(theme);
-  const showCalendar =
-    currentPage === DASHBOARD_PAGE_IDS.CALENDAR || currentPage === DASHBOARD_PAGE_IDS.REPORTS;
-  const showReports = currentPage === DASHBOARD_PAGE_IDS.REPORTS;
+  const isDarkTheme = theme === "dark";
+  const getSwalTemplate = (tone = "primary") => {
+    const confirmButtonClass =
+      tone === "danger"
+        ? "inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+        : tone === "success"
+          ? "inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          : "inline-flex items-center justify-center rounded-xl bg-[#2b59b0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#244a95] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/30";
 
+    return {
+      background: isDarkTheme ? "#0f172a" : "#ffffff",
+      color: isDarkTheme ? "#ffffff" : "#1f2937",
+      buttonsStyling: false,
+      customClass: {
+        popup: isDarkTheme
+          ? "w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900  shadow-2xl"
+          : "w-full max-w-md rounded-2xl border border-slate-200 bg-white  shadow-xl",
+        title: " text-lg font-semibold",
+        htmlContainer: " !px-5 !pt-2 !pb-1 sm:!px-6",
+        actions: "!mt-5 !gap-2 !px-5 !pb-5 sm:!px-6",
+        confirmButton: confirmButtonClass,
+        cancelButton: isDarkTheme
+          ? "inline-flex items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
+          : "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300",
+      },
+    };
+  };
+  const fireThemedSwal = (options = {}, tone = "primary") => {
+    const template = getSwalTemplate(tone);
+    const shouldReverseButtons =
+      options.showCancelButton && typeof options.reverseButtons === "undefined";
+    return Swal.fire({
+      ...template,
+      ...options,
+      reverseButtons: shouldReverseButtons ? true : options.reverseButtons,
+      customClass: {
+        ...template.customClass,
+        ...(options.customClass || {}),
+      },
+    });
+  };
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     setCurrentPage(TAB_TO_PAGE[tabId] || DASHBOARD_PAGE_IDS.TICKETS);
@@ -192,7 +272,7 @@ const ITDashboard = () => {
     ),
   );
 
-  // เพิ่มฟังก์ชันเหล่านี้หลัง state declarations
+  // Selection helpers
   const handleSelectTicket = (ticketId) => {
     setSelectedTickets((prev) => {
       if (prev.includes(ticketId)) {
@@ -307,6 +387,10 @@ const ITDashboard = () => {
           profileData?.full_name ||
           user.user_metadata?.full_name ||
           username.toUpperCase(),
+        role:
+          profileData?.role ||
+          user.user_metadata?.role ||
+          "it_support",
         email: user.email,
         employeeId:
           profileData?.employee_code ||
@@ -391,13 +475,13 @@ const ITDashboard = () => {
   }, []);
 
   // Show new ticket notification with animation
-  // แก้ไข function showNewTicketNotification
+  // Show animated notification for new incoming tickets
   const showNewTicketNotification = (ticket) => {
     const notification = document.createElement("div");
     notification.className =
       "fixed top-4 right-4 z-[1000] animate-slide-in-right";
     notification.innerHTML = `
-      <div class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-xl shadow-2xl max-w-sm border border-blue-300">
+      <div class="bg-gradient-to-r from-[#2b59b0] to-[#2b59b0] text-white p-4 rounded-xl shadow-2xl max-w-sm border border-[#2b59b0]/30">
         <div class="flex items-start gap-3">
           <div class="animate-pulse">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -428,7 +512,7 @@ const ITDashboard = () => {
             </div>
             <div class="flex items-center justify-between mt-3 pt-2 border-t border-white/20">
               <span class="text-xs">${new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
-              <!-- เปลี่ยนปุ่มให้เรียก handleViewDetails โดยตรง -->
+              <!-- Open detail from notification -->
               <button class="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-colors" id="view-ticket-btn-${ticket.id}">
                 ดูรายละเอียด
               </button>
@@ -440,17 +524,17 @@ const ITDashboard = () => {
 
     document.body.appendChild(notification);
 
-    // เพิ่ม Event Listener ให้กับปุ่ม "ดูรายละเอียด"
+    // Attach click handler to detail button
     const viewButton = document.getElementById(`view-ticket-btn-${ticket.id}`);
     if (viewButton) {
       viewButton.addEventListener("click", () => {
-        // เรียก handleViewDetails เพื่อแสดงรายละเอียดทันที
+        // Open ticket detail immediately
         handleViewDetails(ticket);
         notification.remove();
       });
     }
 
-    // ตั้งค่า global function สำหรับปุ่มปิด (ถ้ายังต้องการ)
+    // Keep global helper for compatibility
     window.viewNewTicket = (ticketId) => {
       const ticketToView = tickets.find((t) => t.id === ticketId);
       if (ticketToView) {
@@ -467,6 +551,139 @@ const ITDashboard = () => {
     }, 8000);
   };
 
+  const enrichTicketsWithProfiles = async (rows) => {
+    const ticketsData = Array.isArray(rows) ? rows : [];
+    if (!ticketsData.length) return [];
+
+    const profileIdSet = new Set();
+    const reporterEmailSet = new Set();
+
+    ticketsData.forEach((ticket) => {
+      const creatorId = normalizeText(ticket?.creator_id);
+      const assignedId = normalizeText(ticket?.assigned_to);
+      const reporterEmail = normalizeText(ticket?.reporter_email).toLowerCase();
+
+      if (isUuidLike(creatorId)) profileIdSet.add(creatorId);
+      if (isUuidLike(assignedId)) profileIdSet.add(assignedId);
+      if (reporterEmail.includes("@")) reporterEmailSet.add(reporterEmail);
+    });
+
+    const profileIds = Array.from(profileIdSet);
+    const reporterEmails = Array.from(reporterEmailSet);
+    const profileMap = {};
+
+    const patchProfileMap = (rowsToMerge) => {
+      if (!Array.isArray(rowsToMerge)) return;
+      rowsToMerge.forEach((row) => {
+        const profileId = normalizeText(row?.id);
+        const profileEmail = normalizeText(row?.email).toLowerCase();
+        const normalized = {
+          id: profileId,
+          email: profileEmail,
+          full_name: normalizeText(row?.full_name),
+          employee_code: normalizeText(row?.employee_code),
+          department: normalizeText(row?.department),
+          avatar_url: normalizeText(row?.avatar_url),
+          id_card_url: normalizeText(row?.id_card_url),
+        };
+
+        if (profileId) {
+          profileMap[profileId] = { ...(profileMap[profileId] || {}), ...normalized };
+        }
+        if (profileEmail) {
+          profileMap[profileEmail] = { ...(profileMap[profileEmail] || {}), ...normalized };
+        }
+      });
+    };
+
+    if (profileIds.length) {
+      const ticketIdForAccess = String(ticketsData[0]?.id || "");
+      if (ticketIdForAccess) {
+        const { data: rpcProfiles, error: rpcError } = await supabase.rpc(
+          "get_ticket_chat_profiles",
+          {
+            _ticket_id: ticketIdForAccess,
+            _user_ids: profileIds,
+          },
+        );
+        if (!rpcError) patchProfileMap(rpcProfiles);
+      }
+    }
+
+    const profileSelect =
+      "id, email, full_name, employee_code, department, avatar_url, id_card_url";
+    if (profileIds.length) {
+      const { data: idProfiles, error: idProfileError } = await supabase
+        .from("profiles")
+        .select(profileSelect)
+        .in("id", profileIds);
+      if (!idProfileError) patchProfileMap(idProfiles);
+    }
+
+    if (reporterEmails.length) {
+      const { data: emailProfiles, error: emailProfileError } = await supabase
+        .from("profiles")
+        .select(profileSelect)
+        .in("email", reporterEmails);
+      if (!emailProfileError) patchProfileMap(emailProfiles);
+    }
+
+    const resolveProfile = (id, email) => {
+      const profileId = normalizeText(id);
+      const profileEmail = normalizeText(email).toLowerCase();
+      if (profileId && profileMap[profileId]) return profileMap[profileId];
+      if (profileEmail && profileMap[profileEmail]) return profileMap[profileEmail];
+      return null;
+    };
+
+    return ticketsData.map((ticket) => {
+      const creatorProfile = resolveProfile(ticket?.creator_id, ticket?.reporter_email);
+      const assigneeProfile = resolveProfile(ticket?.assigned_to, null);
+
+      const reporterName =
+        normalizeText(ticket?.reporter_name) || creatorProfile?.full_name || "-";
+      const reporterEmpId =
+        normalizeText(ticket?.reporter_emp_id) ||
+        creatorProfile?.employee_code ||
+        deriveEmployeeCodeFromEmail(ticket?.reporter_email) ||
+        "";
+      const reporterDept =
+        normalizeText(ticket?.reporter_dept) ||
+        normalizeText(ticket?.department) ||
+        creatorProfile?.department ||
+        "";
+      const reporterAvatar =
+        normalizeText(ticket?.reporter_avatar_url) ||
+        creatorProfile?.avatar_url ||
+        creatorProfile?.id_card_url ||
+        buildAvatarFallback(reporterName, "2b59b0");
+
+      const assignedName =
+        normalizeText(ticket?.assigned_name) || assigneeProfile?.full_name || "";
+      const assignedEmployeeId =
+        normalizeText(ticket?.assigned_employee_id) ||
+        assigneeProfile?.employee_code ||
+        "";
+      const assignedAvatar =
+        normalizeText(ticket?.assigned_avatar_url) ||
+        assigneeProfile?.avatar_url ||
+        assigneeProfile?.id_card_url ||
+        (assignedName ? buildAvatarFallback(assignedName, "059669") : "");
+
+      return {
+        ...ticket,
+        reporter_name: reporterName,
+        reporter_emp_id: reporterEmpId,
+        reporter_dept: reporterDept,
+        department: normalizeText(ticket?.department) || reporterDept || "",
+        reporter_avatar_url: reporterAvatar,
+        assigned_name: assignedName || ticket?.assigned_name,
+        assigned_employee_id: assignedEmployeeId || ticket?.assigned_employee_id,
+        assigned_avatar_url: assignedAvatar,
+      };
+    });
+  };
+
   const fetchTickets = async () => {
     try {
       setLoading(true);
@@ -478,22 +695,21 @@ const ITDashboard = () => {
 
       if (error) throw error;
 
-      setTickets(data || []);
-      calculateStats(data || []);
+      const enrichedTickets = await enrichTicketsWithProfiles(data || []);
+
+      setTickets(enrichedTickets);
+      calculateStats(enrichedTickets);
       setLastRefreshedAt(new Date());
 
-      const newTickets = data?.filter((t) => t.status === "NEW") || [];
+      const newTickets = enrichedTickets?.filter((t) => t.status === "NEW") || [];
       setNotificationCount(newTickets.length);
     } catch (error) {
       console.error("Error fetching tickets:", error);
-      Swal.fire({
+      fireThemedSwal({
         icon: "error",
         title: "เกิดข้อผิดพลาด",
         text: "ไม่สามารถโหลดข้อมูลได้",
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        confirmButtonColor: "#3b82f6",
-      });
+      }, "danger");
     } finally {
       setLoading(false);
     }
@@ -559,21 +775,14 @@ const ITDashboard = () => {
 
   // Handle logout
   const handleLogout = async () => {
-    const { value: confirm } = await Swal.fire({
-      title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">ออกจากระบบ</span>`,
-      html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">คุณต้องการออกจากระบบหรือไม่?</span>`,
+    const { value: confirm } = await fireThemedSwal({
+      title: "ยืนยันออกจากระบบ",
+      text: "ยืนยันการออกจากระบบใช่หรือไม่",
       icon: "question",
-      background: theme === "dark" ? "#1f2937" : "#ffffff",
-      color: theme === "dark" ? "#fff" : "#1f2937",
       showCancelButton: true,
-      confirmButtonText: "ออกจากระบบ",
+      confirmButtonText: "ยืนยัน",
       cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#6b7280",
-      customClass: {
-        popup: `rounded-2xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`,
-      },
-    });
+    }, "primary");
 
     if (confirm) {
       try {
@@ -588,32 +797,22 @@ const ITDashboard = () => {
   // Accept job
   const handleAcceptJob = async (id) => {
     if (!isOnline) {
-      Swal.fire({
+      fireThemedSwal({
         icon: "warning",
-        title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">คุณอยู่ในสถานะออฟไลน์</span>`,
-        html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">กรุณาเปิดสถานะออนไลน์เพื่อรับงาน</span>`,
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        confirmButtonColor: "#3b82f6",
-      });
+        title: "โหมดออฟไลน์",
+        text: "กรุณาเปิดโหมดออนไลน์ก่อนรับงาน",
+      }, "primary");
       return;
     }
 
-    const { value: accept } = await Swal.fire({
-      title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">ยืนยันการรับงาน</span>`,
-      html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">คุณต้องการรับงานนี้เข้าคลังงานของคุณหรือไม่?</span>`,
+    const { value: accept } = await fireThemedSwal({
+      title: "ยืนยันรับงาน",
+      text: "ต้องการรับผิดชอบงานนี้ใช่หรือไม่",
       icon: "question",
-      background: theme === "dark" ? "#1f2937" : "#ffffff",
-      color: theme === "dark" ? "#fff" : "#1f2937",
       showCancelButton: true,
       confirmButtonText: "รับงาน",
       cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#3b82f6",
-      cancelButtonColor: "#6b7280",
-      customClass: {
-        popup: `rounded-2xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`,
-      },
-    });
+    }, "primary");
 
     if (!accept) return;
 
@@ -636,74 +835,38 @@ const ITDashboard = () => {
         .play()
         .catch((e) => console.log("Sound play failed", e));
 
-      Swal.fire({
+      fireThemedSwal({
         icon: "success",
-        title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">รับงานสำเร็จ!</span>`,
-        html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">เริ่มเดินทางได้เลย</span>`,
+        title: "รับงานสำเร็จ",
+        text: "สามารถเริ่มดำเนินการได้ทันที",
         timer: 2000,
         showConfirmButton: false,
-
-        // 1. เปลี่ยนจาก 'top-end' เป็น 'center'
         position: "center",
-
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        customClass: {
-          // 2. ถ้าอยู่ตรงกลางแนะนำให้เพิ่ม shadow-2xl ให้ดูเด่นขึ้น
-          popup: `rounded-2xl border shadow-2xl ${theme === "dark" ? "border-emerald-700" : "border-emerald-200"}`,
-        },
-
-        // 3. เพิ่มการตั้งค่าให้มันดูนุ่มนวลขึ้นเวลาเด้งตรงกลาง
-        showClass: {
-          popup: "animate__animated animate__fadeInDown",
-        },
-        hideClass: {
-          popup: "animate__animated animate__fadeOutUp",
-        },
-      });
+      }, "success");
 
       setActiveTab("ACTIVE");
       await fetchTickets();
     } catch (error) {
       console.error("Error accepting job:", error);
-      Swal.fire({
+      fireThemedSwal({
         icon: "error",
-        title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">เกิดข้อผิดพลาด</span>`,
-        html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">ไม่สามารถรับงานได้</span>`,
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        confirmButtonColor: "#ef4444",
-      });
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถรับงานนี้ได้ กรุณาลองใหม่อีกครั้ง",
+      }, "danger");
     }
   };
 
   // Delete history ticket
   const handleDeleteTicket = async (ticket) => {
-    const { value: confirm } = await Swal.fire({
-      title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">ยืนยันการลบ</span>`,
-      html: `
-        <div class="text-left">
-          <p class="${theme === "dark" ? "text-white/80" : "text-slate-700"} mb-3">คุณต้องการลบประวัติงานนี้หรือไม่?</p>
-          <div class="${theme === "dark" ? "bg-rose-900/30" : "bg-rose-50"} p-3 rounded-xl border ${theme === "dark" ? "border-rose-700/50" : "border-rose-200"}">
-            <p class="text-sm font-bold ${theme === "dark" ? "text-rose-300" : "text-rose-600"}">Ticket #${ticket.id.toString().slice(-6)}</p>
-            <p class="text-sm ${theme === "dark" ? "text-white/80" : "text-slate-700"} mt-1">${ticket.title}</p>
-            <p class="text-xs ${theme === "dark" ? "text-white/60" : "text-slate-500"} mt-2">ข้อมูลจะถูกลบถาวรและไม่สามารถกู้คืนได้</p>
-          </div>
-        </div>
-      `,
+    const { value: confirm } = await fireThemedSwal({
+      title: "ลบประวัติงาน",
+      text: "ต้องการลบรายการนี้ออกจากประวัติใช่หรือไม่",
       icon: "warning",
-      background: theme === "dark" ? "#1f2937" : "#ffffff",
-      color: theme === "dark" ? "#fff" : "#1f2937",
       showCancelButton: true,
-      confirmButtonText: "ลบประวัติ",
+      confirmButtonText: "ลบรายการ",
       cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#6b7280",
       reverseButtons: true,
-      customClass: {
-        popup: `rounded-2xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`,
-      },
-    });
+    }, "danger");
 
     if (!confirm) return;
 
@@ -715,52 +878,31 @@ const ITDashboard = () => {
 
       if (error) throw error;
 
-      notificationSoundRef.current
-        .play()
-        .catch((e) => console.log("Sound play failed", e));
-
-      Swal.fire({
+      await fireThemedSwal({
         icon: "success",
-        title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">ลบสำเร็จ!</span>`,
-        html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">ประวัติงานถูกลบเรียบร้อยแล้ว</span>`,
-        timer: 2000,
+        title: "ลบสำเร็จ",
+        text: "ลบประวัติงานเรียบร้อยแล้ว",
+        timer: 1800,
         showConfirmButton: false,
-
-        // ย้ายมาไว้ตรงกลางหน้าจอ
-        position: "center",
-
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        customClass: {
-          // ปรับความโค้งมน (rounded-2xl) ให้เข้ากับก้อน Block ของเรา
-          popup: `rounded-2xl border shadow-2xl ${theme === "dark" ? "border-rose-900/50" : "border-rose-200"}`,
-        },
-      });
+      }, "success");
 
       fetchTickets();
     } catch (error) {
       console.error("Error deleting ticket:", error);
-      Swal.fire({
+      fireThemedSwal({
         icon: "error",
-        title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">เกิดข้อผิดพลาด</span>`,
-        html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">ไม่สามารถลบประวัติได้</span>`,
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        confirmButtonColor: "#ef4444",
-      });
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถลบรายการได้ กรุณาลองใหม่อีกครั้ง",
+      }, "danger");
     }
   };
 
   // Open navigation
   const handleOpenNavigation = (location) => {
     if (!location) {
-      Swal.fire({
+      fireThemedSwal({
         icon: "warning",
-
-        html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">ไม่สามารถเปิดการนำทางได้</span>`,
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        confirmButtonColor: "#3b82f6",
+        text: "ไม่พบข้อมูลสถานที่ของเคสนี้",
       });
       return;
     }
@@ -768,20 +910,13 @@ const ITDashboard = () => {
     const encodedLocation = encodeURIComponent(location);
     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedLocation}`;
 
-    Swal.fire({
-      title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">เปิดการนำทาง</span>`,
-      html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">ต้องการเปิด Google Maps ไปยัง ${location} หรือไม่?</span>`,
+    fireThemedSwal({
+      title: "เปิดแผนที่นำทาง",
+      text: `ต้องการเปิด Google Maps ไปยัง ${location} ใช่หรือไม่`,
       icon: "question",
-      background: theme === "dark" ? "#1f2937" : "#ffffff",
-      color: theme === "dark" ? "#fff" : "#1f2937",
       showCancelButton: true,
       confirmButtonText: "เปิด Google Maps",
       cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#3b82f6",
-      cancelButtonColor: "#6b7280",
-      customClass: {
-        popup: `rounded-2xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`,
-      },
     }).then((result) => {
       if (result.isConfirmed) {
         window.open(googleMapsUrl, "_blank");
@@ -789,126 +924,185 @@ const ITDashboard = () => {
     });
   };
 
-  // Close job with enhanced UI
+  // Close job
   const handleCloseJob = async (ticket) => {
+    const isDark = theme === "dark";
+    const safeTicketNo = escapeHtml(
+      ticket?.ticket_no || `IT-${String(ticket?.id || "").padStart(5, "0")}`,
+    );
+    const popupClass = isDark
+      ? "w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900  shadow-2xl"
+      : "w-full max-w-2xl rounded-3xl border border-slate-200 bg-white  shadow-2xl";
+    const shellClass = isDark ? "text-slate-100" : "text-slate-900";
+    const mutedClass = isDark ? "text-slate-400" : "text-slate-500";
+    const sectionClass = isDark
+      ? "rounded-2xl border border-slate-700 bg-slate-800/70 p-3"
+      : "rounded-2xl border border-slate-200 bg-slate-50 p-3";
+    const labelClass = isDark ? "text-slate-300" : "text-slate-700";
+    const fieldClass = isDark
+      ? "w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/30"
+      : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/20";
+    const helperClass = isDark ? "text-slate-500" : "text-slate-500";
+    const fileInputClass = isDark
+      ? "block w-full cursor-pointer rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300"
+      : "block w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700";
+    const chipClass = isDark
+      ? "inline-flex items-center rounded-full border border-[#2b59b0]/40 bg-[#2b59b0]/15 px-2.5 py-1 text-[11px] font-semibold text-[#9dbbf8]"
+      : "inline-flex items-center rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2.5 py-1 text-[11px] font-semibold text-[#2b59b0]";
+    const cancelButtonClass = isDark
+      ? "inline-flex items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
+      : "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300";
+
     const { value: formValues } = await Swal.fire({
-      title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">บันทึกผลการซ่อม</span>`,
+      title: `<span class="${shellClass}">บันทึกและปิดงาน</span>`,
       html: `
-        <div class="text-left space-y-4">
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-blue-900/30 to-indigo-900/30" : "bg-blue-50"} p-4 rounded-xl border ${theme === "dark" ? "border-blue-700/30" : "border-blue-200"}">
-            <div class="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p class="text-xs ${theme === "dark" ? "text-blue-300" : "text-blue-600"} font-bold">Ticket ID</p>
-                <p class="font-mono font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}">#${ticket.id.toString().slice(-6)}</p>
-              </div>
-              <div>
-                <p class="text-xs ${theme === "dark" ? "text-blue-300" : "text-blue-600"} font-bold">เวลาเริ่ม</p>
-                <p class="${theme === "dark" ? "text-white" : "text-slate-900"}">${new Date(ticket.started_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</p>
+        <div class="space-y-3 text-left ">
+          <div class="${sectionClass}">
+            <div class="mb-2 flex flex-wrap items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2">
+              <span class="${chipClass}">Ticket ${safeTicketNo}</span>
+              <span class="${chipClass}">รายงานมาตรฐาน 5 หัวข้อ</span>
               </div>
             </div>
-            <p class="text-sm font-bold ${theme === "dark" ? "text-blue-200" : "text-blue-700"} mt-2">${ticket.title}</p>
+            <p class="text-sm font-semibold ${shellClass}">สรุปผลการซ่อมและการทดสอบหลังดำเนินการ</p>
+            <p class="mt-1 text-[11px] ${mutedClass}">
+              กรอกข้อมูลแบบกระชับและตรวจสอบได้ ระบบจะจัดรายงานงานซ่อมให้อัตโนมัติในรูปแบบมาตรฐาน
+            </p>
           </div>
 
-          <div>
-            <label class="block text-sm font-bold ${theme === "dark" ? "text-blue-300" : "text-blue-600"} mb-1">
-              สาเหตุ/วิธีแก้ไข <span class="text-rose-400">*</span>
-            </label>
-            <textarea 
-              id="swal-solution" 
-              class="w-full p-3 ${theme === "dark" ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"} border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm placeholder-slate-500" 
-              rows="4" 
-              placeholder="ระบุรายละเอียดการซ่อม..."
-            ></textarea>
-          </div>
-          
-          <div>
-            <label class="block text-sm font-bold ${theme === "dark" ? "text-blue-300" : "text-blue-600"} mb-1">อุปกรณ์ที่เปลี่ยน</label>
-            <input 
-              id="swal-parts" 
-              class="w-full p-3 ${theme === "dark" ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"} border rounded-xl outline-none text-sm placeholder-slate-500" 
-              placeholder="เช่น เมาส์, RAM 8GB, แบตเตอรี่โน๊ตบุ๊ค"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm font-bold ${theme === "dark" ? "text-blue-300" : "text-blue-600"} mb-1">
-              รูปถ่ายหลังซ่อม <span class="text-rose-400">*</span>
-            </label>
-            <div class="relative">
-              <input 
-                type="file" 
-                id="swal-file" 
-                accept="image/*" 
-                capture="environment" 
-                class="block w-full text-sm ${theme === "dark" ? "text-slate-400" : "text-slate-600"}
-                  file:mr-4 file:py-3 file:px-4 file:rounded-xl 
-                  file:border-0 file:text-sm file:font-semibold
-                  file:bg-gradient-to-r file:from-blue-600 file:to-indigo-600 
-                  file:text-white hover:file:from-blue-700 hover:file:to-indigo-700
-                  file:cursor-pointer file:transition-all"
-              />
-              <div class="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <Camera class="w-5 h-5 text-blue-400" />
-              </div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div class="sm:col-span-2">
+              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">ปัญหาที่พบ (Problem)</label>
+              <textarea id="swal-problem" class="${fieldClass}" rows="2" placeholder="เช่น เปิดเครื่องไม่ติด / เครื่องค้าง / มีเสียงดังผิดปกติ"></textarea>
             </div>
-            <p class="text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-400"} mt-2">ถ่ายรูปหลักฐานหลังซ่อมเสร็จ</p>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">สาเหตุของปัญหา (Root Cause)</label>
+              <textarea id="swal-root-cause" class="${fieldClass}" rows="2" placeholder="เช่น สายไฟ/พอร์ตหลวม หรือการตั้งค่าระบบผิดพลาด"></textarea>
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">ผลการทดสอบหลังแก้ไข (Result)</label>
+              <textarea id="swal-result" class="${fieldClass}" rows="2" placeholder="เช่น ทดสอบใช้งาน 15 นาที ระบบกลับมาปกติ"></textarea>
+            </div>
+
+            <div class="sm:col-span-2">
+              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">วิธีการแก้ไข (Solution)</label>
+              <textarea id="swal-solution" class="${fieldClass}" rows="3" placeholder="เช่น ตรวจเช็กอุปกรณ์ ปรับการเชื่อมต่อและตั้งค่าใหม่"></textarea>
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">อะไหล่ที่ใช้ (Parts Used)</label>
+              <input id="swal-parts" class="${fieldClass}" placeholder="เช่น ไม่มีการเปลี่ยนอะไหล่ / พัดลม CPU 1 ตัว" />
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">รูปหลังซ่อม (ไม่บังคับ)</label>
+              <input type="file" id="swal-file" accept="image/*" capture="environment" class="${fileInputClass}" />
+              <p id="swal-file-meta" class="mt-1 text-[11px] ${helperClass}">รองรับไฟล์รูปภาพ</p>
+            </div>
           </div>
 
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-amber-900/30 to-yellow-900/30" : "bg-amber-50"} p-3 rounded-xl border ${theme === "dark" ? "border-amber-700/30" : "border-amber-200"}">
-            <p class="text-xs ${theme === "dark" ? "text-amber-300" : "text-amber-600"}">
-              <span class="font-bold">หมายเหตุ:</span> ระบบจะบันทึกเวลาเสร็จสิ้นงานโดยอัตโนมัติ
+          <div class="${sectionClass}">
+            <p class="text-[11px] leading-relaxed ${helperClass}">
+              แนวทางเขียนรายงาน: ระบุอาการจริง -> วิเคราะห์สาเหตุ -> บันทึกขั้นตอนที่ทำจริง -> ยืนยันผลทดสอบหลังซ่อม
             </p>
           </div>
         </div>
       `,
-      background: theme === "dark" ? "#1f2937" : "#ffffff",
-      color: theme === "dark" ? "#fff" : "#1f2937",
+      background: isDark ? "#0f172a" : "#ffffff",
+      color: isDark ? "#fff" : "#1f2937",
       showCancelButton: true,
       confirmButtonText: "บันทึกและปิดงาน",
-      confirmButtonColor: "#10b981",
+      confirmButtonColor: "#2b59b0",
       cancelButtonText: "ยกเลิก",
       focusConfirm: false,
       showLoaderOnConfirm: true,
+      buttonsStyling: false,
       customClass: {
-        popup: `rounded-2xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`,
+        popup: popupClass,
+        title: " font-semibold",
+        htmlContainer: "!overflow-visible !px-5 !pt-2 !pb-0 sm:!px-6",
+        actions: "!mt-4 !w-full !justify-end !gap-2 !px-5 !pb-5 sm:!px-6",
+        confirmButton:
+          "inline-flex items-center justify-center rounded-xl bg-[#2b59b0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#244a95] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/30",
+        cancelButton: cancelButtonClass,
+      },
+      didOpen: () => {
+        const problemEl = document.getElementById("swal-problem");
+        if (problemEl && typeof problemEl.focus === "function") {
+          problemEl.focus();
+          problemEl.setSelectionRange?.(problemEl.value.length, problemEl.value.length);
+        }
+
+        const fileInput = document.getElementById("swal-file");
+        const fileMeta = document.getElementById("swal-file-meta");
+        const updateFileMeta = () => {
+          if (!fileMeta || !fileInput) return;
+          const file = fileInput.files?.[0];
+          if (!file) {
+            fileMeta.textContent = "รองรับไฟล์รูปภาพ";
+            return;
+          }
+          const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
+          fileMeta.textContent = `เลือกไฟล์: ${file.name} (${fileSizeMb} MB)`;
+        };
+        fileInput?.addEventListener("change", updateFileMeta);
       },
       preConfirm: () => {
-        const solution = document.getElementById("swal-solution").value;
-        const parts = document.getElementById("swal-parts").value;
-        const file = document.getElementById("swal-file").files[0];
+        const problem = document.getElementById("swal-problem")?.value || "";
+        const rootCause = document.getElementById("swal-root-cause")?.value || "";
+        const solution = document.getElementById("swal-solution")?.value || "";
+        const parts = document.getElementById("swal-parts")?.value || "";
+        const result = document.getElementById("swal-result")?.value || "";
+        const file = document.getElementById("swal-file")?.files?.[0];
 
-        if (!solution.trim()) {
-          Swal.showValidationMessage(
-            `<span class="text-rose-400">กรุณาระบุวิธีแก้ไขปัญหา</span>`,
-          );
-          return false;
-        }
-        if (!file) {
-          Swal.showValidationMessage(
-            `<span class="text-rose-400">กรุณาถ่ายรูปหลังซ่อมเสร็จ</span>`,
-          );
+        if (!problem.trim() || !rootCause.trim() || !solution.trim() || !result.trim()) {
+          Swal.showValidationMessage('<span class="text-rose-400">กรุณากรอกข้อมูลให้ครบทุกหัวข้อหลักก่อนบันทึก</span>');
           return false;
         }
 
-        return { solution, parts, file };
+        const tooShort = [problem, rootCause, solution, result].some(
+          (text) => text.trim().length < 6
+        );
+        if (tooShort) {
+          Swal.showValidationMessage('<span class="text-rose-400">โปรดระบุแต่ละหัวข้ออย่างน้อย 6 ตัวอักษร</span>');
+          return false;
+        }
+
+        const normalizedParts = parts.trim() || "ไม่มีการเปลี่ยนอะไหล่";
+        const report = buildStructuredRepairReport({
+          problem: problem.trim(),
+          rootCause: rootCause.trim(),
+          solution: solution.trim(),
+          partsUsed: normalizedParts,
+          result: result.trim(),
+        });
+
+        return { solution: report, parts: normalizedParts, file: file || null };
       },
     });
 
     if (!formValues) return;
 
     try {
-      const fileExt = formValues.file.name.split(".").pop();
-      const fileName = `after_${ticket.id}_${Date.now()}.${fileExt}`;
+      let publicUrl = ticket?.image_after_url || null;
 
-      const { error: uploadError } = await supabase.storage
-        .from("ticket-images")
-        .upload(fileName, formValues.file);
+      if (formValues.file) {
+        const fileExt = formValues.file.name.split(".").pop() || "jpg";
+        const fileName = `after_${ticket.id}_${Date.now()}.${fileExt}`;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from("ticket-images")
+          .upload(fileName, formValues.file);
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("ticket-images").getPublicUrl(fileName);
+        if (uploadError) throw uploadError;
+
+        const {
+          data: { publicUrl: uploadedUrl },
+        } = supabase.storage.from("ticket-images").getPublicUrl(fileName);
+        publicUrl = uploadedUrl || publicUrl;
+      }
 
       const { error: dbError } = await supabase
         .from("tickets")
@@ -918,7 +1112,6 @@ const ITDashboard = () => {
           parts_used: formValues.parts,
           image_after_url: publicUrl,
           closed_at: new Date().toISOString(),
-          // updated_at: new Date().toISOString(),
           closed_by: currentUser?.id,
           closed_by_name: currentUser?.name,
         })
@@ -926,266 +1119,104 @@ const ITDashboard = () => {
 
       if (dbError) throw dbError;
 
-      notificationSoundRef.current
-        .play()
-        .catch((e) => console.log("Sound play failed", e));
-
-      await Swal.fire({
+      await fireThemedSwal({
         icon: "success",
-        title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">ปิดงานสำเร็จ!</span>`,
-        html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">บันทึกข้อมูลเรียบร้อยแล้ว</span>`,
-        timer: 2500,
+        title: "ปิดงานสำเร็จ",
+        text: "อัปเดตสถานะและบันทึกรายงานเรียบร้อยแล้ว",
+        timer: 2200,
         showConfirmButton: false,
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        customClass: {
-          popup: `rounded-2xl border ${theme === "dark" ? "border-emerald-700" : "border-emerald-200"}`,
-        },
-      });
+      }, "success");
 
       setActiveTab("HISTORY");
       fetchTickets();
     } catch (error) {
       console.error("Error closing job:", error);
-      Swal.fire({
+      fireThemedSwal({
         icon: "error",
-        title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">เกิดข้อผิดพลาด</span>`,
-        html: `<span class="${theme === "dark" ? "text-white/80" : "text-slate-700"}">${error.message}</span>`,
-        background: theme === "dark" ? "#1f2937" : "#ffffff",
-        color: theme === "dark" ? "#fff" : "#1f2937",
-        confirmButtonColor: "#ef4444",
-      });
+        title: "เกิดข้อผิดพลาด",
+        html: `
+          <div class="text-sm">ไม่สามารถบันทึกและปิดงานได้ กรุณาลองใหม่อีกครั้ง</div>
+          ${error?.message ? `<div class="mt-2 text-xs text-slate-500">รายละเอียดระบบ: ${error.message}</div>` : ""}
+        `,
+      }, "danger");
     }
+  };
+
+  const getModalStatusConfig = (status) => {
+    switch (status) {
+      case "NEW":
+        return {
+          label: "ใหม่",
+          bg: "bg-rose-50",
+          color: "text-rose-700",
+          border: "border-rose-200",
+        };
+      case "IN_PROGRESS":
+        return {
+          label: "กำลังดำเนินการ",
+          bg: "bg-amber-50",
+          color: "text-amber-700",
+          border: "border-amber-200",
+        };
+      case "CLOSED":
+        return {
+          label: "ปิดงานแล้ว",
+          bg: "bg-emerald-50",
+          color: "text-emerald-700",
+          border: "border-emerald-200",
+        };
+      default:
+        return {
+          label: getStatusText(status),
+          bg: "bg-slate-50",
+          color: "text-slate-700",
+          border: "border-slate-200",
+        };
+    }
+  };
+
+  const getModalPriorityConfig = (priority) => {
+    switch (priority) {
+      case "urgent":
+        return {
+          label: "ด่วนมาก",
+          color: "bg-rose-600",
+        };
+      case "normal":
+        return {
+          label: "สำคัญ",
+          color: "bg-amber-500",
+        };
+      case "low":
+        return {
+          label: "ปกติ",
+          color: "bg-emerald-600",
+        };
+      default:
+        return {
+          label: getPriorityText(priority),
+          color: "bg-slate-500",
+        };
+    }
+  };
+
+  const formatTicketDate = (dateValue) => {
+    if (!dateValue) return "-";
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return parsed.toLocaleString("th-TH", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   // View ticket details
   const handleViewDetails = (ticket) => {
-    Swal.fire({
-      title: `<span class="${theme === "dark" ? "text-white" : "text-slate-900"}">รายละเอียด Ticket #${ticket.id.toString().slice(-6)}</span>`,
-      html: `
-        <div class="text-left space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="${theme === "dark" ? "bg-gradient-to-r from-slate-800 to-slate-900" : "bg-gradient-to-r from-slate-50 to-slate-100"} p-4 rounded-xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
-              <p class="text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"} font-bold uppercase">สถานะ</p>
-              <p class="text-sm font-bold ${getStatusColor(ticket.status)} mt-1">${getStatusText(ticket.status)}</p>
-            </div>
-            <div class="${theme === "dark" ? "bg-gradient-to-r from-slate-800 to-slate-900" : "bg-gradient-to-r from-slate-50 to-slate-100"} p-4 rounded-xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
-              <p class="text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"} font-bold uppercase">ความสำคัญ</p>
-              <p class="text-sm font-bold ${getPriorityColor(ticket.priority)} mt-1">${getPriorityText(ticket.priority)}</p>
-            </div>
-          </div>
-          
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-blue-900/30 to-indigo-900/30" : "bg-blue-50"} p-4 rounded-xl border ${theme === "dark" ? "border-blue-700/30" : "border-blue-200"}">
-            <p class="text-xs ${theme === "dark" ? "text-blue-300" : "text-blue-600"} font-bold uppercase mb-3">ผู้แจ้ง</p>
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                ${ticket.reporter_name?.charAt(0) || "U"}
-              </div>
-              <div class="flex-1">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <p class="text-base font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}">${ticket.reporter_name || "ไม่ระบุ"}</p>
-                  <span class="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full border border-blue-500/30">
-                    ${ticket.reporter_emp_id || "ไม่ระบุรหัส"}
-                  </span>
-                  <span class="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full border border-purple-500/30">
-                    ${ticket.reporter_dept || "ไม่ระบุแผนก"}
-                  </span>
-                </div>
-                <div class="flex items-center gap-3 mt-2 flex-wrap">
-                  ${ticket.reporter_phone
-          ? `
-                  <div class="flex items-center gap-1">
-                    <Phone class="w-3 h-3 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}" />
-                    <span class="text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-600"}">${ticket.reporter_phone}</span>
-                  </div>
-                  `
-          : ""
-        }
-                  ${ticket.reporter_email
-          ? `
-                  <div class="flex items-center gap-1">
-                    <Mail class="w-3 h-3 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}" />
-                    <span class="text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-600"} truncate max-w-[150px]">${ticket.reporter_email}</span>
-                  </div>
-                  `
-          : ""
-        }
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-slate-800 to-slate-900" : "bg-gradient-to-r from-slate-50 to-slate-100"} p-4 rounded-xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
-            <p class="text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"} font-bold uppercase mb-2">หัวข้อปัญหา</p>
-            <p class="text-base font-semibold ${theme === "dark" ? "text-white" : "text-slate-900"}">${ticket.title}</p>
-          </div>
-          
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-slate-800 to-slate-900" : "bg-gradient-to-r from-slate-50 to-slate-100"} p-4 rounded-xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
-            <p class="text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"} font-bold uppercase mb-2">รายละเอียด</p>
-            <p class="text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"} italic leading-relaxed">"${ticket.description}"</p>
-          </div><br/>
-          
-        
-          </div>
-          
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-blue-900/30 to-indigo-900/30" : "bg-blue-50"} p-4 rounded-xl border ${theme === "dark" ? "border-blue-700/30" : "border-blue-200"}">
-            <p class="text-xs ${theme === "dark" ? "text-blue-300" : "text-blue-600"} font-bold uppercase mb-3">ประวัติเวลา</p>
-            <div class="space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  <span class="text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-600"}">แจ้งเมื่อ:</span>
-                </div>
-                <span class="text-sm font-medium ${theme === "dark" ? "text-white" : "text-slate-900"}">
-                  ${new Date(ticket.created_at).toLocaleString("th-TH")}
-                </span>
-              </div>
-              
-              ${ticket.started_at
-          ? `
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
-                  <span class="text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-600"}">รับงานเมื่อ:</span>
-                </div>
-                <span class="text-sm font-medium ${theme === "dark" ? "text-white" : "text-slate-900"}">
-                  ${new Date(ticket.started_at).toLocaleString("th-TH")}
-                </span>
-              </div>
-              `
-          : ""
-        }
-              
-              ${ticket.closed_at
-          ? `
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                  <span class="text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-600"}">ปิดงานเมื่อ:</span>
-                </div>
-                <span class="text-sm font-medium ${theme === "dark" ? "text-white" : "text-slate-900"}">
-                  ${new Date(ticket.closed_at).toLocaleString("th-TH")}
-                </span>
-              </div>
-              `
-          : ""
-        }
-              
-              ${ticket.started_at && ticket.closed_at
-          ? `
-              <div class="pt-3 border-t ${theme === "dark" ? "border-blue-800/50" : "border-blue-200"}">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}">ระยะเวลาซ่อม:</span>
-                  <span class="text-sm font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}">
-                    ${calculateDuration(ticket.started_at, ticket.closed_at)}
-                  </span>
-                </div>
-              </div>
-              `
-          : ""
-        }
-            </div>
-          </div><br/>
-          
-          ${ticket.solution_note
-          ? `
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-emerald-900/30 to-green-900/30" : "bg-emerald-50"} p-4 rounded-xl border ${theme === "dark" ? "border-emerald-700/30" : "border-emerald-200"}">
-            <p class="text-xs ${theme === "dark" ? "text-emerald-300" : "text-emerald-600"} font-bold uppercase mb-2">วิธีแก้ไข</p>
-            <p class="text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"} leading-relaxed">${ticket.solution_note}</p>
-          </div>
-          `
-          : ""
-        }
-          <br/>
-          ${ticket.parts_used
-          ? `
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-amber-900/30 to-yellow-900/30" : "bg-amber-50"} p-4 rounded-xl border ${theme === "dark" ? "border-amber-700/30" : "border-amber-200"}">
-            <p class="text-xs ${theme === "dark" ? "text-amber-300" : "text-amber-600"} font-bold uppercase mb-2">อะไหล่ที่ใช้</p>
-            <p class="text-sm ${theme === "dark" ? "text-white" : "text-slate-900"}">${ticket.parts_used}</p>
-          </div>
-          `
-          : ""
-        }
-          <br/>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            ${ticket.attachments && Array.isArray(ticket.attachments) && ticket.attachments.length > 0
-          ? ticket.attachments.map((url, idx) => `
-            <div class="${theme === "dark" ? "bg-gradient-to-r from-slate-800 to-slate-900" : "bg-gradient-to-r from-slate-50 to-slate-100"} p-4 rounded-xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
-              <p class="text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"} font-bold uppercase mb-3">รูปภาพประกอบ ${idx + 1}</p>
-              <img 
-                src="${url}" 
-                alt="Attachment ${idx + 1}" 
-                class="w-full h-48 object-cover rounded-lg border ${theme === "dark" ? "border-slate-700" : "border-slate-300"} hover:scale-[1.02] transition-transform cursor-zoom-in"
-                onclick="window.open('${url}', '_blank')"
-              />
-            </div>
-            `).join('')
-          : ticket.image_url
-            ? `
-            <div class="${theme === "dark" ? "bg-gradient-to-r from-slate-800 to-slate-900" : "bg-gradient-to-r from-slate-50 to-slate-100"} p-4 rounded-xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
-              <p class="text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"} font-bold uppercase mb-3">รูปก่อนซ่อม</p>
-              <img 
-                src="${ticket.image_url}" 
-                alt="Before" 
-                class="w-full h-48 object-cover rounded-lg border ${theme === "dark" ? "border-slate-700" : "border-slate-300"} hover:scale-[1.02] transition-transform cursor-zoom-in"
-                onclick="window.open('${ticket.image_url}', '_blank')"
-              />
-            </div>
-            `
-            : ""
-        }
-            
-            ${ticket.image_after_url
-          ? `
-            <div class="${theme === "dark" ? "bg-gradient-to-r from-slate-800 to-slate-900" : "bg-gradient-to-r from-slate-50 to-slate-100"} p-4 rounded-xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
-              <p class="text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"} font-bold uppercase mb-3">รูปหลังซ่อม</p>
-              <img 
-                src="${ticket.image_after_url}" 
-                alt="After" 
-                class="w-full h-48 object-cover rounded-lg border ${theme === "dark" ? "border-slate-700" : "border-slate-300"} hover:scale-[1.02] transition-transform cursor-zoom-in"
-                onclick="window.open('${ticket.image_after_url}', '_blank')"
-              />
-            </div>
-            `
-          : ""
-        }
-          </div><br/>
-          
-          ${ticket.status === "CLOSED" && ticket.closed_by_name
-          ? `
-          <div class="${theme === "dark" ? "bg-gradient-to-r from-emerald-900/30 to-green-900/30" : "bg-emerald-50"} p-4 rounded-xl border ${theme === "dark" ? "border-emerald-700/30" : "border-emerald-200"}">
-            <div class="flex items-center justify-between"><br/>
-              <div>
-                <p class="text-xs font-bold ${theme === "dark" ? "text-emerald-300" : "text-emerald-600"} uppercase">ปิดงานโดย</p>
-                <p class="text-sm font-medium ${theme === "dark" ? "text-white" : "text-slate-900"} mt-1">${ticket.closed_by_name}</p>
-              </div><br/>
-              <div class="text-right">
-                <p class="text-xs ${theme === "dark" ? "text-emerald-300" : "text-emerald-600"}">รหัสพนักงาน</p>
-                <p class="text-sm font-medium ${theme === "dark" ? "text-white" : "text-slate-900"}">${ticket.assigned_employee_id || currentUser?.employeeId || "ไม่ระบุ"}</p>
-              </div><br/>
-            </div>
-          </div>
-          `
-          : ""
-        }
-        </div>
-      `,
-      width: isMobile ? "90%" : 700,
-      background: theme === "dark" ? "#1f2937" : "#ffffff",
-      color: theme === "dark" ? "#fff" : "#1f2937",
-      confirmButtonText: "ปิด",
-      confirmButtonColor: "#3b82f6",
-      showCloseButton: true,
-      customClass: {
-        popup: `rounded-2xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`,
-        closeButton:
-          theme === "dark"
-            ? "text-slate-400 hover:text-white"
-            : "text-slate-500 hover:text-slate-700",
-      },
-    });
+    setDetailTicket(ticket);
   };
-
 
   // Filter tickets
   const incomingTickets = tickets.filter((t) => t.status === "NEW");
@@ -1383,9 +1414,8 @@ const ITDashboard = () => {
 
   return (
     <div
-      className={`min-h-screen transition-colors duration-500 ${uiTheme.appFont} ${uiTheme.pageBackground} ${
-        theme === "dark" ? "dark" : ""
-      }`}
+      className={`app-theme min-h-screen transition-colors duration-500 ${uiTheme.appFont} ${uiTheme.pageBackground} ${theme === "dark" ? "dark" : ""
+        }`}
     >
       <ITDashboardSidebar
         sidebarOpen={sidebarOpen}
@@ -1440,16 +1470,6 @@ const ITDashboard = () => {
             onQuickFilterChange={setQuickFilter}
             sortedTickets={sortedTickets}
             tickets={tickets}
-            showCalendar={showCalendar}
-            onCloseCalendar={(visible) => {
-              if (visible) {
-                setCurrentPage(DASHBOARD_PAGE_IDS.CALENDAR);
-                return;
-              }
-              setCurrentPage(TAB_TO_PAGE[activeTab] || DASHBOARD_PAGE_IDS.TICKETS);
-            }}
-            setSelectedDate={setSelectedDate}
-            showReports={showReports}
             onOpenRepairFromOverview={handleOpenRepairFromOverview}
             onPickUpEquipment={() => navigate("/pick-up-equipment")}
             loading={loading}
@@ -1467,6 +1487,21 @@ const ITDashboard = () => {
             handleOpenNavigation={handleOpenNavigation}
           />
         </main>
+
+        <TicketDetailModal
+          ticket={detailTicket}
+          onClose={() => setDetailTicket(null)}
+          onNewTicket={() => navigate("/create-ticket")}
+          getStatusConfig={getModalStatusConfig}
+          getPriorityConfig={getModalPriorityConfig}
+          formatDate={formatTicketDate}
+          currentUser={{
+            id: currentUser?.id,
+            name: currentUser?.name || "IT Technician",
+            role: currentUser?.role || "it_support",
+            avatar: currentUser?.avatar || "",
+          }}
+        />
 
         {showDateFilter && (
           <div className="fixed inset-0 z-[70]">
@@ -1602,6 +1637,8 @@ const ITDashboard = () => {
 };
 
 export default ITDashboard;
+
+
 
 
 

@@ -1,6 +1,5 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Wrench,
   Bell,
   Sun,
   Moon,
@@ -10,6 +9,7 @@ import {
   Menu,
 } from "lucide-react";
 import { getITDashboardTheme } from "../theme/itDashboardTheme";
+import tdkLogo from "../../../assets/4.png";
 
 const ITDashboardHeader = ({
   theme,
@@ -61,9 +61,9 @@ const ITDashboardHeader = ({
               <Menu size={18} />
             </button>
 
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F51FF] text-white">
-              <Wrench size={16} />
-            </div>
+            {/* <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#2b59b0]/20 bg-white p-1 shadow-sm">
+              <img src={tdkLogo} alt="TDK Industrial logo" className="h-full w-full object-contain" />
+            </div> */}
 
             <div className="min-w-0">
               <p className={`truncate text-sm font-bold sm:text-base ${headingTextClass}`}>
@@ -118,7 +118,7 @@ const ITDashboardHeader = ({
                     currentUser?.avatar ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(
                       currentUser?.name || "User"
-                    )}&background=1F51FF&color=fff`
+                    )}&background=2B59B0&color=fff`
                   }
                   alt={currentUser?.name || "User"}
                   className="h-6 w-6 rounded-md object-cover"
@@ -131,9 +131,8 @@ const ITDashboardHeader = ({
 
               {profileMenuOpen && (
                 <div
-                  className={`absolute right-0 top-full z-[90] mt-2 w-60 rounded-xl border p-2 shadow-lg ${
-                    theme === "dark" ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white"
-                  }`}
+                  className={`absolute right-0 top-full z-[90] mt-2 w-60 rounded-xl border p-2 shadow-lg ${theme === "dark" ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white"
+                    }`}
                 >
                   <div className={`border-b px-2 py-2 ${menuDividerClass}`}>
                     <p className={`truncate text-xs font-semibold ${profileHeadingTextClass}`}>

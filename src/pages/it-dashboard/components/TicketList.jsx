@@ -5,6 +5,7 @@ import {
   List,
   DownloadCloud,
   Eye,
+  MessageSquare,
   Trash2,
   User,
   Navigation,
@@ -24,6 +25,43 @@ import {
   formatTicketId,
 } from "../utils/ticketUtils";
 import { getITDashboardTheme } from "../theme/itDashboardTheme";
+
+const TEXT = {
+  noItems: "\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e07\u0e32\u0e19",
+  noItemsHint:
+    "\u0e25\u0e2d\u0e07\u0e1b\u0e23\u0e31\u0e1a\u0e04\u0e33\u0e04\u0e49\u0e19\u0e2b\u0e32 \u0e2b\u0e23\u0e37\u0e2d\u0e25\u0e49\u0e32\u0e07\u0e40\u0e07\u0e37\u0e48\u0e2d\u0e19\u0e44\u0e02\u0e15\u0e31\u0e27\u0e01\u0e23\u0e2d\u0e07",
+  clearSearch: "\u0e25\u0e49\u0e32\u0e07\u0e01\u0e32\u0e23\u0e04\u0e49\u0e19\u0e2b\u0e32",
+  acceptJob: "\u0e23\u0e31\u0e1a\u0e07\u0e32\u0e19",
+  acceptThisJob: "\u0e23\u0e31\u0e1a\u0e07\u0e32\u0e19\u0e19\u0e35\u0e49",
+  viewDetail: "\u0e14\u0e39\u0e23\u0e32\u0e22\u0e25\u0e30\u0e40\u0e2d\u0e35\u0e22\u0e14",
+  caseChat: "\u0e41\u0e0a\u0e17\u0e40\u0e04\u0e2a",
+  navigate: "\u0e19\u0e33\u0e17\u0e32\u0e07",
+  closeJob: "\u0e1b\u0e34\u0e14\u0e07\u0e32\u0e19",
+  deleteHistory: "\u0e25\u0e1a\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34",
+  repairDuration: "\u0e23\u0e30\u0e22\u0e30\u0e40\u0e27\u0e25\u0e32\u0e0b\u0e48\u0e2d\u0e21:",
+  detail: "\u0e23\u0e32\u0e22\u0e25\u0e30\u0e40\u0e2d\u0e35\u0e22\u0e14",
+  reporter: "\u0e1c\u0e39\u0e49\u0e41\u0e08\u0e49\u0e07",
+  reporterFallback: "\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38\u0e1c\u0e39\u0e49\u0e41\u0e08\u0e49\u0e07",
+  employeeCodeFallback: "\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38\u0e23\u0e2b\u0e31\u0e2a",
+  deptFallback: "\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38\u0e41\u0e1c\u0e19\u0e01",
+  location: "\u0e2a\u0e16\u0e32\u0e19\u0e17\u0e35\u0e48",
+  category: "\u0e2b\u0e21\u0e27\u0e14\u0e2b\u0e21\u0e39\u0e48",
+  notSpecified: "\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38",
+  card: "\u0e01\u0e32\u0e23\u0e4c\u0e14",
+  table: "\u0e15\u0e32\u0e23\u0e32\u0e07",
+  showing: "\u0e41\u0e2a\u0e14\u0e07",
+  from: "\u0e08\u0e32\u0e01",
+  items: "\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23",
+  exportExcel: "\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01 Excel",
+  tableRepair: "\u0e07\u0e32\u0e19\u0e0b\u0e48\u0e2d\u0e21",
+  tableReporterLocation:
+    "\u0e1c\u0e39\u0e49\u0e41\u0e08\u0e49\u0e07 / \u0e2a\u0e16\u0e32\u0e19\u0e17\u0e35\u0e48",
+  tableStatus: "\u0e2a\u0e16\u0e32\u0e19\u0e30",
+  tableAssignee: "\u0e1c\u0e39\u0e49\u0e23\u0e31\u0e1a\u0e1c\u0e34\u0e14\u0e0a\u0e2d\u0e1a",
+  tableClosedAt: "\u0e1b\u0e34\u0e14\u0e07\u0e32\u0e19",
+  tableUpdatedAt: "\u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e15\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14",
+  tableAction: "\u0e08\u0e31\u0e14\u0e01\u0e32\u0e23",
+};
 
 const PRIORITY_STYLES = {
   urgent: {
@@ -66,6 +104,31 @@ const STATUS_STYLES = {
     dark: "border-slate-600 bg-slate-800 text-slate-300",
   },
 };
+
+const TAB_COPY = {
+  INCOMING: {
+    label: "\u0e07\u0e32\u0e19\u0e0b\u0e48\u0e2d\u0e21",
+    helper: "\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e43\u0e2b\u0e21\u0e48",
+  },
+  ACTIVE: {
+    label: "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e14\u0e33\u0e40\u0e19\u0e34\u0e19\u0e01\u0e32\u0e23",
+    helper: "\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e17\u0e35\u0e48\u0e01\u0e33\u0e25\u0e31\u0e07\u0e23\u0e31\u0e1a\u0e1c\u0e34\u0e14\u0e0a\u0e2d\u0e1a",
+  },
+  HISTORY: {
+    label: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34",
+    helper: "\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e17\u0e35\u0e48\u0e1b\u0e34\u0e14\u0e07\u0e32\u0e19\u0e41\u0e25\u0e49\u0e27",
+  },
+};
+
+function buildAvatarFallback(name, color = "2b59b0") {
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(String(name || "U"))}&background=${color}&color=fff&size=96`;
+}
+
+function deriveEmployeeCodeFromEmail(email) {
+  const localPart = String(email || "").trim().split("@")[0] || "";
+  const match = localPart.match(/\d{3,}/);
+  return match ? match[0] : "";
+}
 
 const TicketList = ({
   loading,
@@ -114,8 +177,8 @@ const TicketList = ({
     ? "border-slate-600 text-slate-300 hover:bg-slate-800"
     : "border-slate-300 text-slate-700 hover:bg-slate-100";
   const blueIconButtonClass = isDark
-    ? "text-blue-400 hover:bg-blue-900/20"
-    : "text-blue-600 hover:bg-blue-50";
+    ? "text-[#8eb0f6] hover:bg-[#2b59b0]/20"
+    : "text-[#2b59b0] hover:bg-[#2b59b0]/10";
   const roseIconButtonClass = isDark
     ? "text-rose-400 hover:bg-rose-900/20"
     : "text-rose-600 hover:bg-rose-50";
@@ -133,6 +196,35 @@ const TicketList = ({
     return isDark ? meta.dark : meta.light;
   };
 
+  const resolveReporterDept = (ticket) =>
+    ticket?.reporter_dept || ticket?.department || TEXT.deptFallback;
+
+  const resolveReporterEmpId = (ticket) =>
+    ticket?.reporter_emp_id ||
+    deriveEmployeeCodeFromEmail(ticket?.reporter_email) ||
+    TEXT.employeeCodeFallback;
+
+  const resolveReporterAvatar = (ticket) =>
+    ticket?.reporter_avatar_url || buildAvatarFallback(ticket?.reporter_name || "U", "2b59b0");
+
+  const resolveAssigneeAvatar = (ticket) =>
+    ticket?.assigned_avatar_url ||
+    (ticket?.assigned_name ? buildAvatarFallback(ticket.assigned_name, "059669") : "");
+
+  const isHistoryTab = activeTab === "HISTORY";
+  const activeTabMeta = TAB_COPY[activeTab] || TAB_COPY.INCOMING;
+  const tabTotalCount =
+    activeTab === "INCOMING"
+      ? tickets.filter((ticket) => ticket.status === "NEW").length
+      : activeTab === "ACTIVE"
+        ? tickets.filter(
+          (ticket) =>
+            ticket.status === "IN_PROGRESS" && ticket.assigned_to === currentUser?.id,
+        ).length
+        : isHistoryTab
+          ? historyTickets.length
+          : tickets.length;
+
   const renderSkeleton = () => {
     const count = isMobile ? 3 : 6;
 
@@ -144,7 +236,7 @@ const TicketList = ({
         {Array.from({ length: count }).map((_, index) => (
           <div
             key={`skeleton-${index}`}
-          className={`animate-pulse rounded-2xl p-4 ${listWrapClass}`}
+            className={`animate-pulse rounded-2xl p-4 ${listWrapClass}`}
           >
             <div className="mb-4 flex items-center justify-between">
               <div className={`h-5 w-24 rounded ${skeletonBlockClass}`} />
@@ -163,13 +255,13 @@ const TicketList = ({
 
   const renderEmptyState = () => (
     <div className={`rounded-2xl p-10 text-center ${listWrapClass}`}>
-      <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${emptyIconClass}`}>
+      <div
+        className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${emptyIconClass}`}
+      >
         <Search size={24} />
       </div>
-      <p className={`text-base font-semibold ${textPrimary}`}>ไม่พบรายการงาน</p>
-      <p className={`mt-1 text-sm ${textSecondary}`}>
-        ลองปรับคำค้นหา หรือล้างเงื่อนไขตัวกรอง
-      </p>
+      <p className={`text-base font-semibold ${textPrimary}`}>{TEXT.noItems}</p>
+      <p className={`mt-1 text-sm ${textSecondary}`}>{TEXT.noItemsHint}</p>
       {(searchQuery || (dateRange.start && dateRange.end)) && (
         <button
           onClick={() => {
@@ -178,43 +270,155 @@ const TicketList = ({
           }}
           className={`mt-5 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${neutralButtonClass}`}
         >
-          ล้างการค้นหา
+          {TEXT.clearSearch}
         </button>
       )}
     </div>
   );
 
-  const renderHistoryTable = () => (
-    <div className={`overflow-x-auto rounded-2xl ${listWrapClass}`}>
+  const renderTableActions = (ticket) => {
+    if (ticket.status === "NEW") {
+      return (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={() => handleViewDetails(ticket)}
+            className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+            title={TEXT.caseChat}
+          >
+            <MessageSquare size={15} />
+          </button>
+          <button
+            onClick={() => handleAcceptJob(ticket.id)}
+            className="inline-flex items-center gap-1 rounded-lg bg-[#2b59b0] px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#244a95]"
+          >
+            <CheckCircle size={13} />
+            {TEXT.acceptJob}
+          </button>
+          <button
+            onClick={() => handleViewDetails(ticket)}
+            className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+            title={TEXT.viewDetail}
+          >
+            <Eye size={15} />
+          </button>
+        </div>
+      );
+    }
+
+    if (ticket.status === "IN_PROGRESS" && ticket.assigned_to === currentUser?.id) {
+      return (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={() => handleViewDetails(ticket)}
+            className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+            title={TEXT.caseChat}
+          >
+            <MessageSquare size={15} />
+          </button>
+          <button
+            onClick={() => handleOpenNavigation(ticket.location)}
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${neutralButtonClass}`}
+            disabled={!ticket.location}
+          >
+            <Navigation size={13} />
+            {TEXT.navigate}
+          </button>
+          <button
+            onClick={() => handleCloseJob(ticket)}
+            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+          >
+            <Camera size={13} />
+            {TEXT.closeJob}
+          </button>
+        </div>
+      );
+    }
+
+    if (ticket.status === "CLOSED") {
+      return (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={() => handleViewDetails(ticket)}
+            className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+            title={TEXT.caseChat}
+          >
+            <MessageSquare size={15} />
+          </button>
+          <button
+            onClick={() => handleViewDetails(ticket)}
+            className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+            title={TEXT.viewDetail}
+          >
+            <Eye size={15} />
+          </button>
+          <button
+            onClick={() => handleDeleteTicket(ticket)}
+            className={`rounded-lg p-2 transition-colors ${roseIconButtonClass}`}
+            title={TEXT.deleteHistory}
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <button
+          onClick={() => handleViewDetails(ticket)}
+          className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+          title={TEXT.caseChat}
+        >
+          <MessageSquare size={15} />
+        </button>
+        <button
+          onClick={() => handleViewDetails(ticket)}
+          className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+          title={TEXT.viewDetail}
+        >
+          <Eye size={15} />
+        </button>
+      </div>
+    );
+  };
+
+  const renderTicketTable = () => (
+    <div className={`overflow-x-auto rounded-2xl border shadow-sm ${listWrapClass}`}>
       <table className="w-full border-collapse text-left">
         <thead>
           <tr
             className={isDark ? "bg-slate-900 text-slate-400" : "bg-slate-50 text-slate-500"}
           >
-            <th className="px-4 py-3 text-xs font-semibold uppercase">งานซ่อม</th>
-            <th className="px-4 py-3 text-xs font-semibold uppercase">ผู้แจ้ง / สถานที่</th>
-            <th className="px-4 py-3 text-xs font-semibold uppercase">สถานะ</th>
-            <th className="px-4 py-3 text-xs font-semibold uppercase">ปิดงาน</th>
-            <th className="px-4 py-3 text-xs font-semibold uppercase text-center">จัดการ</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase">{TEXT.tableRepair}</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase">{TEXT.tableReporterLocation}</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase">{TEXT.tableStatus}</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase">{TEXT.tableAssignee}</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase">
+              {isHistoryTab ? TEXT.tableClosedAt : TEXT.tableUpdatedAt}
+            </th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase text-right">{TEXT.tableAction}</th>
           </tr>
         </thead>
 
         <tbody className={isDark ? "divide-y divide-slate-800" : "divide-y divide-slate-200"}>
           {filteredTickets.map((ticket) => {
-            const priorityMeta =
-              PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.default;
             const statusClass = getStatusBadgeClass(ticket.status);
+            const referenceDate = isHistoryTab
+              ? ticket.closed_at
+              : ticket.updated_at || ticket.created_at;
+            const durationLabel = ticket.started_at && referenceDate
+              ? calculateDuration(ticket.started_at, referenceDate)
+              : "-";
+
             return (
               <tr
                 key={ticket.id}
                 className={isDark ? "hover:bg-slate-800/60" : "hover:bg-slate-50"}
               >
-                <td className="px-4 py-3">
-                  <p className={`font-semibold ${textPrimary}`}>{ticket.title}</p>
+                <td className="px-4 py-3 align-top">
+                  <p className={`max-w-[280px] font-semibold ${textPrimary}`}>{ticket.title}</p>
                   <div className="mt-1 flex items-center gap-2 text-xs">
-                    <span className={`font-mono ${textSecondary}`}>
-                      {formatTicketId(ticket.id)}
-                    </span>
+                    <span className={`font-mono ${textSecondary}`}>{formatTicketId(ticket.id)}</span>
                     <span
                       className={`inline-flex items-center rounded-md border px-2 py-0.5 font-semibold ${getPriorityBadgeClass(ticket.priority)}`}
                     >
@@ -223,14 +427,29 @@ const TicketList = ({
                   </div>
                 </td>
 
-                <td className="px-4 py-3 text-sm">
-                  <p className={textPrimary}>{ticket.reporter_name || "-"}</p>
-                  <p className={textSecondary}>
-                    {ticket.location || "-"} | {ticket.category || "-"}
-                  </p>
+                <td className="px-4 py-3 align-top text-sm">
+                  <div className="flex items-start gap-2">
+                    <img
+                      src={resolveReporterAvatar(ticket)}
+                      onError={(event) => {
+                        event.currentTarget.src = buildAvatarFallback(ticket.reporter_name || "U", "2b59b0");
+                      }}
+                      alt={ticket.reporter_name || TEXT.reporterFallback}
+                      className="mt-0.5 h-7 w-7 shrink-0 rounded-full border border-[#2b59b0]/20 bg-white object-cover"
+                    />
+                    <div className="min-w-0">
+                      <p className={`truncate ${textPrimary}`}>{ticket.reporter_name || "-"}</p>
+                      <p className={`truncate text-xs ${textMuted}`}>
+                        {resolveReporterEmpId(ticket)} • {resolveReporterDept(ticket)}
+                      </p>
+                      <p className={textSecondary}>
+                        {ticket.location || "-"} | {ticket.category || "-"}
+                      </p>
+                    </div>
+                  </div>
                 </td>
 
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 align-top">
                   <span
                     className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass}`}
                   >
@@ -238,37 +457,46 @@ const TicketList = ({
                   </span>
                 </td>
 
-                <td className="px-4 py-3 text-sm">
+                <td className="px-4 py-3 align-top text-sm">
+                  <div className="flex items-start gap-2">
+                    {resolveAssigneeAvatar(ticket) ? (
+                      <img
+                        src={resolveAssigneeAvatar(ticket)}
+                        onError={(event) => {
+                          event.currentTarget.src = buildAvatarFallback(ticket.assigned_name || "IT", "059669");
+                        }}
+                        alt={ticket.assigned_name || "Technician"}
+                        className="mt-0.5 h-7 w-7 shrink-0 rounded-full border border-emerald-200 bg-white object-cover"
+                      />
+                    ) : (
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">
+                        IT
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className={`truncate ${textPrimary}`}>{ticket.assigned_name || "-"}</p>
+                      <p className={textSecondary}>{ticket.assigned_employee_id || ticket.assigned_to || "-"}</p>
+                    </div>
+                  </div>
+                </td>
+
+                <td className="px-4 py-3 align-top text-sm">
                   <p className={textPrimary}>
-                    {ticket.closed_at
-                      ? new Date(ticket.closed_at).toLocaleDateString("th-TH")
-                      : "-"}
+                    {referenceDate ? new Date(referenceDate).toLocaleDateString("th-TH") : "-"}
                   </p>
                   <p className={textSecondary}>
-                    {ticket.closed_at
-                      ? calculateDuration(ticket.started_at, ticket.closed_at)
-                      : "-"}
+                    {isHistoryTab
+                      ? durationLabel
+                      : referenceDate
+                        ? new Date(referenceDate).toLocaleTimeString("th-TH", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                        : "-"}
                   </p>
                 </td>
 
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-center gap-1">
-                    <button
-                      onClick={() => handleViewDetails(ticket)}
-                      className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
-                      title="ดูรายละเอียด"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTicket(ticket)}
-                      className={`rounded-lg p-2 transition-colors ${roseIconButtonClass}`}
-                      title="ลบประวัติ"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
+                <td className="px-4 py-3 align-top">{renderTableActions(ticket)}</td>
               </tr>
             );
           })}
@@ -280,33 +508,49 @@ const TicketList = ({
   const renderCardActions = (ticket) => {
     if (ticket.status === "NEW") {
       return (
-        <button
-          onClick={() => handleAcceptJob(ticket.id)}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#244a95]"
-        >
-          <CheckCircle size={16} />
-          รับงานนี้
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => handleViewDetails(ticket)}
+            className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
+          >
+            <MessageSquare size={15} />
+            {TEXT.caseChat}
+          </button>
+          <button
+            onClick={() => handleAcceptJob(ticket.id)}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#244a95]"
+          >
+            <CheckCircle size={16} />
+            {TEXT.acceptThisJob}
+          </button>
+        </div>
       );
     }
 
     if (ticket.status === "IN_PROGRESS" && ticket.assigned_to === currentUser?.id) {
       return (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={() => handleViewDetails(ticket)}
+            className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
+          >
+            <MessageSquare size={15} />
+            {TEXT.caseChat}
+          </button>
           <button
             onClick={() => handleOpenNavigation(ticket.location)}
             className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${neutralButtonClass}`}
             disabled={!ticket.location}
           >
             <Navigation size={15} />
-            นำทาง
+            {TEXT.navigate}
           </button>
           <button
             onClick={() => handleCloseJob(ticket)}
             className="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
           >
             <Camera size={15} />
-            ปิดงาน
+            {TEXT.closeJob}
           </button>
         </div>
       );
@@ -316,7 +560,7 @@ const TicketList = ({
       return (
         <div className="space-y-2">
           <div className={`text-xs ${textSecondary}`}>
-            ระยะเวลาซ่อม:{" "}
+            {TEXT.repairDuration}{" "}
             <span className={`font-semibold ${textPrimary}`}>
               {calculateDuration(ticket.started_at, ticket.closed_at)}
             </span>
@@ -326,12 +570,13 @@ const TicketList = ({
               onClick={() => handleViewDetails(ticket)}
               className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
             >
-              <Eye size={15} />
-              รายละเอียด
+              <MessageSquare size={15} />
+              {TEXT.caseChat}
             </button>
             <button
               onClick={() => handleDeleteTicket(ticket)}
               className={`inline-flex items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${roseOutlineButtonClass}`}
+              title={TEXT.deleteHistory}
             >
               <Trash2 size={15} />
             </button>
@@ -346,7 +591,7 @@ const TicketList = ({
         className={`inline-flex w-full items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
       >
         <Eye size={15} />
-        ดูรายละเอียด
+        {TEXT.viewDetail}
       </button>
     );
   };
@@ -356,7 +601,6 @@ const TicketList = ({
       {filteredTickets.map((ticket) => {
         const priorityMeta = PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.default;
         const statusClass = getStatusBadgeClass(ticket.status);
-        const reporterInitial = (ticket.reporter_name || "U").charAt(0).toUpperCase();
 
         return (
           <article
@@ -373,9 +617,7 @@ const TicketList = ({
                 </span>
               </div>
               <div className="text-right text-[11px]">
-                <p className={textSecondary}>
-                  {new Date(ticket.created_at).toLocaleDateString("th-TH")}
-                </p>
+                <p className={textSecondary}>{new Date(ticket.created_at).toLocaleDateString("th-TH")}</p>
                 <p className={textMuted}>
                   {new Date(ticket.created_at).toLocaleTimeString("th-TH", {
                     hour: "2-digit",
@@ -385,37 +627,34 @@ const TicketList = ({
               </div>
             </div>
 
-            <h3 className={`line-clamp-2 text-base font-semibold ${textPrimary}`}>
-              {ticket.title}
-            </h3>
-            <p className={`mt-1 text-xs font-mono ${textSecondary}`}>
-              {formatTicketId(ticket.id)}
-            </p>
+            <h3 className={`line-clamp-2 text-base font-semibold ${textPrimary}`}>{ticket.title}</h3>
+            <p className={`mt-1 text-xs font-mono ${textSecondary}`}>{formatTicketId(ticket.id)}</p>
 
             <div className={`mt-3 rounded-xl p-3 ${softSurface}`}>
               <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
-                  {reporterInitial}
-                </div>
+                <img
+                  src={resolveReporterAvatar(ticket)}
+                  onError={(event) => {
+                    event.currentTarget.src = buildAvatarFallback(ticket.reporter_name || "U", "2b59b0");
+                  }}
+                  alt={ticket.reporter_name || TEXT.reporterFallback}
+                  className="h-9 w-9 shrink-0 rounded-full border border-[#2b59b0]/20 bg-white object-cover"
+                />
                 <div className="min-w-0 flex-1">
                   <p className={`text-[11px] font-semibold uppercase tracking-wide ${textMuted}`}>
-                    ผู้แจ้ง
+                    {TEXT.reporter}
                   </p>
                   <p className={`truncate text-sm font-semibold ${textPrimary}`}>
-                    {ticket.reporter_name || "ไม่ระบุผู้แจ้ง"}
+                    {ticket.reporter_name || TEXT.reporterFallback}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] ${chipClass}`}
-                    >
+                    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] ${chipClass}`}>
                       <User size={12} />
-                      {ticket.reporter_emp_id || "ไม่ระบุรหัส"}
+                      {resolveReporterEmpId(ticket)}
                     </span>
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] ${chipClass}`}
-                    >
+                    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] ${chipClass}`}>
                       <Building2 size={12} />
-                      {ticket.reporter_dept || "ไม่ระบุแผนก"}
+                      {resolveReporterDept(ticket)}
                     </span>
                   </div>
                 </div>
@@ -424,30 +663,39 @@ const TicketList = ({
 
             <div className="mt-3 grid grid-cols-2 gap-2">
               <div className={`rounded-xl p-3 ${softSurface}`}>
-                <p className={`mb-1 text-[11px] font-semibold ${textMuted}`}>สถานที่</p>
+                <p className={`mb-1 text-[11px] font-semibold ${textMuted}`}>{TEXT.location}</p>
                 <p className={`flex items-center gap-1.5 text-xs font-medium ${textPrimary}`}>
-                  <MapPin size={13} className="text-blue-500" />
-                  <span className="truncate">{ticket.location || "ไม่ระบุ"}</span>
+                  <MapPin size={13} className="text-[#2b59b0]" />
+                  <span className="truncate">{ticket.location || TEXT.notSpecified}</span>
                 </p>
               </div>
               <div className={`rounded-xl p-3 ${softSurface}`}>
-                <p className={`mb-1 text-[11px] font-semibold ${textMuted}`}>หมวดหมู่</p>
+                <p className={`mb-1 text-[11px] font-semibold ${textMuted}`}>{TEXT.category}</p>
                 <p className={`flex items-center gap-1.5 text-xs font-medium ${textPrimary}`}>
                   {getDeviceIcon(ticket.category || ticket.device_type)}
-                  <span className="truncate">{ticket.category || "ไม่ระบุ"}</span>
+                  <span className="truncate">{ticket.category || TEXT.notSpecified}</span>
                 </p>
               </div>
             </div>
 
             {ticket.description && (
-              <p className={`mt-3 line-clamp-2 text-xs leading-relaxed ${textSecondary}`}>
-                {ticket.description}
-              </p>
+              <p className={`mt-3 line-clamp-2 text-xs leading-relaxed ${textSecondary}`}>{ticket.description}</p>
             )}
 
             {(ticket.assigned_name || ticket.assigned_employee_id) && (
               <div className={`mt-3 flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${softSurface}`}>
-                <User size={13} className={textMuted} />
+                {resolveAssigneeAvatar(ticket) ? (
+                  <img
+                    src={resolveAssigneeAvatar(ticket)}
+                    onError={(event) => {
+                      event.currentTarget.src = buildAvatarFallback(ticket.assigned_name || "IT", "059669");
+                    }}
+                    alt={ticket.assigned_name || "Technician"}
+                    className="h-5 w-5 shrink-0 rounded-full border border-emerald-200 bg-white object-cover"
+                  />
+                ) : (
+                  <User size={13} className={textMuted} />
+                )}
                 <span className={textSecondary}>
                   {ticket.assigned_name || "-"}
                   {ticket.assigned_employee_id ? ` (${ticket.assigned_employee_id})` : ""}
@@ -456,9 +704,7 @@ const TicketList = ({
             )}
 
             <div className="mt-3 flex items-center justify-between">
-              <span
-                className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass}`}
-              >
+              <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass}`}>
                 {getStatusText(ticket.status)}
               </span>
               <div className={`inline-flex items-center gap-1 text-xs ${textMuted}`}>
@@ -469,9 +715,7 @@ const TicketList = ({
               </div>
             </div>
 
-            <div className="mt-4 pt-3">
-              {renderCardActions(ticket)}
-            </div>
+            <div className="mt-4 pt-3">{renderCardActions(ticket)}</div>
           </article>
         );
       })}
@@ -488,8 +732,8 @@ const TicketList = ({
 
   return (
     <div className={`w-full px-0 py-2 ${isMobile ? "pb-28" : "pb-12"}`}>
-      {activeTab === "HISTORY" && (
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
           <div
             className={`inline-flex w-fit items-center gap-1 rounded-lg border p-1 ${uiTheme.historySwitchWrap}`}
           >
@@ -500,7 +744,7 @@ const TicketList = ({
               }`}
             >
               <LayoutGrid size={14} />
-              การ์ด
+              {TEXT.card}
             </button>
             <button
               onClick={() => setViewMode("table")}
@@ -509,16 +753,24 @@ const TicketList = ({
               }`}
             >
               <List size={14} />
-              ตาราง
+              {TEXT.table}
             </button>
           </div>
+          <div
+            className={`hidden rounded-md border px-3 py-1.5 text-xs font-semibold md:block ${softSurface} ${textSecondary}`}
+          >
+            {activeTabMeta.label} | {activeTabMeta.helper}
+          </div>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <div
-              className={`hidden rounded-md border px-3 py-1.5 text-xs font-semibold sm:block ${softSurface} ${textSecondary}`}
-            >
-              ทั้งหมด {historyTickets.length} รายการ
-            </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${softSurface} ${textSecondary}`}
+          >
+            {TEXT.showing} {filteredTickets.length.toLocaleString("th-TH")} {TEXT.from}{" "}
+            {tabTotalCount.toLocaleString("th-TH")} {TEXT.items}
+          </div>
+          {isHistoryTab && (
             <button
               onClick={() =>
                 handleExportExcelWithImages(filteredTickets, theme, currentUser, dateRange)
@@ -526,15 +778,13 @@ const TicketList = ({
               className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
             >
               <DownloadCloud size={14} />
-              ส่งออก Excel
+              {TEXT.exportExcel}
             </button>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
-      {activeTab === "HISTORY" && viewMode === "table"
-        ? renderHistoryTable()
-        : renderCardGrid()}
+      {viewMode === "table" ? renderTicketTable() : renderCardGrid()}
     </div>
   );
 };

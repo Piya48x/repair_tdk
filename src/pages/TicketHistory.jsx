@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+﻿import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -27,6 +27,8 @@ import { format, formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+
+const BRAND_PRIMARY = "#2b59b0";
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "ทุกสถานะ" },
@@ -236,7 +238,7 @@ export default function TicketHistory() {
         icon: "error",
         title: "เกิดข้อผิดพลาด",
         text: "ไม่สามารถโหลดประวัติการแจ้งซ่อมได้",
-        confirmButtonColor: "#4f46e5",
+        confirmButtonColor: BRAND_PRIMARY,
       });
     } finally {
       setLoading(false);
@@ -317,7 +319,7 @@ export default function TicketHistory() {
         icon: "info",
         title: "ไม่มีข้อมูลให้ส่งออก",
         text: "กรุณาปรับตัวกรองหรือลองอีกครั้ง",
-        confirmButtonColor: "#4f46e5",
+        confirmButtonColor: BRAND_PRIMARY,
       });
       return;
     }
@@ -329,7 +331,7 @@ export default function TicketHistory() {
       showCancelButton: true,
       confirmButtonText: "ส่งออก Excel",
       cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#4f46e5",
+      confirmButtonColor: BRAND_PRIMARY,
       cancelButtonColor: "#6b7280",
     });
     if (!result.isConfirmed) return;
@@ -427,7 +429,7 @@ export default function TicketHistory() {
         icon: "success",
         title: "ส่งออกสำเร็จ",
         text: "ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว (ระบบจะแนบรูปแรกของแต่ละ Ticket)",
-        confirmButtonColor: "#4f46e5",
+        confirmButtonColor: BRAND_PRIMARY,
       });
     } catch (error) {
       console.error("Export excel error:", error);
@@ -435,16 +437,16 @@ export default function TicketHistory() {
         icon: "error",
         title: "ส่งออกไม่สำเร็จ",
         text: "ไม่สามารถสร้างไฟล์ Excel ได้ กรุณาลองใหม่อีกครั้ง",
-        confirmButtonColor: "#4f46e5",
+        confirmButtonColor: BRAND_PRIMARY,
       });
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center px-4">
-        <div className="text-center rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-xl backdrop-blur-sm">
-          <div className="mx-auto h-14 w-14 rounded-2xl border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
+      <div className="app-theme app-page-bg min-h-screen flex items-center justify-center px-4  selection:bg-blue-100 antialiased">
+        <div className="app-surface text-center p-8">
+          <div className="mx-auto h-14 w-14 rounded-2xl border-4 border-[var(--brand-border)] border-t-[var(--brand-primary)] animate-spin" />
           <p className="mt-4 text-sm font-semibold text-slate-600">กำลังโหลดประวัติการแจ้งซ่อม...</p>
         </div>
       </div>
@@ -452,20 +454,20 @@ export default function TicketHistory() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800">
+    <div className="app-theme app-page-bg min-h-screen text-slate-800  selection:bg-blue-100 antialiased">
       <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
-              className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-700 transition hover:bg-slate-50 hover:shadow-sm"
+              className="app-btn-secondary p-2.5"
               aria-label="กลับไปหน้า Dashboard"
             >
               <ArrowLeft size={18} />
             </button>
             <div>
-              <p className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+              <p className="inline-flex items-center gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-primary)]">
                 <Sparkles size={12} />
                 Ticket Center
               </p>
@@ -478,7 +480,7 @@ export default function TicketHistory() {
             <button
               type="button"
               onClick={fetchTickets}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="app-btn-secondary inline-flex items-center gap-2"
               title="รีเฟรช"
             >
               <RefreshCw size={16} />
@@ -487,7 +489,7 @@ export default function TicketHistory() {
             <button
               type="button"
               onClick={handleExport}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 px-3.5 py-2 text-sm font-bold text-white transition hover:shadow-lg hover:shadow-emerald-500/25"
+              className="app-btn-primary inline-flex items-center gap-2"
             >
               <Download size={16} />
               <span>ส่งออก Excel</span>
@@ -502,10 +504,10 @@ export default function TicketHistory() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ทั้งหมด</p>
-                <p className="mt-1 text-2xl font-black text-slate-800">{stats.total}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-800">{stats.total}</p>
               </div>
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
-                <FileText size={18} className="text-indigo-600" />
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-soft)]">
+                <FileText size={18} className="text-[var(--brand-primary)]" />
               </span>
             </div>
           </div>
@@ -514,7 +516,7 @@ export default function TicketHistory() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">รอดำเนินการ</p>
-                <p className="mt-1 text-2xl font-black text-amber-600">{stats.pending}</p>
+                <p className="mt-1 text-2xl font-semibold text-amber-600">{stats.pending}</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
                 <Clock size={18} className="text-amber-600" />
@@ -526,7 +528,7 @@ export default function TicketHistory() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">สำเร็จ</p>
-                <p className="mt-1 text-2xl font-black text-emerald-600">{stats.closed}</p>
+                <p className="mt-1 text-2xl font-semibold text-emerald-600">{stats.closed}</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
                 <CheckCircle2 size={18} className="text-emerald-600" />
@@ -538,7 +540,7 @@ export default function TicketHistory() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">เวลาเฉลี่ย</p>
-                <p className="mt-1 text-2xl font-black text-slate-800">{stats.avgResponse}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-800">{stats.avgResponse}</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
                 <TrendingUp size={18} className="text-blue-600" />
@@ -556,7 +558,7 @@ export default function TicketHistory() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ค้นหาเลขที่แจ้งซ่อม, หัวข้อ, หมวดหมู่, รายละเอียด..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                className="app-input py-2.5 pl-11 pr-4"
               />
             </div>
 
@@ -564,7 +566,7 @@ export default function TicketHistory() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                className="app-input"
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -576,7 +578,7 @@ export default function TicketHistory() {
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                className="app-input"
               >
                 {PRIORITY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -588,7 +590,7 @@ export default function TicketHistory() {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                className="app-input"
               >
                 <option value="ALL">ทุกหมวดหมู่</option>
                 {categories
@@ -609,7 +611,7 @@ export default function TicketHistory() {
                 แสดง {filteredTickets.length} จาก {tickets.length} รายการ
               </span>
               {hasActiveFilters && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-soft)] px-2.5 py-1 font-semibold text-[var(--brand-primary)]">
                   มีตัวกรองที่ใช้งาน
                 </span>
               )}
@@ -642,7 +644,7 @@ export default function TicketHistory() {
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100">
                 <Search size={30} className="text-slate-300" />
               </div>
-              <h3 className="mt-4 text-lg font-black text-slate-700">ไม่พบรายการ</h3>
+              <h3 className="mt-4 text-lg font-semibold text-slate-700">ไม่พบรายการ</h3>
               <p className="mt-1 text-sm text-slate-500">
                 {hasActiveFilters ? "ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา" : "คุณยังไม่มีประวัติการแจ้งซ่อม"}
               </p>
@@ -650,7 +652,7 @@ export default function TicketHistory() {
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="mt-6 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700"
+                  className="app-btn-primary mt-6 inline-flex items-center gap-2"
                 >
                   ล้างตัวกรอง
                 </button>
@@ -730,7 +732,7 @@ export default function TicketHistory() {
                       <div className="col-span-2 flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          className="rounded-lg p-2 text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600"
+                          className="rounded-lg p-2 text-slate-400 transition hover:bg-[var(--brand-soft)] hover:text-[var(--brand-primary)]"
                           aria-label="ดูรายละเอียด"
                         >
                           <Eye size={16} />
@@ -759,7 +761,7 @@ export default function TicketHistory() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                    <span className="rounded-full bg-[var(--brand-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)]">
                       {selectedTicket.ticket_no || fallbackTicketNo(selectedTicket)}
                     </span>
                     <span
@@ -834,10 +836,10 @@ export default function TicketHistory() {
                 </section>
 
                 <section className="space-y-4">
-                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">ข้อมูลการซ่อม</p>
+                  <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-soft)] p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-primary)]">ข้อมูลการซ่อม</p>
                     <div className="mt-3 flex items-center gap-3">
-                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-primary)] text-sm font-semibold text-white">
                         {selectedTicket.assigned_name?.charAt(0) || "T"}
                       </div>
                       <div>
@@ -881,7 +883,7 @@ export default function TicketHistory() {
                 <button
                   type="button"
                   onClick={() => setSelectedTicket(null)}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   <X size={16} />
                   ปิด
@@ -889,7 +891,7 @@ export default function TicketHistory() {
                 <button
                   type="button"
                   onClick={() => navigate("/create-ticket")}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:shadow-lg hover:shadow-indigo-500/30"
+                  className="app-btn-primary inline-flex flex-1 items-center justify-center gap-2"
                 >
                   <ExternalLink size={16} />
                   สร้างใบแจ้งซ่อมใหม่
@@ -902,3 +904,5 @@ export default function TicketHistory() {
     </div>
   );
 }
+
+

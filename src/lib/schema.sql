@@ -41,3 +41,24 @@ using (auth.email() = reporter_email);
 create policy "Users can create tickets"
 on public.tickets for insert
 with check (true);
+
+-- Optional: case chat table (requester <-> technician)
+create table if not exists public.ticket_messages (
+  id bigint generated always as identity primary key,
+  ticket_id text not null,
+  sender_id uuid,
+  sender_name text not null,
+  sender_role text,
+  message text,
+  image_url text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint ticket_messages_content_check
+    check (
+      (message is not null and length(trim(message)) > 0)
+      or image_url is not null
+    )
+);
+
+-- For realtime (run once on Supabase if needed):
+-- alter publication supabase_realtime add table public.ticket_messages;

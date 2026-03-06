@@ -5,8 +5,6 @@ const TicketsPage = (props) => (
   <TicketWorkspacePage
     title="งานซ่อม"
     subtitle="จัดการรายการงานซ่อมทั้งหมดของศูนย์บริการ"
-    showCalendar={false}
-    showReports={false}
     {...props}
   />
 );

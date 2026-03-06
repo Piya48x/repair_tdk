@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { insertTicketWithSchemaFallback } from '../lib/ticketSchemaCompat';
 import {
   ArrowLeft,
   Monitor, Wifi, ShieldCheck, ShoppingCart,
@@ -285,6 +286,9 @@ const PickUpEquipment = () => {
         location: formData.location,
         priority: formData.priority.toLowerCase(),
         reporter_name: formData.requesterName,
+        reporter_emp_id: currentUser?.employeeId || null,
+        reporter_dept: formData.department || currentUser?.department || null,
+        reporter_avatar_url: currentUser?.avatar || null,
         reporter_email: formData.requesterEmail,
         reporter_phone: formData.requesterPhone,
         status: 'NEW',
@@ -300,15 +304,16 @@ const PickUpEquipment = () => {
         created_at: new Date().toISOString(),
       };
 
-      // Insert into Supabase
-      const { data, error } = await supabase
-        .from('tickets')
-        .insert([ticketData])
-        .select();
+      // Insert into Supabase (fallback when optional profile columns are missing in schema)
+      const { data, error } = await insertTicketWithSchemaFallback(
+        supabase,
+        ticketData,
+        { select: 'id,ticket_no', single: true },
+      );
 
       if (error) throw error;
 
-      const newTicket = data[0];
+      const newTicket = data;
 
       // Upload files if any
       let attachmentUrls = [];
@@ -350,7 +355,7 @@ const PickUpEquipment = () => {
 
   if (profileLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+      <div className="app-theme min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-slate-600 font-medium">กำลังโหลดข้อมูลผู้ใช้...</p>
@@ -360,7 +365,7 @@ const PickUpEquipment = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800 font-sans selection:bg-blue-100 pb-20">
+    <div className="app-theme min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800  selection:bg-blue-100 pb-20">
 
       {/* --- 1. Header (CreateTicket Style) --- */}
       <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/90 border-b border-slate-200/60 shadow-lg transition-all duration-300">
@@ -847,3 +852,4 @@ const PickUpEquipment = () => {
 };
 
 export default PickUpEquipment;
+
