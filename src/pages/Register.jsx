@@ -4,12 +4,14 @@ import { supabase } from "../lib/supabaseClient";
 export default function Register({ onRegister, loading }) {
   const [fullName, setFullName] = useState("");
   const [employeeCode, setEmployeeCode] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [firstNameEn, setFirstNameEn] = useState("");
   const [lastNameEn, setLastNameEn] = useState("");
   const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
   const [department, setDepartment] = useState("");
   const [position, setPosition] = useState("");
   const [idCardFile, setIdCardFile] = useState(null);
@@ -68,7 +70,9 @@ export default function Register({ onRegister, loading }) {
       fullName,
       firstNameEn,
       lastNameEn,
+      email,
       phone,
+      location,
       employeeCode,
       department,
       position,
@@ -103,6 +107,15 @@ export default function Register({ onRegister, loading }) {
             placeholder="ชื่อ - นามสกุล"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
+            required
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+
+          <input
+            type="email"
+            placeholder="Work Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value.toLowerCase().trim())}
             required
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
           />
@@ -151,6 +164,14 @@ export default function Register({ onRegister, loading }) {
               className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
+          <input
+            type="text"
+            placeholder="Work Location / Site"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            required
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
         </div>
 
         {/* ===== Section: Security ===== */}

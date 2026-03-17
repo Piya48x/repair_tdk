@@ -212,6 +212,7 @@ const CreateTicket = () => {
     employeeName: "",
     department: "",
     position: "",
+    location: "",
     category: "",
     issue: "",
     urgency: "normal",
@@ -239,18 +240,18 @@ const CreateTicket = () => {
           .eq("id", session.user.id)
           .maybeSingle();
 
-        if (profile) {
-          let avatarUrl = profile.avatar_url || profile.id_card_url || null;
+        const profileData = profile || session.user.user_metadata || {};
+        const avatarUrl = profileData.avatar_url || profileData.id_card_url || null;
 
-          setForm((p) => ({
-            ...p,
-            employeeId: profile.employee_code || "EMP-001",
-            employeeName: profile.full_name || "พนักงาน",
-            department: profile.department || "ฝ่ายเทคโนโลยีสารสนเทศ",
-            position: profile.position || "เจ้าหน้าที่ระบบ",
-            profilePic: avatarUrl,
-          }));
-        }
+        setForm((p) => ({
+          ...p,
+          employeeId: profileData.employee_code || "EMP-001",
+          employeeName: profileData.full_name || "พนักงาน",
+          department: profileData.department || "ฝ่ายเทคโนโลยีสารสนเทศ",
+          position: profileData.position || "เจ้าหน้าที่ระบบ",
+          location: profileData.location || "ไม่ระบุสถานที่",
+          profilePic: avatarUrl,
+        }));
       } catch (err) {
         console.error("Profile Error:", err);
       }
@@ -374,7 +375,7 @@ const CreateTicket = () => {
         reporter_avatar_url: form.profilePic || null,
         reporter_email: user.email || "",
         department: form.department,
-        location: form.position,
+        location: form.location || null,
         category: form.category,
         title: form.issue.substring(0, 60),
         description: form.issue,

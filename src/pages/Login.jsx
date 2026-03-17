@@ -8,6 +8,7 @@ export default function Login({
   rememberMe,
   setRememberMe,
   onLogin,
+  onForgotPassword,
   loading,
 }) {
   const [showPassword, setShowPassword] = useState(false);
@@ -136,6 +137,7 @@ export default function Login({
 
           <button
             type="button"
+            onClick={onForgotPassword}
             className="text-sm font-bold text-blue-600 hover:underline"
           >
             ลืมรหัสผ่าน?

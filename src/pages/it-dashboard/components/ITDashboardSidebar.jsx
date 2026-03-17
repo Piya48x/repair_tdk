@@ -5,6 +5,7 @@ import {
   Activity,
   History,
   CalendarDays,
+  KeyRound,
   BarChart3,
   Settings,
   PanelLeftClose,
@@ -28,6 +29,7 @@ const ITDashboardSidebar = ({
   const navItems = [
     { id: "DASHBOARD", label: "แดชบอร์ด", icon: LayoutDashboard },
     { id: "TICKETS", label: "งานซ่อม", icon: Ticket },
+    { id: "ACCESS_REQUESTS", label: "ขอสิทธิ์ระบบ", icon: KeyRound },
     { id: "ACTIVE", label: "กำลังดำเนินการ", icon: Activity },
     { id: "HISTORY", label: "ประวัติ", icon: History },
     { id: "CALENDAR", label: "ปฏิทิน", icon: CalendarDays },

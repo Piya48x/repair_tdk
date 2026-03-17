@@ -2,6 +2,7 @@
 import Login from "./Login";
 import Register from "./Register";
 import { supabase } from "../lib/supabaseClient";
+import { resolveEmailFromIdentifier } from "../lib/authHelpers";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion"; // เพิ่ม Motion
 import MessageAlert from "../components/MessageAlert"; // Import the custom alert
@@ -82,11 +83,27 @@ export default function AuthPage() {
   const isFinalSlide = currentImageIndex === HERO_IMAGES.length - 1;
 
   const navigate = useNavigate();
-  // New email format: firstname.l@tdk.co.th
-  const constructEmail = (fName, lName) => {
-    const first = fName.toLowerCase().trim();
-    const lastInitial = lName.trim().charAt(0).toLowerCase();
-    return `${first}.${lastInitial}@tdk.co.th`;
+
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+
+  const getRegisterErrorMessage = (error) => {
+    const messageText = String(error?.message || "").trim();
+    const code = String(error?.code || "").trim().toLowerCase();
+    const status = Number(error?.status);
+
+    if (code === "user_already_exists" || /already registered|already exists/i.test(messageText)) {
+      return "อีเมลนี้ถูกใช้งานในระบบแล้ว";
+    }
+
+    if (status === 422 && /email/i.test(messageText)) {
+      return "อีเมลพนักงานไม่ถูกต้องหรือถูกใช้งานแล้ว";
+    }
+
+    if (/password/i.test(messageText)) {
+      return "รหัสผ่านไม่ผ่านเงื่อนไขของระบบ";
+    }
+
+    return messageText || "ลงทะเบียนไม่สำเร็จ";
   };
 
   useEffect(() => {
@@ -142,36 +159,7 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      let email = employeeCode.trim();
-
-      // If it's a numeric code (Employee ID), we need to find the associated email from profiles
-      if (/^\d+$/.test(email)) {
-        console.log("Attempting to resolve numeric ID:", email);
-        const { data: profileForLogin, error: findError } = await supabase
-          .from("profiles")
-          .select("email")
-          .eq("employee_code", email)
-          .maybeSingle();
-
-        if (findError) {
-          console.error("Profile lookup error (Check RLS):", findError);
-        }
-
-        if (profileForLogin?.email) {
-          console.log("Resolved email from profile:", profileForLogin.email);
-          email = profileForLogin.email;
-        } else {
-          console.log("No profile found, falling back to legacy format");
-          // Fallback compatibility: Try the old domain format if profile lookup fails
-          email = `emp_${email.toLowerCase()}@company.local`;
-        }
-      } else if (!email.includes("@") && !email.includes(".")) {
-        // Simple heuristic for first name login attempt: John -> john.l@tdk.co.th
-        // However, we don't have the last name initial easily here.
-        // For now, we remain strict: Numeric ID or Full Email.
-      }
-
-      console.log("DEBUG: Final email sent for Auth:", email);
+      const email = await resolveEmailFromIdentifier(supabase, employeeCode);
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -211,7 +199,32 @@ export default function AuthPage() {
   const onRegister = async (regData) => {
     setLoading(true);
     try {
-      const email = constructEmail(regData.firstNameEn, regData.lastNameEn);
+      const email = String(regData.email || "").trim().toLowerCase();
+      const employeeCode = String(regData.employeeCode || "").trim().toUpperCase();
+
+      if (!isValidEmail(email)) {
+        throw new Error("กรุณากรอกอีเมลพนักงานให้ถูกต้อง");
+      }
+
+      const [
+        { data: existingEmailProfile, error: existingEmailError },
+        { data: existingEmployeeProfile, error: existingEmployeeError },
+      ] = await Promise.all([
+        supabase.from("profiles").select("id").eq("email", email).maybeSingle(),
+        supabase.from("profiles").select("id").eq("employee_code", employeeCode).maybeSingle(),
+      ]);
+
+      if (existingEmailError) throw existingEmailError;
+      if (existingEmployeeError) throw existingEmployeeError;
+
+      if (existingEmailProfile) {
+        throw new Error("อีเมลนี้ถูกใช้งานในระบบแล้ว");
+      }
+
+      if (existingEmployeeProfile) {
+        throw new Error("รหัสพนักงานนี้ถูกลงทะเบียนไว้แล้ว");
+      }
+
       const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password: regData.password,
@@ -221,7 +234,8 @@ export default function AuthPage() {
             first_name_en: regData.firstNameEn,
             last_name_en: regData.lastNameEn,
             phone: regData.phone,
-            employee_code: regData.employeeCode,
+            location: regData.location,
+            employee_code: employeeCode,
             department: regData.department,
             position: regData.position,
             id_card_url: regData.idCardUrl,
@@ -237,11 +251,12 @@ export default function AuthPage() {
         const { error: upsertError } = await supabase.from("profiles").upsert({
           id: signUpData.user.id,
           email: email,
-          employee_code: regData.employeeCode,
+          employee_code: employeeCode,
           full_name: regData.fullName,
           first_name_en: regData.firstNameEn,
           last_name_en: regData.lastNameEn,
           phone: regData.phone,
+          location: regData.location,
           department: regData.department,
           position: regData.position,
           id_card_url: regData.idCardUrl,
@@ -256,7 +271,7 @@ export default function AuthPage() {
       setMessage({ type: "success", text: "ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบ" });
       setMode("login");
     } catch (err) {
-      setMessage({ type: "error", text: err.message });
+      setMessage({ type: "error", text: getRegisterErrorMessage(err) });
     } finally {
       setLoading(false);
     }
@@ -426,6 +441,7 @@ transition={{ duration: 4, ease: "easeInOut" }}
                     rememberMe={rememberMe}
                     setRememberMe={setRememberMe}
                     onLogin={onLogin}
+                    onForgotPassword={() => navigate("/forgot-password")}
                     loading={loading}
                   />
                   <div className="pt-8 text-center border-t border-slate-50 mt-8">

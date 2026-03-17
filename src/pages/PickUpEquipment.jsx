@@ -153,6 +153,7 @@ const PickUpEquipment = () => {
           employeeId: profileData?.employee_code || user.user_metadata?.employee_code || derivedEmpId,
           department: profileData?.department || user.user_metadata?.department || 'ไม่ระบุแผนก',
           position: profileData?.position || user.user_metadata?.position || 'พนักงาน',
+          location: profileData?.location || user.user_metadata?.location || '',
           avatar: profileData?.avatar_url || profileData?.id_card_url || user.user_metadata?.avatar_url || user.user_metadata?.picture,
           phone: profileData?.phone || user.user_metadata?.phone || '-',
         };
@@ -165,6 +166,7 @@ const PickUpEquipment = () => {
           requesterEmail: userData.email,
           requesterPhone: userData.phone,
           department: userData.department,
+          location: userData.location,
         }));
 
       } catch (error) {

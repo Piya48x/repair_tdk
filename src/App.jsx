@@ -10,12 +10,17 @@ import AuditView from "./pages/AuditView";
 import PickUpEquipment from "./pages/PickUpEquipment.jsx";
 import MeetingRoomBooking from "./pages/MeetingRoomBooking.jsx";
 import WorkNotes from "./pages/WorkNotes.jsx";
+import AccessRequest from "./pages/AccessRequest.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
 import { Toaster } from "react-hot-toast";
 
 function AppInner() {
   return (
     <Routes>
       <Route path="/" element={<AuthPage />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route path="/dashboard" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
@@ -30,6 +35,11 @@ function AppInner() {
       <Route path="/work-notes" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
           <WorkNotes />
+        </ProtectedRoute>
+      } />
+      <Route path="/access-request" element={
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
+          <AccessRequest />
         </ProtectedRoute>
       } />
 
