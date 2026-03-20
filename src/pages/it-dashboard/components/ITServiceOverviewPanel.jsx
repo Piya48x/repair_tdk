@@ -222,9 +222,8 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, iconWrapClass, valueCl
         onClick();
       }
     }}
-    className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${
-      onClick ? "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md" : ""
-    }`}
+    className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${onClick ? "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md" : ""
+      }`}
   >
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -260,6 +259,7 @@ const StatusBadge = ({ status }) => {
 const ITServiceOverviewPanel = ({
   tickets,
   onCreateTicket,
+  onOpenWalkInTicket,
   onPickUpEquipment,
   onOpenRepair,
 }) => {
@@ -446,11 +446,10 @@ const ITServiceOverviewPanel = ({
             <button
               key={option.id}
               onClick={() => setPeriod(option.id)}
-              className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                period === option.id
+              className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${period === option.id
                   ? "bg-[#2b59b0] text-white"
                   : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
+                }`}
             >
               {option.label}
             </button>
@@ -634,9 +633,8 @@ const ITServiceOverviewPanel = ({
                     <td className="px-3 py-3">{item.department}</td>
                     <td className="px-3 py-3">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          item.type === "ซ่อม" ? "bg-[#2b59b0]/10 text-[#2b59b0]" : "bg-violet-50 text-violet-700"
-                        }`}
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${item.type === "ซ่อม" ? "bg-[#2b59b0]/10 text-[#2b59b0]" : "bg-violet-50 text-violet-700"
+                          }`}
                       >
                         {item.type}
                       </span>
@@ -677,6 +675,14 @@ const ITServiceOverviewPanel = ({
               >
                 <Plus size={16} />
                 เปิดตั๋วแจ้งซ่อมใหม่
+              </button>
+
+              <button
+                onClick={onOpenWalkInTicket}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-4 py-2.5 text-sm font-semibold text-[#2b59b0] transition hover:bg-[#2b59b0]/15"
+              >
+                <Plus size={16} />
+                บันทึกงาน (Walk-in)
               </button>
 
               <button

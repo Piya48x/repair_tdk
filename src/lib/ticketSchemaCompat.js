@@ -1,4 +1,12 @@
 const OPTIONAL_TICKET_COLUMNS = new Set([
+  "creator_id",
+  "created_by",
+  "channel",
+  "start_time",
+  "started_at",
+  "end_time",
+  "resolution_note",
+  "solution_note",
   "reporter_emp_id",
   "reporter_dept",
   "reporter_avatar_url",
@@ -52,4 +60,3 @@ export async function insertTicketWithSchemaFallback(
 
   return { data: null, error: lastError, payload: workingPayload };
 }
-

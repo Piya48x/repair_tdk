@@ -3,6 +3,7 @@ import Login from "./Login";
 import Register from "./Register";
 import { supabase } from "../lib/supabaseClient";
 import { resolveEmailFromIdentifier } from "../lib/authHelpers";
+import { resolveHomeRoute } from "../lib/roleAccess";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion"; // เพิ่ม Motion
 import MessageAlert from "../components/MessageAlert"; // Import the custom alert
@@ -140,12 +141,7 @@ export default function AuthPage() {
           .single();
 
         if (profile) {
-          switch (profile.role) {
-            case "admin":
-            case "it_support": navigate("/admin-dashboard"); break;
-            case "auditor": navigate("/audit-view"); break;
-            default: navigate("/dashboard");
-          }
+          navigate(resolveHomeRoute(profile.role), { replace: true });
         }
       }
     };
@@ -183,12 +179,7 @@ export default function AuthPage() {
 
       if (profileError) throw profileError;
 
-      switch (profile.role) {
-        case "admin":
-        case "it_support": navigate("/admin-dashboard"); break;
-        case "auditor": navigate("/audit-view"); break;
-        default: navigate("/dashboard");
-      }
+      navigate(resolveHomeRoute(profile.role), { replace: true });
     } catch (err) {
       setMessage({ type: "error", text: "เข้าสู่ระบบไม่สำเร็จ: " + err.message });
     } finally {

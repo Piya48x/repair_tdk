@@ -18,6 +18,10 @@ const ITDashboardGlobalStyles = ({ theme }) => {
         animation: fade-in-up 0.5s ease-out;
       }
 
+      .animate-scale-in {
+        animation: scale-in 0.2s ease-out;
+      }
+
       @keyframes slide-in-right {
         from {
           transform: translateX(100%);
@@ -103,6 +107,17 @@ const ITDashboardGlobalStyles = ({ theme }) => {
         }
         to {
           transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes scale-in {
+        from {
+          transform: scale(0.96);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
           opacity: 1;
         }
       }

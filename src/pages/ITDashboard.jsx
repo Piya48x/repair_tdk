@@ -91,8 +91,11 @@ import Swal from "sweetalert2";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { toast } from "react-hot-toast";
 import ITDashboardGlobalStyles from "./it-dashboard/components/ITDashboardGlobalStyles";
 import TicketDetailModal from "./dashboard/components/TicketDetailModal";
+import WalkInTicketModal from "./it-dashboard/components/WalkInTicketModal";
+import { createWalkInTicket } from "./it-dashboard/services/walkInTicketService";
 
 // New Refactored Components
 import ITDashboardHeader from "./it-dashboard/components/ITDashboardHeader";
@@ -187,6 +190,7 @@ const ITDashboard = () => {
   const [selectAll, setSelectAll] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
   const [detailTicket, setDetailTicket] = useState(null);
+  const [isWalkInTicketOpen, setIsWalkInTicketOpen] = useState(false);
 
   // Export/report related state
 
@@ -555,119 +559,22 @@ const ITDashboard = () => {
     const ticketsData = Array.isArray(rows) ? rows : [];
     if (!ticketsData.length) return [];
 
-    const profileIdSet = new Set();
-    const reporterEmailSet = new Set();
-
-    ticketsData.forEach((ticket) => {
-      const creatorId = normalizeText(ticket?.creator_id);
-      const assignedId = normalizeText(ticket?.assigned_to);
-      const reporterEmail = normalizeText(ticket?.reporter_email).toLowerCase();
-
-      if (isUuidLike(creatorId)) profileIdSet.add(creatorId);
-      if (isUuidLike(assignedId)) profileIdSet.add(assignedId);
-      if (reporterEmail.includes("@")) reporterEmailSet.add(reporterEmail);
-    });
-
-    const profileIds = Array.from(profileIdSet);
-    const reporterEmails = Array.from(reporterEmailSet);
-    const profileMap = {};
-
-    const patchProfileMap = (rowsToMerge) => {
-      if (!Array.isArray(rowsToMerge)) return;
-      rowsToMerge.forEach((row) => {
-        const profileId = normalizeText(row?.id);
-        const profileEmail = normalizeText(row?.email).toLowerCase();
-        const normalized = {
-          id: profileId,
-          email: profileEmail,
-          full_name: normalizeText(row?.full_name),
-          employee_code: normalizeText(row?.employee_code),
-          department: normalizeText(row?.department),
-          avatar_url: normalizeText(row?.avatar_url),
-          id_card_url: normalizeText(row?.id_card_url),
-        };
-
-        if (profileId) {
-          profileMap[profileId] = { ...(profileMap[profileId] || {}), ...normalized };
-        }
-        if (profileEmail) {
-          profileMap[profileEmail] = { ...(profileMap[profileEmail] || {}), ...normalized };
-        }
-      });
-    };
-
-    if (profileIds.length) {
-      const ticketIdForAccess = String(ticketsData[0]?.id || "");
-      if (ticketIdForAccess) {
-        const { data: rpcProfiles, error: rpcError } = await supabase.rpc(
-          "get_ticket_chat_profiles",
-          {
-            _ticket_id: ticketIdForAccess,
-            _user_ids: profileIds,
-          },
-        );
-        if (!rpcError) patchProfileMap(rpcProfiles);
-      }
-    }
-
-    const profileSelect =
-      "id, email, full_name, employee_code, department, avatar_url, id_card_url";
-    if (profileIds.length) {
-      const { data: idProfiles, error: idProfileError } = await supabase
-        .from("profiles")
-        .select(profileSelect)
-        .in("id", profileIds);
-      if (!idProfileError) patchProfileMap(idProfiles);
-    }
-
-    if (reporterEmails.length) {
-      const { data: emailProfiles, error: emailProfileError } = await supabase
-        .from("profiles")
-        .select(profileSelect)
-        .in("email", reporterEmails);
-      if (!emailProfileError) patchProfileMap(emailProfiles);
-    }
-
-    const resolveProfile = (id, email) => {
-      const profileId = normalizeText(id);
-      const profileEmail = normalizeText(email).toLowerCase();
-      if (profileId && profileMap[profileId]) return profileMap[profileId];
-      if (profileEmail && profileMap[profileEmail]) return profileMap[profileEmail];
-      return null;
-    };
-
     return ticketsData.map((ticket) => {
-      const creatorProfile = resolveProfile(ticket?.creator_id, ticket?.reporter_email);
-      const assigneeProfile = resolveProfile(ticket?.assigned_to, null);
-
-      const reporterName =
-        normalizeText(ticket?.reporter_name) || creatorProfile?.full_name || "-";
+      const reporterName = normalizeText(ticket?.reporter_name) || "-";
       const reporterEmpId =
         normalizeText(ticket?.reporter_emp_id) ||
-        creatorProfile?.employee_code ||
         deriveEmployeeCodeFromEmail(ticket?.reporter_email) ||
         "";
       const reporterDept =
         normalizeText(ticket?.reporter_dept) ||
         normalizeText(ticket?.department) ||
-        creatorProfile?.department ||
         "";
+      const assignedName = normalizeText(ticket?.assigned_name) || "";
       const reporterAvatar =
         normalizeText(ticket?.reporter_avatar_url) ||
-        creatorProfile?.avatar_url ||
-        creatorProfile?.id_card_url ||
         buildAvatarFallback(reporterName, "2b59b0");
-
-      const assignedName =
-        normalizeText(ticket?.assigned_name) || assigneeProfile?.full_name || "";
-      const assignedEmployeeId =
-        normalizeText(ticket?.assigned_employee_id) ||
-        assigneeProfile?.employee_code ||
-        "";
       const assignedAvatar =
         normalizeText(ticket?.assigned_avatar_url) ||
-        assigneeProfile?.avatar_url ||
-        assigneeProfile?.id_card_url ||
         (assignedName ? buildAvatarFallback(assignedName, "059669") : "");
 
       return {
@@ -677,8 +584,8 @@ const ITDashboard = () => {
         reporter_dept: reporterDept,
         department: normalizeText(ticket?.department) || reporterDept || "",
         reporter_avatar_url: reporterAvatar,
-        assigned_name: assignedName || ticket?.assigned_name,
-        assigned_employee_id: assignedEmployeeId || ticket?.assigned_employee_id,
+        assigned_name: assignedName || ticket?.assigned_name || "",
+        assigned_employee_id: normalizeText(ticket?.assigned_employee_id) || "",
         assigned_avatar_url: assignedAvatar,
       };
     });
@@ -1218,6 +1125,13 @@ const ITDashboard = () => {
     setDetailTicket(ticket);
   };
 
+  const handleCreateWalkInTicket = async (payload) => {
+    const record = await createWalkInTicket(payload);
+    await fetchTickets();
+    toast.success(`บันทึก Walk-in Ticket สำเร็จ${record?.ticket_no ? ` #${record.ticket_no}` : ""}`);
+    return record;
+  };
+
   // Filter tickets
   const incomingTickets = tickets.filter((t) => t.status === "NEW");
   const myActiveTickets = tickets.filter(
@@ -1451,6 +1365,21 @@ const ITDashboard = () => {
         />
 
         <main className="max-w-[1400px] mx-auto px-6 py-4 lg:py-5">
+          <section className="mb-4">
+            <button
+              type="button"
+              onClick={() => navigate("/reports/executive/assets-management")}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                theme === "dark"
+                  ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20"
+                  : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
+              }`}
+            >
+              <HardDrive size={16} />
+              จัดการอุปกรณ์ Executive Report
+            </button>
+          </section>
+
           <ITDashboardPageRenderer
             currentPage={currentPage}
             theme={theme}
@@ -1466,6 +1395,7 @@ const ITDashboard = () => {
             sortBy={sortBy}
             onSortByChange={setSortBy}
             onCreateTicket={() => navigate("/create-ticket")}
+            onOpenWalkInTicket={() => setIsWalkInTicketOpen(true)}
             quickFilter={quickFilter}
             onQuickFilterChange={setQuickFilter}
             sortedTickets={sortedTickets}
@@ -1501,6 +1431,14 @@ const ITDashboard = () => {
             role: currentUser?.role || "it_support",
             avatar: currentUser?.avatar || "",
           }}
+        />
+
+        <WalkInTicketModal
+          isOpen={isWalkInTicketOpen}
+          onClose={() => setIsWalkInTicketOpen(false)}
+          onSubmit={handleCreateWalkInTicket}
+          currentUser={currentUser}
+          theme={theme}
         />
 
         {showDateFilter && (

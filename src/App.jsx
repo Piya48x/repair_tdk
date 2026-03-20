@@ -13,6 +13,11 @@ import WorkNotes from "./pages/WorkNotes.jsx";
 import AccessRequest from "./pages/AccessRequest.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
+import ReportsHomePage from "./pages/reports/ReportsHomePage.jsx";
+import ITManagerReportPage from "./pages/reports/ITManagerReportPage.jsx";
+import ExecutiveReportPage from "./pages/reports/ExecutiveReportPage.jsx";
+import ExecutiveAssetsManagementPage from "./pages/reports/ExecutiveAssetsManagementPage.jsx";
+import { REPORT_ROUTE_PERMISSIONS } from "./lib/roleAccess";
 import { Toaster } from "react-hot-toast";
 
 function AppInner() {
@@ -52,6 +57,26 @@ function AppInner() {
       <Route path="/admin-dashboard" element={
         <ProtectedRoute allowedRoles={['it_support', 'admin']}>
           <ITDashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports" element={
+        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.index}>
+          <ReportsHomePage />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports/it" element={
+        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.it}>
+          <ITManagerReportPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports/executive" element={
+        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.executive}>
+          <ExecutiveReportPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports/executive/assets-management" element={
+        <ProtectedRoute allowedRoles={["it_support", "it_manager", "admin"]}>
+          <ExecutiveAssetsManagementPage />
         </ProtectedRoute>
       } />
       <Route path="/it-service-dashboard" element={<Navigate to="/admin-dashboard" replace />} />

@@ -1,7 +1,15 @@
 import React from "react";
 import ITServiceOverviewPanel from "../components/ITServiceOverviewPanel";
 
-const ReportsPage = ({ theme, uiTheme, tickets, onCreateTicket, onPickUpEquipment, onOpenRepairFromOverview }) => (
+const ReportsPage = ({
+  theme,
+  uiTheme,
+  tickets,
+  onCreateTicket,
+  onOpenWalkInTicket,
+  onPickUpEquipment,
+  onOpenRepairFromOverview,
+}) => (
   <>
     <section className="mb-6">
       <div className={`rounded-lg border px-4 py-3 ${uiTheme.surfaceCard}`}>
@@ -18,6 +26,7 @@ const ReportsPage = ({ theme, uiTheme, tickets, onCreateTicket, onPickUpEquipmen
       <ITServiceOverviewPanel
         tickets={tickets}
         onCreateTicket={onCreateTicket}
+        onOpenWalkInTicket={onOpenWalkInTicket}
         onPickUpEquipment={onPickUpEquipment}
         onOpenRepair={onOpenRepairFromOverview}
       />

@@ -114,6 +114,8 @@ export const ROLE_LABELS = {
   it_support: "ทีม IT Support",
   admin: "ผู้ดูแลระบบ",
   auditor: "ผู้ตรวจสอบ",
+  it_manager: "IT Manager",
+  executive: "Executive",
 };
 
 export const ROLE_BASED_VIEWS = {

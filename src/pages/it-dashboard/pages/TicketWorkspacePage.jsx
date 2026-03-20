@@ -35,6 +35,7 @@ const TicketWorkspacePage = ({
   sortBy,
   onSortByChange,
   onCreateTicket,
+  onOpenWalkInTicket,
   quickFilter,
   onQuickFilterChange,
   sortedTickets,
@@ -111,7 +112,7 @@ const TicketWorkspacePage = ({
 
       <section className="mb-6">
         <div className={`rounded-lg p-4 ${uiTheme.surfaceCard}`}>
-          <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_120px_170px_150px]">
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_120px_170px_1fr]">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -157,13 +158,23 @@ const TicketWorkspacePage = ({
               <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
 
-            <button
-              onClick={onCreateTicket}
-              className="inline-flex items-center justify-center gap-1 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#244a95]"
-            >
-              <Plus size={14} />
-              สร้างงานใหม่
-            </button>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                onClick={onCreateTicket}
+                className="inline-flex items-center justify-center gap-1 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#244a95]"
+              >
+                <Plus size={14} />
+                สร้างงานใหม่
+              </button>
+
+              <button
+                onClick={onOpenWalkInTicket}
+                className="inline-flex items-center justify-center gap-1 rounded-lg border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-3 py-2.5 text-sm font-semibold text-[#2b59b0] transition hover:bg-[#2b59b0]/15"
+              >
+                <Plus size={14} />
+                บันทึกงาน (Walk-in)
+              </button>
+            </div>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">

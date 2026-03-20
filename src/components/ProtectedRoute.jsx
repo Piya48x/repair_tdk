@@ -2,6 +2,7 @@
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { canAccessRoute } from "../lib/roleAccess";
 
 export default function ProtectedRoute({ children, allowedRoles }) {
   const [loading, setLoading] = useState(true);
@@ -39,7 +40,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
             .eq("id", user.id)
             .maybeSingle();
 
-          if (profile && allowedRoles.includes(profile.role)) {
+          if (profile && canAccessRoute(profile.role, allowedRoles)) {
             if (isMounted) setIsAllowed(true);
           }
         }

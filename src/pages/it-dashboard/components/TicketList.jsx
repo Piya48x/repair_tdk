@@ -211,6 +211,9 @@ const TicketList = ({
     ticket?.assigned_avatar_url ||
     (ticket?.assigned_name ? buildAvatarFallback(ticket.assigned_name, "059669") : "");
 
+  const isWalkInTicket = (ticket) =>
+    String(ticket?.channel || ticket?.service_type || "").toLowerCase() === "walk-in";
+
   const isHistoryTab = activeTab === "HISTORY";
   const activeTabMeta = TAB_COPY[activeTab] || TAB_COPY.INCOMING;
   const tabTotalCount =
@@ -424,6 +427,11 @@ const TicketList = ({
                     >
                       {getPriorityText(ticket.priority)}
                     </span>
+                    {isWalkInTicket(ticket) && (
+                      <span className="inline-flex items-center rounded-md border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2 py-0.5 font-semibold text-[#2b59b0]">
+                        Walk-in
+                      </span>
+                    )}
                   </div>
                 </td>
 
@@ -607,15 +615,20 @@ const TicketList = ({
             key={ticket.id}
             className={`flex h-full flex-col rounded-2xl p-5 shadow-sm transition hover:shadow-md ${listWrapClass}`}
           >
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className={`h-2.5 w-2.5 rounded-full ${priorityMeta.dot}`} />
-                <span
-                  className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getPriorityBadgeClass(ticket.priority)}`}
-                >
-                  {getPriorityText(ticket.priority)}
-                </span>
-              </div>
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${priorityMeta.dot}`} />
+                  <span
+                    className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getPriorityBadgeClass(ticket.priority)}`}
+                  >
+                    {getPriorityText(ticket.priority)}
+                  </span>
+                  {isWalkInTicket(ticket) && (
+                    <span className="inline-flex rounded-md border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2 py-0.5 text-[11px] font-semibold text-[#2b59b0]">
+                      Walk-in
+                    </span>
+                  )}
+                </div>
               <div className="text-right text-[11px]">
                 <p className={textSecondary}>{new Date(ticket.created_at).toLocaleDateString("th-TH")}</p>
                 <p className={textMuted}>
