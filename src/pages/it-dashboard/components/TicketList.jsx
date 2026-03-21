@@ -257,14 +257,14 @@ const TicketList = ({
   };
 
   const renderEmptyState = () => (
-    <div className={`rounded-2xl p-10 text-center ${listWrapClass}`}>
+    <div className={`rounded-2xl px-4 py-8 text-center sm:p-10 ${listWrapClass}`}>
       <div
-        className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${emptyIconClass}`}
+        className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full sm:h-14 sm:w-14 ${emptyIconClass}`}
       >
-        <Search size={24} />
+        <Search size={22} />
       </div>
       <p className={`text-base font-semibold ${textPrimary}`}>{TEXT.noItems}</p>
-      <p className={`mt-1 text-sm ${textSecondary}`}>{TEXT.noItemsHint}</p>
+      <p className={`mx-auto mt-1 max-w-md text-sm ${textSecondary}`}>{TEXT.noItemsHint}</p>
       {(searchQuery || (dateRange.start && dateRange.end)) && (
         <button
           onClick={() => {

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --app-font-family: "Noto Sans Thai", "Kanit", system-ui, sans-serif;
+  --app-font-family: "Sarabun", system-ui, sans-serif;
   --tdk-primary: #2b59b0;
   --tdk-primary-hover: #244a95;
   --tdk-primary-soft: #eef3ff;
@@ -21,7 +21,7 @@
   }
 
   body {
-    font-family: "Noto Sans Thai", "Kanit", system-ui, sans-serif;
+    font-family: var(--app-font-family);
     color: #1e293b;
     background-color: #f8fafc;
   }

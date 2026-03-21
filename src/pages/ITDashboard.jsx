@@ -103,6 +103,13 @@ import ITDashboardSidebar from "./it-dashboard/components/ITDashboardSidebar";
 import ITDashboardPageRenderer from "./it-dashboard/pages/ITDashboardPageRenderer";
 import { DASHBOARD_PAGE_IDS, TAB_TO_PAGE } from "./it-dashboard/constants/dashboardPages";
 import { getITDashboardTheme } from "./it-dashboard/theme/itDashboardTheme";
+import CentralChatDock from "../components/CentralChatDock";
+import {
+  loadNotebookRequestQueue,
+  isNotebookPermissionDenied,
+  isNotebookSchemaError,
+  NOTEBOOK_LOG_STATUS,
+} from "../services/notebookBorrowService";
 
 // Utilities
 import {
@@ -183,6 +190,7 @@ const ITDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [notebookNotificationCount, setNotebookNotificationCount] = useState(0);
   const [theme, setTheme] = useState("dark");
   const [isMobile, setIsMobile] = useState(false);
   const [viewMode, setViewMode] = useState("card");
@@ -261,6 +269,27 @@ const ITDashboard = () => {
     }
     if (pageId === DASHBOARD_PAGE_IDS.HISTORY) {
       setActiveTab("HISTORY");
+    }
+  };
+
+  const loadNotebookNotifications = async () => {
+    try {
+      const { data, error } = await loadNotebookRequestQueue();
+      if (error) throw error;
+
+      const queue = Array.isArray(data) ? data : [];
+      const actionableCount = queue.filter((item) =>
+        item?.status === NOTEBOOK_LOG_STATUS.PENDING ||
+        item?.status === NOTEBOOK_LOG_STATUS.APPROVED ||
+        (item?.status === NOTEBOOK_LOG_STATUS.RETURNED && !item?.return_confirmed_at)
+      ).length;
+
+      setNotebookNotificationCount(actionableCount);
+    } catch (error) {
+      if (!isNotebookSchemaError(error) && !isNotebookPermissionDenied(error)) {
+        console.error("Load notebook notification count error:", error);
+      }
+      setNotebookNotificationCount(0);
     }
   };
 
@@ -468,6 +497,40 @@ const ITDashboard = () => {
             }
             await fetchTickets();
           }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncNotebookBadge = async () => {
+      if (!isMounted) return;
+      await loadNotebookNotifications();
+    };
+
+    syncNotebookBadge();
+
+    const channel = supabase
+      .channel("it_notebook_borrow_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "borrow_logs" },
+        () => {
+          if (isMounted) loadNotebookNotifications();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notebooks" },
+        () => {
+          if (isMounted) loadNotebookNotifications();
         },
       )
       .subscribe();
@@ -1339,6 +1402,8 @@ const ITDashboard = () => {
         theme={theme}
         currentPage={currentPage}
         onNavigatePage={handleNavigatePage}
+        notificationCount={notificationCount}
+        notebookNotificationCount={notebookNotificationCount}
       />
 
       <div
@@ -1364,7 +1429,7 @@ const ITDashboard = () => {
           syncAgoText={getTimeSinceRefresh()}
         />
 
-        <main className="max-w-[1400px] mx-auto px-6 py-4 lg:py-5">
+        <main className="mx-auto max-w-[1440px] px-6 py-4 lg:py-5">
           <section className="mb-4">
             <button
               type="button"
@@ -1431,6 +1496,11 @@ const ITDashboard = () => {
             role: currentUser?.role || "it_support",
             avatar: currentUser?.avatar || "",
           }}
+        />
+
+        <CentralChatDock
+          currentUser={currentUser}
+          className="bottom-4 left-4 sm:bottom-6 sm:left-6"
         />
 
         <WalkInTicketModal

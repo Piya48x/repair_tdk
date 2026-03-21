@@ -11,11 +11,14 @@ import PickUpEquipment from "./pages/PickUpEquipment.jsx";
 import MeetingRoomBooking from "./pages/MeetingRoomBooking.jsx";
 import WorkNotes from "./pages/WorkNotes.jsx";
 import AccessRequest from "./pages/AccessRequest.jsx";
+import NotebookCenter from "./pages/NotebookCenter.jsx";
+import MyStatus from "./pages/MyStatus.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 import ReportsHomePage from "./pages/reports/ReportsHomePage.jsx";
 import ITManagerReportPage from "./pages/reports/ITManagerReportPage.jsx";
 import ExecutiveReportPage from "./pages/reports/ExecutiveReportPage.jsx";
+import ExecutiveAssetOverviewPage from "./pages/reports/ExecutiveAssetOverviewPage.jsx";
 import ExecutiveAssetsManagementPage from "./pages/reports/ExecutiveAssetsManagementPage.jsx";
 import { REPORT_ROUTE_PERMISSIONS } from "./lib/roleAccess";
 import { Toaster } from "react-hot-toast";
@@ -28,7 +31,7 @@ function AppInner() {
       <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route path="/dashboard" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'it_manager', 'executive', 'admin', 'auditor']}>
           <Dashboard />
         </ProtectedRoute>
       } />
@@ -47,9 +50,19 @@ function AppInner() {
           <AccessRequest />
         </ProtectedRoute>
       } />
+      <Route path="/notebook-center" element={
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
+          <NotebookCenter />
+        </ProtectedRoute>
+      } />
+      <Route path="/my-status" element={
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'it_manager', 'executive', 'admin', 'auditor']}>
+          <MyStatus />
+        </ProtectedRoute>
+      } />
 
       <Route path="/create-ticket" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin']}>
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'it_manager', 'executive', 'admin']}>
           <CreateTicket />
         </ProtectedRoute>
       } />
@@ -72,6 +85,11 @@ function AppInner() {
       <Route path="/reports/executive" element={
         <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.executive}>
           <ExecutiveReportPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports/executive/assets-overview" element={
+        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.executive}>
+          <ExecutiveAssetOverviewPage />
         </ProtectedRoute>
       } />
       <Route path="/reports/executive/assets-management" element={

@@ -376,7 +376,7 @@ export default function WorkNotes() {
 
   return (
     <div className="app-theme min-h-screen app-page-bg text-slate-800">
-      <div className="mx-auto w-full max-w-[1450px] px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
         <header className="app-surface p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">

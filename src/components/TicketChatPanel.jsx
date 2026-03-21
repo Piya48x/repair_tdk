@@ -159,7 +159,7 @@ function applyAvatarFallback(event, name, tone = "slate") {
   element.src = buildAvatarFallback(name, tone);
 }
 
-export default function TicketChatPanel({ ticket, currentUser }) {
+export default function TicketChatPanel({ ticket, currentUser, embedded = false }) {
   const ticketId = ticket?.id ? String(ticket.id) : "";
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -796,7 +796,13 @@ export default function TicketChatPanel({ ticket, currentUser }) {
     : "";
 
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-[#2b59b0]/20 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+    <section
+      className={
+        embedded
+          ? "space-y-3"
+          : "mt-6 overflow-hidden rounded-2xl border border-[#2b59b0]/20 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]"
+      }
+    >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-800">
@@ -882,7 +888,9 @@ export default function TicketChatPanel({ ticket, currentUser }) {
         <div
           ref={messagesScrollRef}
           onScroll={handleMessagesScroll}
-          className="max-h-80 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3"
+          className={`space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 ${
+            embedded ? "max-h-[min(54vh,26rem)]" : "max-h-80"
+          }`}
           style={{ overflowAnchor: "none" }}
         >
           {loading ? (
@@ -1055,7 +1063,7 @@ export default function TicketChatPanel({ ticket, currentUser }) {
         )}
 
         <textarea
-          rows={3}
+          rows={embedded ? 2 : 3}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleComposerKeyDown}

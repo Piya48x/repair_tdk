@@ -86,17 +86,19 @@ const TicketWorkspacePage = ({
 
       <section className="mb-6">
         <div className={`rounded-lg p-2 ${uiTheme.surfaceCard}`}>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {tabItems.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`flex min-w-0 items-center justify-center gap-2 rounded-lg py-2 transition ${
+                className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 transition ${
                   activeTab === tab.id ? uiTheme.tabActive : uiTheme.tabInactive
                 }`}
               >
-                <tab.icon size={16} />
-                <span className="hidden text-sm font-semibold md:inline">{tab.label}</span>
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <tab.icon size={16} />
+                  <span className="truncate text-xs font-semibold sm:text-sm">{tab.label}</span>
+                </span>
                 <span
                   className={`rounded-md px-1.5 py-0.5 text-xs ${
                     activeTab === tab.id ? uiTheme.tabBadgeActive : uiTheme.badgeMuted
@@ -112,7 +114,7 @@ const TicketWorkspacePage = ({
 
       <section className="mb-6">
         <div className={`rounded-lg p-4 ${uiTheme.surfaceCard}`}>
-          <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_120px_170px_1fr]">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_130px_180px_auto]">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -158,7 +160,7 @@ const TicketWorkspacePage = ({
               <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:min-w-[340px]">
               <button
                 onClick={onCreateTicket}
                 className="inline-flex items-center justify-center gap-1 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#244a95]"
@@ -177,22 +179,28 @@ const TicketWorkspacePage = ({
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {QUICK_FILTERS.map((chip) => (
-              <button
-                key={chip.id}
-                onClick={() => onQuickFilterChange(chip.id)}
-                className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                  quickFilter === chip.id ? uiTheme.quickRangeBtnActive : uiTheme.quickRangeBtn
-                }`}
-              >
-                {chip.label}
-              </button>
-            ))}
+          <div className="mt-3 flex flex-col gap-3">
+            <div className="-mx-1 overflow-x-auto px-1 pb-1">
+              <div className="flex w-max min-w-full items-center gap-2">
+                {QUICK_FILTERS.map((chip) => (
+                  <button
+                    key={chip.id}
+                    onClick={() => onQuickFilterChange(chip.id)}
+                    className={`shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                      quickFilter === chip.id ? uiTheme.quickRangeBtnActive : uiTheme.quickRangeBtn
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-            <span className={`ml-auto text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-              พบ {sortedTickets.length.toLocaleString("th-TH")} รายการ
-            </span>
+            <div className="flex items-center justify-between gap-2 border-t border-slate-200/70 pt-2 dark:border-slate-700/70">
+              <span className={`text-xs sm:text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
+                {"\u0e1e\u0e1a"} {sortedTickets.length.toLocaleString("th-TH")} {"\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23"}
+              </span>
+            </div>
           </div>
         </div>
       </section>

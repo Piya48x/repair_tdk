@@ -1,12 +1,57 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronLeft, Home, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabaseClient";
+import CentralChatDock from "../../components/CentralChatDock";
 
-export default function ReportsTopbar({ backTo, backLabel = "Reports", showHub = true }) {
+export default function ReportsTopbar({
+  backTo,
+  backLabel = "Reports",
+  showHub = true,
+  currentUser: currentUserProp = null,
+  messengerClassName = "bottom-4 left-4 sm:bottom-6 sm:left-6",
+}) {
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [currentUser, setCurrentUser] = useState(currentUserProp);
+
+  useEffect(() => {
+    if (currentUserProp) {
+      setCurrentUser(currentUserProp);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !isMounted) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      setCurrentUser({
+        id: session.user.id,
+        name: profile?.full_name || profile?.employee_code || session.user.email || "User",
+        role: profile?.role || session.user.user_metadata?.role || "user",
+        avatar: profile?.avatar_url || profile?.id_card_url || session.user.user_metadata?.avatar_url || "",
+      });
+    };
+
+    loadCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUserProp]);
+
+  const messengerCurrentUser = useMemo(() => currentUser, [currentUser]);
 
   const handleLogout = async () => {
     try {
@@ -23,37 +68,45 @@ export default function ReportsTopbar({ backTo, backLabel = "Reports", showHub =
   };
 
   return (
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {backTo ? (
-          <Link
-            to={backTo}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
-            <ChevronLeft size={16} />
-            {backLabel}
-          </Link>
-        ) : null}
-        {showHub ? (
-          <Link
-            to="/reports"
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
-            <Home size={16} />
-            Reports Hub
-          </Link>
-        ) : null}
-      </div>
+    <>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {backTo ? (
+            <Link
+              to={backTo}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <ChevronLeft size={16} />
+              {backLabel}
+            </Link>
+          ) : null}
+          {showHub ? (
+            <Link
+              to="/reports"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <Home size={16} />
+              Reports Hub
+            </Link>
+          ) : null}
+        </div>
 
-      <button
-        type="button"
-        onClick={handleLogout}
-        disabled={isLoggingOut}
-        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <LogOut size={16} />
-        {isLoggingOut ? "Signing out..." : "Logout"}
-      </button>
-    </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <LogOut size={16} />
+          {isLoggingOut ? "Signing out..." : "Logout"}
+        </button>
+      </div>
+      {messengerCurrentUser ? (
+        <CentralChatDock
+          currentUser={messengerCurrentUser}
+          className={messengerClassName}
+        />
+      ) : null}
+    </>
   );
 }

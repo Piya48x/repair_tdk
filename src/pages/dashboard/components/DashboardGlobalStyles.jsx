@@ -2,7 +2,7 @@ import React from "react";
 
 export default function DashboardGlobalStyles() {
   return (
-    <style jsx global>{`
+    <style>{`
       @keyframes fade-in {
         from {
           opacity: 0;

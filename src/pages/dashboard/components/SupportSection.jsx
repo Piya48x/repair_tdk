@@ -8,11 +8,11 @@ const SUPPORT_CONTACTS = [
   { icon: Timer, label: "SLA Response", value: "ภายใน 15 นาที", href: "#" },
 ];
 
-export default function SupportSection() {
+export default function SupportSection({ onOpenChat }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-50 hidden lg:block">
+    <div className="pointer-events-none fixed bottom-4 right-4 z-[95] sm:bottom-6 sm:right-6">
       <div className="pointer-events-auto flex flex-col items-end gap-3">
         {isOpen && (
           <div className="w-[min(92vw,360px)] overflow-hidden rounded-3xl border border-[#2b59b0]/15 bg-white/95 text-slate-800 shadow-[0_28px_70px_-26px_rgba(43,89,176,0.42)] backdrop-blur-xl">
@@ -24,7 +24,9 @@ export default function SupportSection() {
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">Quick Help</p>
                   </div>
                   <h3 className="text-base font-black">บริการช่วยเหลือด่วน</h3>
-                  <p className="mt-1 text-xs text-white/80">ติดต่อทีม IT Support ได้ทันทีจากมุมล่างขวา</p>
+                  <p className="mt-1 text-xs text-white/80">
+                    ติดต่อทีม IT Support ได้ทันทีจากมุมล่างของหน้าจอ
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -59,6 +61,10 @@ export default function SupportSection() {
 
               <button
                 type="button"
+                onClick={() => {
+                  onOpenChat?.();
+                  setIsOpen(false);
+                }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2b59b0] to-[#244a95] px-4 py-3 text-sm font-bold text-white shadow-[0_16px_28px_-18px_rgba(43,89,176,0.65)] transition hover:brightness-[0.98]"
               >
                 <MessageCircle size={16} />

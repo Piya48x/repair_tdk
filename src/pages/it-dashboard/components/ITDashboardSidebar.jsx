@@ -6,6 +6,7 @@ import {
   History,
   CalendarDays,
   KeyRound,
+  Laptop,
   BarChart3,
   Settings,
   PanelLeftClose,
@@ -23,6 +24,8 @@ const ITDashboardSidebar = ({
   theme,
   currentPage,
   onNavigatePage,
+  notificationCount = 0,
+  notebookNotificationCount = 0,
 }) => {
   const uiTheme = getITDashboardTheme(theme);
 
@@ -30,6 +33,7 @@ const ITDashboardSidebar = ({
     { id: "DASHBOARD", label: "แดชบอร์ด", icon: LayoutDashboard },
     { id: "TICKETS", label: "งานซ่อม", icon: Ticket },
     { id: "ACCESS_REQUESTS", label: "ขอสิทธิ์ระบบ", icon: KeyRound },
+    { id: "NOTEBOOK_BORROW", label: "ยืม-คืนโน้ตบุ๊ก", icon: Laptop },
     { id: "ACTIVE", label: "กำลังดำเนินการ", icon: Activity },
     { id: "HISTORY", label: "ประวัติ", icon: History },
     { id: "CALENDAR", label: "ปฏิทิน", icon: CalendarDays },
@@ -96,6 +100,8 @@ const ITDashboardSidebar = ({
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = resolveActive(item.id);
+              const showTicketBadge = item.id === "TICKETS" && notificationCount > 0;
+              const showNotebookBadge = item.id === "NOTEBOOK_BORROW" && notebookNotificationCount > 0;
 
               return (
                 <li key={item.id}>
@@ -111,7 +117,19 @@ const ITDashboardSidebar = ({
                         : `border-transparent ${uiTheme.sidebarNavIdle}`
                     } hover:-translate-y-[1px]`}
                   >
-                    <Icon size={18} className="shrink-0" />
+                    <span className="relative shrink-0">
+                      <Icon size={18} />
+                      {showTicketBadge && (
+                        <span className="absolute -right-2 -top-2 inline-flex min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-none text-white shadow">
+                          {notificationCount > 9 ? "9+" : notificationCount}
+                        </span>
+                      )}
+                      {showNotebookBadge && (
+                        <span className="absolute -right-2 -top-2 inline-flex min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 py-0.5 text-[9px] font-black leading-none text-white shadow">
+                          {notebookNotificationCount > 9 ? "9+" : notebookNotificationCount}
+                        </span>
+                      )}
+                    </span>
                     {!sidebarCollapsed && <span className="ml-3 truncate">{item.label}</span>}
                   </button>
                 </li>

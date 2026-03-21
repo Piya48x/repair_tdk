@@ -1,3 +1,3 @@
 export const fontFamily = {
-  primary: "'Noto Sans Thai', 'Kanit', system-ui, sans-serif",
+  primary: "'Sarabun', system-ui, sans-serif",
 };

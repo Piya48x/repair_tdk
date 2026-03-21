@@ -3,7 +3,8 @@
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import {
-  LogOut, Wrench, Package, ChevronRight,
+  LogOut, Wrench, Package, Laptop, ChevronRight,
+  ChevronDown, ChevronUp,
   User, Briefcase, Building2, ExternalLink, Clock, CheckCircle2,
   AlertCircle, Plus, Search, RefreshCw,
   BarChart3, Calendar, Hash, Shield,
@@ -31,6 +32,7 @@ import ProfileImageModal from "./dashboard/components/ProfileImageModal";
 import LogoutConfirmModal from "./dashboard/components/LogoutConfirmModal";
 import DashboardGlobalStyles from "./dashboard/components/DashboardGlobalStyles";
 import SupportSection from "./dashboard/components/SupportSection";
+import CentralChatDock from "../components/CentralChatDock";
 import tdkLogo from "../../src/assets/2.png";
 
 const MEETING_ROOMS = ["Room A", "Room B", "Room C", "Room D"];
@@ -135,6 +137,8 @@ export default function Dashboard() {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [activeRoleViewId, setActiveRoleViewId] = useState("");
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [supportChatOpenSignal, setSupportChatOpenSignal] = useState(0);
+  const [showMoreQuickActions, setShowMoreQuickActions] = useState(false);
   const [activeTicketId, setActiveTicketId] = useState(null);
   const [themeMode, setThemeMode] = useState(() => {
     try {
@@ -1161,13 +1165,13 @@ export default function Dashboard() {
         roles: ["user", "it_support", "admin"],
       },
       {
-        id: "meeting-room-booking",
-        label: "จองห้องประชุม",
-        description: "จองห้องประชุมและจัดตารางเวลาการใช้งาน",
-        icon: Calendar,
-        accent: "sky",
-        cta: "เปิดหน้าจอง",
-        onClick: () => navigate("/meeting-room-booking"),
+        id: "notebook-center",
+        label: "การยืมคืน notebook",
+        description: "เปิดหน้า Notebook Center สำหรับยืม-คืน notebook",
+        icon: Laptop,
+        accent: "violet",
+        cta: "เปิดหน้า Notebook",
+        onClick: () => navigate("/notebook-center"),
         roles: ["user", "it_support", "admin"],
       },
       {
@@ -1181,14 +1185,14 @@ export default function Dashboard() {
         roles: ["user", "it_support", "admin", "auditor"],
       },
       {
-        id: "access-request",
-        label: "ขอสิทธิ์ระบบ",
-        description: "ส่งคำขอสิทธิ์ ERP, Shared Folder, Email Group หรือ Software",
-        icon: KeyRound,
-        accent: "indigo",
-        cta: "เปิดฟอร์มคำขอ",
-        onClick: () => navigate("/access-request"),
-        roles: ["user", "it_support", "admin", "auditor"],
+        id: "meeting-room-booking",
+        label: "จองห้องประชุม",
+        description: "จองห้องประชุมและจัดตารางเวลาการใช้งาน",
+        icon: Calendar,
+        accent: "sky",
+        cta: "เปิดหน้าจอง",
+        onClick: () => navigate("/meeting-room-booking"),
+        roles: ["user", "it_support", "admin"],
       },
       {
         id: "history",
@@ -1204,6 +1208,36 @@ export default function Dashboard() {
               tickets,
             },
           }),
+        roles: ["user", "it_support", "admin", "auditor"],
+      },
+      {
+        id: "chat-it",
+        label: "แชท IT / แจ้งปัญหาด่วน",
+        description: "เปิด CentralChatDock แล้วเริ่มคุยกับทีม IT แบบ realtime",
+        icon: MessageSquare,
+        accent: "emerald",
+        cta: "เปิดแชท IT",
+        onClick: () => setSupportChatOpenSignal((value) => value + 1),
+        roles: ["user", "it_support", "it_manager", "executive", "admin", "auditor"],
+      },
+      {
+        id: "my-status",
+        label: "สถานะของฉัน",
+        description: "ดู notebook, ticket และคำขอสิทธิ์ในหน้าเดียว",
+        icon: CheckCircle2,
+        accent: "sky",
+        cta: "เปิดสรุปสถานะ",
+        onClick: () => navigate("/my-status"),
+        roles: ["user", "it_support", "it_manager", "executive", "admin", "auditor"],
+      },
+      {
+        id: "access-request",
+        label: "ขอสิทธิ์ระบบ",
+        description: "ส่งคำขอสิทธิ์ ERP, Shared Folder, Email Group หรือ Software",
+        icon: KeyRound,
+        accent: "indigo",
+        cta: "เปิดฟอร์มคำขอ",
+        onClick: () => navigate("/access-request"),
         roles: ["user", "it_support", "admin", "auditor"],
       },
       {
@@ -1230,6 +1264,21 @@ export default function Dashboard() {
 
     return items.filter((item) => item.roles.includes(role));
   }, [profile?.role, navigate, activeFilter, tickets]);
+
+  const primaryQuickActionIds = useMemo(
+    () => new Set(["create-ticket", "pick-up", "notebook-center", "work-notes", "meeting-room-booking", "history"]),
+    [],
+  );
+
+  const primaryQuickActions = useMemo(
+    () => quickActions.filter((action) => primaryQuickActionIds.has(action.id)),
+    [primaryQuickActionIds, quickActions],
+  );
+
+  const secondaryQuickActions = useMemo(
+    () => quickActions.filter((action) => !primaryQuickActionIds.has(action.id)),
+    [primaryQuickActionIds, quickActions],
+  );
 
   const canSeePriorityInbox = useMemo(() => {
     const role = profile?.role || "user";
@@ -1656,7 +1705,7 @@ export default function Dashboard() {
 
   return (
     <div
-      className={`app-theme dashboard-theme dashboard-theme--${themeMode} min-h-screen overflow-x-hidden transition-colors duration-300 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden ${isDarkTheme
+      className={`app-theme dashboard-theme dashboard-theme--${themeMode} min-h-screen overflow-x-clip transition-colors duration-300 ${isDarkTheme
         ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 selection:bg-slate-700/60"
         : "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/80 text-slate-800 selection:bg-blue-100"
         }`}
@@ -1669,7 +1718,7 @@ export default function Dashboard() {
       </a>
       {/* Status Bar - Real-time Indicator */}
       <div className={`shrink-0 border-b px-3 py-1.5 backdrop-blur-xl sm:px-4 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
-        <div className="max-w-7xl mx-auto flex flex-col gap-1.5 text-xs sm:text-sm lg:flex-row lg:items-center lg:justify-between">
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-1.5 text-xs sm:text-sm lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
             <span className={`font-semibold ${isDarkTheme ? "text-slate-300" : "text-slate-700"}`}>ระบบพร้อมใช้งาน</span>
@@ -1713,7 +1762,7 @@ export default function Dashboard() {
 
       {/* Navigation */}
       <nav className={`sticky top-0 z-40 shrink-0 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
-        <div className="mx-auto flex min-h-[56px] max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:min-h-[64px] sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[56px] max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 py-2 sm:min-h-[64px] sm:px-6 lg:px-8">
           <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border p-1.5 shadow-sm sm:flex-none ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
             <div className="relative">
               <img
@@ -1785,7 +1834,7 @@ export default function Dashboard() {
       </nav>
 
       {/* Main Content */}
-      <main id="dashboard-main-content" className="max-w-7xl mx-auto flex flex-col px-4 pt-3 pb-6 sm:px-6 sm:pt-4 sm:pb-8 lg:flex-1 lg:min-h-0 lg:overflow-hidden lg:px-8 lg:pb-6">
+      <main id="dashboard-main-content" className="mx-auto flex w-full max-w-[1440px] flex-col px-4 pt-3 pb-6 sm:px-6 sm:pt-4 sm:pb-8 lg:px-8 lg:pb-6">
         {/* Header Section */}
         <header className="mb-4 shrink-0">
           {/* Stats Overview */}
@@ -1808,9 +1857,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-12 lg:items-stretch">
+        <div className="grid grid-cols-1 gap-4 sm:gap-4 xl:grid-cols-12 xl:items-start">
           {/* Profile Section */}
-          <div className="relative flex flex-col lg:col-span-4 lg:min-h-0 lg:self-start lg:sticky lg:top-0">
+          <div className="relative flex flex-col xl:sticky xl:top-24 xl:col-span-4 xl:self-start">
             <div className={`order-1 overflow-hidden rounded-3xl shadow-lg backdrop-blur-md group transition-all duration-500 hover:shadow-2xl lg:order-2 ${isDarkTheme ? "bg-slate-900/75 shadow-slate-900/40" : "bg-white/90 shadow-[0_14px_40px_-16px_rgba(43,89,176,0.4)]"}`}>
               <div className={`h-20 sm:h-28 relative overflow-hidden ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]" : "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]"}`}>
                 <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0]/20 via-[#2b59b0]/20 to-[#244a95]/20" : "bg-gradient-to-r from-[#2b59b0]/25 via-[#2b59b0]/18 to-[#244a95]/15"}`}></div>
@@ -1894,7 +1943,7 @@ export default function Dashboard() {
           </div>
 
           {/* Main Content Area */}
-          <div className="lg:col-span-8 flex flex-col gap-4 lg:h-full lg:min-h-0 lg:min-w-0 lg:self-stretch lg:overflow-y-auto lg:overscroll-contain lg:pr-2 lg:[scrollbar-gutter:stable]">
+          <div className="flex min-w-0 flex-col gap-4 xl:col-span-8">
             {/* Quick Actions */}
             <section className={`order-1 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1908,7 +1957,7 @@ export default function Dashboard() {
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {quickActions.map((action) => {
+                {primaryQuickActions.map((action) => {
                   const Icon = action.icon;
                   const accentClassMap = {
                     indigo: {
@@ -1979,6 +2028,104 @@ export default function Dashboard() {
                   );
                 })}
               </div>
+
+              {secondaryQuickActions.length > 0 && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowMoreQuickActions((value) => !value)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-300 ${isDarkTheme ? "border-slate-700 bg-slate-900/60 text-slate-100 hover:bg-slate-900" : "border-blue-100 bg-white text-slate-800 hover:bg-blue-50/70"}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${isDarkTheme ? "bg-slate-800 text-slate-200" : "bg-blue-50 text-[#2b59b0]"}`}>
+                        {showMoreQuickActions ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black">ดูรายการทั้งหมด</p>
+                        <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{secondaryQuickActions.length} รายการเพิ่มเติม</p>
+                      </div>
+                    </div>
+                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${isDarkTheme ? "border-slate-700 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                      {showMoreQuickActions ? "ซ่อน" : "แสดง"}
+                    </span>
+                  </button>
+
+                  {showMoreQuickActions && (
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {secondaryQuickActions.map((action) => {
+                        const Icon = action.icon;
+                        const accentClassMap = {
+                          indigo: {
+                            hoverBorder: "hover:border-indigo-500",
+                            hoverShadow: "hover:shadow-indigo-600/10",
+                            text: "text-indigo-600",
+                            gradient: "from-indigo-50 to-indigo-100",
+                            hoverBg: "group-hover:bg-indigo-100",
+                            pill: isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700",
+                          },
+                          emerald: {
+                            hoverBorder: "hover:border-emerald-600",
+                            hoverShadow: "hover:shadow-emerald-600/10",
+                            text: "text-emerald-600",
+                            gradient: "from-emerald-50 to-emerald-100",
+                            hoverBg: "group-hover:bg-emerald-100",
+                            pill: isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700",
+                          },
+                          sky: {
+                            hoverBorder: "hover:border-sky-500",
+                            hoverShadow: "hover:shadow-sky-600/10",
+                            text: "text-sky-600",
+                            gradient: "from-sky-50 to-sky-100",
+                            hoverBg: "group-hover:bg-sky-100",
+                            pill: isDarkTheme ? "bg-sky-900/40 text-sky-300" : "bg-sky-50 text-sky-700",
+                          },
+                          violet: {
+                            hoverBorder: "hover:border-violet-600",
+                            hoverShadow: "hover:shadow-violet-600/10",
+                            text: "text-violet-600",
+                            gradient: "from-violet-50 to-violet-100",
+                            hoverBg: "group-hover:bg-violet-100",
+                            pill: isDarkTheme ? "bg-violet-900/40 text-violet-300" : "bg-violet-50 text-violet-700",
+                          },
+                          slate: {
+                            hoverBorder: "hover:border-slate-500",
+                            hoverShadow: "hover:shadow-slate-600/10",
+                            text: "text-slate-600",
+                            gradient: "from-slate-50 to-slate-100",
+                            hoverBg: "group-hover:bg-slate-200",
+                            pill: isDarkTheme ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-700",
+                          },
+                        };
+
+                        const accent = accentClassMap[action.accent] || accentClassMap.indigo;
+
+                        return (
+                          <button
+                            key={action.id}
+                            onClick={action.onClick}
+                            className={`group h-full rounded-[28px] border p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"} ${accent.hoverBorder} ${accent.hoverShadow}`}
+                          >
+                            <div className="mb-4 flex items-start justify-between gap-3">
+                              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg}`}>
+                                <Icon size={20} />
+                              </div>
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${accent.pill}`}>
+                                {action.cta}
+                              </span>
+                            </div>
+                            <h4 className={QUICK_ACTIONS_TITLE_CLASS}>{action.label}</h4>
+                            <p className={`mt-2 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
+                            <div className={`mt-4 flex items-center gap-1 text-[11px] font-bold ${accent.text}`}>
+                              <span>เปิดใช้งาน</span>
+                              <ChevronRight size={12} className="transform transition-transform group-hover:translate-x-1" />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
 
             <section className={`order-2 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
@@ -2644,7 +2791,7 @@ export default function Dashboard() {
               </section>
             </div>
             {/* Support Section */}
-            <SupportSection />
+            <SupportSection onOpenChat={() => setSupportChatOpenSignal((value) => value + 1)} />
           </div>
         </div>
       </main>
@@ -2665,6 +2812,17 @@ export default function Dashboard() {
         isOpen={isLogoutConfirmOpen}
         onClose={() => setIsLogoutConfirmOpen(false)}
         onConfirm={handleLogout}
+      />
+
+      <CentralChatDock
+        currentUser={{
+          id: profile?.id,
+          name: profile?.full_name || profile?.employee_code || profile?.email || "User",
+          role: profile?.role || "user",
+          avatar: profile?.avatar_url || profile?.id_card_url || "",
+        }}
+        openSignal={supportChatOpenSignal}
+        className="bottom-4 left-4 sm:bottom-6 sm:left-6"
       />
 
       {/* Ticket Detail Modal */}

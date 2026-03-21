@@ -712,6 +712,26 @@ function buildItManagerMetrics(tickets) {
   };
 }
 
+function buildAccessRequestSummary(rows) {
+  const requests = Array.isArray(rows) ? rows : [];
+  const summary = requests.reduce(
+    (accumulator, item) => {
+      const status = normalizeText(item?.status);
+      if (status === "Pending Approval") accumulator.pending += 1;
+      if (status === "Approved") accumulator.approved += 1;
+      if (status === "Rejected") accumulator.rejected += 1;
+      if (status === "Completed") accumulator.completed += 1;
+      return accumulator;
+    },
+    { pending: 0, approved: 0, rejected: 0, completed: 0 },
+  );
+
+  return {
+    ...summary,
+    total: summary.pending + summary.approved + summary.rejected + summary.completed,
+  };
+}
+
 async function safeSingle(query) {
   const { data, error } = await query;
   if (error) return { data: null, error };
@@ -761,6 +781,47 @@ export async function fetchExecutiveReportData() {
     coreMenuSummary: buildCoreMenuSummary(assets, licenses),
     assetRows: assets,
     licenseRows: licenses,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+export async function fetchExecutiveAssetOverviewData() {
+  const [tickets, assetsResult, licensesResult, accessRequestsResult] = await Promise.all([
+    fetchReportTickets({ months: 12 }),
+    supabase.from("it_assets").select("*").order("updated_at", { ascending: false }),
+    supabase.from("it_licenses").select("*").order("updated_at", { ascending: false }),
+    supabase
+      .from("access_requests")
+      .select("id, requester_name, department, system_name, status, urgency, created_at, processed_at, completed_at")
+      .order("created_at", { ascending: false })
+      .limit(120),
+  ]);
+
+  const assets = assetsResult.data || [];
+  const licenses = licensesResult.data || [];
+  const accessRequests = accessRequestsResult.data || [];
+  const kpi = buildExecutiveKpiFallback(tickets);
+  const ticketStatusBreakdown = groupCounts(tickets, (ticket) => ticket?.status || "UNKNOWN").slice(0, 6);
+  const serviceMix = groupCounts(tickets, (ticket) => ticket?.service_type || ticket?.category || ticket?.title).slice(0, 8);
+
+  return {
+    kpi: {
+      totalTickets: Number(kpi.total_tickets || 0),
+      openTickets: Number(kpi.open_tickets || 0),
+      overdueTickets: Number(kpi.overdue_tickets || 0),
+      avgResolutionTimeMinutes: Number(kpi.avg_resolution_time_minutes || 0),
+    },
+    trend: buildMonthlyTrend(tickets, 12),
+    topIssues: serviceMix,
+    topDepartments: groupCounts(tickets, (ticket) => ticket?.department || "ไม่ระบุ").slice(0, 6),
+    assetSummary: buildAssetSummary(assets),
+    licenseSummary: buildLicenseSummary(licenses),
+    coreMenuSummary: buildCoreMenuSummary(assets, licenses),
+    assetRows: assets,
+    licenseRows: licenses,
+    accessRequestSummary: buildAccessRequestSummary(accessRequests),
+    accessRequestRows: accessRequests,
+    ticketStatusBreakdown,
     generatedAt: new Date().toISOString(),
   };
 }

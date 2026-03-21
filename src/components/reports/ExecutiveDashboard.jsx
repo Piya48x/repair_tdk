@@ -35,6 +35,18 @@ const MENU_CARDS = [
   { key: "licenses", label: "Licenses", subtitle: "ไลเซนส์", icon: KeyRound, accent: "from-indigo-500 to-blue-500", soft: "border-indigo-200 bg-indigo-50 text-indigo-700" },
 ];
 
+const DETAIL_FILTER_LABELS = {
+  all: "ทั้งหมด",
+  pc: "PC",
+  notebook: "Notebook",
+  monitor: "Monitor",
+  printer: "Printer",
+  licenses: "Licenses",
+  overview_total: "จำนวน Stock รวม",
+  overview_usable: "ใช้งานได้",
+  overview_broken: "เสีย / ใช้ไม่ได้",
+};
+
 const ASSET_STATUS_LABELS = {
   in_use: "ใช้งานอยู่",
   assigned: "มอบหมายแล้ว",
@@ -158,6 +170,36 @@ function resolveMetricValue(primaryValue, fallbackValue = 0) {
   return Number.isFinite(fallback) ? fallback : 0;
 }
 
+function resolveAssetCategoryKey(asset) {
+  const direct = normalizeKeywordSource(asset?.asset_category);
+  if (["pc", "notebook", "monitor", "printer"].includes(direct)) return direct;
+
+  const combined = normalizeKeywordSource(
+    `${asset?.asset_category || ""} ${asset?.asset_name || ""} ${asset?.model || ""}`,
+  );
+  if (CORE_MENU_FALLBACK_KEYWORDS.pc.some((keyword) => combined.includes(keyword))) return "pc";
+  if (CORE_MENU_FALLBACK_KEYWORDS.notebook.some((keyword) => combined.includes(keyword))) return "notebook";
+  if (CORE_MENU_FALLBACK_KEYWORDS.monitor.some((keyword) => combined.includes(keyword))) return "monitor";
+  if (CORE_MENU_FALLBACK_KEYWORDS.printer.some((keyword) => combined.includes(keyword))) return "printer";
+  return "";
+}
+
+function isUsableAssetStatus(status) {
+  return ["in_use", "assigned", "spare", "available"].includes(normalizeAssetStatusKey(status));
+}
+
+function isBrokenAssetStatus(status) {
+  return ["broken", "repair", "retired", "lost"].includes(normalizeAssetStatusKey(status));
+}
+
+function isUsableLicenseStatus(status) {
+  return ["active", "pending_renewal"].includes(normalizeStatusKey(status));
+}
+
+function isBrokenLicenseStatus(status) {
+  return ["inactive", "expired"].includes(normalizeStatusKey(status));
+}
+
 function normalizeStockEntry(value, totalFallback = 0) {
   const total = Math.max(resolveMetricValue(value?.total, totalFallback), 0);
   const usableBase = resolveMetricValue(value?.usable, total);
@@ -191,9 +233,15 @@ function getAvailableSeats(item) {
   return Math.max(total - assigned, 0);
 }
 
-function MainMetricCard({ label, subtitle, value, icon: Icon, accent, soft }) {
+function MainMetricCard({ label, subtitle, value, icon: Icon, accent, soft, active, onClick }) {
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-3xl border bg-white p-5 text-left shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(15,23,42,0.1)] ${
+        active ? "border-slate-900 ring-2 ring-slate-900/10" : "border-slate-200"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">{label}</p>
@@ -205,7 +253,7 @@ function MainMetricCard({ label, subtitle, value, icon: Icon, accent, soft }) {
         </div>
       </div>
       <div className={`mt-4 h-1.5 rounded-full bg-gradient-to-r ${accent}`} />
-    </article>
+    </button>
   );
 }
 
@@ -237,6 +285,9 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
   const licenseRows = sortByLatest(data?.licenseRows);
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
   const [selectedLicenseIds, setSelectedLicenseIds] = useState([]);
+  const [activeDetailFilter, setActiveDetailFilter] = useState("all");
+  const [isAssetDetailModalOpen, setAssetDetailModalOpen] = useState(false);
+  const [isLicenseDetailModalOpen, setLicenseDetailModalOpen] = useState(false);
 
   useEffect(() => {
     const nextRows = Array.isArray(data?.assetRows) ? data.assetRows : [];
@@ -272,6 +323,42 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
   );
   const availabilityRate = overview.total > 0 ? Math.round((overview.usable / overview.total) * 100) : 0;
   const brokenRate = overview.total > 0 ? Math.round((overview.broken / overview.total) * 100) : 0;
+  const categoryMixTotal = Math.max(
+    menuCount.pc + menuCount.notebook + menuCount.monitor + menuCount.printer + menuCount.licenses,
+    1,
+  );
+  const categoryMixItems = [
+    { key: "pc", label: "PC", value: menuCount.pc, color: "from-sky-500 to-cyan-500" },
+    { key: "notebook", label: "Notebook", value: menuCount.notebook, color: "from-violet-500 to-fuchsia-500" },
+    { key: "monitor", label: "Monitor", value: menuCount.monitor, color: "from-emerald-500 to-teal-500" },
+    { key: "printer", label: "Printer", value: menuCount.printer, color: "from-amber-500 to-orange-500" },
+    { key: "licenses", label: "Licenses", value: menuCount.licenses, color: "from-indigo-500 to-blue-500" },
+  ].map((item) => ({
+    ...item,
+    percent: Math.round((item.value / categoryMixTotal) * 100),
+  }));
+  const operationsPulseSeries = [
+    { label: "PC", value: stockByCategory.pc.usable },
+    { label: "Notebook", value: stockByCategory.notebook.usable },
+    { label: "Monitor", value: stockByCategory.monitor.usable },
+    { label: "Printer", value: stockByCategory.printer.usable },
+    { label: "Licenses", value: stockByCategory.licenses.usable },
+  ];
+  const operationsPulseWidth = 300;
+  const operationsPulseHeight = 110;
+  const operationsPulsePadding = 10;
+  const operationsPulseMax = Math.max(...operationsPulseSeries.map((item) => item.value), 1);
+  const operationsPulsePoints = operationsPulseSeries.map((item, index) => {
+    const x =
+      operationsPulseSeries.length > 1
+        ? (index / (operationsPulseSeries.length - 1)) * operationsPulseWidth
+        : operationsPulseWidth / 2;
+    const ratio = item.value / operationsPulseMax;
+    const y = operationsPulseHeight - operationsPulsePadding - ratio * (operationsPulseHeight - operationsPulsePadding * 2);
+    return { ...item, x, y };
+  });
+  const operationsPulseLine = operationsPulsePoints.map((point) => `${point.x},${point.y}`).join(" ");
+  const operationsPulseArea = `0,${operationsPulseHeight} ${operationsPulseLine} ${operationsPulseWidth},${operationsPulseHeight}`;
 
   const selectedAssetIdSet = new Set(selectedAssetIds);
   const selectedLicenseIdSet = new Set(selectedLicenseIds);
@@ -280,23 +367,102 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
   const allAssetsSelected = assetRows.length > 0 && selectedAssetIds.length === assetRows.length;
   const allLicensesSelected = licenseRows.length > 0 && selectedLicenseIds.length === licenseRows.length;
 
+  useEffect(() => {
+    if (selectedAssets.length > 0) {
+      setAssetDetailModalOpen(true);
+      return;
+    }
+    setAssetDetailModalOpen(false);
+  }, [selectedAssets.length]);
+
+  useEffect(() => {
+    if (selectedLicenses.length > 0) {
+      setLicenseDetailModalOpen(true);
+      return;
+    }
+    setLicenseDetailModalOpen(false);
+  }, [selectedLicenses.length]);
+
+  const applyDetailFilter = (filterKey) => {
+    const nextFilter = activeDetailFilter === filterKey ? "all" : filterKey;
+    setActiveDetailFilter(nextFilter);
+
+    if (nextFilter === "all") {
+      setSelectedAssetIds([]);
+      setSelectedLicenseIds([]);
+      return;
+    }
+
+    if (["pc", "notebook", "monitor", "printer"].includes(nextFilter)) {
+      setSelectedAssetIds(
+        assetRows
+          .filter((row) => resolveAssetCategoryKey(row) === nextFilter)
+          .map((row) => row.id)
+          .filter(Boolean),
+      );
+      setSelectedLicenseIds([]);
+      return;
+    }
+
+    if (nextFilter === "licenses") {
+      setSelectedAssetIds([]);
+      setSelectedLicenseIds(licenseRows.map((row) => row.id).filter(Boolean));
+      return;
+    }
+
+    if (nextFilter === "overview_total") {
+      setSelectedAssetIds(assetRows.map((row) => row.id).filter(Boolean));
+      setSelectedLicenseIds(licenseRows.map((row) => row.id).filter(Boolean));
+      return;
+    }
+
+    if (nextFilter === "overview_usable") {
+      setSelectedAssetIds(
+        assetRows
+          .filter((row) => isUsableAssetStatus(row.status))
+          .map((row) => row.id)
+          .filter(Boolean),
+      );
+      setSelectedLicenseIds(
+        licenseRows
+          .filter((row) => isUsableLicenseStatus(row.status))
+          .map((row) => row.id)
+          .filter(Boolean),
+      );
+      return;
+    }
+
+    if (nextFilter === "overview_broken") {
+      setSelectedAssetIds(
+        assetRows
+          .filter((row) => isBrokenAssetStatus(row.status))
+          .map((row) => row.id)
+          .filter(Boolean),
+      );
+      setSelectedLicenseIds(
+        licenseRows
+          .filter((row) => isBrokenLicenseStatus(row.status))
+          .map((row) => row.id)
+          .filter(Boolean),
+      );
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[2.25rem] border border-slate-200 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)] sm:p-7">
-        <div className="absolute -left-14 -top-14 h-40 w-40 rounded-full bg-sky-100 blur-3xl" />
-        <div className="absolute -right-20 bottom-0 h-40 w-40 rounded-full bg-indigo-100 blur-3xl" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+    <div className="space-y-5">
+      <section id="overview" className="rounded-[1.9rem] border border-slate-200 bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.06)] sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">Executive IT Stock Snapshot</p>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">PC | Notebook | Monitor | Printer | Licenses</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">stock แบบเรียลไทม์: ทั้งหมดเท่าไร ใช้งานได้เท่าไร และเสีย/ใช้ไม่ได้เท่าไร</p>
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-[2rem]">Stock Overview</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600 sm:text-base">PC, Notebook, Monitor, Printer และ Licenses แบบรวมในหน้าเดียว</p>
           </div>
           <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
             <button
               type="button"
               onClick={onRefresh}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
               รีเฟรช
@@ -306,31 +472,175 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section id="categories" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {MENU_CARDS.map((item) => (
-          <MainMetricCard key={item.key} label={item.label} subtitle={item.subtitle} value={menuCount[item.key]} icon={item.icon} accent={item.accent} soft={item.soft} />
+          <MainMetricCard
+            key={item.key}
+            label={item.label}
+            subtitle={item.subtitle}
+            value={menuCount[item.key]}
+            icon={item.icon}
+            accent={item.accent}
+            soft={item.soft}
+            active={activeDetailFilter === item.key}
+            onClick={() => applyDetailFilter(item.key)}
+          />
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
+      <section id="health" className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => applyDetailFilter("overview_total")}
+          className={`rounded-3xl border bg-white p-5 text-left shadow-[0_8px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(15,23,42,0.1)] ${
+            activeDetailFilter === "overview_total" ? "border-slate-900 ring-2 ring-slate-900/10" : "border-slate-200"
+          }`}
+        >
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Activity size={16} className="text-indigo-600" />จำนวน Stock รวม</div>
           <p className="mt-2 text-4xl font-black text-slate-900">{NUMBER_FORMATTER.format(overview.total)}</p>
           <p className="mt-1 text-sm text-slate-500">รวมทั้งหมดทุกหมวดในโรงงาน</p>
-        </article>
-        <article className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-[0_8px_22px_rgba(16,185,129,0.12)]">
+        </button>
+        <button
+          type="button"
+          onClick={() => applyDetailFilter("overview_usable")}
+          className={`rounded-3xl border bg-emerald-50 p-5 text-left shadow-[0_8px_22px_rgba(16,185,129,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(16,185,129,0.2)] ${
+            activeDetailFilter === "overview_usable" ? "border-emerald-700 ring-2 ring-emerald-700/15" : "border-emerald-200"
+          }`}
+        >
           <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 size={16} />ใช้งานได้</div>
           <p className="mt-2 text-4xl font-black text-emerald-900">{NUMBER_FORMATTER.format(overview.usable)}</p>
           <p className="mt-1 text-sm text-emerald-700">พร้อมใช้งาน {availabilityRate}%</p>
-        </article>
-        <article className="rounded-3xl border border-rose-200 bg-rose-50 p-5 shadow-[0_8px_22px_rgba(244,63,94,0.12)]">
+        </button>
+        <button
+          type="button"
+          onClick={() => applyDetailFilter("overview_broken")}
+          className={`rounded-3xl border bg-rose-50 p-5 text-left shadow-[0_8px_22px_rgba(244,63,94,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(244,63,94,0.2)] ${
+            activeDetailFilter === "overview_broken" ? "border-rose-700 ring-2 ring-rose-700/15" : "border-rose-200"
+          }`}
+        >
           <div className="flex items-center gap-2 text-sm font-semibold text-rose-800"><AlertTriangle size={16} />เสีย / ใช้ไม่ได้</div>
           <p className="mt-2 text-4xl font-black text-rose-900">{NUMBER_FORMATTER.format(overview.broken)}</p>
           <p className="mt-1 text-sm text-rose-700">คิดเป็น {brokenRate}% ของ stock ทั้งหมด</p>
+        </button>
+      </section>
+
+      <section id="visualizations" className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Dashboard Visualizations</p>
+              <h2 className="mt-2 text-lg font-black text-slate-900">Category Mix</h2>
+              <p className="mt-1 text-sm text-slate-500">สัดส่วนของ stock แต่ละหมวด เปรียบเทียบจากยอดรวมทั้งหมด</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Total Units</p>
+              <p className="text-lg font-black text-slate-900">{NUMBER_FORMATTER.format(categoryMixTotal)}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {categoryMixItems.map((item) => (
+              <div key={item.key}>
+                <div className="mb-1.5 flex items-center justify-between text-sm">
+                  <p className="font-semibold text-slate-700">{item.label}</p>
+                  <p className="font-semibold text-slate-500">{NUMBER_FORMATTER.format(item.value)} • {item.percent}%</p>
+                </div>
+                <div className="h-2.5 rounded-full bg-slate-100">
+                  <div
+                    className={`h-2.5 rounded-full bg-gradient-to-r ${item.color} transition-all duration-500`}
+                    style={{ width: `${Math.max(item.percent, 2)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Operations Pulse</p>
+          <h2 className="mt-2 text-lg font-black text-slate-900">Operational Split</h2>
+          <p className="mt-1 text-sm text-slate-500">มุมมองพร้อมใช้งานเทียบกับความเสี่ยง เพื่อใช้ตัดสินใจเร็วขึ้น</p>
+
+          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
+            <div className="flex items-center gap-4">
+              <div
+                className="relative h-28 w-28 rounded-full"
+                style={{
+                  background: `conic-gradient(#10b981 0 ${availabilityRate}%, #f43f5e ${availabilityRate}% ${Math.min(
+                    availabilityRate + brokenRate,
+                    100,
+                  )}%, #e2e8f0 ${Math.min(availabilityRate + brokenRate, 100)}% 100%)`,
+                }}
+              >
+                <div className="absolute inset-[10px] flex items-center justify-center rounded-full bg-white">
+                  <span className="text-lg font-black text-slate-900">{availabilityRate}%</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-emerald-700">Usable</p>
+                  <p className="text-base font-black text-emerald-900">{NUMBER_FORMATTER.format(overview.usable)} units</p>
+                </div>
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-rose-700">Broken / Unusable</p>
+                  <p className="text-base font-black text-rose-900">{NUMBER_FORMATTER.format(overview.broken)} units</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-600">Usable Trend by Category</p>
+                <p className="text-xs font-semibold text-slate-500">Max {NUMBER_FORMATTER.format(operationsPulseMax)}</p>
+              </div>
+              <svg
+                viewBox={`0 0 ${operationsPulseWidth} ${operationsPulseHeight}`}
+                className="h-28 w-full"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label="Operations pulse area chart"
+              >
+                <defs>
+                  <linearGradient id="operationsPulseFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.05" />
+                  </linearGradient>
+                </defs>
+                <polygon points={operationsPulseArea} fill="url(#operationsPulseFill)" />
+                <polyline points={operationsPulseLine} fill="none" stroke="#0284c7" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                {operationsPulsePoints.map((point) => (
+                  <circle key={point.label} cx={point.x} cy={point.y} r="3.2" fill="#0369a1" />
+                ))}
+              </svg>
+              <div className="mt-2 grid grid-cols-5 gap-1 text-[10px] font-semibold text-slate-500">
+                {operationsPulseSeries.map((item) => (
+                  <p key={item.label} className="truncate text-center">{item.label}</p>
+                ))}
+              </div>
+            </div>
+          </div>
         </article>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
+      <section className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
+        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+          ตัวกรองรายละเอียด: {DETAIL_FILTER_LABELS[activeDetailFilter] || DETAIL_FILTER_LABELS.all}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveDetailFilter("all");
+            setSelectedAssetIds([]);
+            setSelectedLicenseIds([]);
+          }}
+          disabled={activeDetailFilter === "all"}
+          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          ล้างตัวกรอง
+        </button>
+      </section>
+
+      <section id="matrix" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
         <h2 className="text-lg font-black text-slate-900">IT Stock Matrix (Real-time)</h2>
         <p className="mt-1 text-sm text-slate-500">ตารางนี้อัปเดตจากข้อมูลที่ IT บันทึกในหน้า assets-management</p>
         <div className="mt-4 overflow-x-auto">
@@ -356,21 +666,34 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_1fr]">
+      <section id="assets">
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black text-slate-900">รายการอุปกรณ์ที่อัปเดตล่าสุด</h2>
               <p className="mt-1 text-xs text-slate-500">ติ๊ก checkbox เพื่อแสดงรายละเอียดทันที (ดูอย่างเดียว)</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setSelectedAssetIds([])}
-              disabled={selectedAssetIds.length === 0}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              ล้างที่เลือก
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAssetDetailModalOpen(true)}
+                disabled={selectedAssets.length === 0}
+                className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                ดูรายละเอียดที่เลือก ({NUMBER_FORMATTER.format(selectedAssets.length)})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAssetIds([]);
+                  setActiveDetailFilter("all");
+                }}
+                disabled={selectedAssetIds.length === 0}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                ล้างที่เลือก
+              </button>
+            </div>
           </div>
 
           <div className="mt-3 rounded-2xl border border-slate-200">
@@ -445,54 +768,77 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
             </div>
           </div>
         </article>
-
-        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
-          <h2 className="text-lg font-black text-slate-900">
-            รายละเอียดอุปกรณ์ที่เลือก ({NUMBER_FORMATTER.format(selectedAssets.length)})
-          </h2>
-          <p className="mt-1 text-xs text-slate-500">ดูได้อย่างเดียว ไม่มีปุ่มแก้ไข</p>
-
-          {selectedAssets.length === 0 ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-              ติ๊กจากรายการทางซ้ายเพื่อดูรายละเอียดทั้งหมด
-            </div>
-          ) : (
-            <div className="mt-4 max-h-[430px] space-y-3 overflow-auto pr-1">
-              {selectedAssets.map((item) => (
-                <article key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-base font-black text-slate-900">{normalizeText(item.asset_name) || "-"}</h3>
-                    <span
-                      className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getAssetStatusChipClass(
-                        item.status,
-                      )}`}
-                    >
-                      {formatAssetStatus(item.status)}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                    <p><span className="font-semibold text-slate-500">รหัสทรัพย์สิน:</span> {normalizeText(item.asset_tag) || "-"}</p>
-                    <p><span className="font-semibold text-slate-500">หมวดหมู่:</span> {normalizeText(item.asset_category) || "-"}</p>
-                    <p><span className="font-semibold text-slate-500">ยี่ห้อ:</span> {normalizeText(item.brand) || "-"}</p>
-                    <p><span className="font-semibold text-slate-500">รุ่น:</span> {normalizeText(item.model) || "-"}</p>
-                    <p><span className="font-semibold text-slate-500">เลขซีเรียล:</span> {normalizeText(item.serial_number) || "-"}</p>
-                    <p><span className="font-semibold text-slate-500">ผู้ใช้งาน:</span> {normalizeText(item.owner_name) || "-"}</p>
-                    <p><span className="font-semibold text-slate-500">ตำแหน่งที่ตั้ง:</span> {normalizeText(item.location) || "-"}</p>
-                    <p><span className="font-semibold text-slate-500">วันที่ซื้อ:</span> {formatDate(item.purchase_date)}</p>
-                    <p><span className="font-semibold text-slate-500">วันหมดประกัน:</span> {formatDate(item.warranty_end_date)}</p>
-                    <p><span className="font-semibold text-slate-500">อัปเดตล่าสุด:</span> {formatDateTime(item.updated_at || item.created_at)}</p>
-                  </div>
-                  <p className="mt-2 text-sm text-slate-700">
-                    <span className="font-semibold text-slate-500">หมายเหตุ:</span> {normalizeText(item.notes) || "-"}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
-        </article>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_1fr]">
+      {isAssetDetailModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 sm:p-6"
+          onClick={() => setAssetDetailModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-4xl rounded-3xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.25)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
+              <div>
+                <h2 className="text-base font-black text-slate-900 sm:text-lg">
+                  รายละเอียดอุปกรณ์ที่เลือก ({NUMBER_FORMATTER.format(selectedAssets.length)})
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">ดูได้อย่างเดียว ไม่มีปุ่มแก้ไข</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssetDetailModalOpen(false)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                ปิด
+              </button>
+            </div>
+
+            <div className="max-h-[78vh] overflow-auto p-4 sm:p-5">
+              {selectedAssets.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  ยังไม่มีรายการที่เลือก
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {selectedAssets.map((item) => (
+                    <article key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-base font-black text-slate-900">{normalizeText(item.asset_name) || "-"}</h3>
+                        <span
+                          className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getAssetStatusChipClass(
+                            item.status,
+                          )}`}
+                        >
+                          {formatAssetStatus(item.status)}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                        <p><span className="font-semibold text-slate-500">รหัสทรัพย์สิน:</span> {normalizeText(item.asset_tag) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">หมวดหมู่:</span> {normalizeText(item.asset_category) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">ยี่ห้อ:</span> {normalizeText(item.brand) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">รุ่น:</span> {normalizeText(item.model) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">เลขซีเรียล:</span> {normalizeText(item.serial_number) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">ผู้ใช้งาน:</span> {normalizeText(item.owner_name) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">ตำแหน่งที่ตั้ง:</span> {normalizeText(item.location) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">วันที่ซื้อ:</span> {formatDate(item.purchase_date)}</p>
+                        <p><span className="font-semibold text-slate-500">วันหมดประกัน:</span> {formatDate(item.warranty_end_date)}</p>
+                        <p><span className="font-semibold text-slate-500">อัปเดตล่าสุด:</span> {formatDateTime(item.updated_at || item.created_at)}</p>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-700">
+                        <span className="font-semibold text-slate-500">หมายเหตุ:</span> {normalizeText(item.notes) || "-"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <section id="licenses" className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_1fr]">
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -501,7 +847,18 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
             </div>
             <button
               type="button"
-              onClick={() => setSelectedLicenseIds([])}
+              onClick={() => setLicenseDetailModalOpen(true)}
+              disabled={selectedLicenses.length === 0}
+              className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              View Selected ({NUMBER_FORMATTER.format(selectedLicenses.length)})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedLicenseIds([]);
+                setActiveDetailFilter("all");
+              }}
               disabled={selectedLicenseIds.length === 0}
               className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -630,6 +987,72 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
           )}
         </article>
       </section>
+
+      {isLicenseDetailModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 sm:p-6"
+          onClick={() => setLicenseDetailModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-4xl rounded-3xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.25)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
+              <div>
+                <h2 className="text-base font-black text-slate-900 sm:text-lg">
+                  License Details ({NUMBER_FORMATTER.format(selectedLicenses.length)})
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">Read-only view</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLicenseDetailModalOpen(false)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[78vh] overflow-auto p-4 sm:p-5">
+              {selectedLicenses.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  No selected license
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {selectedLicenses.map((item) => (
+                    <article key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-base font-black text-slate-900">{normalizeText(item.license_name) || "-"}</h3>
+                        <span
+                          className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getLicenseStatusChipClass(
+                            item.status,
+                          )}`}
+                        >
+                          {formatLicenseStatus(item.status)}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                        <p><span className="font-semibold text-slate-500">Vendor:</span> {normalizeText(item.vendor) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">Type:</span> {normalizeText(item.license_type) || "-"}</p>
+                        <p><span className="font-semibold text-slate-500">Total:</span> {NUMBER_FORMATTER.format(Math.max(toNumber(item.quantity_total), 0))}</p>
+                        <p><span className="font-semibold text-slate-500">Assigned:</span> {NUMBER_FORMATTER.format(Math.min(Math.max(toNumber(item.quantity_assigned), 0), Math.max(toNumber(item.quantity_total), 0)))}</p>
+                        <p><span className="font-semibold text-slate-500">Available:</span> {NUMBER_FORMATTER.format(getAvailableSeats(item))}</p>
+                        <p><span className="font-semibold text-slate-500">Expiry:</span> {formatDate(item.expiry_date)}</p>
+                        <p><span className="font-semibold text-slate-500">Renewal:</span> {formatDate(item.renewal_date)}</p>
+                        <p><span className="font-semibold text-slate-500">Updated:</span> {formatDateTime(item.updated_at || item.created_at)}</p>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-700">
+                        <span className="font-semibold text-slate-500">Notes:</span> {normalizeText(item.notes) || "-"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

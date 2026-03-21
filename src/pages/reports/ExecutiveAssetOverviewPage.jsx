@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import toast from "react-hot-toast";
-import ExecutiveDashboard from "../../components/reports/ExecutiveDashboard";
 import ReportsTopbar from "../../components/reports/ReportsTopbar";
-import { fetchExecutiveReportData } from "../../services/reportService";
+import ExecutiveAssetOverviewDashboard from "../../components/reports/ExecutiveAssetOverviewDashboard";
+import { fetchExecutiveAssetOverviewData } from "../../services/reportService";
 import { supabase } from "../../lib/supabaseClient";
 
 function PageState({ title, subtitle, error, onRetry, loading }) {
@@ -36,7 +36,7 @@ function PageState({ title, subtitle, error, onRetry, loading }) {
   );
 }
 
-export default function ExecutiveReportPage() {
+export default function ExecutiveAssetOverviewPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,10 +45,10 @@ export default function ExecutiveReportPage() {
     try {
       setLoading(true);
       setError("");
-      const report = await fetchExecutiveReportData();
+      const report = await fetchExecutiveAssetOverviewData();
       setData(report);
     } catch (err) {
-      const message = err?.message || "Unable to load executive report";
+      const message = err?.message || "Unable to load asset report";
       setError(message);
       toast.error(message);
     } finally {
@@ -62,7 +62,14 @@ export default function ExecutiveReportPage() {
 
   useEffect(() => {
     const channel = supabase
-      .channel("executive-report-live")
+      .channel("executive-asset-overview-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tickets" },
+        () => {
+          void loadData();
+        },
+      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "it_assets" },
@@ -77,6 +84,13 @@ export default function ExecutiveReportPage() {
           void loadData();
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "access_requests" },
+        () => {
+          void loadData();
+        },
+      )
       .subscribe();
 
     return () => {
@@ -87,8 +101,8 @@ export default function ExecutiveReportPage() {
   if (loading && !data) {
     return (
       <PageState
-        title="Loading executive report"
-        subtitle="Fetching KPI, trend, asset, and license data."
+        title="Loading asset report"
+        subtitle="Fetching tickets, assets, licenses, and access requests."
         loading
       />
     );
@@ -97,8 +111,8 @@ export default function ExecutiveReportPage() {
   if (error && !data) {
     return (
       <PageState
-        title="Executive report unavailable"
-        subtitle="Check Supabase tables and view availability, then retry."
+        title="Asset report unavailable"
+        subtitle="Check Supabase tables and retry."
         error={error}
         onRetry={loadData}
       />
@@ -109,7 +123,7 @@ export default function ExecutiveReportPage() {
     <div className="min-h-screen bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_45%,_#f8fafc_100%)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px]">
         <ReportsTopbar backTo="/reports" backLabel="Reports" />
-        <ExecutiveDashboard data={data} onRefresh={loadData} loading={loading} />
+        <ExecutiveAssetOverviewDashboard data={data} onRefresh={loadData} loading={loading} />
       </div>
     </div>
   );

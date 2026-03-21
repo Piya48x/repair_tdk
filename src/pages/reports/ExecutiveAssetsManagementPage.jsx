@@ -552,7 +552,7 @@ export default function ExecutiveAssetsManagementPage() {
 
         const role = normalizeText(data?.role).toLowerCase();
         setUserRole(role);
-        setCanHardDelete(role === "admin" || role === "it_support");
+        setCanHardDelete(role === "admin" || role === "it_support" || role === "it_manager");
       } catch (error) {
         console.error("Load profile role error:", error);
       }
@@ -1467,7 +1467,9 @@ export default function ExecutiveAssetsManagementPage() {
                     : "border-amber-200 bg-amber-50 text-amber-700"
                 }`}
               >
-                {canHardDelete ? "โหมดลบ: ลบถาวร (Admin/IT Support)" : "โหมดลบ: จัดเก็บ (ไม่มีสิทธิ์ลบถาวร)"}
+                {canHardDelete
+                  ? "โหมดลบ: ลบถาวร (Admin/IT Support/IT Manager)"
+                  : "โหมดลบ: จัดเก็บ (ไม่มีสิทธิ์ลบถาวร)"}
               </span>
             </div>
           </div>

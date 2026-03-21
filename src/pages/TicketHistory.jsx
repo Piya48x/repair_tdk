@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  Laptop,
   FileText,
   Hash,
   TrendingUp,
@@ -21,14 +22,38 @@ import {
   Sparkles,
   CircleSlash,
   Hammer,
+  UserRound,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import {
+  formatNotebookDuration,
+  formatNotebookTime,
+  isNotebookPermissionDenied,
+  isNotebookSchemaError,
+  loadMyNotebookBorrowLogs,
+  NOTEBOOK_LOG_STATUS,
+} from "../services/notebookBorrowService";
 
 const BRAND_PRIMARY = "#2b59b0";
+
+const NOTEBOOK_LOG_META = {
+  pending: {
+    label: "รออนุมัติ",
+    cls: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  approved: {
+    label: "กำลังยืม",
+    cls: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  returned: {
+    label: "รอยืนยันคืน",
+    cls: "bg-violet-50 text-violet-700 border-violet-200",
+  },
+};
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "ทุกสถานะ" },
@@ -185,6 +210,9 @@ export default function TicketHistory() {
   const [priorityFilter, setPriorityFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [notebookLogs, setNotebookLogs] = useState([]);
+  const [notebookLoading, setNotebookLoading] = useState(true);
+  const [notebookError, setNotebookError] = useState("");
 
   useEffect(() => {
     if (initialFilter) setStatusFilter(initialFilter);
@@ -192,11 +220,13 @@ export default function TicketHistory() {
     if (initialTickets.length > 0) {
       setTickets(initialTickets);
       setLoading(false);
+      fetchNotebookLogs();
       return;
     }
 
     const load = async () => {
       await fetchTickets();
+      await fetchNotebookLogs();
     };
 
     load();
@@ -245,6 +275,29 @@ export default function TicketHistory() {
     }
   }, []);
 
+  const fetchNotebookLogs = useCallback(async () => {
+    try {
+      setNotebookLoading(true);
+      const { data, error } = await loadMyNotebookBorrowLogs();
+      if (error) throw error;
+
+      setNotebookLogs(Array.isArray(data) ? data : []);
+      setNotebookError("");
+    } catch (error) {
+      console.error("Error fetching notebook logs:", error);
+      if (isNotebookSchemaError(error)) {
+        setNotebookError("ยังไม่ได้ติดตั้ง schema notebook borrowing");
+      } else if (isNotebookPermissionDenied(error)) {
+        setNotebookError("ไม่มีสิทธิ์ดูประวัติ notebook ของคุณ");
+      } else {
+        setNotebookError("ไม่สามารถโหลดประวัติยืม-คืน notebook ได้");
+      }
+      setNotebookLogs([]);
+    } finally {
+      setNotebookLoading(false);
+    }
+  }, []);
+
   const stats = useMemo(() => {
     const total = tickets.length;
     const pending = tickets.filter((t) => t.status !== "CLOSED").length;
@@ -277,6 +330,27 @@ export default function TicketHistory() {
     const unique = [...new Set(tickets.map((t) => t.category).filter(Boolean))];
     return ["ALL", ...unique];
   }, [tickets]);
+
+  const notebookStats = useMemo(() => {
+    const statsCount = {
+      total: notebookLogs.length,
+      pending: 0,
+      approved: 0,
+      returned: 0,
+      active: 0,
+    };
+
+    notebookLogs.forEach((log) => {
+      if (log.status === NOTEBOOK_LOG_STATUS.PENDING) statsCount.pending += 1;
+      if (log.status === NOTEBOOK_LOG_STATUS.APPROVED) statsCount.approved += 1;
+      if (log.status === NOTEBOOK_LOG_STATUS.RETURNED) statsCount.returned += 1;
+      if (log.status === NOTEBOOK_LOG_STATUS.APPROVED || (log.status === NOTEBOOK_LOG_STATUS.RETURNED && !log.return_confirmed_at)) {
+        statsCount.active += 1;
+      }
+    });
+
+    return statsCount;
+  }, [notebookLogs]);
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
@@ -739,6 +813,157 @@ export default function TicketHistory() {
                         </button>
                         <ChevronRight size={17} className="text-slate-300" />
                       </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <p className="inline-flex items-center gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-primary)]">
+                <Sparkles size={12} />
+                Notebook Center
+              </p>
+              <h2 className="mt-2 text-lg font-black text-slate-900 sm:text-xl">ประวัติยืม-คืนโน้ตบุ๊ก</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                บันทึกการยืม วันที่คืน ระยะเวลา เหตุผล และสถานที่ใช้งาน
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:w-auto">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ทั้งหมด</p>
+                <p className="mt-1 text-lg font-black text-slate-800">{notebookStats.total}</p>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500">รออนุมัติ</p>
+                <p className="mt-1 text-lg font-black text-amber-600">{notebookStats.pending}</p>
+              </div>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500">กำลังยืม</p>
+                <p className="mt-1 text-lg font-black text-blue-600">{notebookStats.active}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">คืนแล้ว</p>
+                <p className="mt-1 text-lg font-black text-emerald-600">{notebookStats.returned}</p>
+              </div>
+            </div>
+          </div>
+
+          {notebookError && (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+              {notebookError}
+            </div>
+          )}
+
+          {notebookLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                <RefreshCw size={16} className="animate-spin" />
+                กำลังโหลดประวัติ notebook...
+              </div>
+            </div>
+          ) : notebookLogs.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white">
+                <AlertCircle size={22} className="text-slate-300" />
+              </div>
+              <p className="text-sm font-semibold text-slate-700">ยังไม่มีประวัติยืม-คืน notebook</p>
+              <p className="mt-1 text-xs text-slate-500">เมื่อมีการยืมหรือคืน notebook รายการจะมาแสดงในส่วนนี้</p>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {notebookLogs.slice(0, 12).map((log) => {
+                const meta = NOTEBOOK_LOG_META[log.status] || NOTEBOOK_LOG_META.pending;
+                const durationText = log.return_time
+                  ? formatNotebookDuration(log.borrow_time, log.return_time)
+                  : log.borrow_time
+                    ? formatNotebookDuration(log.borrow_time, new Date().toISOString())
+                    : "-";
+
+                return (
+                  <article key={log.log_id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2.5 py-1 text-[11px] font-semibold text-[#2b59b0]">
+                            <Laptop size={12} />
+                            {log.asset_code || "-"}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${meta.cls}`}>
+                            <Clock size={12} />
+                            {meta.label}
+                          </span>
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                            ยืม {log.borrow_count || 0} ครั้ง
+                          </span>
+                        </div>
+
+                        <h3 className="mt-2 text-base font-bold text-slate-900">{log.model || "-"}</h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {log.approved_by_name || log.confirmed_by_name || "-"} • {log.notebook_status || "-"}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                          ยืม {formatNotebookTime(log.borrow_time || log.requested_at)}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                          คืน {formatNotebookTime(log.return_time)}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                          ใช้ไป {durationText}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr,0.8fr]">
+                      <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">เหตุผล / สถานที่</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">{log.reason || "-"}</p>
+                        <p className="mt-2 text-sm text-slate-600">ใช้ที่: {log.location || "-"}</p>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">รูปประกอบ</p>
+                        {log.image_url ? (
+                          <button
+                            type="button"
+                            onClick={() => window.open(log.image_url, "_blank", "noopener,noreferrer")}
+                            className="mt-3 block overflow-hidden rounded-xl border border-slate-200 bg-white"
+                            title="เปิดรูปประกอบ"
+                          >
+                            <img src={log.image_url} alt={log.asset_code || "notebook-proof"} className="h-36 w-full object-cover" />
+                          </button>
+                        ) : (
+                          <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+                            ไม่มีรูปประกอบ
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-semibold">
+                        <UserRound size={12} />
+                        ผู้ยืม: {log.user_name || "-"}
+                      </span>
+                      {log.return_confirmed_at ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">
+                          <CheckCircle2 size={12} />
+                          ยืนยันคืนแล้ว {formatNotebookTime(log.return_confirmed_at)}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">
+                          <Clock size={12} />
+                          รอยืนยันจาก IT
+                        </span>
+                      )}
                     </div>
                   </article>
                 );

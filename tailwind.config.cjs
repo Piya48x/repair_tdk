@@ -5,7 +5,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Noto Sans Thai", "Kanit", "system-ui", "sans-serif"],
+        sans: ["Sarabun", "system-ui", "sans-serif"],
       },
     },
   },

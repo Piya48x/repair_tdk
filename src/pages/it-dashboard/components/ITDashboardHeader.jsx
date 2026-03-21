@@ -50,7 +50,7 @@ const ITDashboardHeader = ({
 
   return (
     <header className={`sticky top-0 z-40 border-b ${uiTheme.headerShell}`}>
-      <div className="mx-auto max-w-[1400px] px-6">
+      <div className="mx-auto max-w-[1440px] px-6">
         <div className="relative z-20 flex h-16 items-center justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <button
