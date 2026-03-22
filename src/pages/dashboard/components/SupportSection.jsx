@@ -8,14 +8,16 @@ const SUPPORT_CONTACTS = [
   { icon: Timer, label: "SLA Response", value: "ภายใน 15 นาที", href: "#" },
 ];
 
-export default function SupportSection({ onOpenChat }) {
+export default function SupportSection({ onOpenChat, hidden = false }) {
   const [isOpen, setIsOpen] = useState(false);
 
+  if (hidden) return null;
+
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[95] sm:bottom-6 sm:right-6">
+    <div className="pointer-events-none fixed bottom-4 right-4 z-[85] sm:bottom-6 sm:right-6">
       <div className="pointer-events-auto flex flex-col items-end gap-3">
         {isOpen && (
-          <div className="w-[min(92vw,360px)] overflow-hidden rounded-3xl border border-[#2b59b0]/15 bg-white/95 text-slate-800 shadow-[0_28px_70px_-26px_rgba(43,89,176,0.42)] backdrop-blur-xl">
+          <div className="w-[min(88vw,320px)] overflow-hidden rounded-3xl border border-[#2b59b0]/15 bg-white/95 text-slate-800 shadow-[0_28px_70px_-26px_rgba(43,89,176,0.42)] backdrop-blur-xl">
             <div className="bg-gradient-to-r from-[#1c376d] via-[#2b59b0] to-[#244a95] px-4 py-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div>

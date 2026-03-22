@@ -830,64 +830,65 @@ const CreateTicket = () => {
                 {isCameraActive ? (
                   <div className="space-y-4">
                     <div className="relative overflow-hidden rounded-2xl border-2 border-indigo-200 bg-black/5 shadow-lg">
-                      {isReviewing ? (
-                        <img src={tempImage} alt="preview capture" className="aspect-video w-full object-cover" />
-                      ) : (
-                        <Webcam
-                          ref={webcamRef}
-                          screenshotFormat="image/jpeg"
-                          mirrored={facingMode === "user"}
-                          videoConstraints={{ facingMode }}
-                          className="aspect-video w-full object-cover"
-                        />
+                      <Webcam
+                        ref={webcamRef}
+                        screenshotFormat="image/jpeg"
+                        screenshotQuality={0.92}
+                        mirrored={facingMode === "user"}
+                        videoConstraints={{ facingMode }}
+                        className={`aspect-video w-full object-cover transition duration-200 ${isReviewing ? "opacity-25" : "opacity-100"}`}
+                      />
+                      {isReviewing && tempImage && (
+                        <img src={tempImage} alt="preview capture" className="absolute inset-0 h-full w-full object-cover" />
                       )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-3">
-                      {!isReviewing && (
-                        <>
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
+                      <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-950/80 to-transparent px-4 py-3 text-white">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold">ถ่ายภาพหลักฐาน</p>
+                          <p className="text-[11px] text-white/75">
+                            {isReviewing ? "รูปนี้จะถูกใช้เป็นหลักฐานทันที" : "ถ่ายแล้วรูปจะทับบนกล้อง ไม่เปลืองพื้นที่"}
+                          </p>
+                        </div>
+                        {isReviewing && (
+                          <span className="inline-flex rounded-full border border-white/15 bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/90">
+                            พร้อมใช้
+                          </span>
+                        )}
+                      </div>
+                      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-[11px] text-white/75">
+                          {isReviewing ? "กดยืนยันรูปนี้ หรือถ่ายใหม่ได้" : "รองรับสลับกล้องหน้า/หลัง"}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {!isReviewing && (
+                            <button
+                              type="button"
+                              onClick={() => setFacingMode((mode) => (mode === "user" ? "environment" : "user"))}
+                              className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+                            >
+                              <FlipHorizontal size={14} />
+                              <span className="hidden sm:inline">สลับกล้อง</span>
+                            </button>
+                          )}
+                          <button
                             type="button"
-                            onClick={capture}
-                            className="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 text-sm font-bold text-white shadow-md hover:shadow-lg transition-all"
+                            onClick={isReviewing ? () => { setIsReviewing(false); setTempImage(null); } : capture}
+                            className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${isReviewing ? "bg-white text-[#244a95]" : "bg-white text-[#244a95]"}`}
                           >
-                            ถ่ายภาพ
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.98 }}
-                            type="button"
-                            onClick={() => setFacingMode((p) => (p === "user" ? "environment" : "user"))}
-                            className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
-                          >
-                            <FlipHorizontal size={18} />
-                          </motion.button>
-                        </>
-                      )}
-                      {isReviewing && (
-                        <>
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            type="button"
-                            onClick={() => setIsReviewing(false)}
-                            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
-                          >
-                            ถ่ายใหม่
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            type="button"
-                            onClick={confirmCapture}
-                            className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-sm font-bold text-white shadow-md hover:shadow-lg transition-all"
-                          >
-                            ใช้รูปนี้
-                          </motion.button>
-                        </>
-                      )}
+                            <Camera size={14} />
+                            {isReviewing ? "ถ่ายใหม่" : "ถ่ายภาพ"}
+                          </button>
+                          {isReviewing && (
+                            <button
+                              type="button"
+                              onClick={confirmCapture}
+                              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                            >
+                              <CheckCircle2 size={14} />
+                              ใช้รูปนี้
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <button

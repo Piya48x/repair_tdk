@@ -26,6 +26,12 @@ import {
   normalizeText,
 } from "../../../services/notebookBorrowService";
 
+const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
+const NOTEBOOK_PROOF_BUCKET = "notebook-borrow-proof";
+const NOTEBOOK_PROOF_PUBLIC_BASE = SUPABASE_URL
+  ? `${SUPABASE_URL}/storage/v1/object/public/${NOTEBOOK_PROOF_BUCKET}`
+  : "";
+
 const LOG_STATUS_META = {
   [NOTEBOOK_LOG_STATUS.PENDING]: {
     label: "รออนุมัติ",
@@ -36,7 +42,7 @@ const LOG_STATUS_META = {
     cls: "border-blue-200 bg-blue-50 text-blue-700",
   },
   [NOTEBOOK_LOG_STATUS.RETURNED]: {
-    label: "รอยืนยันคืน",
+    label: "คืนเรียบร้อย",
     cls: "border-violet-200 bg-violet-50 text-violet-700",
   },
 };
@@ -64,14 +70,178 @@ const formatDuration = (startValue, endValue) => {
   return formatNotebookDuration(start, end);
 };
 
+const resolveNotebookProofUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^(blob:|data:)/i.test(raw)) return raw;
+
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const url = new URL(raw);
+      if (url.pathname.includes("/storage/v1/object/sign/")) {
+        url.pathname = url.pathname.replace("/storage/v1/object/sign/", "/storage/v1/object/public/");
+        url.search = "";
+        return url.toString();
+      }
+      if (url.pathname.includes("/storage/v1/object/public/")) {
+        url.search = "";
+      }
+      return url.toString();
+    } catch {
+      return raw;
+    }
+  }
+
+  if (!NOTEBOOK_PROOF_PUBLIC_BASE) return raw;
+
+  const normalizedPath = raw.replace(/^\/+/, "");
+  if (normalizedPath.startsWith("storage/v1/object/sign/")) {
+    return `${SUPABASE_URL}/${normalizedPath.replace("storage/v1/object/sign/", "storage/v1/object/public/")}`;
+  }
+  if (normalizedPath.startsWith("storage/v1/object/public/")) {
+    return `${SUPABASE_URL}/${normalizedPath}`;
+  }
+  if (normalizedPath.startsWith(`${NOTEBOOK_PROOF_BUCKET}/`)) {
+    return `${NOTEBOOK_PROOF_PUBLIC_BASE}/${normalizedPath.slice(NOTEBOOK_PROOF_BUCKET.length + 1)}`;
+  }
+  return `${NOTEBOOK_PROOF_PUBLIC_BASE}/${normalizedPath}`;
+};
+
+const notebookProofFolderCache = new Map();
+
+function isRenderableNotebookProofUrl(value) {
+  return /^(blob:|data:|https?:\/\/)/i.test(String(value || "").trim());
+}
+
+function sanitizeProofName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .toLowerCase();
+}
+
+function extractUploadTimestamp(value) {
+  const match = /^(\d{10,})_/.exec(String(value || "").trim());
+  if (!match) return 0;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseTargetTimestamp(value) {
+  const parsed = new Date(value || "").getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function decodePossibleMojibake(value) {
+  const raw = String(value || "");
+  if (!raw) return "";
+  if (!/[ÃÂàâ]/.test(raw)) return raw;
+  try {
+    const bytes = Uint8Array.from([...raw].map((ch) => ch.charCodeAt(0) & 0xff));
+    const decoded = new TextDecoder("utf-8").decode(bytes);
+    return /[\u0E00-\u0E7F]/.test(decoded) ? decoded : raw;
+  } catch {
+    return raw;
+  }
+}
+
+async function listNotebookProofFiles(folder) {
+  const key = String(folder || "").trim();
+  if (!key) return [];
+
+  if (!notebookProofFolderCache.has(key)) {
+    notebookProofFolderCache.set(
+      key,
+      supabase.storage
+        .from(NOTEBOOK_PROOF_BUCKET)
+        .list(key, {
+          limit: 1000,
+          offset: 0,
+          sortBy: { column: "name", order: "desc" },
+        })
+        .then(({ data }) => (Array.isArray(data) ? data : []))
+        .catch(() => []),
+    );
+  }
+
+  return notebookProofFolderCache.get(key);
+}
+
+async function resolveNotebookProofFromStorage(row, kind) {
+  const userId = String(row?.user_id || "").trim();
+  if (!userId) return "";
+
+  const folder = `borrow/${userId}`;
+  const files = await listNotebookProofFiles(folder);
+  if (!files.length) return "";
+
+  const primaryName = sanitizeProofName(kind === "return" ? row?.return_image_name : row?.image_name);
+  const assetCode = String(row?.asset_code || "").trim().toLowerCase();
+  const model = String(row?.model || "").trim().toLowerCase();
+  const logId = String(row?.log_id || "").trim().toLowerCase();
+  const kindToken = kind === "return" ? "return" : "before";
+  const expectedSuffix = primaryName ? (kind === "return" ? `_return_${primaryName}` : `_${primaryName}`) : "";
+  const targetTimestamp = parseTargetTimestamp(
+    kind === "return" ? row?.return_time || row?.return_confirmed_at : row?.borrow_time || row?.requested_at,
+  );
+
+  const scored = files
+    .map((file, index) => {
+      const name = String(file?.name || "").trim().toLowerCase();
+      if (!name) return null;
+      const uploadTimestamp = extractUploadTimestamp(name);
+
+      let score = 0;
+
+      if (expectedSuffix && name.endsWith(expectedSuffix)) score += 100;
+      else if (primaryName && name === primaryName) score += 70;
+      else if (primaryName && name.includes(primaryName)) score += 20;
+
+      [assetCode, model, logId, kindToken].forEach((hint) => {
+        if (!hint) return;
+        if (name === hint) score += 6;
+        else if (name.includes(hint)) score += 3;
+      });
+
+      if (kind === "return") {
+        if (name.includes("return")) score += 4;
+      } else if (!name.includes("return")) {
+        score += 4;
+      }
+
+      if (targetTimestamp > 0 && uploadTimestamp > 0) {
+        const diffMinutes = Math.abs(uploadTimestamp - targetTimestamp) / 60000;
+        if (diffMinutes <= 10) score += 40;
+        else if (diffMinutes <= 30) score += 24;
+        else if (diffMinutes <= 180) score += 12;
+        else if (diffMinutes <= 1440) score += 4;
+      }
+
+      if (/\.(jpg|jpeg|png|webp|gif)$/i.test(name)) score += 1;
+      return { name, index, score };
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score || right.index - left.index);
+
+  const winner = scored[0];
+  if (!winner) return "";
+  if (kind === "return" && winner.score < (primaryName ? 90 : 28)) return "";
+  if (kind === "before" && winner.score < 40) return "";
+
+  const { data } = supabase.storage.from(NOTEBOOK_PROOF_BUCKET).getPublicUrl(`${folder}/${winner.name}`);
+  return data?.publicUrl || "";
+}
+
 const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
   const channelRef = useRef(null);
+  const proofLookupAttemptedRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
   const [queue, setQueue] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingId, setUpdatingId] = useState("");
+  const [proofUrlOverrides, setProofUrlOverrides] = useState({});
 
   const loadQueue = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -118,6 +288,68 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
       }
     };
   }, [loadQueue]);
+
+  useEffect(() => {
+    let cancelled = false;
+    proofLookupAttemptedRef.current = new Set();
+    setProofUrlOverrides({});
+    const unresolvedRows = queue.filter((row) => {
+      const beforeUrl = String(row?.image_url || "").trim();
+      const returnUrl = String(row?.return_image_url || "").trim();
+      return (
+        (!isRenderableNotebookProofUrl(beforeUrl) && row?.image_name) ||
+        (!isRenderableNotebookProofUrl(returnUrl) && (row?.return_image_name || row?.return_time))
+      );
+    });
+
+    if (unresolvedRows.length === 0) return undefined;
+
+    (async () => {
+      const nextOverrides = {};
+      for (const row of unresolvedRows) {
+        const beforeUrl = String(row?.image_url || "").trim();
+        if (!isRenderableNotebookProofUrl(beforeUrl) && row?.image_name) {
+          const resolvedBefore = await resolveNotebookProofFromStorage(row, "before");
+          if (resolvedBefore) {
+            nextOverrides[`before:${row.log_id}`] = resolvedBefore;
+          }
+        }
+
+        const returnUrl = String(row?.return_image_url || "").trim();
+        if (!isRenderableNotebookProofUrl(returnUrl) && (row?.return_image_name || row?.return_time)) {
+          const resolvedReturn = await resolveNotebookProofFromStorage(row, "return");
+          if (resolvedReturn) {
+            nextOverrides[`return:${row.log_id}`] = resolvedReturn;
+          }
+        }
+      }
+
+      if (!cancelled && Object.keys(nextOverrides).length > 0) {
+        setProofUrlOverrides((prev) => ({ ...prev, ...nextOverrides }));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [queue]);
+
+  const handleProofImageError = useCallback(
+    async (row, kind) => {
+      const key = `${kind}:${row?.log_id || row?.id || ""}`;
+      if (!key || proofLookupAttemptedRef.current.has(key)) return;
+      proofLookupAttemptedRef.current.add(key);
+
+      const resolved = await resolveNotebookProofFromStorage(row, kind);
+      if (!resolved) return;
+
+      setProofUrlOverrides((prev) => {
+        if (prev[key] === resolved) return prev;
+        return { ...prev, [key]: resolved };
+      });
+    },
+    [],
+  );
 
   const summary = useMemo(() => {
     const count = {
@@ -264,7 +496,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
               <option value="ALL">ทุกสถานะ</option>
               <option value={NOTEBOOK_LOG_STATUS.PENDING}>รออนุมัติ</option>
               <option value={NOTEBOOK_LOG_STATUS.APPROVED}>กำลังยืม</option>
-              <option value={NOTEBOOK_LOG_STATUS.RETURNED}>รอยืนยันคืน</option>
+              <option value={NOTEBOOK_LOG_STATUS.RETURNED}>คืนเรียบร้อย</option>
             </select>
 
             <button
@@ -307,6 +539,10 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
               const canApprove = row.status === NOTEBOOK_LOG_STATUS.PENDING;
               const canConfirm = row.status === NOTEBOOK_LOG_STATUS.RETURNED && !row.return_confirmed_at;
               const durationText = formatDuration(row.borrow_time, row.return_time);
+              const beforeKey = `before:${row.log_id}`;
+              const returnKey = `return:${row.log_id}`;
+              const beforeImageUrl = proofUrlOverrides[beforeKey] || resolveNotebookProofUrl(row.image_url);
+              const returnImageUrl = proofUrlOverrides[returnKey] || resolveNotebookProofUrl(row.return_image_url);
 
               return (
                 <article
@@ -333,7 +569,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
                         {row.model || "-"}
                       </h3>
                       <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-                        {row.user_name || "-"} {row.user_role ? `• ${row.user_role}` : ""}
+                        {decodePossibleMojibake(row.user_name) || "-"} {row.user_role ? `• ${decodePossibleMojibake(row.user_role)}` : ""}
                       </p>
                     </div>
 
@@ -373,32 +609,70 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
                         <p className={`text-xs font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>เหตุผล / สถานที่</p>
                       </div>
                       <p className={`mt-2 whitespace-pre-line text-sm ${theme === "dark" ? "text-slate-200" : "text-slate-700"}`}>
-                        {row.reason || "-"}
+                        {decodePossibleMojibake(row.reason) || "-"}
                       </p>
                       <p className={`mt-2 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-                        ใช้ที่: {row.location || "-"}
+                        ใช้ที่: {decodePossibleMojibake(row.location) || "-"}
                       </p>
                     </div>
 
                     <div className={`rounded-xl border p-3 ${theme === "dark" ? "border-slate-700 bg-slate-900/80" : "border-slate-50 bg-slate-50"}`}>
                       <div className="flex items-center gap-2">
                         <ImageIcon size={14} className="text-[#2b59b0]" />
-                        <p className={`text-xs font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>รูปประกอบ</p>
+                        <p className={`text-xs font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>หลักฐานรูปภาพ</p>
                       </div>
-                      {row.image_url ? (
-                        <button
-                          type="button"
-                          onClick={() => window.open(row.image_url, "_blank", "noopener,noreferrer")}
-                          className="mt-3 block overflow-hidden rounded-xl border border-slate-200 bg-white"
-                          title="เปิดรูปประกอบ"
-                        >
-                          <img src={row.image_url} alt={row.asset_code || "notebook-proof"} className="h-36 w-full object-cover" />
-                        </button>
-                      ) : (
-                        <div className={`mt-3 rounded-xl border border-dashed p-5 text-center ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
-                          ไม่มีรูปประกอบ
+
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className={`overflow-hidden rounded-xl border ${theme === "dark" ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-white"}`}>
+                          <div className={`border-b px-3 py-2 text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+                            รูปก่อนยืม
+                          </div>
+                          {beforeImageUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => window.open(beforeImageUrl, "_blank", "noopener,noreferrer")}
+                              className="block w-full"
+                              title="Open before-borrow image"
+                            >
+                              <img
+                                src={beforeImageUrl}
+                                alt={`${row.asset_code || "notebook"}-before-borrow`}
+                                className="h-36 w-full object-cover"
+                                onError={() => handleProofImageError(row, "before")}
+                              />
+                            </button>
+                          ) : (
+                            <div className={`flex h-36 items-center justify-center px-3 text-center text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-500"}`}>
+                              ยังไม่มีรูปก่อนยืม
+                            </div>
+                          )}
                         </div>
-                      )}
+
+                        <div className={`overflow-hidden rounded-xl border ${theme === "dark" ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-white"}`}>
+                          <div className={`border-b px-3 py-2 text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+                            รูปตอนคืน
+                          </div>
+                          {returnImageUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => window.open(returnImageUrl, "_blank", "noopener,noreferrer")}
+                              className="block w-full"
+                              title="Open return image"
+                            >
+                              <img
+                                src={returnImageUrl}
+                                alt={`${row.asset_code || "notebook"}-return`}
+                                className="h-36 w-full object-cover"
+                                onError={() => handleProofImageError(row, "return")}
+                              />
+                            </button>
+                          ) : (
+                            <div className={`flex h-36 items-center justify-center px-3 text-center text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-500"}`}>
+                              ยังไม่มีรูปตอนคืน
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
 

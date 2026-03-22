@@ -5,6 +5,7 @@ import {
   Camera,
   Clock3,
   FileImage,
+  FlipHorizontal,
   ImagePlus,
   Loader2,
   Send,
@@ -54,6 +55,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [preview, setPreview] = useState(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [facingMode, setFacingMode] = useState("environment");
   const [tempImage, setTempImage] = useState(null);
   const [isReviewing, setIsReviewing] = useState(false);
 
@@ -65,6 +67,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     setPreview(null);
     setTempImage(null);
     setIsCameraOpen(false);
+    setFacingMode("environment");
     setIsReviewing(false);
   }, [isOpen]);
 
@@ -271,7 +274,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             <div className="mb-2 flex flex-wrap gap-2">
               <span className={chipClass}>➕ บันทึกงาน (Walk-in)</span>
               <span className={chipClass}>status: open</span>
-              <span className={chipClass}>channel: walk-in</span>
+              <span className={chipClass}>ช่องทาง: Walk-in</span>
             </div>
             <h2 id="walk-in-ticket-title" className="text-xl font-bold sm:text-2xl">
               บันทึกงานแจ้งซ่อมแบบปากเปล่า
@@ -504,58 +507,64 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
 
             {isCameraOpen && (
               <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
-                {isReviewing && tempImage ? (
-                  <div className="p-3">
-                    <img src={tempImage} alt="camera preview" className="max-h-80 w-full rounded-xl object-cover" />
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={confirmCapture}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#2b59b0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#244a95]"
-                      >
-                        ยืนยันรูปนี้
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsReviewing(false);
-                          setTempImage(null);
-                        }}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700"
-                      >
-                        ถ่ายใหม่
-                      </button>
+                <div className="relative overflow-hidden p-3">
+                  <Webcam
+                    ref={webcamRef}
+                    audio={false}
+                    screenshotFormat="image/jpeg"
+                    screenshotQuality={0.92}
+                    mirrored={facingMode === "user"}
+                    videoConstraints={{ facingMode }}
+                    className={`aspect-video w-full rounded-xl object-cover transition duration-200 ${isReviewing ? "opacity-25" : "opacity-100"}`}
+                  />
+                  {isReviewing && tempImage && (
+                    <img src={tempImage} alt="camera preview" className="absolute inset-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] rounded-xl object-cover" />
+                  )}
+                  <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-3 rounded-xl bg-gradient-to-b from-slate-950/80 to-transparent px-4 py-3 text-white">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold">????????????</p>
+                      <p className="text-[11px] text-white/75">{isReviewing ? "??????????????????????????????" : "???????????????????????????"}</p>
                     </div>
+                    {isReviewing && (
+                      <span className="inline-flex rounded-full border border-white/15 bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/90">
+                        ????????
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  <div className="p-3">
-                    <Webcam
-                      ref={webcamRef}
-                      audio={false}
-                      screenshotFormat="image/jpeg"
-                      screenshotQuality={0.92}
-                      videoConstraints={{ facingMode: "environment" }}
-                      className="aspect-video w-full rounded-xl object-cover"
-                    />
-                    <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2 rounded-xl bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-[11px] text-white/75">{isReviewing ? "??????????????????????????" : "?????????????/???????"}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {!isReviewing && (
+                        <button
+                          type="button"
+                          onClick={() => setFacingMode((mode) => (mode === "user" ? "environment" : "user"))}
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
+                        >
+                          <FlipHorizontal size={16} />
+                          <span className="hidden sm:inline">?????????</span>
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={capture}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#2b59b0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#244a95]"
+                        onClick={isReviewing ? () => { setIsReviewing(false); setTempImage(null); } : capture}
+                        className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#244a95] transition hover:bg-slate-100"
                       >
                         <Camera size={16} />
-                        ถ่ายรูป
+                        {isReviewing ? "????????" : "???????"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsCameraOpen(false)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700"
-                      >
-                        ปิดกล้อง
-                      </button>
+                      {isReviewing && (
+                        <button
+                          type="button"
+                          onClick={confirmCapture}
+                          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                        >
+                          <Send size={16} />
+                          ?????????
+                        </button>
+                      )}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             )}
           </div>
@@ -577,7 +586,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             </button>
             <button type="submit" disabled={isSubmitting} className={primaryButtonClass}>
               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              {isSubmitting ? "กำลังบันทึก..." : "Submit Ticket"}
+              {isSubmitting ? "กำลังบันทึก..." : "บันทึก Ticket"}
             </button>
           </div>
         </form>
@@ -587,3 +596,4 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
 };
 
 export default WalkInTicketModal;
+

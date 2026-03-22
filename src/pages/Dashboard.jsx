@@ -15,6 +15,20 @@ import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   DASHBOARD_THEME_KEY,
   FILTER_OPTIONS,
   PRIORITY_CONFIG,
@@ -33,6 +47,7 @@ import LogoutConfirmModal from "./dashboard/components/LogoutConfirmModal";
 import DashboardGlobalStyles from "./dashboard/components/DashboardGlobalStyles";
 import SupportSection from "./dashboard/components/SupportSection";
 import CentralChatDock from "../components/CentralChatDock";
+import { loadMyNotebookBorrowLogs, NOTEBOOK_LOG_STATUS } from "../services/notebookBorrowService";
 import tdkLogo from "../../src/assets/2.png";
 
 const MEETING_ROOMS = ["Room A", "Room B", "Room C", "Room D"];
@@ -44,6 +59,53 @@ const ACCESS_REQUEST_STATUS = {
   REJECTED: "Rejected",
   COMPLETED: "Completed",
 };
+
+const TICKET_STATUS_LABELS = {
+  NEW: "รอดำเนินการ",
+  IN_PROGRESS: "กำลังซ่อม",
+  CLOSED: "สำเร็จ",
+};
+
+function buildTicketStatusNotification(previousTicket, nextTicket) {
+  const previousStatus = String(previousTicket?.status || "");
+  const nextStatus = String(nextTicket?.status || "");
+  const previousAssignee = String(previousTicket?.assigned_name || "");
+  const nextAssignee = String(nextTicket?.assigned_name || "");
+  const ticketNo = nextTicket?.ticket_no || `T${String(nextTicket?.id || "").slice(-6).toUpperCase()}`;
+
+  if (nextAssignee && previousAssignee !== nextAssignee && previousStatus === nextStatus) {
+    return {
+      title: "IT รับเคสแล้ว",
+      message: `${ticketNo} มอบหมายให้ ${nextAssignee}`,
+      tone: "indigo",
+    };
+  }
+
+  if (!nextStatus || previousStatus === nextStatus) return null;
+
+  if (nextStatus === "IN_PROGRESS") {
+    return {
+      title: "IT เริ่มดำเนินการแล้ว",
+      message: `${ticketNo} อยู่ระหว่างซ่อม${nextAssignee ? ` โดย ${nextAssignee}` : ""}`,
+      tone: "amber",
+    };
+  }
+
+  if (nextStatus === "CLOSED") {
+    const solutionNote = String(nextTicket?.solution_note || "").trim();
+    return {
+      title: "งานเสร็จเรียบร้อยแล้ว",
+      message: solutionNote ? `${ticketNo} ปิดงานแล้ว: ${solutionNote.slice(0, 80)}` : `${ticketNo} ปิดงานเรียบร้อยแล้ว`,
+      tone: "emerald",
+    };
+  }
+
+  return {
+    title: "Ticket อัปเดตสถานะ",
+    message: `${ticketNo} เปลี่ยนเป็น ${TICKET_STATUS_LABELS[nextStatus] || nextStatus}`,
+    tone: "rose",
+  };
+}
 
 const normalizeClock = (value) => String(value || "").slice(0, 5);
 
@@ -137,9 +199,15 @@ export default function Dashboard() {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [activeRoleViewId, setActiveRoleViewId] = useState("");
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [selectedKpiMetricKey, setSelectedKpiMetricKey] = useState("");
   const [supportChatOpenSignal, setSupportChatOpenSignal] = useState(0);
   const [showMoreQuickActions, setShowMoreQuickActions] = useState(false);
   const [activeTicketId, setActiveTicketId] = useState(null);
+  const [isMessengerOpen, setIsMessengerOpen] = useState(false);
+  const [isOperationalOverviewModalOpen, setIsOperationalOverviewModalOpen] = useState(false);
+  const [isMeetingRoomStatusModalOpen, setIsMeetingRoomStatusModalOpen] = useState(false);
+  const [isRecentActivityModalOpen, setIsRecentActivityModalOpen] = useState(false);
+  const [dashboardNotifications, setDashboardNotifications] = useState([]);
   const [themeMode, setThemeMode] = useState(() => {
     try {
       const persisted = localStorage.getItem(DASHBOARD_THEME_KEY);
@@ -166,6 +234,8 @@ export default function Dashboard() {
   const [accessRequestHighlights, setAccessRequestHighlights] = useState([]);
   const [accessRequestLoading, setAccessRequestLoading] = useState(true);
   const [accessRequestError, setAccessRequestError] = useState("");
+  const [workNotesPendingCount, setWorkNotesPendingCount] = useState(0);
+  const [notebookAttentionCount, setNotebookAttentionCount] = useState(0);
   const [isCompactView, setIsCompactView] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 1279px)").matches;
@@ -174,6 +244,7 @@ export default function Dashboard() {
   const meetingRoomChannelRef = useRef(null);
   const accessRequestChannelRef = useRef(null);
   const searchInputRef = useRef(null);
+  const notificationTimeoutsRef = useRef(new Map());
 
   // ============================================
   // âœ… REAL-TIME SUBSCRIPTION (Supabase Realtime)
@@ -214,8 +285,11 @@ export default function Dashboard() {
 
           setLastUpdated(new Date());
 
-          if (payload.eventType === 'UPDATE' && payload.new?.status === 'CLOSED') {
-            showUpdateNotification('งานซ่อมสำเร็จแล้ว!', `Ticket #${payload.new.ticket_no} ปิดเรียบร้อย`);
+          if (payload.eventType === "UPDATE") {
+            const nextNotification = buildTicketStatusNotification(payload.old, payload.new);
+            if (nextNotification) {
+              showUpdateNotification(nextNotification.title, nextNotification.message, nextNotification.tone);
+            }
           }
         }
       )
@@ -486,6 +560,33 @@ export default function Dashboard() {
         calculateSlaStats(ticketsData);
       }
 
+      const [workNotesRes, notebookLogsRes] = await Promise.all([
+        supabase
+          .from("notes")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .neq("status", "DONE"),
+        loadMyNotebookBorrowLogs(),
+      ]);
+
+      if (!workNotesRes.error) {
+        setWorkNotesPendingCount(Number(workNotesRes.count || 0));
+      } else {
+        setWorkNotesPendingCount(0);
+      }
+
+      if (!notebookLogsRes.error) {
+        const notebookLogs = Array.isArray(notebookLogsRes.data) ? notebookLogsRes.data : [];
+        const attentionCount = notebookLogs.filter((log) =>
+          log?.status === NOTEBOOK_LOG_STATUS.PENDING ||
+          log?.status === NOTEBOOK_LOG_STATUS.APPROVED ||
+          (log?.status === NOTEBOOK_LOG_STATUS.RETURNED && !log?.return_confirmed_at)
+        ).length;
+        setNotebookAttentionCount(attentionCount);
+      } else {
+        setNotebookAttentionCount(0);
+      }
+
       await fetchAccessRequestSummary({ userId: user.id, role: resolvedRole });
       setupAccessRequestRealtime(user.id, resolvedRole);
 
@@ -577,7 +678,10 @@ export default function Dashboard() {
 
       if (event.key === "/" && !isTypingField) {
         event.preventDefault();
-        searchInputRef.current?.focus();
+        setIsRecentActivityModalOpen(true);
+        window.setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 0);
         return;
       }
 
@@ -609,6 +713,40 @@ export default function Dashboard() {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [showProfileDetails]);
+
+  useEffect(() => {
+    const hasUtilityModalOpen =
+      Boolean(selectedKpiMetricKey) ||
+      isOperationalOverviewModalOpen ||
+      isMeetingRoomStatusModalOpen ||
+      isRecentActivityModalOpen;
+    if (!hasUtilityModalOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setSelectedKpiMetricKey("");
+        setIsOperationalOverviewModalOpen(false);
+        setIsMeetingRoomStatusModalOpen(false);
+        setIsRecentActivityModalOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [selectedKpiMetricKey, isOperationalOverviewModalOpen, isMeetingRoomStatusModalOpen, isRecentActivityModalOpen]);
+
+  useEffect(() => {
+    return () => {
+      notificationTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      notificationTimeoutsRef.current.clear();
+    };
+  }, []);
 
   // ============================================
   // âœ… BUSINESS LOGIC
@@ -1141,6 +1279,252 @@ export default function Dashboard() {
     ];
   }, [tickets, profile?.role]);
 
+  const openTicketCount = useMemo(
+    () => tickets.filter((ticket) => ticket.status !== "CLOSED").length,
+    [tickets],
+  );
+
+  const operationalSnapshot = useMemo(() => {
+    const snapshot = {
+      total: tickets.length,
+      open: 0,
+      new: 0,
+      inProgress: 0,
+      closed: 0,
+      otherOpen: 0,
+      risk: 0,
+      overdue: 0,
+    };
+
+    tickets.forEach((ticket) => {
+      const status = String(ticket.status || "").toUpperCase();
+
+      if (status === "CLOSED") {
+        snapshot.closed += 1;
+        return;
+      }
+
+      snapshot.open += 1;
+
+      if (status === "NEW") {
+        snapshot.new += 1;
+      } else if (status === "IN_PROGRESS") {
+        snapshot.inProgress += 1;
+      } else {
+        snapshot.otherOpen += 1;
+      }
+
+      const slaState = getSlaState(ticket);
+      if (slaState === "RISK") snapshot.risk += 1;
+      if (slaState === "OVERDUE") snapshot.overdue += 1;
+    });
+
+    return snapshot;
+  }, [tickets]);
+
+  const meetingRealtimeSummary = useMemo(() => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const activeBookings = normalizedTodayMeetingBookings.filter((booking) => {
+      const startMinutes = clockToMinutes(booking.startClock);
+      const endMinutes = clockToMinutes(booking.endClock);
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    });
+
+    return {
+      activeRoomCount: new Set(activeBookings.map((booking) => String(booking.room_name || "ไม่ระบุห้อง"))).size,
+      totalRooms: todayRoomStatusCards.length,
+      activeBookings,
+    };
+  }, [normalizedTodayMeetingBookings, todayRoomStatusCards]);
+
+  const operationalStatusChartData = useMemo(() => {
+    const rows = [
+      { key: "NEW", label: "รอดำเนินการ", value: operationalSnapshot.new, fill: "#f59e0b" },
+      { key: "IN_PROGRESS", label: "กำลังซ่อม", value: operationalSnapshot.inProgress, fill: "#2563eb" },
+      { key: "CLOSED", label: "ปิดงาน", value: operationalSnapshot.closed, fill: "#10b981" },
+    ];
+
+    if (operationalSnapshot.otherOpen > 0) {
+      rows.push({ key: "OTHER", label: "สถานะอื่น", value: operationalSnapshot.otherOpen, fill: "#64748b" });
+    }
+
+    return rows;
+  }, [operationalSnapshot]);
+
+  const operationalTrendData = useMemo(() => {
+    const days = 7;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const rows = Array.from({ length: days }, (_, index) => {
+      const date = new Date(now);
+      date.setDate(now.getDate() - (days - 1 - index));
+
+      return {
+        key: format(date, "yyyy-MM-dd"),
+        label: format(date, "dd MMM", { locale: th }),
+        created: 0,
+        closed: 0,
+      };
+    });
+
+    const rowByKey = new Map(rows.map((row) => [row.key, row]));
+
+    tickets.forEach((ticket) => {
+      const createdKey = extractDateKey(ticket.created_at);
+      if (rowByKey.has(createdKey)) {
+        rowByKey.get(createdKey).created += 1;
+      }
+
+      const closedKey = extractDateKey(ticket.closed_at);
+      if (rowByKey.has(closedKey)) {
+        rowByKey.get(closedKey).closed += 1;
+      }
+    });
+
+    return rows;
+  }, [tickets]);
+
+  const operationalLoadData = useMemo(() => {
+    const rows = [
+      { name: "Ticket ค้าง", value: operationalSnapshot.open, fill: "#2563eb" },
+      { name: "ประชุมวันนี้", value: todayMeetingBookings.length, fill: "#14b8a6" },
+      { name: "Notebook", value: notebookAttentionCount, fill: "#8b5cf6" },
+      { name: "สิทธิ์รออนุมัติ", value: accessRequestSummary.pending, fill: "#f97316" },
+      { name: "โน้ตค้าง", value: workNotesPendingCount, fill: "#0ea5e9" },
+    ].filter((row) => row.value > 0);
+
+    if (rows.length > 0) return rows;
+
+    return [{ name: "ยังไม่มีคิว", value: 1, fill: "#cbd5e1", isPlaceholder: true }];
+  }, [
+    accessRequestSummary.pending,
+    notebookAttentionCount,
+    operationalSnapshot.open,
+    todayMeetingBookings.length,
+    workNotesPendingCount,
+  ]);
+
+  const operationalLoadTotal = useMemo(
+    () => operationalSnapshot.open + todayMeetingBookings.length + notebookAttentionCount + accessRequestSummary.pending + workNotesPendingCount,
+    [accessRequestSummary.pending, notebookAttentionCount, operationalSnapshot.open, todayMeetingBookings.length, workNotesPendingCount],
+  );
+
+  const operationalCategoryList = useMemo(() => {
+    const bucket = new Map();
+
+    tickets
+      .filter((ticket) => ticket.status !== "CLOSED")
+      .forEach((ticket) => {
+        const category = String(ticket.category || "ไม่ระบุหมวดหมู่").trim() || "ไม่ระบุหมวดหมู่";
+        bucket.set(category, (bucket.get(category) || 0) + 1);
+      });
+
+    return [...bucket.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((left, right) => right.value - left.value)
+      .slice(0, 4);
+  }, [tickets]);
+
+  const operationalOverviewStats = useMemo(
+    () => [
+      {
+        key: "open",
+        label: "งานค้างเปิด",
+        value: operationalSnapshot.open,
+        helper: `${operationalSnapshot.new} ใหม่ / ${operationalSnapshot.inProgress} กำลังซ่อม`,
+        icon: BarChart3,
+        iconWrap: "bg-indigo-50",
+        iconColor: "text-indigo-600",
+        valueColor: "text-indigo-700",
+      },
+      {
+        key: "progress",
+        label: "กำลังซ่อม",
+        value: operationalSnapshot.inProgress,
+        helper: "ติดตามงานที่กำลังดำเนินการอยู่",
+        icon: Wrench,
+        iconWrap: "bg-blue-50",
+        iconColor: "text-blue-600",
+        valueColor: "text-blue-700",
+      },
+      {
+        key: "sla",
+        label: "เสี่ยงหรือเกิน SLA",
+        value: operationalSnapshot.risk + operationalSnapshot.overdue,
+        helper: `${operationalSnapshot.overdue} งานเกิน SLA แล้ว`,
+        icon: Timer,
+        iconWrap: "bg-amber-50",
+        iconColor: "text-amber-600",
+        valueColor: "text-amber-700",
+      },
+      {
+        key: "meeting-now",
+        label: "ห้องใช้งานตอนนี้",
+        value: meetingRealtimeSummary.activeRoomCount,
+        helper: `จาก ${meetingRealtimeSummary.totalRooms} ห้อง, วันนี้ ${todayMeetingBookings.length} รายการ`,
+        icon: Calendar,
+        iconWrap: "bg-cyan-50",
+        iconColor: "text-cyan-600",
+        valueColor: "text-cyan-700",
+      },
+      {
+        key: "notebook",
+        label: "Notebook ต้องติดตาม",
+        value: notebookAttentionCount,
+        helper: "คำขอยืม-คืนและรายการที่รอจัดการ",
+        icon: Laptop,
+        iconWrap: "bg-violet-50",
+        iconColor: "text-violet-600",
+        valueColor: "text-violet-700",
+      },
+      {
+        key: "access",
+        label: "สิทธิ์รออนุมัติ",
+        value: accessRequestSummary.pending,
+        helper: "คำขอ workflow ที่ยังไม่ปิดงาน",
+        icon: ShieldCheck,
+        iconWrap: "bg-emerald-50",
+        iconColor: "text-emerald-600",
+        valueColor: "text-emerald-700",
+      },
+    ],
+    [
+      accessRequestSummary.pending,
+      meetingRealtimeSummary.activeRoomCount,
+      meetingRealtimeSummary.totalRooms,
+      notebookAttentionCount,
+      operationalSnapshot.inProgress,
+      operationalSnapshot.new,
+      operationalSnapshot.open,
+      operationalSnapshot.overdue,
+      operationalSnapshot.risk,
+      todayMeetingBookings.length,
+    ],
+  );
+
+  const operationalBadgeCount = useMemo(
+    () => Math.min(
+      operationalSnapshot.open +
+      accessRequestSummary.pending +
+      notebookAttentionCount +
+      meetingRealtimeSummary.activeRoomCount,
+      99,
+    ),
+    [
+      accessRequestSummary.pending,
+      meetingRealtimeSummary.activeRoomCount,
+      notebookAttentionCount,
+      operationalSnapshot.open,
+    ],
+  );
+
+  const upcomingMeetingCount = useMemo(
+    () => normalizedUpcomingMeetingBookings.length,
+    [normalizedUpcomingMeetingBookings],
+  );
+
   const quickActions = useMemo(() => {
     const role = profile?.role || "user";
     const items = [
@@ -1152,6 +1536,7 @@ export default function Dashboard() {
         accent: "indigo",
         cta: "ดำเนินการทันที",
         onClick: () => navigate("/create-ticket"),
+        badgeCount: openTicketCount,
         roles: ["user", "it_support", "admin"],
       },
       {
@@ -1162,6 +1547,7 @@ export default function Dashboard() {
         accent: "emerald",
         cta: "ตรวจสอบสต็อก",
         onClick: () => navigate("/pick-up-equipment"),
+        badgeCount: accessRequestSummary.pending,
         roles: ["user", "it_support", "admin"],
       },
       {
@@ -1172,6 +1558,7 @@ export default function Dashboard() {
         accent: "violet",
         cta: "เปิดหน้า Notebook",
         onClick: () => navigate("/notebook-center"),
+        badgeCount: notebookAttentionCount,
         roles: ["user", "it_support", "admin"],
       },
       {
@@ -1182,6 +1569,7 @@ export default function Dashboard() {
         accent: "indigo",
         cta: "เปิดหน้าโน้ต",
         onClick: () => navigate("/work-notes"),
+        badgeCount: workNotesPendingCount,
         roles: ["user", "it_support", "admin", "auditor"],
       },
       {
@@ -1192,6 +1580,7 @@ export default function Dashboard() {
         accent: "sky",
         cta: "เปิดหน้าจอง",
         onClick: () => navigate("/meeting-room-booking"),
+        badgeCount: upcomingMeetingCount,
         roles: ["user", "it_support", "admin"],
       },
       {
@@ -1208,6 +1597,7 @@ export default function Dashboard() {
               tickets,
             },
           }),
+        badgeCount: openTicketCount,
         roles: ["user", "it_support", "admin", "auditor"],
       },
       {
@@ -1263,7 +1653,7 @@ export default function Dashboard() {
     ];
 
     return items.filter((item) => item.roles.includes(role));
-  }, [profile?.role, navigate, activeFilter, tickets]);
+  }, [accessRequestSummary.pending, activeFilter, navigate, notebookAttentionCount, openTicketCount, profile?.role, tickets, upcomingMeetingCount, workNotesPendingCount]);
 
   const primaryQuickActionIds = useMemo(
     () => new Set(["create-ticket", "pick-up", "notebook-center", "work-notes", "meeting-room-booking", "history"]),
@@ -1315,6 +1705,21 @@ export default function Dashboard() {
   const TEXT_SECONDARY_CLASS = isDarkTheme ? "text-slate-300" : "text-slate-800";
   const TEXT_MUTED_CLASS = isDarkTheme ? "text-slate-400" : "text-slate-700";
   const TEXT_SUBTLE_CLASS = isDarkTheme ? "text-slate-500" : "text-slate-600";
+  const CHART_AXIS_COLOR = isDarkTheme ? "#94a3b8" : "#64748b";
+  const CHART_GRID_COLOR = isDarkTheme ? "#334155" : "#cbd5e1";
+  const CHART_TOOLTIP_STYLE = isDarkTheme
+    ? {
+      backgroundColor: "#0f172a",
+      border: "1px solid #334155",
+      borderRadius: "1rem",
+      color: "#e2e8f0",
+    }
+    : {
+      backgroundColor: "#ffffff",
+      border: "1px solid #dbeafe",
+      borderRadius: "1rem",
+      color: "#0f172a",
+    };
   const QUICK_ACTIONS_HEADING_CLASS = `text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`;
   const QUICK_ACTIONS_TITLE_CLASS = `text-sm sm:text-base font-black ${TEXT_PRIMARY_CLASS}`;
   const QUICK_ACTIONS_DESCRIPTION_CLASS = `text-[11px] leading-relaxed ${TEXT_MUTED_CLASS}`;
@@ -1466,47 +1871,37 @@ export default function Dashboard() {
     if (!isSameView) setActiveRoleViewId("");
   }, [activeRoleViewId, roleViews, activeFilter, priorityFilter, categoryFilter, slaFilter, searchQuery]);
 
-  const showUpdateNotification = (title, message) => {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `
-      fixed top-4 right-4 z-[9999] 
-      bg-gradient-to-r from-indigo-600 to-purple-600 
-      text-white p-4 rounded-xl shadow-2xl 
-      max-w-sm animate-slide-in-right
-      border-l-4 border-emerald-400
-    `;
+  const dismissDashboardNotification = useCallback((notificationId) => {
+    const activeTimer = notificationTimeoutsRef.current.get(notificationId);
+    if (activeTimer) {
+      window.clearTimeout(activeTimer);
+      notificationTimeoutsRef.current.delete(notificationId);
+    }
 
-    notification.innerHTML = `
-      <div class="flex items-start gap-3">
-        <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-        </div>
-        <div class="flex-1">
-          <p class="font-bold text-sm">${title}</p>
-          <p class="text-xs opacity-90 mt-1">${message}</p>
-        </div>
-        <button class="text-white/60 hover:text-white">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg>
-        </button>
-      </div>
-    `;
+    setDashboardNotifications((previous) =>
+      previous.filter((notification) => notification.id !== notificationId),
+    );
+  }, []);
 
-    document.body.appendChild(notification);
+  function showUpdateNotification(title, message, tone = "indigo") {
+    const notificationId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-      notification.classList.add('animate-fade-out');
-      setTimeout(() => notification.remove(), 300);
+    setDashboardNotifications((previous) => [
+      ...previous.slice(-2),
+      {
+        id: notificationId,
+        title,
+        message,
+        tone,
+      },
+    ]);
+
+    const timeoutId = window.setTimeout(() => {
+      dismissDashboardNotification(notificationId);
     }, 5000);
 
-    // Close button handler
-    notification.querySelector('button').onclick = () => notification.remove();
-  };
+    notificationTimeoutsRef.current.set(notificationId, timeoutId);
+  }
 
   // ============================================
   // âœ… RENDER FUNCTIONS
@@ -1542,6 +1937,84 @@ export default function Dashboard() {
     );
   };
 
+  const selectedKpiMetric = useMemo(() => {
+    if (!selectedKpiMetricKey) return null;
+
+    const now = new Date();
+    const rollingWindowStart = new Date(now);
+    rollingWindowStart.setDate(rollingWindowStart.getDate() - 7);
+
+    const sortByRecent = (items) =>
+      [...items].sort(
+        (left, right) =>
+          new Date(right.updated_at || right.closed_at || right.created_at || 0).getTime() -
+          new Date(left.updated_at || left.closed_at || left.created_at || 0).getTime(),
+      );
+
+    const isWithinRollingWindow = (value) => {
+      if (!value) return false;
+      const date = new Date(value);
+      return date >= rollingWindowStart && date <= now;
+    };
+
+    let title = "";
+    let description = "";
+    let items = [];
+
+    switch (selectedKpiMetricKey) {
+      case "status-new":
+        title = "รอดำเนินการ";
+        description = "Ticket ที่สร้างแล้วและยังรอเริ่มดำเนินการ";
+        items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() === "NEW");
+        break;
+      case "status-progress":
+        title = "กำลังซ่อม";
+        description = "Ticket ที่ทีมกำลังดำเนินการอยู่ในตอนนี้";
+        items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() === "IN_PROGRESS");
+        break;
+      case "status-closed":
+        title = "ปิดงานแล้ว";
+        description = "Ticket ที่ปิดเรียบร้อยแล้วทั้งหมด";
+        items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() === "CLOSED");
+        break;
+      case "status-total":
+        title = "งานที่แจ้งทั้งหมด";
+        description = "Ticket ทั้งหมดที่อยู่ในระบบ ณ ตอนนี้";
+        items = tickets;
+        break;
+      case "open":
+        title = "งานเปิดใหม่ 7 วันล่าสุด";
+        description = "งานที่เปิดเข้ามาในรอบ 7 วันและยังไม่ปิด";
+        items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() !== "CLOSED" && isWithinRollingWindow(ticket.created_at));
+        break;
+      case "risk":
+        title = "งานเสี่ยง SLA";
+        description = "งานที่ยังไม่ปิดและมีความเสี่ยงหลุด SLA";
+        items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() !== "CLOSED" && getSlaState(ticket) === "RISK");
+        break;
+      case "overdue":
+        title = "งานเกิน SLA";
+        description = "งานที่เกิน SLA แล้วและควรเร่งติดตาม";
+        items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() !== "CLOSED" && getSlaState(ticket) === "OVERDUE");
+        break;
+      case "closed":
+        title = "งานปิดแล้ว 7 วันล่าสุด";
+        description = "งานที่ปิดสำเร็จในรอบ 7 วันที่ผ่านมา";
+        items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() === "CLOSED" && isWithinRollingWindow(ticket.closed_at));
+        break;
+      default:
+        return null;
+    }
+
+    return {
+      key: selectedKpiMetricKey,
+      title,
+      description,
+      total: items.length,
+      items: sortByRecent(items).slice(0, 12),
+    };
+  }, [selectedKpiMetricKey, tickets]);
+
   const renderStatsCards = () => {
     return (
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
@@ -1557,9 +2030,11 @@ export default function Dashboard() {
                 : (card.trend.direction === "up" ? "text-emerald-600" : "text-rose-600");
 
           return (
-            <div
+            <button
               key={card.key}
-              className={`rounded-2xl border p-3 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75" : "border-blue-100/80 bg-white/95 shadow-blue-100/40"}`}
+              type="button"
+              onClick={() => setSelectedKpiMetricKey(card.key)}
+              className={`rounded-2xl border p-3 text-left shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75 focus-visible:ring-indigo-400" : "border-blue-100/80 bg-white/95 shadow-blue-100/40 focus-visible:ring-blue-300"}`}
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -1584,10 +2059,165 @@ export default function Dashboard() {
                   <p className={`mt-1 ${STAT_HELPER_TEXT_CLASS}`}>{card.helperText}</p>
                 </div>
               )}
-            </div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className={`text-[11px] font-bold uppercase tracking-[0.16em] ${TEXT_SUBTLE_CLASS}`}>แตะเพื่อดูรายละเอียด</span>
+                <ChevronRight size={14} className={isDarkTheme ? "text-slate-500" : "text-slate-400"} />
+              </div>
+            </button>
           );
         })}
       </div>
+    );
+  };
+
+  const renderOperationalMiniDashboard = () => {
+    const loadLegend = operationalLoadData.filter((item) => !item.isPlaceholder).slice(0, 3);
+
+    return (
+      <section className={`overflow-hidden rounded-[2rem] border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <BarChart3 size={16} className="text-emerald-500" />
+              <h3 className={QUICK_ACTIONS_HEADING_CLASS}>Operational Dashboard</h3>
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/30 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                live
+              </span>
+            </div>
+            <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>ภาพรวมหน้างานแบบมินิ ดูคิวปัจจุบัน เทรนด์ 7 วัน และ workload ข้ามโมดูลในบล็อกเดียว</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-white text-slate-700"}`}>
+              Sync: {lastUpdated ? formatDateTime(lastUpdated) : "กำลังโหลด"}
+            </span>
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-amber-700/60 bg-amber-900/30 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+              SLA watch {operationalSnapshot.risk + operationalSnapshot.overdue}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsOperationalOverviewModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#2b59b0] to-indigo-600 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/20"
+            >
+              ดูภาพเต็ม
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.05fr)_minmax(280px,0.85fr)]">
+          <button
+            type="button"
+            onClick={() => setIsOperationalOverviewModalOpen(true)}
+            className={`rounded-[1.5rem] border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${isDarkTheme ? "border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800/80" : "border-slate-200 bg-gradient-to-br from-white to-blue-50/80"}`}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Queue Status</p>
+                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>งานค้าง {operationalSnapshot.open} รายการ</p>
+              </div>
+              <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isDarkTheme ? "bg-slate-700 text-slate-200" : "bg-white text-slate-600"}`}>
+                now
+              </span>
+            </div>
+            <div className="h-28">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={operationalStatusChartData} margin={{ top: 6, right: 4, left: -22, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} รายการ`, "จำนวน"]} />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                    {operationalStatusChartData.map((entry) => (
+                      <Cell key={`mini-status-${entry.key}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsOperationalOverviewModalOpen(true)}
+            className={`rounded-[1.5rem] border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${isDarkTheme ? "border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800/80" : "border-slate-200 bg-gradient-to-br from-white to-indigo-50/70"}`}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>7-Day Motion</p>
+                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>เปิดใหม่เทียบกับปิดงาน</p>
+              </div>
+              <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isDarkTheme ? "bg-slate-700 text-slate-200" : "bg-white text-slate-600"}`}>
+                7 days
+              </span>
+            </div>
+            <div className="h-28">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={operationalTrendData} margin={{ top: 6, right: 4, left: -22, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name === "created" ? "เปิดใหม่" : "ปิดงาน"]} />
+                  <Line type="monotone" dataKey="created" stroke="#2563eb" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="closed" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsOperationalOverviewModalOpen(true)}
+            className={`rounded-[1.5rem] border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${isDarkTheme ? "border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800/80" : "border-slate-200 bg-gradient-to-br from-white to-cyan-50/70"}`}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Workload Mix</p>
+                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{operationalLoadTotal} รายการที่ต้องตาม</p>
+              </div>
+              <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isDarkTheme ? "bg-slate-700 text-slate-200" : "bg-white text-slate-600"}`}>
+                multi-source
+              </span>
+            </div>
+            <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3">
+              <div className="relative h-28">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name]} />
+                    <Pie data={operationalLoadData} dataKey="value" nameKey="name" innerRadius={28} outerRadius={42} paddingAngle={3} stroke="transparent">
+                      {operationalLoadData.map((entry, index) => (
+                        <Cell key={`mini-load-${entry.name}-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className={`text-[9px] font-black uppercase tracking-[0.16em] ${TEXT_SUBTLE_CLASS}`}>Live</p>
+                    <p className={`text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{operationalLoadTotal}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {loadLegend.length > 0 ? (
+                  loadLegend.map((item) => (
+                    <div key={`mini-load-label-${item.name}`} className="flex items-center justify-between gap-2">
+                      <span className={`inline-flex min-w-0 items-center gap-2 text-[11px] font-bold ${TEXT_SECONDARY_CLASS}`}>
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.fill }} />
+                        <span className="truncate">{item.name}</span>
+                      </span>
+                      <span className={`text-xs font-black ${TEXT_PRIMARY_CLASS}`}>{item.value}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className={`text-xs ${TEXT_MUTED_CLASS}`}>ยังไม่มี workload เพิ่มเติม</p>
+                )}
+              </div>
+            </div>
+          </button>
+        </div>
+      </section>
     );
   };
 
@@ -1762,7 +2392,7 @@ export default function Dashboard() {
 
       {/* Navigation */}
       <nav className={`sticky top-0 z-40 shrink-0 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
-        <div className="mx-auto flex min-h-[56px] max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 py-2 sm:min-h-[64px] sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[56px] max-w-[1440px] items-center gap-3 px-4 py-2 sm:min-h-[64px] sm:px-6 lg:px-8">
           <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border p-1.5 shadow-sm sm:flex-none ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
             <div className="relative">
               <img
@@ -1788,55 +2418,86 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <div className={`hidden lg:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
-              <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
-                <Hash size={12} />
-                ID: {profile?.employee_code || "ไม่ระบุ"}
-              </span>
-              <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
-                <Building2 size={12} />
-                {profile?.department || "ไม่ระบุแผนก"}
-              </span>
+          <div className="ml-auto flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-w-max items-center gap-2 sm:gap-3 pr-1">
+                <div className={`flex items-center gap-2 rounded-2xl border p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+                  <button
+                    type="button"
+                    onClick={() => setIsMeetingRoomStatusModalOpen(true)}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                  >
+                    <Calendar size={16} />
+                    <span className="hidden 2xl:inline">Meeting Room Status</span>
+                    <span className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
+                      {todayMeetingBookings.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsRecentActivityModalOpen(true)}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                  >
+                    <Clock size={16} />
+                    <span className="hidden 2xl:inline">กิจกรรมล่าสุด</span>
+                    <span className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-amber-900/40 text-amber-300" : "bg-amber-50 text-amber-700"}`}>
+                      {Math.min(filteredTickets.length, 99)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    aria-label={isDarkTheme ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-2.5 sm:px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                  >
+                    {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
+                    <span className="hidden lg:inline">{isDarkTheme ? "โหมดสว่าง" : "โหมดมืด"}</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={isDarkTheme ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
-              className={`inline-flex items-center gap-2 rounded-xl border px-2.5 sm:px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
-            >
-              {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
-              <span className="hidden sm:inline">{isDarkTheme ? "โหมดสว่าง" : "โหมดมืด"}</span>
-            </button>
-            <button
-              onClick={() => navigate("/create-ticket")}
-              className="inline-flex sm:hidden items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-white shadow-sm"
-              aria-label="แจ้งซ่อมใหม่"
-            >
-              <Plus size={18} />
-            </button>
-            <button
-              onClick={() => navigate("/create-ticket")}
-              className="hidden sm:flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-white font-bold transition-all transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 active:translate-y-0"
-            >
-              <Plus size={18} />
-              <span>แจ้งซ่อมใหม่</span>
-            </button>
-            <button
-              onClick={() => setIsLogoutConfirmOpen(true)}
-              className={`flex items-center gap-2 rounded-xl px-2.5 sm:px-4 py-2 text-sm font-bold text-rose-600 transition-all ${isDarkTheme ? "hover:bg-rose-900/30" : "hover:bg-rose-50"}`}
-            >
-              <LogOut size={18} />
-              <span className="hidden sm:inline">ออกจากระบบ</span>
-            </button>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <div className={`hidden xl:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+                <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
+                  <Hash size={12} />
+                  ID: {profile?.employee_code || "ไม่ระบุ"}
+                </span>
+                <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
+                  <Building2 size={12} />
+                  {profile?.department || "ไม่ระบุแผนก"}
+                </span>
+              </div>
+              <button
+                onClick={() => navigate("/create-ticket")}
+                className="inline-flex sm:hidden items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-white shadow-sm"
+                aria-label="แจ้งซ่อมใหม่"
+              >
+                <Plus size={18} />
+              </button>
+              <button
+                onClick={() => navigate("/create-ticket")}
+                className="hidden lg:flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-white font-bold transition-all transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 active:translate-y-0"
+              >
+                <Plus size={18} />
+                <span>แจ้งซ่อมใหม่</span>
+              </button>
+              <button
+                onClick={() => setIsLogoutConfirmOpen(true)}
+                className={`flex shrink-0 items-center gap-2 rounded-xl px-2.5 sm:px-3 lg:px-4 py-2 text-sm font-bold text-rose-600 transition-all ${isDarkTheme ? "hover:bg-rose-900/30" : "hover:bg-rose-50"}`}
+              >
+                <LogOut size={18} />
+                <span className="hidden md:inline">ออกจากระบบ</span>
+              </button>
+            </div>
           </div>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main id="dashboard-main-content" className="mx-auto flex w-full max-w-[1440px] flex-col px-4 pt-3 pb-6 sm:px-6 sm:pt-4 sm:pb-8 lg:px-8 lg:pb-6">
+      <main id="dashboard-main-content" className="mx-auto flex w-full max-w-[1440px] flex-col px-4 pt-3 pb-28 sm:px-6 sm:pt-4 sm:pb-12 lg:px-8 lg:pb-8">
         {/* Header Section */}
-        <header className="mb-4 shrink-0">
+        <header className="mb-4 shrink-0 space-y-3">
           {/* Stats Overview */}
           {renderStatsCards()}
         </header>
@@ -2011,8 +2672,13 @@ export default function Dashboard() {
                       className={`group h-full rounded-[28px] border p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"} ${accent.hoverBorder} ${accent.hoverShadow}`}
                     >
                       <div className="mb-4 flex items-start justify-between gap-3">
-                        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg}`}>
+                        <div className={`relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg}`}>
                           <Icon size={20} />
+                          {action.badgeCount > 0 && (
+                            <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full border border-white bg-rose-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white shadow-sm">
+                              {action.badgeCount > 9 ? "9+" : action.badgeCount}
+                            </span>
+                          )}
                         </div>
                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${accent.pill}`}>
                           {action.cta}
@@ -2034,18 +2700,19 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => setShowMoreQuickActions((value) => !value)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-300 ${isDarkTheme ? "border-slate-700 bg-slate-900/60 text-slate-100 hover:bg-slate-900" : "border-blue-100 bg-white text-slate-800 hover:bg-blue-50/70"}`}
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all duration-300 ${isDarkTheme ? "border-slate-700 bg-slate-900/60 text-slate-100 hover:bg-slate-900" : "border-blue-100 bg-white text-slate-800 hover:bg-blue-50/70"}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${isDarkTheme ? "bg-slate-800 text-slate-200" : "bg-blue-50 text-[#2b59b0]"}`}>
-                        {showMoreQuickActions ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${isDarkTheme ? "bg-slate-800 text-slate-200" : "bg-blue-50 text-[#2b59b0]"}`}>
+                        <Plus size={13} />
                       </div>
-                      <div>
-                        <p className="text-sm font-black">ดูรายการทั้งหมด</p>
-                        <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{secondaryQuickActions.length} รายการเพิ่มเติม</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black leading-tight">ดูรายการทั้งหมด</p>
+                        <p className={`text-[11px] leading-tight ${TEXT_MUTED_CLASS}`}>{secondaryQuickActions.length} รายการเพิ่มเติม</p>
                       </div>
                     </div>
-                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${isDarkTheme ? "border-slate-700 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${isDarkTheme ? "border-slate-700 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                      {showMoreQuickActions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       {showMoreQuickActions ? "ซ่อน" : "แสดง"}
                     </span>
                   </button>
@@ -2128,7 +2795,7 @@ export default function Dashboard() {
               )}
             </section>
 
-            <section className={`order-2 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
+            <section className={`hidden order-2 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="mb-1 flex items-center gap-2">
@@ -2485,7 +3152,7 @@ export default function Dashboard() {
               )}
 
               {/* Recent Activity */}
-              <section className={`order-1 rounded-3xl border p-4 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md sm:p-5 lg:order-1 ${SURFACE_SECTION_CLASS}`}>
+              <section className={`hidden order-1 rounded-3xl border p-4 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md sm:p-5 lg:order-1 ${SURFACE_SECTION_CLASS}`}>
                 <div className="mb-4">
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                     <div>
@@ -2791,8 +3458,15 @@ export default function Dashboard() {
               </section>
             </div>
             {/* Support Section */}
-            <SupportSection onOpenChat={() => setSupportChatOpenSignal((value) => value + 1)} />
+            <SupportSection
+              hidden={isMessengerOpen}
+              onOpenChat={() => setSupportChatOpenSignal((value) => value + 1)}
+            />
           </div>
+        </div>
+
+        <div className="mt-4">
+          {renderOperationalMiniDashboard()}
         </div>
       </main>
 
@@ -2822,8 +3496,795 @@ export default function Dashboard() {
           avatar: profile?.avatar_url || profile?.id_card_url || "",
         }}
         openSignal={supportChatOpenSignal}
+        onOpenChange={setIsMessengerOpen}
         className="bottom-4 left-4 sm:bottom-6 sm:left-6"
       />
+
+      {selectedKpiMetric && (
+        <div className="fixed inset-0 z-[103] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+          <button
+            type="button"
+            aria-label="ปิดรายละเอียด KPI"
+            onClick={() => setSelectedKpiMetricKey("")}
+            className="absolute inset-0"
+          />
+          <section className={`relative z-10 flex w-full max-w-5xl max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-[2rem] border shadow-[0_28px_70px_-26px_rgba(43,89,176,0.42)] ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-800"}`}>
+            <div className="shrink-0 border-b border-slate-200/70 px-4 py-4 sm:px-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 size={16} className="text-indigo-500" />
+                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>KPI Detail</p>
+                  </div>
+                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{selectedKpiMetric.title}</h3>
+                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>{selectedKpiMetric.description}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedKpiMetricKey("")}
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200" : "border-slate-200 bg-white text-slate-600"}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <article className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>จำนวนทั้งหมด</p>
+                  <p className={`mt-2 text-3xl font-black ${TEXT_PRIMARY_CLASS}`}>{selectedKpiMetric.total}</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>รายการที่ตรงกับ KPI นี้</p>
+                </article>
+                <article className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>แสดงใน popup</p>
+                  <p className={`mt-2 text-3xl font-black ${TEXT_PRIMARY_CLASS}`}>{selectedKpiMetric.items.length}</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>สูงสุด 12 รายการล่าสุด</p>
+                </article>
+                <article className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>วิธีใช้งาน</p>
+                  <p className={`mt-2 text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>กดที่รายการเพื่อเปิดรายละเอียด ticket</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>เหมาะสำหรับ drill-down จากตัวเลขสรุปทันที</p>
+                </article>
+              </div>
+
+              {selectedKpiMetric.items.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedKpiMetric.items.map((ticket) => {
+                    const statusConfig = getStatusConfig(ticket.status);
+                    const priorityConfig = getPriorityConfig(ticket.priority);
+
+                    return (
+                      <button
+                        key={`kpi-modal-${selectedKpiMetric.key}-${ticket.id}`}
+                        type="button"
+                        onClick={() => setSelectedTicket(ticket)}
+                        className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${isDarkTheme ? "border-slate-700 bg-slate-800/80 hover:bg-slate-800" : "border-slate-200 bg-white hover:border-indigo-200"}`}
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <span className={`rounded px-2 py-0.5 text-xs font-bold ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
+                                {ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase()}`}
+                              </span>
+                              <span className={`rounded px-2 py-0.5 text-xs font-bold text-white ${priorityConfig.color}`}>
+                                {priorityConfig.label}
+                              </span>
+                              <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${statusConfig.bg} ${statusConfig.color} ${statusConfig.border}`}>
+                                {statusConfig.label}
+                              </span>
+                            </div>
+                            <h4 className={`truncate text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{ticket.title || "ไม่มีหัวข้อ"}</h4>
+                            <div className={`mt-1 flex flex-wrap items-center gap-2 text-xs ${TEXT_MUTED_CLASS}`}>
+                              <span>{ticket.category || "ไม่ระบุหมวดหมู่"}</span>
+                              <span className={TEXT_SUBTLE_CLASS}>•</span>
+                              <span>{formatDate(ticket.created_at)}</span>
+                              <span className={TEXT_SUBTLE_CLASS}>•</span>
+                              <span>อัปเดต {formatDateTime(ticket.updated_at || ticket.created_at)}</span>
+                            </div>
+                          </div>
+                          <ChevronRight size={16} className={`shrink-0 ${isDarkTheme ? "text-slate-500" : "text-slate-400"}`} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className={`rounded-2xl border border-dashed p-8 text-center ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50/70"}`}>
+                  <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ยังไม่มีรายการใน KPI นี้</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>เมื่อมี ticket เข้ามาตรงเงื่อนไข ตัวเลขและรายการใน popup นี้จะอัปเดตตามทันที</p>
+                </div>
+              )}
+            </div>
+
+            <div className={`shrink-0 border-t px-4 py-4 sm:px-6 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>KPI cards ด้านบนสามารถกดเพื่อเปิด popup ดูรายการย่อยได้ทันที</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button type="button" onClick={() => setSelectedKpiMetricKey("")} className={SECONDARY_BUTTON_CLASS}>ปิด</button>
+                  <button type="button" onClick={handleViewAllClick} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
+                    เปิดประวัติ Ticket
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {dashboardNotifications.length > 0 && (
+        <div className="pointer-events-none fixed inset-x-4 top-20 z-[110] flex flex-col gap-3 sm:left-auto sm:right-4 sm:top-24 sm:w-full sm:max-w-sm">
+          {dashboardNotifications.map((notification) => {
+            const notificationToneClass =
+              notification.tone === "emerald"
+                ? "border-emerald-400 bg-gradient-to-r from-emerald-600 to-green-600"
+                : notification.tone === "amber"
+                  ? "border-amber-300 bg-gradient-to-r from-amber-500 to-orange-500"
+                  : notification.tone === "rose"
+                    ? "border-rose-300 bg-gradient-to-r from-rose-500 to-pink-500"
+                    : "border-indigo-300 bg-gradient-to-r from-indigo-600 to-purple-600";
+
+            const NotificationIcon =
+              notification.tone === "emerald"
+                ? CheckCircle2
+                : notification.tone === "amber"
+                  ? Timer
+                  : notification.tone === "rose"
+                    ? AlertCircle
+                    : ShieldCheck;
+
+            return (
+              <div
+                key={notification.id}
+                className={`pointer-events-auto rounded-2xl border-l-4 p-4 text-white shadow-2xl ${notificationToneClass}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                    <NotificationIcon size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black">{notification.title}</p>
+                    <p className="mt-1 text-xs text-white/90">{notification.message}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => dismissDashboardNotification(notification.id)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
+                    aria-label="ปิดการแจ้งเตือน"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {isOperationalOverviewModalOpen && (
+        <div className="fixed inset-0 z-[102] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+          <button
+            type="button"
+            aria-label="ปิด Operational Dashboard"
+            onClick={() => setIsOperationalOverviewModalOpen(false)}
+            className="absolute inset-0"
+          />
+          <section className={`relative z-10 flex w-full max-w-7xl max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-[2rem] border shadow-[0_28px_70px_-26px_rgba(43,89,176,0.42)] ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-800"}`}>
+            <div className="shrink-0 border-b border-slate-200/70 px-4 py-4 sm:px-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 size={16} className="text-emerald-500" />
+                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>Dashboard Overview</p>
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/30 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                      Real-time
+                    </span>
+                  </div>
+                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>Operational Dashboard</h3>
+                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>สรุปข้อมูลปัจจุบันแบบสดในหน้าเดียว โดยไม่ต้องเปลี่ยน layout หลักของ dashboard เดิม</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsOperationalOverviewModalOpen(false)}
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200" : "border-slate-200 bg-white text-slate-600"}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="mb-4 flex flex-wrap gap-2">
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
+                  Sync: {lastUpdated ? formatDateTime(lastUpdated) : "กำลังโหลด"}
+                </span>
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}>
+                  SLA on-time {slaStats.percentage}%
+                </span>
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-amber-700/60 bg-amber-900/30 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+                  เสี่ยง {operationalSnapshot.risk} / เกิน SLA {operationalSnapshot.overdue}
+                </span>
+                {todayMeetingOverlapCount > 0 && (
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-rose-700/60 bg-rose-900/30 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                    พบเวลาจองซ้ำ {todayMeetingOverlapCount} จุด
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {operationalOverviewStats.map((item) => {
+                  const MetricIcon = item.icon;
+
+                  return (
+                    <article key={item.key} className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{item.label}</p>
+                          <p className={`mt-2 text-3xl font-black ${item.valueColor}`}>{item.value}</p>
+                          <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{item.helper}</p>
+                        </div>
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${item.iconWrap}`}>
+                          <MetricIcon size={18} className={item.iconColor} />
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+                <div className="space-y-4">
+                  <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Ticket Trend 7 วันล่าสุด</p>
+                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>เปิดใหม่ vs ปิดงาน</h4>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>rolling 7 days</span>
+                    </div>
+                    <div className="h-[280px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={operationalTrendData} margin={{ top: 12, right: 12, left: -12, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                          <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name === "created" ? "เปิดใหม่" : "ปิดงาน"]} labelFormatter={(label) => `วันที่ ${label}`} />
+                          <Line type="monotone" dataKey="created" name="created" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                          <Line type="monotone" dataKey="closed" name="closed" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </section>
+
+                  <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Ticket Status Overview</p>
+                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>สัดส่วนสถานะงานปัจจุบัน</h4>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>live queue</span>
+                    </div>
+                    <div className="h-[240px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={operationalStatusChartData} margin={{ top: 12, right: 12, left: -12, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                          <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} รายการ`, "จำนวน"]} />
+                          <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                            {operationalStatusChartData.map((entry) => (
+                              <Cell key={`status-cell-${entry.key}`} fill={entry.fill} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </section>
+                </div>
+
+                <div className="space-y-4">
+                  <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Operational Mix</p>
+                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>สัดส่วนงานที่กำลังเกิดขึ้น</h4>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>{operationalLoadTotal} รายการ</span>
+                    </div>
+
+                    <div className="relative h-[250px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name]} />
+                          <Pie data={operationalLoadData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={4} stroke="transparent">
+                            {operationalLoadData.map((entry, index) => (
+                              <Cell key={`operational-load-${entry.name}-${index}`} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Live Load</p>
+                          <p className={`mt-1 text-3xl font-black ${TEXT_PRIMARY_CLASS}`}>{operationalLoadTotal}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {operationalLoadData.map((item) => (
+                        <div key={`operational-load-label-${item.name}`} className={`flex items-center justify-between rounded-xl border px-3 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"}`}>
+                          <span className={`inline-flex min-w-0 items-center gap-2 text-xs font-bold ${TEXT_SECONDARY_CLASS}`}>
+                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.fill }} />
+                            <span className="truncate">{item.name}</span>
+                          </span>
+                          <span className={`text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{item.isPlaceholder ? 0 : item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Watchlist ตอนนี้</p>
+                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>จุดที่ควรจับตา</h4>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>live feed</span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className={`rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"}`}>
+                        <p className={`text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{meetingRealtimeSummary.activeBookings.length > 0 ? "ห้องที่กำลังใช้งาน" : "คิวประชุมถัดไป"}</p>
+                        {meetingRealtimeSummary.activeBookings.length > 0 ? (
+                          <div className="mt-2 space-y-2">
+                            {meetingRealtimeSummary.activeBookings.slice(0, 2).map((booking) => (
+                              <div key={`live-meeting-${booking.id}`} className={`rounded-lg border px-3 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/80"}`}>
+                                <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.room_name || "ไม่ระบุห้อง"}</p>
+                                <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{booking.title || "มีการใช้งานห้องประชุม"} • {booking.startClock} - {booking.endClock}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : nextMeetingBooking ? (
+                          <p className={`mt-2 text-sm ${TEXT_MUTED_CLASS}`}>{nextMeetingBooking.room_name || "ไม่ระบุห้อง"} • {format(nextMeetingBooking.startsAt, "dd MMM HH:mm", { locale: th })}</p>
+                        ) : (
+                          <p className={`mt-2 text-sm ${TEXT_MUTED_CLASS}`}>ไม่มีการใช้ห้องประชุมในตอนนี้</p>
+                        )}
+                      </div>
+
+                      <div className={`rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"}`}>
+                        <p className={`mb-2 text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>หมวดงานค้างสูงสุด</p>
+                        {operationalCategoryList.length > 0 ? (
+                          <div className="space-y-2">
+                            {operationalCategoryList.slice(0, 3).map((item) => (
+                              <div key={`operational-category-${item.label}`} className="flex items-center justify-between gap-3">
+                                <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{item.label}</p>
+                                <span className={`text-xs font-black ${TEXT_PRIMARY_CLASS}`}>{item.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={`text-sm ${TEXT_MUTED_CLASS}`}>ตอนนี้ยังไม่มีงานค้างเปิด</p>
+                        )}
+                      </div>
+
+                      <div className={`rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"}`}>
+                        <p className={`mb-2 text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Ticket เร่งด่วน</p>
+                        {priorityInbox.length > 0 ? (
+                          <div className="space-y-2">
+                            {priorityInbox.slice(0, 2).map((ticket) => (
+                              <button
+                                key={`operational-priority-${ticket.id}`}
+                                type="button"
+                                onClick={() => {
+                                  setActiveTicketId(ticket.id);
+                                  setIsOperationalOverviewModalOpen(false);
+                                  setIsRecentActivityModalOpen(true);
+                                }}
+                                className={`w-full rounded-lg border px-3 py-2 text-left transition ${isDarkTheme ? "border-slate-700 bg-slate-800/80 hover:bg-slate-800" : "border-slate-100 bg-slate-50/80 hover:bg-white"}`}
+                              >
+                                <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{ticket.title || "ไม่มีหัวข้อ"}</p>
+                                <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase()}`}</p>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={`text-sm ${TEXT_MUTED_CLASS}`}>ไม่มี ticket เร่งด่วนที่ต้องจับตา</p>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </div>
+
+            <div className={`shrink-0 border-t px-4 py-4 sm:px-6 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>เปิดดูภาพรวมปัจจุบันจาก nav ได้ทันที โดยไม่ต้องเลื่อนหาหลาย section ในหน้าเดิม</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button type="button" onClick={() => setIsOperationalOverviewModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>ปิด</button>
+                  <button type="button" onClick={handleViewAllClick} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
+                    เปิดประวัติ Ticket
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isMeetingRoomStatusModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+          <button
+            type="button"
+            aria-label="ปิด Meeting Room Status"
+            onClick={() => setIsMeetingRoomStatusModalOpen(false)}
+            className="absolute inset-0"
+          />
+          <section className={`relative z-10 flex w-full max-w-6xl max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-[2rem] border shadow-[0_28px_70px_-26px_rgba(43,89,176,0.42)] ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-800"}`}>
+            <div className="shrink-0 border-b border-slate-200/70 px-4 py-4 sm:px-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={16} className="text-indigo-500" />
+                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>Meeting Room Status</p>
+                  </div>
+                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>สถานะห้องประชุมและกิจกรรมล่าสุด</h3>
+                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>ติดตามห้องว่าง คิวถัดไป และรายการจองล่าสุดแบบ popup</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMeetingRoomStatusModalOpen(false)}
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200" : "border-slate-200 bg-white text-slate-600"}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="mb-4 flex flex-wrap gap-2">
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
+                  Today: {todayMeetingBookings.length} รายการ
+                </span>
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
+                  Tomorrow: {tomorrowMeetingBookings.length} รายการ
+                </span>
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
+                  Upcoming: {normalizedUpcomingMeetingBookings.length} รายการ
+                </span>
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}>
+                  Next: {nextMeetingBooking ? `${nextMeetingBooking.room_name} ${format(nextMeetingBooking.startsAt, "dd MMM HH:mm", { locale: th })}` : "ไม่มีคิวถัดไป"}
+                </span>
+                {todayMeetingOverlapCount > 0 && (
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-rose-700/60 bg-rose-900/40 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                    พบเวลาจองซ้ำ {todayMeetingOverlapCount} จุด
+                  </span>
+                )}
+              </div>
+
+              {meetingRoomLoading ? (
+                <div className="flex min-h-[240px] items-center justify-center">
+                  <div className={`h-8 w-8 animate-spin rounded-full border-2 ${isDarkTheme ? "border-slate-600 border-t-indigo-400" : "border-indigo-200 border-t-indigo-600"}`} />
+                </div>
+              ) : meetingRoomError ? (
+                <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${isDarkTheme ? "border-rose-700/60 bg-rose-900/30 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                  {meetingRoomError}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+                  <div className="space-y-4">
+                    <div className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                      <div className="mb-2 flex items-center gap-2">
+                        <Calendar size={14} className="text-indigo-600" />
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>รายการจองวันนี้</p>
+                      </div>
+                      {normalizedTodayMeetingBookings.length > 0 ? (
+                        <div className="space-y-2">
+                          {normalizedTodayMeetingBookings.map((booking) => (
+                            <article key={`meeting-modal-${booking.id}`} className={`rounded-xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/70" : "border-slate-200 bg-white"}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.title || "มีการจอง"}</p>
+                                  <div className={`mt-1 flex flex-wrap items-center gap-2 text-[11px] ${TEXT_MUTED_CLASS}`}>
+                                    <span className="inline-flex items-center gap-1">
+                                      <DoorOpen size={12} />
+                                      {booking.room_name || "ไม่ระบุห้อง"}
+                                    </span>
+                                    <span className="inline-flex items-center gap-1">
+                                      <User size={12} />
+                                      {booking.booked_by || "ไม่ระบุผู้จอง"}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <p className={`text-[11px] font-semibold ${TEXT_SUBTLE_CLASS}`}>{format(booking.startsAt, "dd MMM yyyy", { locale: th })}</p>
+                                  <p className={`text-xs font-black ${TEXT_SECONDARY_CLASS}`}>{booking.startClock} - {booking.endClock}</p>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={`rounded-xl border border-dashed p-5 text-center ${isDarkTheme ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
+                          <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>วันนี้ยังไม่มีการจองห้องประชุม</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                      <div className="mb-3 flex items-center gap-2">
+                        <Clock size={14} className={isDarkTheme ? "text-slate-300" : "text-slate-600"} />
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>สถานะห้องประชุมวันนี้</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        {todayRoomStatusCards.map((roomCard) => (
+                          <article key={`meeting-room-card-${roomCard.roomName}`} className={`rounded-2xl border p-4 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white"}`}>
+                            <div className="mb-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <DoorOpen size={15} className={isDarkTheme ? "text-slate-300" : "text-slate-600"} />
+                                <h4 className={`text-sm font-black ${TEXT_SECONDARY_CLASS}`}>{roomCard.roomName}</h4>
+                              </div>
+                              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${roomCard.bookedCount > 0
+                                ? (isDarkTheme ? "bg-rose-900/40 text-rose-300" : "bg-rose-50 text-rose-700")
+                                : (isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700")
+                              }`}>
+                                {roomCard.bookedCount > 0 ? "Booked" : "Available"}
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              {roomCard.slots.map((slot, index) => (
+                                <div
+                                  key={`${roomCard.roomName}-modal-slot-${index}`}
+                                  className={`rounded-xl border px-3 py-2 text-xs ${slot.type === "booked"
+                                    ? (isDarkTheme ? "border-rose-700/50 bg-rose-900/20 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700")
+                                    : (isDarkTheme ? "border-emerald-700/40 bg-emerald-900/20 text-emerald-200" : "border-emerald-200 bg-emerald-50 text-emerald-700")
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold">
+                                      {minutesToClock(slot.startMinutes)} - {minutesToClock(slot.endMinutes)}
+                                    </span>
+                                    <span>{slot.type === "booked" ? "Booked" : "Available"}</span>
+                                  </div>
+                                  {slot.type === "booked" && (
+                                    <p className="mt-1 line-clamp-2">{slot.title || "มีการจอง"}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
+                      <div className="mb-3 flex items-center gap-2">
+                        <Clock size={14} className="text-indigo-600" />
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>กิจกรรมล่าสุด</p>
+                      </div>
+                      {upcomingMeetingPreview.length > 0 ? (
+                        <div className="space-y-2">
+                          {upcomingMeetingPreview.map((booking) => (
+                            <article key={`meeting-upcoming-${booking.id}`} className={`rounded-xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white"}`}>
+                              <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.title || "มีการจอง"}</p>
+                              <div className={`mt-1 flex flex-wrap items-center gap-2 text-[11px] ${TEXT_MUTED_CLASS}`}>
+                                <span className="inline-flex items-center gap-1">
+                                  <DoorOpen size={12} />
+                                  {booking.room_name || "ไม่ระบุห้อง"}
+                                </span>
+                                <span>{format(booking.startsAt, "dd MMM HH:mm", { locale: th })}</span>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={`rounded-xl border border-dashed p-5 text-center ${isDarkTheme ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
+                          <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ไม่มีคิวห้องประชุมถัดไป</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={`shrink-0 border-t px-4 py-4 sm:px-6 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>เปิดดูสถานะห้องประชุมล่าสุดจาก nav ได้ทันทีโดยไม่ต้องเลื่อนหน้า</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button type="button" onClick={() => setIsMeetingRoomStatusModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>ปิด</button>
+                  <button type="button" onClick={() => navigate("/meeting-room-booking")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
+                    ไปหน้าจองห้องประชุม
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isRecentActivityModalOpen && (
+        <div className="fixed inset-0 z-[101] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+          <button
+            type="button"
+            aria-label="ปิดกิจกรรมล่าสุด"
+            onClick={() => setIsRecentActivityModalOpen(false)}
+            className="absolute inset-0"
+          />
+          <section className={`relative z-10 flex w-full max-w-6xl max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-[2rem] border shadow-[0_28px_70px_-26px_rgba(43,89,176,0.42)] ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-800"}`}>
+            <div className="shrink-0 border-b border-slate-200/70 px-4 py-4 sm:px-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Clock size={16} className="text-amber-500" />
+                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>กิจกรรมล่าสุด</p>
+                  </div>
+                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>รายการ Ticket ล่าสุด</h3>
+                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>เปิดจาก nav ได้ทันที พร้อมค้นหาและกรองสถานะสำคัญ</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRecentActivityModalOpen(false)}
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200" : "border-slate-200 bg-white text-slate-600"}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className={`mb-4 rounded-2xl border p-3 ${SURFACE_PANEL_CLASS}`}>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
+                    ทั้งหมด {filteredTickets.length} รายการ
+                  </span>
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}>
+                    แสดงใน popup {Math.min(filteredTickets.length, 12)} รายการ
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="relative sm:col-span-2">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="ค้นหาเลขที่งาน / หัวข้อ / รายละเอียด..."
+                      aria-label="ค้นหา Ticket"
+                      className={SEARCH_CONTROL_CLASS}
+                    />
+                  </div>
+
+                  <select value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)} aria-label="กรองตามสถานะ" className={FORM_CONTROL_CLASS}>
+                    {FILTER_OPTIONS.map((filter) => (
+                      <option key={filter.id} value={filter.id}>{filter.label}</option>
+                    ))}
+                  </select>
+
+                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="กรองตามหมวดหมู่" className={FORM_CONTROL_CLASS}>
+                    {categoryOptions.map((category) => (
+                      <option key={category} value={category}>{category === "ALL" ? "ทุกหมวดหมู่" : category}</option>
+                    ))}
+                  </select>
+
+                  {!isUserSearchMode && (
+                    <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} aria-label="กรองตามความเร่งด่วน" className={FORM_CONTROL_CLASS}>
+                      {PRIORITY_FILTER_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {!isUserSearchMode && (
+                    <select value={slaFilter} onChange={(e) => setSlaFilter(e.target.value)} aria-label="กรองตาม SLA" className={FORM_CONTROL_CLASS}>
+                      {SLA_FILTER_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {hasActiveSmartFilters && (
+                    <button type="button" onClick={clearSmartFilters} className={SECONDARY_BUTTON_CLASS}>
+                      ล้างตัวกรอง
+                    </button>
+                  )}
+                  <button type="button" onClick={handleViewAllClick} className={SECONDARY_BUTTON_CLASS}>
+                    ดูประวัติทั้งหมด
+                  </button>
+                </div>
+              </div>
+
+              {filteredTickets.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+                  <div className="space-y-3">
+                    {filteredTickets.slice(0, 12).map(renderTicketItem)}
+                  </div>
+
+                  <div className={`rounded-2xl border p-4 ${isDarkTheme ? "border-slate-700 bg-slate-800/60" : "border-blue-100 bg-blue-50/70"}`}>
+                    {activeTicket ? (
+                      <div>
+                        <div className="mb-4">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-700">
+                              {activeTicket.ticket_no || `T${activeTicket.id?.slice(-6).toUpperCase()}`}
+                            </span>
+                            <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${activeTicketStatus.bg} ${activeTicketStatus.color} ${activeTicketStatus.border}`}>
+                              {activeTicketStatus.label}
+                            </span>
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-bold text-white ${activeTicketPriority.color}`}>
+                              {activeTicketPriority.label}
+                            </span>
+                          </div>
+                          <h4 className={`text-base font-black ${TEXT_PRIMARY_CLASS}`}>{activeTicket.title || "ไม่มีหัวข้อ"}</h4>
+                          <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{activeTicket.category || "ไม่ระบุหมวดหมู่"} • {formatDate(activeTicket.created_at)}</p>
+                          <p className={`mt-3 rounded-xl border p-3 text-xs leading-relaxed ${isDarkTheme ? "border-slate-700 bg-slate-900/80 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}>
+                            {activeTicket.description || "ไม่มีรายละเอียด"}
+                          </p>
+                        </div>
+
+                        <div className={`mb-4 rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white"}`}>
+                          <p className={`mb-2 text-[11px] font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>Activity Timeline</p>
+                          <div className="space-y-3">
+                            {activeTimeline.map((event, index) => (
+                              <div key={`activity-modal-${event.id}`} className="relative pl-5">
+                                {index < activeTimeline.length - 1 && (
+                                  <span className={`absolute left-[6px] top-4 h-8 w-px ${isDarkTheme ? "bg-slate-700" : "bg-slate-200"}`} />
+                                )}
+                                <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-indigo-500" />
+                                <p className={`text-xs font-bold ${TEXT_SECONDARY_CLASS}`}>{event.label}</p>
+                                <p className={`text-[11px] ${TEXT_MUTED_CLASS}`}>{event.detail}</p>
+                                <p className={`text-[10px] font-semibold ${TEXT_SUBTLE_CLASS}`}>{formatDateTime(event.date)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTicket(activeTicket)}
+                          className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-bold text-white transition-all hover:shadow-lg hover:shadow-indigo-500/25"
+                        >
+                          เปิดรายละเอียดเต็ม
+                        </button>
+                      </div>
+                    ) : (
+                      <div className={`rounded-xl border border-dashed p-5 text-center ${isDarkTheme ? "border-slate-700" : "border-slate-300"}`}>
+                        <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ยังไม่มีรายการที่เลือก</p>
+                        <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>เลือก Ticket จากรายการด้านซ้ายเพื่อดูรายละเอียด</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className={`rounded-2xl border border-dashed p-8 text-center ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50/70"}`}>
+                  <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ไม่พบรายการแจ้งซ่อม</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>ลองปรับคำค้นหาหรือล้างตัวกรองปัจจุบัน</p>
+                </div>
+              )}
+            </div>
+
+            <div className={`shrink-0 border-t px-4 py-4 sm:px-6 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>กิจกรรมล่าสุดถูกย้ายมาเปิดผ่าน nav และใช้งานใน popup ได้ทันที</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button type="button" onClick={() => setIsRecentActivityModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>ปิด</button>
+                  <button type="button" onClick={handleViewAllClick} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
+                    เปิดประวัติทั้งหมด
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Ticket Detail Modal */}
       <TicketDetailModal

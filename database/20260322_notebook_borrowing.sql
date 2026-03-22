@@ -36,6 +36,10 @@ create table if not exists public.borrow_logs (
   image_name text,
   image_mime_type text,
   image_size bigint,
+  return_image_url text,
+  return_image_name text,
+  return_image_mime_type text,
+  return_image_size bigint,
   status text not null default 'pending',
   requested_at timestamp with time zone not null default timezone('utc'::text, now()),
   approved_at timestamp with time zone,
@@ -285,6 +289,10 @@ returns table (
   image_name text,
   image_mime_type text,
   image_size bigint,
+  return_image_url text,
+  return_image_name text,
+  return_image_mime_type text,
+  return_image_size bigint,
   requested_at timestamp with time zone,
   approved_at timestamp with time zone,
   return_confirmed_at timestamp with time zone,
@@ -313,6 +321,10 @@ as $$
     bl.image_name,
     bl.image_mime_type,
     bl.image_size,
+    bl.return_image_url,
+    bl.return_image_name,
+    bl.return_image_mime_type,
+    bl.return_image_size,
     bl.requested_at,
     bl.approved_at,
     bl.return_confirmed_at,
@@ -358,6 +370,10 @@ returns table (
   image_name text,
   image_mime_type text,
   image_size bigint,
+  return_image_url text,
+  return_image_name text,
+  return_image_mime_type text,
+  return_image_size bigint,
   status text,
   requested_at timestamp with time zone,
   approved_at timestamp with time zone,
@@ -400,6 +416,10 @@ begin
     bl.image_name,
     bl.image_mime_type,
     bl.image_size,
+    bl.return_image_url,
+    bl.return_image_name,
+    bl.return_image_mime_type,
+    bl.return_image_size,
     bl.status,
     bl.requested_at,
     bl.approved_at,
@@ -639,7 +659,13 @@ $$;
 
 grant execute on function public.approve_notebook_borrow_request(bigint) to authenticated;
 
-create or replace function public.request_notebook_return(_log_id bigint)
+create or replace function public.request_notebook_return(
+  _log_id bigint,
+  _return_image_url text,
+  _return_image_name text default null,
+  _return_image_mime_type text default null,
+  _return_image_size bigint default null
+)
 returns public.borrow_logs
 language plpgsql
 security definer
@@ -687,11 +713,19 @@ begin
     raise exception 'Notebook is not available for return';
   end if;
 
+  if trim(coalesce(_return_image_url, '')) = '' then
+    raise exception 'Notebook return photo is required';
+  end if;
+
   update public.borrow_logs
   set
     status = 'returned',
     return_time = _return_time,
-    duration = _return_time - coalesce(borrow_time, _return_time)
+    duration = _return_time - coalesce(borrow_time, _return_time),
+    return_image_url = _return_image_url,
+    return_image_name = _return_image_name,
+    return_image_mime_type = _return_image_mime_type,
+    return_image_size = _return_image_size
   where id = _log.id
   returning * into _log;
 
@@ -707,7 +741,13 @@ begin
 end;
 $$;
 
-grant execute on function public.request_notebook_return(bigint) to authenticated;
+grant execute on function public.request_notebook_return(
+  bigint,
+  text,
+  text,
+  text,
+  bigint
+) to authenticated;
 
 create or replace function public.confirm_notebook_return(_log_id bigint)
 returns public.borrow_logs

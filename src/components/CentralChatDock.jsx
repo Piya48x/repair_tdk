@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import {
   ArrowLeft,
+  Camera,
   Check,
   CheckCheck,
   Circle,
@@ -18,14 +19,29 @@ import {
   Paperclip,
   Search,
   Send,
+  Smile,
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
 const MESSAGE_LIMIT = 200;
 const PRESENCE_INTERVAL_MS = 30000;
+const DIRECTORY_RESYNC_INTERVAL_MS = 5 * 60 * 1000;
+const PRESENCE_ONLINE_WINDOW_MS = 90 * 1000;
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const SUPPORT_ROLES = new Set(["it_support", "it_manager", "admin"]);
+const STICKER_TOKEN_PATTERN = /\[\[sticker:([a-z0-9_-]+)\]\]/i;
+const CHAT_STICKERS = [
+  { id: "thumbs-up", emoji: "👍", label: "Like" },
+  { id: "party", emoji: "🎉", label: "Party" },
+  { id: "love", emoji: "😍", label: "Love" },
+  { id: "fire", emoji: "🔥", label: "Fire" },
+  { id: "ok", emoji: "👌", label: "OK" },
+  { id: "thanks", emoji: "🙏", label: "Thanks" },
+  { id: "wow", emoji: "🤩", label: "Wow" },
+  { id: "rocket", emoji: "🚀", label: "Go" },
+];
+const CHAT_STICKER_MAP = new Map(CHAT_STICKERS.map((sticker) => [sticker.id, sticker]));
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -48,6 +64,26 @@ function formatRelativeClock(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+}
+
+function buildStickerToken(stickerId) {
+  return `[[sticker:${String(stickerId || "").trim()}]]`;
+}
+
+function parseStickerMessage(message) {
+  const normalizedMessage = String(message || "");
+  const match = normalizedMessage.match(STICKER_TOKEN_PATTERN);
+  if (!match) return null;
+
+  const sticker = CHAT_STICKER_MAP.get(String(match[1] || "").trim());
+  if (!sticker) return null;
+
+  const caption = normalizedMessage.replace(match[0], "").trim();
+  return {
+    sticker,
+    caption,
+    token: match[0],
+  };
 }
 
 function buildAvatarFallback(name, color = "2b59b0") {
@@ -125,6 +161,48 @@ function sortMessages(messages) {
   });
 }
 
+function resolvePresenceStatus(lastSeenAt, nowValue = Date.now()) {
+  const lastSeenValue = new Date(lastSeenAt || 0).getTime();
+  if (!lastSeenValue || Number.isNaN(lastSeenValue)) return "offline";
+  return nowValue - lastSeenValue <= PRESENCE_ONLINE_WINDOW_MS ? "online" : "offline";
+}
+
+function normalizeMemberRecord(member, nowValue = Date.now()) {
+  const lastSeenAt = member?.last_seen_at || "";
+  return {
+    id: String(member?.id || ""),
+    name: member?.name || "Member",
+    email: member?.email || "",
+    role: member?.role || "user",
+    avatar_url: member?.avatar_url || "",
+    status: resolvePresenceStatus(lastSeenAt, nowValue),
+    last_seen_at: lastSeenAt,
+  };
+}
+
+function mergeMembers(previousMembers, nextMembers) {
+  const previousMap = new Map(previousMembers.map((member) => [String(member?.id || ""), member]));
+
+  return nextMembers.map((member) => {
+    const memberId = String(member?.id || "");
+    const previous = previousMap.get(memberId);
+    if (!previous) return member;
+
+    if (
+      previous.name === member.name &&
+      previous.email === member.email &&
+      previous.role === member.role &&
+      previous.avatar_url === member.avatar_url &&
+      previous.status === member.status &&
+      previous.last_seen_at === member.last_seen_at
+    ) {
+      return previous;
+    }
+
+    return { ...previous, ...member };
+  });
+}
+
 function compareMembers(left, right) {
   const leftLastMessage = new Date(left?.last_message_created_at || 0).getTime();
   const rightLastMessage = new Date(right?.last_message_created_at || 0).getTime();
@@ -133,10 +211,6 @@ function compareMembers(left, right) {
   const leftUnread = Number(left?.unread_count || 0);
   const rightUnread = Number(right?.unread_count || 0);
   if (leftUnread !== rightUnread) return rightUnread - leftUnread;
-
-  const leftOnline = left?.status === "online" ? 1 : 0;
-  const rightOnline = right?.status === "online" ? 1 : 0;
-  if (leftOnline !== rightOnline) return rightOnline - leftOnline;
 
   return String(left?.name || "").localeCompare(String(right?.name || ""), "th");
 }
@@ -166,6 +240,7 @@ export default function CentralChatDock({
   currentUser = null,
   openSignal = 0,
   className = "bottom-4 left-4 sm:bottom-6 sm:left-6",
+  onOpenChange,
 }) {
   const currentUserId = String(currentUser?.id || "");
   const [isOpen, setIsOpen] = useState(false);
@@ -184,6 +259,7 @@ export default function CentralChatDock({
   const [pendingFilePreview, setPendingFilePreview] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [sending, setSending] = useState(false);
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [mobileThreadVisible, setMobileThreadVisible] = useState(false);
@@ -196,7 +272,9 @@ export default function CentralChatDock({
   });
 
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const messageListRef = useRef(null);
+  const stickerPickerRef = useRef(null);
   const dockRef = useRef(null);
   const openSignalRef = useRef(openSignal);
   const selectedRoomIdRef = useRef("");
@@ -210,9 +288,13 @@ export default function CentralChatDock({
   const launcherDragActiveRef = useRef(false);
   const [dockPosition, setDockPosition] = useState(null);
   const [isDraggingDock, setIsDraggingDock] = useState(false);
+  const [presenceTick, setPresenceTick] = useState(() => Date.now());
   const dockInlineStyle = useMemo(() => {
     if (isMobileViewport) {
-      return { left: "0.5rem", right: "0.5rem", top: "4rem", bottom: "0.5rem", width: "auto" };
+      if (!isOpen) {
+        return { left: "0.75rem", right: "auto", transform: "none", bottom: "1rem", width: "auto" };
+      }
+      return { left: "0.5rem", right: "0.5rem", transform: "none", bottom: "0.75rem", width: "auto" };
     }
 
     if (!dockPosition) return undefined;
@@ -235,16 +317,24 @@ export default function CentralChatDock({
 
   const directoryMembers = useMemo(() => {
     const normalizedSearch = normalizeText(deferredSearchQuery).toLowerCase();
+    const nowValue = presenceTick || Date.now();
     return members
       .filter((member) => String(member?.id || "") !== currentUserId)
       .map((member) => {
         const summary = summaryMap.get(String(member?.id || ""));
+        const lastSeenAt = member?.last_seen_at || summary?.other_user_last_seen_at || "";
+        const stickerMessage = parseStickerMessage(summary?.last_message);
+        const lastPreview = stickerMessage?.sticker
+          ? `${stickerMessage.caption ? `Sticker · ${stickerMessage.caption}` : "Sent a sticker"}`
+          : previewForSummary(summary, currentUserId);
         return {
           ...member,
           room_id: summary?.room_id || "",
           unread_count: Number(summary?.unread_count || 0),
           last_message_created_at: summary?.last_message_created_at || "",
-          last_preview: previewForSummary(summary, currentUserId),
+          last_seen_at: lastSeenAt,
+          status: resolvePresenceStatus(lastSeenAt, nowValue),
+          last_preview: lastPreview,
         };
       })
       .filter((member) => {
@@ -253,7 +343,7 @@ export default function CentralChatDock({
         return haystack.includes(normalizedSearch);
       })
       .sort(compareMembers);
-  }, [currentUserId, deferredSearchQuery, members, summaryMap]);
+  }, [currentUserId, deferredSearchQuery, members, presenceTick, summaryMap]);
 
   const selectedMember = useMemo(
     () => directoryMembers.find((member) => String(member?.id || "") === String(selectedMemberId || "")) || null,
@@ -286,9 +376,11 @@ export default function CentralChatDock({
     setPendingFilePreview("");
   }, [pendingFilePreview]);
 
-  const loadUserDirectory = useCallback(async () => {
+  const loadUserDirectory = useCallback(async ({ background = false } = {}) => {
     if (!currentUserId) return;
-    setMembersLoading(true);
+    if (!background) {
+      setMembersLoading(true);
+    }
     const { data, error: queryError } = await supabase.rpc("get_user_directory");
 
     if (queryError) {
@@ -299,24 +391,59 @@ export default function CentralChatDock({
       } else {
         setError("โหลดรายชื่อผู้ใช้ไม่สำเร็จ");
       }
-      setMembers([]);
-      setMembersLoading(false);
+      if (!background) {
+        setMembers([]);
+        setMembersLoading(false);
+      }
       return;
     }
 
-    const normalizedMembers = (data || []).map((member) => ({
-      id: String(member?.id || ""),
+    const normalizedMembers = (data || []).map((member) => normalizeMemberRecord(member));
+    /*
       name: member?.name || "สมาชิก",
-      email: member?.email || "",
-      role: member?.role || "user",
-      avatar_url: member?.avatar_url || "",
-      status: member?.status || "offline",
-      last_seen_at: member?.last_seen_at || "",
-    }));
 
-    setMembers(normalizedMembers);
-    setMembersLoading(false);
+    */
+    setMembers((previousMembers) => mergeMembers(previousMembers, normalizedMembers));
+    if (!background) {
+      setMembersLoading(false);
+    }
   }, [currentUserId]);
+
+  const applyPresenceUpdate = useCallback((payload) => {
+    const row = payload?.eventType === "DELETE" ? payload.old : payload.new;
+    const memberId = String(row?.user_id || "");
+    if (!memberId) return;
+
+    const nextLastSeenAt = row?.last_seen_at || "";
+    const nextStatus = payload?.eventType === "DELETE"
+      ? "offline"
+      : resolvePresenceStatus(nextLastSeenAt);
+
+    let foundMember = false;
+    setMembers((previousMembers) => {
+      let changed = false;
+      const nextMembers = previousMembers.map((member) => {
+        if (String(member?.id || "") !== memberId) return member;
+        foundMember = true;
+        if (member.last_seen_at === nextLastSeenAt && member.status === nextStatus) {
+          return member;
+        }
+
+        changed = true;
+        return {
+          ...member,
+          last_seen_at: nextLastSeenAt,
+          status: nextStatus,
+        };
+      });
+
+      return changed ? nextMembers : previousMembers;
+    });
+
+    if (!foundMember) {
+      loadUserDirectory({ background: true });
+    }
+  }, [loadUserDirectory]);
 
   const loadRoomSummaries = useCallback(async () => {
     if (!currentUserId) return;
@@ -593,12 +720,93 @@ export default function CentralChatDock({
     uploadAttachment,
   ]);
 
+  const handleStickerSelect = useCallback(async (stickerId) => {
+    if (!selectedMember || sending || !currentUserId || !selectedMemberId) return;
+
+    setStickerPickerOpen(false);
+    setSending(true);
+    setError("");
+    setNotice("");
+
+    let roomId = String(selectedRoomIdRef.current || "");
+    if (!roomId) {
+      const room = await ensureRoomForMember(selectedMemberId);
+      if (!room?.id) {
+        setSending(false);
+        return;
+      }
+      roomId = String(room.id);
+      setSelectedRoomId(roomId);
+      selectedRoomIdRef.current = roomId;
+    }
+
+    try {
+      const payload = {
+        room_id: Number(roomId),
+        message: buildStickerToken(stickerId),
+        type: "text",
+        file_url: null,
+        file_name: null,
+        file_mime_type: null,
+        file_size: null,
+      };
+
+      const { data, error: insertError } = await supabase
+        .from("chat_messages")
+        .insert(payload)
+        .select("*")
+        .single();
+
+      if (insertError) throw insertError;
+
+      if (data) {
+        setMessages((prev) => {
+          if (prev.some((message) => String(message?.id || "") === String(data?.id || ""))) return prev;
+          return sortMessages([...prev, data]);
+        });
+      }
+
+      await loadRoomSummaries();
+      scrollToBottomSoon("smooth");
+    } catch (sendError) {
+      if (isMissingMessengerSchema(sendError)) {
+        setNotice("à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸•à¸´à¸”à¸•à¸±à¹‰à¸‡ schema à¹à¸Šà¸—à¹ƒà¸«à¸¡à¹ˆà¸šà¸™ Supabase");
+      } else if (isPermissionDenied(sendError)) {
+        setNotice("Chat permission denied. Run database/20260321_direct_messenger.sql and re-login.");
+      } else {
+        setError("à¸ªà¹ˆà¸‡à¸ªà¸•à¸´à¹Šà¸à¹€à¸à¸­à¸£à¹Œà¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ");
+      }
+    } finally {
+      setSending(false);
+    }
+  }, [
+    currentUserId,
+    ensureRoomForMember,
+    loadRoomSummaries,
+    scrollToBottomSoon,
+    selectedMember,
+    selectedMemberId,
+    sending,
+  ]);
+
   const handleComposerKeyDown = (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       handleSend();
     }
   };
+
+  const handleComposerPaste = useCallback((event) => {
+    const clipboardItems = Array.from(event.clipboardData?.items || []);
+    const imageItem = clipboardItems.find((item) => String(item?.type || "").startsWith("image/"));
+    if (!imageItem) return;
+
+    const file = imageItem.getAsFile();
+    if (!file) return;
+
+    event.preventDefault();
+    handleIncomingFile(file);
+  }, [handleIncomingFile]);
 
   const handleDrop = (event) => {
     event.preventDefault();
@@ -769,6 +977,18 @@ export default function CentralChatDock({
   }, [currentUserId, loadRoomSummaries, loadUserDirectory]);
 
   useEffect(() => {
+    if (!currentUserId) return undefined;
+
+    const interval = window.setInterval(() => {
+      setPresenceTick(Date.now());
+    }, PRESENCE_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
     if (selectedMemberId) return;
     const firstRecentMemberId = String(roomSummaries[0]?.other_user_id || "");
     if (!firstRecentMemberId) return;
@@ -805,6 +1025,24 @@ export default function CentralChatDock({
     pendingSupportOpenRef.current = false;
     chooseDefaultSupportMember();
   }, [chooseDefaultSupportMember, directoryMembers]);
+
+  useEffect(() => {
+    if (!stickerPickerOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (stickerPickerRef.current?.contains(event.target)) return;
+      setStickerPickerOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [stickerPickerOpen]);
+
+  useEffect(() => {
+    setStickerPickerOpen(false);
+  }, [selectedMemberId]);
 
   useEffect(() => {
     if (!currentUserId) return undefined;
@@ -844,6 +1082,22 @@ export default function CentralChatDock({
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return undefined;
+
+    const resyncDirectory = () => {
+      loadUserDirectory({ background: true });
+    };
+
+    const interval = window.setInterval(resyncDirectory, DIRECTORY_RESYNC_INTERVAL_MS);
+    window.addEventListener("focus", resyncDirectory);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", resyncDirectory);
+    };
+  }, [currentUserId, loadUserDirectory]);
 
   useEffect(() => {
     if (!currentUserId) return undefined;
@@ -893,8 +1147,8 @@ export default function CentralChatDock({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_presence" },
-        () => {
-          loadUserDirectory();
+        (payload) => {
+          applyPresenceUpdate(payload);
         }
       )
       .subscribe();
@@ -902,7 +1156,7 @@ export default function CentralChatDock({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUserId, loadRoomSummaries, loadUserDirectory, markMessagesRead]);
+  }, [applyPresenceUpdate, currentUserId, loadRoomSummaries, markMessagesRead]);
 
   useEffect(() => {
     if (!selectedRoomId || !currentUserId) return undefined;
@@ -966,6 +1220,10 @@ export default function CentralChatDock({
   }, [isCollapsed, isOpen, roomSummaries]);
 
   useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
+
+  useEffect(() => {
     return () => {
       if (pendingFilePreview) {
         URL.revokeObjectURL(pendingFilePreview);
@@ -987,7 +1245,7 @@ export default function CentralChatDock({
           onPointerDown={(event) => handleDockPointerDown(event, { allowInteractiveTarget: true })}
           className={`pointer-events-auto inline-flex items-center gap-3 rounded-full border border-[#12b981]/20 bg-white px-4 py-3 text-left shadow-[0_24px_60px_-28px_rgba(43,89,176,0.45)] transition hover:-translate-y-1 hover:border-[#12b981]/35 ${
             isDraggingDock ? "cursor-grabbing" : "cursor-grab"
-          } ${isMobileViewport ? "h-12 w-12 justify-center px-0" : ""}`}
+          } ${isMobileViewport ? "h-14 w-14 justify-center px-0" : ""}`}
           aria-label="เปิด Messenger"
           title="กดค้างแล้วลากเพื่อย้าย Messenger"
         >
@@ -1018,36 +1276,38 @@ export default function CentralChatDock({
   return (
     <div
       ref={dockRef}
-      className={`fixed ${className} z-[90] pointer-events-none w-[min(96vw,860px)] max-h-[calc(100dvh-1rem)]`}
+      className={`fixed ${className} z-[90] pointer-events-none ${isMobileViewport ? "w-[calc(100vw-1rem)] max-h-[min(76dvh,620px)]" : "w-[min(96vw,860px)] max-h-[calc(100dvh-1rem)]"}`}
       style={dockInlineStyle}
     >
-      <div className="pointer-events-auto max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[2rem] border border-[#2b59b0]/15 bg-white shadow-[0_34px_90px_-30px_rgba(15,23,42,0.28)]">
+      <div className={`pointer-events-auto overflow-hidden border border-[#2b59b0]/15 bg-white shadow-[0_34px_90px_-30px_rgba(15,23,42,0.28)] ${isMobileViewport ? "max-h-[min(76dvh,620px)] rounded-[1.5rem]" : "max-h-[calc(100dvh-1rem)] rounded-[2rem]"}`}>
         <div
-          className={`flex items-start justify-between gap-3 bg-gradient-to-r from-[#eff4ff] via-white to-[#f6f9ff] px-4 py-3 ${
+          className={`flex items-start justify-between gap-3 bg-gradient-to-r from-[#eff4ff] via-white to-[#f6f9ff] ${isMobileViewport ? "px-3 py-2" : "px-4 py-3"} ${
             isDraggingDock ? "select-none cursor-grabbing" : "cursor-grab select-none"
           }`}
           onPointerDown={(event) => handleDockPointerDown(event, { allowInteractiveTarget: false })}
         >
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[#2b59b0]/10 bg-white text-[#2b59b0] shadow-[0_10px_22px_-16px_rgba(43,89,176,0.45)]">
+          <div className="flex min-w-0 items-start gap-2.5">
+            <div className={`${isMobileViewport ? "hidden" : "mt-0.5 inline-flex"} h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[#2b59b0]/10 bg-white text-[#2b59b0] shadow-[0_10px_22px_-16px_rgba(43,89,176,0.45)]`}>
               <GripVertical size={16} />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#2b59b0]/70">Central Messenger</p>
-              <h3 className="mt-1 truncate text-base font-black text-slate-900">
-                {selectedMember ? selectedMember.name : "เลือกผู้ใช้เพื่อเริ่มแชท"}
+              <h3 className={`truncate font-black text-slate-900 ${isMobileViewport ? "mt-0.5 text-sm" : "mt-1 text-base"}`}>
+                {isMobileViewport ? "Messenger" : selectedMember ? selectedMember.name : "เลือกผู้ใช้เพื่อเริ่มแชท"}
               </h3>
-              <p className="mt-1 text-xs text-slate-500">
+              {!isMobileViewport && (
+                <p className="mt-1 text-xs text-slate-500">
                 {totalUnreadCount > 0 ? `มีข้อความที่ยังไม่อ่าน ${totalUnreadCount} รายการ` : "คุยแบบ 1-1 กับสมาชิกทุกคน"}
-              </p>
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className={`flex items-center ${isMobileViewport ? "gap-1.5" : "gap-2"}`}>
             <button
               type="button"
               onClick={() => setIsCollapsed((value) => !value)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+              className={`inline-flex items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 ${isMobileViewport ? "h-8 w-8 rounded-xl" : "h-9 w-9 rounded-2xl"}`}
               aria-label={isCollapsed ? "ขยายแชท" : "พับแชท"}
             >
               <Circle size={12} className={isCollapsed ? "fill-current text-[#2b59b0]" : "text-slate-400"} />
@@ -1058,7 +1318,7 @@ export default function CentralChatDock({
                 setIsOpen(false);
                 setIsCollapsed(false);
               }}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+              className={`inline-flex items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 ${isMobileViewport ? "h-8 w-8 rounded-xl" : "h-9 w-9 rounded-2xl"}`}
               aria-label="ปิดแชท"
             >
               <X size={15} />
@@ -1067,7 +1327,7 @@ export default function CentralChatDock({
         </div>
 
         {!isCollapsed ? (
-          <div className="grid min-h-0 grid-cols-1 md:grid-cols-[280px,1fr] md:h-[min(78dvh,640px)] max-h-[calc(100dvh-4.5rem)] max-md:h-full">
+          <div className={`grid min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[280px,1fr] ${isMobileViewport ? "h-[min(66dvh,540px)]" : "max-h-[calc(100dvh-4.5rem)] md:h-[min(78dvh,640px)]"}`}>
             <aside className={`${mobileThreadVisible ? "hidden md:flex" : "flex"} min-h-0 flex-col border-b border-slate-200 bg-[#fbfcff] md:border-b-0 md:border-r`}>
               <div className="border-b border-slate-200 px-4 py-3">
                 <div className="relative">
@@ -1150,12 +1410,12 @@ export default function CentralChatDock({
               </div>
             </aside>
 
-            <section className={`${mobileThreadVisible ? "flex" : "hidden md:flex"} min-h-0 flex-col bg-white`}>
-              <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
+            <section className={`${mobileThreadVisible ? "flex" : "hidden md:flex"} min-h-0 flex-col overflow-hidden bg-white`}>
+              <div className={`shrink-0 flex items-center gap-3 border-b border-slate-200 bg-white/95 backdrop-blur ${isMobileViewport ? "px-3 py-2" : "px-4 py-3"}`}>
                 <button
                   type="button"
                   onClick={() => setMobileThreadVisible(false)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 md:hidden"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 md:hidden"
                   aria-label="กลับไปยังรายชื่อผู้ใช้"
                 >
                   <ArrowLeft size={15} />
@@ -1169,7 +1429,7 @@ export default function CentralChatDock({
                       onError={(event) => {
                         event.currentTarget.src = buildAvatarFallback(selectedMember.name, "2b59b0");
                       }}
-                      className="h-11 w-11 rounded-full border border-slate-200 bg-white object-cover"
+                      className={`${isMobileViewport ? "h-10 w-10" : "h-11 w-11"} rounded-full border border-slate-200 bg-white object-cover`}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -1182,9 +1442,9 @@ export default function CentralChatDock({
                           {selectedMember.status === "online" ? "online" : "offline"}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500">
+                      <p className="truncate text-[11px] text-slate-500">
                         {roleLabel(selectedMember.role)}
-                        {selectedMember.email ? ` · ${selectedMember.email}` : ""}
+                        {!isMobileViewport && selectedMember.email ? ` · ${selectedMember.email}` : ""}
                       </p>
                     </div>
                   </>
@@ -1197,7 +1457,7 @@ export default function CentralChatDock({
               </div>
 
               <div
-                className={`relative min-h-0 flex-1 ${dragActive ? "bg-[#eef4ff]" : "bg-white"}`}
+                className={`relative min-h-0 flex-1 overflow-hidden ${dragActive ? "bg-[#eef4ff]" : "bg-white"}`}
                 onDragEnter={(event) => {
                   event.preventDefault();
                   setDragActive(true);
@@ -1215,7 +1475,7 @@ export default function CentralChatDock({
               >
                 <div
                   ref={messageListRef}
-                  className="h-full min-h-0 space-y-3 overflow-y-auto px-4 py-4"
+                  className={`${isMobileViewport ? "px-3 py-3 pb-14" : "px-4 py-4 pb-12"} h-full min-h-0 space-y-3 overflow-y-auto`}
                 >
                   {messagesLoading ? (
                     <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
@@ -1243,6 +1503,8 @@ export default function CentralChatDock({
                       const mine = String(message?.sender_id || "") === currentUserId;
                       const senderName = mine ? (currentUser?.name || "คุณ") : (selectedMember?.name || "สมาชิก");
                       const imageAttachment = message?.file_url && isImageMime(message?.file_mime_type, message?.file_name);
+                      const stickerMessage = parseStickerMessage(message?.message);
+                      const stickerOnly = Boolean(stickerMessage?.sticker) && !stickerMessage?.caption && !message?.file_url;
 
                       return (
                         <div
@@ -1252,19 +1514,40 @@ export default function CentralChatDock({
                           <div className={`max-w-[88%] ${mine ? "items-end" : "items-start"} flex flex-col`}>
                             <div
                               className={`rounded-[1.4rem] px-4 py-3 shadow-sm ${
-                                mine
-                                  ? "bg-[#2b59b0] text-white"
-                                  : "border border-slate-200 bg-white text-slate-800"
+                                stickerOnly
+                                  ? "bg-transparent px-0 py-0 shadow-none"
+                                  : mine
+                                    ? "bg-[#2b59b0] text-white"
+                                    : "border border-slate-200 bg-white text-slate-800"
                               }`}
                             >
                               {!mine && (
                                 <p className="mb-1 text-[11px] font-bold text-[#2b59b0]">{senderName}</p>
                               )}
-                              {message?.message && (
+                              {stickerMessage?.sticker ? (
+                                <div className={message?.file_url ? "mb-3" : ""}>
+                                  <div
+                                    className={`inline-flex h-20 w-20 items-center justify-center rounded-[1.8rem] border text-[2.5rem] shadow-sm ${
+                                      mine
+                                        ? "border-white/20 bg-white/10"
+                                        : "border-slate-200 bg-slate-50"
+                                    }`}
+                                  >
+                                    <span role="img" aria-label={stickerMessage.sticker.label}>
+                                      {stickerMessage.sticker.emoji}
+                                    </span>
+                                  </div>
+                                  {stickerMessage.caption && (
+                                    <p className={`mt-3 whitespace-pre-wrap text-sm leading-relaxed ${mine ? "text-white" : "text-slate-700"}`}>
+                                      {stickerMessage.caption}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : message?.message ? (
                                 <p className={`whitespace-pre-wrap text-sm leading-relaxed ${mine ? "text-white" : "text-slate-700"}`}>
                                   {message.message}
                                 </p>
-                              )}
+                              ) : null}
                               {message?.file_url && imageAttachment && (
                                 <button
                                   type="button"
@@ -1317,7 +1600,7 @@ export default function CentralChatDock({
                 </div>
 
                 {typingHintVisible && (
-                  <div className="absolute bottom-3 left-4 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm">
+                  <div className={`absolute rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm ${isMobileViewport ? "bottom-3 left-3" : "bottom-3 left-4"}`}>
                     {typingMemberName || "สมาชิก"} กำลังพิมพ์...
                   </div>
                 )}
@@ -1333,7 +1616,7 @@ export default function CentralChatDock({
                 )}
               </div>
 
-              <div className="border-t border-slate-200 px-4 py-3">
+              <div className={`shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur ${isMobileViewport ? "px-3 py-2.5" : "px-4 py-3"}`}>
                 {notice && (
                   <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
                     {notice}
@@ -1346,17 +1629,17 @@ export default function CentralChatDock({
                 )}
 
                 {pendingFile && (
-                  <div className="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <div className="flex items-start gap-3">
+                  <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="flex min-w-0 items-center gap-3">
                       {pendingFilePreview ? (
                         <img
                           src={pendingFilePreview}
                           alt={pendingFile.name}
-                          className="h-14 w-14 rounded-2xl object-cover"
+                          className={`${isMobileViewport ? "h-10 w-10" : "h-11 w-11"} rounded-2xl object-cover`}
                         />
                       ) : (
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#2b59b0]">
-                          <ImageIcon size={18} />
+                          <div className={`flex items-center justify-center rounded-2xl bg-white text-[#2b59b0] ${isMobileViewport ? "h-10 w-10" : "h-11 w-11"}`}>
+                            <ImageIcon size={16} />
                         </div>
                       )}
                       <div className="min-w-0">
@@ -1377,11 +1660,12 @@ export default function CentralChatDock({
                   </div>
                 )}
 
-                <div className="flex items-end gap-2">
+                <div className={`flex items-center ${isMobileViewport ? "gap-1" : "gap-2"}`}>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+                    disabled={!selectedMember}
+                    className={`inline-flex shrink-0 items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300 ${isMobileViewport ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl"}`}
                     aria-label="แนบไฟล์"
                   >
                     <Paperclip size={16} />
@@ -1396,16 +1680,74 @@ export default function CentralChatDock({
                       event.target.value = "";
                     }}
                   />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(event) => {
+                      handleIncomingFile(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={!selectedMember}
+                    className={`inline-flex shrink-0 items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300 ${isMobileViewport ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl"}`}
+                    aria-label="open camera"
+                  >
+                    <Camera size={16} />
+                  </button>
+
+                  <div className="relative shrink-0" ref={stickerPickerRef}>
+                    <button
+                      type="button"
+                      onClick={() => setStickerPickerOpen((value) => !value)}
+                      disabled={!selectedMember}
+                      className={`inline-flex items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300 ${isMobileViewport ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl"}`}
+                      aria-label="open stickers"
+                    >
+                      <Smile size={16} />
+                    </button>
+
+                    {stickerPickerOpen && (
+                      <div className={`absolute z-10 rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-24px_rgba(15,23,42,0.35)] ${isMobileViewport ? "bottom-12 right-0 w-[220px]" : "bottom-14 left-0 w-[240px]"}`}>
+                        <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                          Stickers
+                        </p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {CHAT_STICKERS.map((sticker) => (
+                            <button
+                              key={sticker.id}
+                              type="button"
+                              onClick={() => handleStickerSelect(sticker.id)}
+                              className="flex h-12 w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-2xl transition hover:-translate-y-0.5 hover:border-[#2b59b0]/25 hover:bg-[#eef4ff]"
+                              title={sticker.label}
+                              aria-label={sticker.label}
+                            >
+                              <span role="img" aria-hidden="true">
+                                {sticker.emoji}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="min-w-0 flex-1">
                     <textarea
-                      rows={2}
+                      rows={isMobileViewport ? 1 : 2}
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
                       onKeyDown={handleComposerKeyDown}
+                      onPaste={handleComposerPaste}
                       placeholder={selectedMember ? `พิมพ์ข้อความถึง ${selectedMember.name}` : "เลือกผู้ใช้ก่อนพิมพ์ข้อความ"}
                       disabled={!selectedMember}
-                      className="w-full resize-y rounded-[1.4rem] border border-slate-300 px-4 py-3 text-sm text-slate-700 focus:border-[#2b59b0] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/15 disabled:cursor-not-allowed disabled:bg-slate-50"
+                      className={`w-full resize-none border text-sm text-slate-700 focus:border-[#2b59b0] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/15 disabled:cursor-not-allowed disabled:bg-slate-50 ${isMobileViewport ? "min-h-9 max-h-24 rounded-xl border-slate-200 px-3 py-2 leading-5" : "rounded-[1.4rem] border-slate-300 px-4 py-3"}`}
                     />
                   </div>
 
@@ -1413,7 +1755,7 @@ export default function CentralChatDock({
                     type="button"
                     onClick={handleSend}
                     disabled={sending || (!normalizeText(draft) && !pendingFile) || !selectedMember}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#2b59b0] text-white transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:bg-slate-300"
+                    className={`inline-flex shrink-0 items-center justify-center bg-[#2b59b0] text-white transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:bg-slate-300 ${isMobileViewport ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl"}`}
                     aria-label="ส่งข้อความ"
                   >
                     {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}

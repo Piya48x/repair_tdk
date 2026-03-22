@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabaseClient";
+﻿import { supabase } from "../lib/supabaseClient";
 
 export const NOTEBOOK_PROOF_BUCKET = "notebook-borrow-proof";
 
@@ -16,6 +16,30 @@ export const NOTEBOOK_LOG_STATUS = {
 
 export const NOTEBOOK_ALLOWED_ASSET_CODES = ["NB-018", "NB-017", "NB-016", "NB-014"];
 const NOTEBOOK_ALLOWED_ASSET_CODE_SET = new Set(NOTEBOOK_ALLOWED_ASSET_CODES.map((code) => code.toUpperCase()));
+const NOTEBOOK_RETURN_RPC_MODE_KEY = "notebook:return-rpc-mode";
+
+function readNotebookReturnRpcMode() {
+  if (typeof window === "undefined") return "unknown";
+  try {
+    const value = String(window.localStorage.getItem(NOTEBOOK_RETURN_RPC_MODE_KEY) || "");
+    if (value === "legacy" || value === "v2") return value;
+  } catch {
+    // Ignore localStorage access errors.
+  }
+  return "unknown";
+}
+
+function writeNotebookReturnRpcMode(mode) {
+  if (typeof window === "undefined") return;
+  if (mode !== "legacy" && mode !== "v2") return;
+  try {
+    window.localStorage.setItem(NOTEBOOK_RETURN_RPC_MODE_KEY, mode);
+  } catch {
+    // Ignore localStorage access errors.
+  }
+}
+
+let notebookReturnRpcMode = readNotebookReturnRpcMode();
 
 export function normalizeText(value) {
   return String(value || "").trim();
@@ -24,16 +48,29 @@ export function normalizeText(value) {
 export function isNotebookSchemaError(error) {
   const code = String(error?.code || "");
   const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
-  return (
+  const isSchemaCode =
     code === "42P01" ||
+    code === "42703" ||
+    code === "42883" ||
     code === "PGRST202" ||
     code === "PGRST204" ||
-    code === "PGRST205" ||
-    text.includes("notebooks") ||
-    text.includes("borrow_logs") ||
+    code === "PGRST205";
+  const mentionsNotebookSchemaObject =
     text.includes("get_notebook_dashboard") ||
     text.includes("get_my_notebook_borrow_logs") ||
-    text.includes("get_notebook_request_queue")
+    text.includes("get_notebook_request_queue") ||
+    text.includes("request_notebook_borrow") ||
+    text.includes("request_notebook_return") ||
+    text.includes("approve_notebook_borrow_request") ||
+    text.includes("confirm_notebook_return") ||
+    text.includes('relation "notebooks" does not exist') ||
+    text.includes('relation "borrow_logs" does not exist') ||
+    text.includes('column "return_image_url"') ||
+    text.includes("could not find the function");
+  return (
+    (isSchemaCode && mentionsNotebookSchemaObject) ||
+    text.includes('relation "notebooks" does not exist') ||
+    text.includes('relation "borrow_logs" does not exist')
   );
 }
 
@@ -66,14 +103,8 @@ export function formatNotebookDuration(startValue, endValue) {
   const hours = totalHours % 24;
   const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-  if (days > 0) {
-    return `${days} วัน ${hours} ชม.`;
-  }
-
-  if (hours > 0) {
-    return `${hours} ชม. ${minutes > 0 ? `${minutes} นาที` : ""}`.trim();
-  }
-
+  if (days > 0) return `${days} วัน ${hours} ชม.`;
+  if (hours > 0) return `${hours} ชม. ${minutes > 0 ? `${minutes} นาที` : ""}`.trim();
   return `${minutes} นาที`;
 }
 
@@ -104,6 +135,23 @@ export async function uploadNotebookProof(file, userId) {
   const safeUserId = sanitizePathSegment(userId || "unknown");
   const safeName = sanitizePathSegment(file.name || `proof_${Date.now()}`);
   const filePath = `borrow/${safeUserId}/${Date.now()}_${safeName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(NOTEBOOK_PROOF_BUCKET)
+    .upload(filePath, file, { upsert: false });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from(NOTEBOOK_PROOF_BUCKET).getPublicUrl(filePath);
+  return data?.publicUrl || "";
+}
+
+export async function uploadNotebookReturnProof(file, userId) {
+  if (!file) throw new Error("Missing file");
+
+  const safeUserId = sanitizePathSegment(userId || "unknown");
+  const safeName = sanitizePathSegment(file.name || `return_${Date.now()}`);
+  const filePath = `borrow/${safeUserId}/${Date.now()}_return_${safeName}`;
 
   const { error: uploadError } = await supabase.storage
     .from(NOTEBOOK_PROOF_BUCKET)
@@ -156,7 +204,45 @@ export async function requestNotebookBorrow({
   });
 }
 
-export async function requestNotebookReturn(logId) {
+function isReturnRpcSignatureMismatch(error) {
+  const code = String(error?.code || "");
+  const status = Number(error?.status || 0);
+  const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return (
+    (
+      code === "PGRST202" ||
+      code === "42883" ||
+      status === 404
+    ) &&
+    (text.includes("request_notebook_return") || text.includes("could not find the function"))
+  );
+}
+
+export async function requestNotebookReturn({
+  logId,
+  returnImageUrl,
+  returnImageName = null,
+  returnImageMimeType = null,
+  returnImageSize = null,
+}) {
+  const nextResult = await supabase.rpc("request_notebook_return", {
+    _log_id: logId,
+    _return_image_url: returnImageUrl,
+    _return_image_name: returnImageName,
+    _return_image_mime_type: returnImageMimeType,
+    _return_image_size: returnImageSize,
+  });
+
+  if (!nextResult?.error) {
+    notebookReturnRpcMode = "v2";
+    writeNotebookReturnRpcMode("v2");
+    return nextResult;
+  }
+  if (!isReturnRpcSignatureMismatch(nextResult.error)) return nextResult;
+
+  // Backward compatibility: database may still use old RPC signature.
+  notebookReturnRpcMode = "legacy";
+  writeNotebookReturnRpcMode("legacy");
   return supabase.rpc("request_notebook_return", {
     _log_id: logId,
   });
@@ -173,3 +259,4 @@ export async function confirmNotebookReturn(logId) {
     _log_id: logId,
   });
 }
+
