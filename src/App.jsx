@@ -36,22 +36,22 @@ function AppInner() {
         </ProtectedRoute>
       } />
       <Route path="/ticket-history" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin', 'auditor']}>
           <TicketHistory />
         </ProtectedRoute>
       } />
       <Route path="/work-notes" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin', 'auditor']}>
           <WorkNotes />
         </ProtectedRoute>
       } />
       <Route path="/access-request" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin', 'auditor']}>
           <AccessRequest />
         </ProtectedRoute>
       } />
       <Route path="/notebook-center" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin', 'auditor']}>
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin', 'auditor']}>
           <NotebookCenter />
         </ProtectedRoute>
       } />
@@ -105,13 +105,13 @@ function AppInner() {
         </ProtectedRoute>
       } />
       <Route path="/pick-up-equipment" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin']}>
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin']}>
           <PickUpEquipment />
         </ProtectedRoute>
       } />
 
       <Route path="/meeting-room-booking" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'admin']}>
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin']}>
           <MeetingRoomBooking />
         </ProtectedRoute>
       } />

@@ -2,8 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  ArrowUpRight,
-  BarChart3,
   CheckCircle2,
   Computer,
   KeyRound,
@@ -11,20 +9,7 @@ import {
   Monitor,
   Printer,
   RefreshCw,
-  ShieldCheck,
-  Sparkles,
-  TrendingUp,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("th-TH");
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("th-TH", {
@@ -78,44 +63,6 @@ const LICENSE_STATUS_LABELS = {
   pending_renewal: "ใกล้ต่ออายุ",
   inactive: "ไม่ใช้งาน",
   expired: "หมดอายุ",
-};
-
-const EXECUTIVE_MENU_CARDS = [
-  { key: "pc", label: "PC", subtitle: "Desktop Fleet", icon: Computer, accent: "from-sky-500 to-cyan-500", soft: "border-sky-200 bg-sky-50 text-sky-700", chart: "#0ea5e9" },
-  { key: "notebook", label: "Notebook", subtitle: "Portable Fleet", icon: Laptop, accent: "from-violet-500 to-fuchsia-500", soft: "border-violet-200 bg-violet-50 text-violet-700", chart: "#8b5cf6" },
-  { key: "monitor", label: "Monitor", subtitle: "Display Estate", icon: Monitor, accent: "from-emerald-500 to-teal-500", soft: "border-emerald-200 bg-emerald-50 text-emerald-700", chart: "#10b981" },
-  { key: "printer", label: "Printer", subtitle: "Print Capacity", icon: Printer, accent: "from-amber-500 to-orange-500", soft: "border-amber-200 bg-amber-50 text-amber-700", chart: "#f59e0b" },
-  { key: "licenses", label: "Licenses", subtitle: "Software Entitlement", icon: KeyRound, accent: "from-indigo-500 to-blue-500", soft: "border-indigo-200 bg-indigo-50 text-indigo-700", chart: "#2563eb" },
-];
-
-const EXECUTIVE_DETAIL_FILTER_LABELS = {
-  all: "All",
-  pc: "PC",
-  notebook: "Notebook",
-  monitor: "Monitor",
-  printer: "Printer",
-  licenses: "Licenses",
-  overview_total: "Total Stock",
-  overview_usable: "Ready for Use",
-  overview_broken: "Broken / Unavailable",
-};
-
-const EXECUTIVE_ASSET_STATUS_LABELS = {
-  in_use: "In Use",
-  assigned: "Assigned",
-  spare: "Spare",
-  available: "Available",
-  broken: "Broken",
-  repair: "Under Repair",
-  retired: "Retired",
-  lost: "Lost",
-};
-
-const EXECUTIVE_LICENSE_STATUS_LABELS = {
-  active: "Active",
-  pending_renewal: "Renewal Due",
-  inactive: "Inactive",
-  expired: "Expired",
 };
 
 function normalizeText(value) {
@@ -179,12 +126,12 @@ function normalizeAssetStatusKey(value) {
 
 function formatAssetStatus(status) {
   const key = normalizeAssetStatusKey(status);
-  return EXECUTIVE_ASSET_STATUS_LABELS[key] || normalizeText(status) || "-";
+  return ASSET_STATUS_LABELS[key] || normalizeText(status) || "-";
 }
 
 function formatLicenseStatus(status) {
   const key = normalizeStatusKey(status);
-  return EXECUTIVE_LICENSE_STATUS_LABELS[key] || normalizeText(status) || "-";
+  return LICENSE_STATUS_LABELS[key] || normalizeText(status) || "-";
 }
 
 function getAssetStatusChipClass(status) {
@@ -286,67 +233,12 @@ function getAvailableSeats(item) {
   return Math.max(total - assigned, 0);
 }
 
-function ExecutiveChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur">
-      {label ? <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{label}</p> : null}
-      <div className="mt-2 space-y-1.5">
-        {payload.map((entry) => (
-          <div key={`${entry.name}-${entry.dataKey}`} className="flex items-center justify-between gap-4 text-xs">
-            <span className="inline-flex items-center gap-2 font-semibold text-slate-600">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-              {entry.name}
-            </span>
-            <span className="font-black text-slate-900">{NUMBER_FORMATTER.format(entry.value)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ExecutiveSignalCard({ eyebrow, title, value, detail, tone = "slate", icon: Icon }) {
-  const toneMap = {
-    slate: "border-slate-200 bg-white text-slate-900",
-    indigo: "border-slate-200 bg-white text-slate-900",
-    emerald: "border-slate-200 bg-white text-slate-900",
-    amber: "border-slate-200 bg-white text-slate-900",
-    rose: "border-slate-200 bg-white text-slate-900",
-  };
-  const accentMap = {
-    slate: "bg-slate-400",
-    indigo: "bg-indigo-500",
-    emerald: "bg-emerald-500",
-    amber: "bg-amber-500",
-    rose: "bg-rose-500",
-  };
-
-  return (
-    <article className={`rounded-[1.35rem] border p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${toneMap[tone] || toneMap.slate}`}>
-      <div className={`mb-3 h-1.5 w-14 rounded-full ${accentMap[tone] || accentMap.slate}`} />
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">{eyebrow}</p>
-          <h3 className="mt-2 text-sm font-bold text-slate-700">{title}</h3>
-          <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-500 shadow-sm">
-          <Icon size={18} />
-        </div>
-      </div>
-    </article>
-  );
-}
-
 function MainMetricCard({ label, subtitle, value, icon: Icon, accent, soft, active, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group w-full rounded-[1.5rem] border bg-white p-5 text-left shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${
+      className={`w-full rounded-3xl border bg-white p-5 text-left shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(15,23,42,0.1)] ${
         active ? "border-slate-900 ring-2 ring-slate-900/10" : "border-slate-200"
       }`}
     >
@@ -356,14 +248,11 @@ function MainMetricCard({ label, subtitle, value, icon: Icon, accent, soft, acti
           <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">{NUMBER_FORMATTER.format(value)}</p>
           <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
         </div>
-        <div className={`rounded-2xl border p-3 shadow-sm transition group-hover:scale-105 ${soft}`}>
+        <div className={`rounded-2xl border p-3 ${soft}`}>
           <Icon size={18} />
         </div>
       </div>
-      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Detail</span>
-        <ArrowUpRight size={15} className="text-slate-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-      </div>
+      <div className={`mt-4 h-1.5 rounded-full bg-gradient-to-r ${accent}`} />
     </button>
   );
 }
@@ -470,53 +359,6 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
   });
   const operationsPulseLine = operationsPulsePoints.map((point) => `${point.x},${point.y}`).join(" ");
   const operationsPulseArea = `0,${operationsPulseHeight} ${operationsPulseLine} ${operationsPulseWidth},${operationsPulseHeight}`;
-  const categoryPortfolioData = EXECUTIVE_MENU_CARDS.map((item) => ({
-    name: item.label,
-    value: menuCount[item.key],
-    usable: stockByCategory[item.key].usable,
-    broken: stockByCategory[item.key].broken,
-    color: item.chart,
-  })).filter((item) => item.value > 0);
-  const operationalReadinessData = EXECUTIVE_MENU_CARDS.map((item) => {
-    const stock = stockByCategory[item.key];
-    const total = Math.max(stock.total, 1);
-    return {
-      name: item.label,
-      readiness: Math.round((stock.usable / total) * 100),
-      riskUnits: stock.broken,
-      usableUnits: stock.usable,
-      color: item.chart,
-    };
-  }).filter((item) => item.usableUnits > 0 || item.riskUnits > 0);
-  const dominantCategory = [...categoryMixItems].sort((left, right) => right.value - left.value)[0] || null;
-  const weakestCategory = [...operationalReadinessData].sort((left, right) => left.readiness - right.readiness)[0] || null;
-  const licenseAttentionCount = licenseRows.filter((row) => ["pending_renewal", "expired"].includes(normalizeStatusKey(row.status))).length;
-  const executiveSignals = [
-    {
-      eyebrow: "Enterprise Base",
-      title: "Total Managed Stock",
-      value: NUMBER_FORMATTER.format(overview.total),
-      detail: `${NUMBER_FORMATTER.format(overview.usable)} ready for use across all tracked categories`,
-      tone: "indigo",
-      icon: BarChart3,
-    },
-    {
-      eyebrow: "Operational Readiness",
-      title: "Availability Rate",
-      value: `${availabilityRate}%`,
-      detail: weakestCategory ? `Lowest readiness is ${weakestCategory.name} at ${weakestCategory.readiness}%` : "No weak category detected",
-      tone: "emerald",
-      icon: ShieldCheck,
-    },
-    {
-      eyebrow: "Attention Queue",
-      title: "Risk / Renewal Items",
-      value: NUMBER_FORMATTER.format(overview.broken + licenseAttentionCount),
-      detail: `${NUMBER_FORMATTER.format(overview.broken)} broken assets and ${NUMBER_FORMATTER.format(licenseAttentionCount)} licenses requiring attention`,
-      tone: overview.broken + licenseAttentionCount > 0 ? "amber" : "slate",
-      icon: AlertTriangle,
-    },
-  ];
 
   const selectedAssetIdSet = new Set(selectedAssetIds);
   const selectedLicenseIdSet = new Set(selectedLicenseIds);
@@ -608,275 +450,7 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
 
   return (
     <div className="space-y-5">
-      <section id="overview-executive-hero" className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_14px_36px_rgba(15,23,42,0.06)] sm:p-7">
-        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-700">
-                <Sparkles size={12} />
-                Executive View
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">
-                <TrendingUp size={12} />
-                Live Operational Dashboard
-              </span>
-            </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-[2.4rem]">
-              Operational Dashboard
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">
-              A clean executive summary of stock readiness, operational exposure, and IT capacity across the core device portfolio.
-            </p>
-
-            <div className="mt-5 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                <Activity size={13} className="text-indigo-600" />
-                Updated: {generatedAt}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                <ShieldCheck size={13} className="text-emerald-600" />
-                Availability {availabilityRate}%
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                <AlertTriangle size={13} className="text-amber-600" />
-                Risk Queue {NUMBER_FORMATTER.format(overview.broken + licenseAttentionCount)}
-              </span>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-              {executiveSignals.map((signal) => (
-                <ExecutiveSignalCard key={signal.title} {...signal} />
-              ))}
-            </div>
-          </div>
-
-          <aside className="rounded-[1.7rem] border border-slate-200 bg-slate-50/80 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Readiness Snapshot</p>
-                <h2 className="mt-2 text-xl font-black tracking-tight text-slate-950">Current Operating Posture</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Immediate summary of usable capacity and the category with the highest exposure.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-                Refresh
-              </button>
-            </div>
-
-            <div className="mt-6 grid gap-5 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
-              <div className="mx-auto">
-                <div
-                  className="relative h-32 w-32 rounded-full"
-                  style={{
-                    background: `conic-gradient(#10b981 0 ${availabilityRate}%, #f59e0b ${availabilityRate}% ${Math.min(
-                      availabilityRate + brokenRate,
-                      100,
-                    )}%, #e2e8f0 ${Math.min(availabilityRate + brokenRate, 100)}% 100%)`,
-                  }}
-                >
-                  <div className="absolute inset-[12px] flex flex-col items-center justify-center rounded-full bg-white ring-1 ring-slate-100">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Ready</span>
-                    <span className="mt-1 text-3xl font-black text-slate-950">{availabilityRate}%</span>
-                    <span className="mt-1 text-[11px] text-slate-400">portfolio</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="rounded-[1.2rem] border border-slate-200 bg-white p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Largest Portfolio Weight</p>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-black text-slate-950">{dominantCategory?.name || "No data"}</p>
-                      <p className="text-sm text-slate-500">
-                        {dominantCategory ? `${NUMBER_FORMATTER.format(dominantCategory.value)} units in the largest category mix` : "Awaiting data"}
-                      </p>
-                    </div>
-                    <ArrowUpRight size={18} className="text-slate-400" />
-                  </div>
-                </div>
-                <div className="rounded-[1.2rem] border border-slate-200 bg-white p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Weakest Readiness</p>
-                  <p className="mt-2 text-lg font-black text-slate-950">{weakestCategory ? `${weakestCategory.name} ${weakestCategory.readiness}%` : "No risk signal"}</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {weakestCategory ? `${NUMBER_FORMATTER.format(weakestCategory.riskUnits)} units currently under pressure in this category` : "Every tracked category is healthy"}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-[1.1rem] border border-slate-200 bg-white p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Ready Units</p>
-                    <p className="mt-2 text-2xl font-black text-slate-950">{NUMBER_FORMATTER.format(overview.usable)}</p>
-                  </div>
-                  <div className="rounded-[1.1rem] border border-slate-200 bg-white p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Renewal Queue</p>
-                    <p className="mt-2 text-2xl font-black text-slate-950">{NUMBER_FORMATTER.format(licenseAttentionCount)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section id="categories-executive" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {EXECUTIVE_MENU_CARDS.map((item) => (
-          <MainMetricCard
-            key={item.key}
-            label={item.label}
-            subtitle={item.subtitle}
-            value={menuCount[item.key]}
-            icon={item.icon}
-            accent={item.accent}
-            soft={item.soft}
-            active={activeDetailFilter === item.key}
-            onClick={() => applyDetailFilter(item.key)}
-          />
-        ))}
-      </section>
-
-      <section id="health-executive" className="hidden grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => applyDetailFilter("overview_total")}
-          className={`rounded-[1.9rem] border bg-white p-5 text-left shadow-[0_12px_30px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(15,23,42,0.12)] ${
-            activeDetailFilter === "overview_total" ? "border-slate-900 ring-2 ring-slate-900/10" : "border-slate-200"
-          }`}
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><BarChart3 size={16} className="text-indigo-600" />Total Stock</div>
-          <p className="mt-3 text-4xl font-black text-slate-950">{NUMBER_FORMATTER.format(overview.total)}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-500">Full asset and entitlement estate under executive monitoring.</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => applyDetailFilter("overview_usable")}
-          className={`rounded-[1.9rem] border bg-[linear-gradient(135deg,_#ecfdf5_0%,_#ffffff_100%)] p-5 text-left shadow-[0_12px_30px_rgba(16,185,129,0.10)] transition hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(16,185,129,0.18)] ${
-            activeDetailFilter === "overview_usable" ? "border-emerald-700 ring-2 ring-emerald-700/15" : "border-emerald-200"
-          }`}
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 size={16} />Ready for Use</div>
-          <p className="mt-3 text-4xl font-black text-emerald-950">{NUMBER_FORMATTER.format(overview.usable)}</p>
-          <p className="mt-2 text-sm leading-6 text-emerald-700">Healthy operating base with {availabilityRate}% portfolio readiness.</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => applyDetailFilter("overview_broken")}
-          className={`rounded-[1.9rem] border bg-[linear-gradient(135deg,_#fff7ed_0%,_#ffffff_100%)] p-5 text-left shadow-[0_12px_30px_rgba(245,158,11,0.10)] transition hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(245,158,11,0.18)] ${
-            activeDetailFilter === "overview_broken" ? "border-amber-500 ring-2 ring-amber-500/15" : "border-amber-200"
-          }`}
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-800"><AlertTriangle size={16} />Risk Exposure</div>
-          <p className="mt-3 text-4xl font-black text-amber-950">{NUMBER_FORMATTER.format(overview.broken + licenseAttentionCount)}</p>
-          <p className="mt-2 text-sm leading-6 text-amber-700">
-            {NUMBER_FORMATTER.format(overview.broken)} broken assets and {NUMBER_FORMATTER.format(licenseAttentionCount)} renewal items requiring action.
-          </p>
-        </button>
-      </section>
-
-      <section id="visualizations-executive" className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <article className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Portfolio Composition</p>
-              <h2 className="mt-2 text-xl font-black text-slate-950">Asset Portfolio Balance</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Relative weight of each operational category. This shows where the enterprise is most invested and where capacity concentration exists.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Total Units</p>
-              <p className="text-lg font-black text-slate-950">{NUMBER_FORMATTER.format(categoryMixTotal)}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
-            <div className="h-[280px] rounded-[1.35rem] border border-slate-100 bg-slate-50/70 p-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categoryPortfolioData} layout="vertical" margin={{ top: 12, right: 12, left: 6, bottom: 12 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" width={76} tick={{ fontSize: 11, fill: "#475569", fontWeight: 700 }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<ExecutiveChartTooltip />} cursor={{ fill: "#f8fafc" }} />
-                  <Bar dataKey="value" name="Total Units" radius={[0, 10, 10, 0]}>
-                    {categoryPortfolioData.map((entry) => (
-                      <Cell key={`portfolio-${entry.name}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="space-y-3">
-              {categoryMixItems.slice(0, 4).map((item) => (
-                <div key={item.key} className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-bold text-slate-900">{item.label}</p>
-                    <span className="text-xs font-black text-slate-500">{item.percent}%</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">{NUMBER_FORMATTER.format(item.value)} units in current portfolio</p>
-                  <div className="mt-3 h-2.5 rounded-full bg-white">
-                    <div className={`h-2.5 rounded-full bg-gradient-to-r ${item.color}`} style={{ width: `${Math.max(item.percent, 4)}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </article>
-
-        <article className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Operational Readiness</p>
-              <h2 className="mt-2 text-xl font-black text-slate-950">Usable vs Risk Units</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Category-level operating capacity versus units already impacted by failure, repair, retirement, or expiration risk.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Risk Rate</p>
-              <p className="text-lg font-black text-slate-950">{brokenRate}%</p>
-            </div>
-          </div>
-
-          <div className="mt-5 h-[240px] rounded-[1.35rem] border border-slate-100 bg-slate-50/70 p-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryPortfolioData} margin={{ top: 12, right: 12, left: -12, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#475569", fontWeight: 700 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip content={<ExecutiveChartTooltip />} />
-                <Bar dataKey="usable" name="Usable Units" stackId="readiness" fill="#0f766e" radius={[10, 10, 0, 0]} />
-                <Bar dataKey="broken" name="Risk Units" stackId="readiness" fill="#f59e0b" radius={[10, 10, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Dominant Portfolio</p>
-              <p className="mt-2 text-base font-black text-slate-950">{dominantCategory?.name || "No data"}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {dominantCategory ? `${NUMBER_FORMATTER.format(dominantCategory.value)} units and ${dominantCategory.percent}% of total estate` : "Awaiting portfolio data"}
-              </p>
-            </div>
-            <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Most Exposed Category</p>
-              <p className="mt-2 text-base font-black text-slate-950">{weakestCategory?.name || "No risk"}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {weakestCategory ? `${weakestCategory.readiness}% readiness with ${NUMBER_FORMATTER.format(weakestCategory.riskUnits)} units under pressure` : "No category is showing elevated risk"}
-              </p>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section id="overview" className="hidden rounded-[1.9rem] border border-slate-200 bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.06)] sm:p-6">
+      <section id="overview" className="rounded-[1.9rem] border border-slate-200 bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.06)] sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">Executive IT Stock Snapshot</p>
@@ -898,8 +472,8 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         </div>
       </section>
 
-      <section id="categories" className="hidden grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {EXECUTIVE_MENU_CARDS.map((item) => (
+      <section id="categories" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {MENU_CARDS.map((item) => (
           <MainMetricCard
             key={item.key}
             label={item.label}
@@ -914,7 +488,7 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         ))}
       </section>
 
-      <section id="health" className="hidden grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section id="health" className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <button
           type="button"
           onClick={() => applyDetailFilter("overview_total")}
@@ -950,7 +524,7 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         </button>
       </section>
 
-      <section id="visualizations" className="hidden grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <section id="visualizations" className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -1050,7 +624,7 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
 
       <section className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
         <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-          Detail Filter: {EXECUTIVE_DETAIL_FILTER_LABELS[activeDetailFilter] || EXECUTIVE_DETAIL_FILTER_LABELS.all}
+          ตัวกรองรายละเอียด: {DETAIL_FILTER_LABELS[activeDetailFilter] || DETAIL_FILTER_LABELS.all}
         </span>
         <button
           type="button"

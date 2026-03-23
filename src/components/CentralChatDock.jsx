@@ -17,9 +17,13 @@ import {
   Loader2,
   MessageCircle,
   Paperclip,
+  Pencil,
+  UserPlus,
+  Users,
   Search,
   Send,
   Smile,
+  Trash2,
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
@@ -30,16 +34,17 @@ const DIRECTORY_RESYNC_INTERVAL_MS = 5 * 60 * 1000;
 const PRESENCE_ONLINE_WINDOW_MS = 90 * 1000;
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const SUPPORT_ROLES = new Set(["it_support", "it_manager", "admin"]);
+const GROUP_MANAGER_ROLES = new Set(["it_manager", "admin"]);
 const STICKER_TOKEN_PATTERN = /\[\[sticker:([a-z0-9_-]+)\]\]/i;
 const CHAT_STICKERS = [
-  { id: "thumbs-up", emoji: "👍", label: "Like" },
-  { id: "party", emoji: "🎉", label: "Party" },
-  { id: "love", emoji: "😍", label: "Love" },
-  { id: "fire", emoji: "🔥", label: "Fire" },
-  { id: "ok", emoji: "👌", label: "OK" },
-  { id: "thanks", emoji: "🙏", label: "Thanks" },
-  { id: "wow", emoji: "🤩", label: "Wow" },
-  { id: "rocket", emoji: "🚀", label: "Go" },
+  { id: "thumbs-up", emoji: "\u{1F44D}", label: "Like" },
+  { id: "party", emoji: "\u{1F389}", label: "Party" },
+  { id: "love", emoji: "\u{1F60D}", label: "Love" },
+  { id: "fire", emoji: "\u{1F525}", label: "Fire" },
+  { id: "ok", emoji: "\u{1F44C}", label: "OK" },
+  { id: "thanks", emoji: "\u{1F64F}", label: "Thanks" },
+  { id: "wow", emoji: "\u{1F929}", label: "Wow" },
+  { id: "rocket", emoji: "\u{1F680}", label: "Go" },
 ];
 const CHAT_STICKER_MAP = new Map(CHAT_STICKERS.map((sticker) => [sticker.id, sticker]));
 
@@ -97,19 +102,20 @@ function toAvatarUrl(avatarUrl, displayName, tone = "2b59b0") {
 function roleLabel(role) {
   const normalized = normalizeText(role).toLowerCase();
   if (normalized === "it_support") return "IT";
-  if (normalized === "it_manager") return "IT Manager";
-  if (normalized === "admin") return "Admin";
-  if (normalized === "executive") return "Executive";
-  if (normalized === "auditor") return "Auditor";
-  return "User";
+  if (normalized === "it_manager") return "ผู้จัดการ IT";
+  if (normalized === "admin") return "ผู้ดูแลระบบ";
+  if (normalized === "executive") return "ผู้บริหาร";
+  if (normalized === "auditor") return "ผู้ตรวจสอบ";
+  if (normalized === "group") return "กลุ่ม";
+  return "ผู้ใช้";
 }
 
 function previewForSummary(summary, currentUserId) {
-  if (!summary?.last_message_id) return "เริ่มต้นแชทได้ทันที";
+  if (!summary?.last_message_id) return "เริ่มแชทได้เลย";
   const prefix = String(summary?.last_message_sender_id || "") === currentUserId ? "คุณ: " : "";
   if (summary?.last_message_type === "image") return `${prefix}ส่งรูปภาพ`;
   if (summary?.last_message_type === "file") return `${prefix}${summary?.last_message_file_name || "ส่งไฟล์"}`;
-  return `${prefix}${summary?.last_message || "มีข้อความใหม่"}`;
+  return `${prefix}${summary?.last_message || "ข้อความใหม่"}`;
 }
 
 function isImageMime(mimeType, fileName = "") {
@@ -139,6 +145,17 @@ function isMissingMessengerSchema(error) {
   );
 }
 
+function isMissingRpcFunction(error, functionName) {
+  const code = String(error?.code || "").toUpperCase();
+  const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return (
+    code === "PGRST202" ||
+    code === "PGRST204" ||
+    code === "42883" ||
+    text.includes(String(functionName || "").toLowerCase())
+  );
+}
+
 function isPermissionDenied(error) {
   const code = String(error?.code || "").toUpperCase();
   const status = Number(error?.status || 0);
@@ -151,6 +168,13 @@ function isPermissionDenied(error) {
     text.includes("forbidden") ||
     text.includes("row-level security")
   );
+}
+
+function describeSupabaseError(error) {
+  const message = normalizeText(error?.message);
+  const details = normalizeText(error?.details);
+  const hint = normalizeText(error?.hint);
+  return [message, details, hint].filter(Boolean).join(" | ");
 }
 
 function sortMessages(messages) {
@@ -171,7 +195,7 @@ function normalizeMemberRecord(member, nowValue = Date.now()) {
   const lastSeenAt = member?.last_seen_at || "";
   return {
     id: String(member?.id || ""),
-    name: member?.name || "Member",
+    name: member?.name || "สมาชิก",
     email: member?.email || "",
     role: member?.role || "user",
     avatar_url: member?.avatar_url || "",
@@ -243,6 +267,7 @@ export default function CentralChatDock({
   onOpenChange,
 }) {
   const currentUserId = String(currentUser?.id || "");
+  const currentUserRole = normalizeText(currentUser?.role).toLowerCase();
   const [isOpen, setIsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -253,6 +278,19 @@ export default function CentralChatDock({
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+  const [groupMemberIds, setGroupMemberIds] = useState([]);
+  const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState("");
+  const [editingGroupName, setEditingGroupName] = useState("");
+  const [editingGroupAvatarUrl, setEditingGroupAvatarUrl] = useState("");
+  const [editingGroupInitialAvatarUrl, setEditingGroupInitialAvatarUrl] = useState("");
+  const [editingGroupAvatarFile, setEditingGroupAvatarFile] = useState(null);
+  const [editingGroupAvatarPreview, setEditingGroupAvatarPreview] = useState("");
+  const [savingGroupSettings, setSavingGroupSettings] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [pendingFile, setPendingFile] = useState(null);
@@ -273,6 +311,7 @@ export default function CentralChatDock({
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const editGroupAvatarInputRef = useRef(null);
   const messageListRef = useRef(null);
   const stickerPickerRef = useRef(null);
   const dockRef = useRef(null);
@@ -310,13 +349,14 @@ export default function CentralChatDock({
   const summaryMap = useMemo(() => {
     const nextMap = new Map();
     roomSummaries.forEach((summary) => {
-      nextMap.set(String(summary?.other_user_id || ""), summary);
+      const otherUserId = String(summary?.other_user_id || "");
+      if (!otherUserId) return;
+      nextMap.set(otherUserId, summary);
     });
     return nextMap;
   }, [roomSummaries]);
 
   const directoryMembers = useMemo(() => {
-    const normalizedSearch = normalizeText(deferredSearchQuery).toLowerCase();
     const nowValue = presenceTick || Date.now();
     return members
       .filter((member) => String(member?.id || "") !== currentUserId)
@@ -325,7 +365,7 @@ export default function CentralChatDock({
         const lastSeenAt = member?.last_seen_at || summary?.other_user_last_seen_at || "";
         const stickerMessage = parseStickerMessage(summary?.last_message);
         const lastPreview = stickerMessage?.sticker
-          ? `${stickerMessage.caption ? `Sticker · ${stickerMessage.caption}` : "Sent a sticker"}`
+          ? `${stickerMessage.caption ? `สติกเกอร์: ${stickerMessage.caption}` : "ส่งสติกเกอร์"}`
           : previewForSummary(summary, currentUserId);
         return {
           ...member,
@@ -337,21 +377,115 @@ export default function CentralChatDock({
           last_preview: lastPreview,
         };
       })
+      .sort(compareMembers);
+  }, [currentUserId, members, presenceTick, summaryMap]);
+
+  const groupRooms = useMemo(() => {
+    return roomSummaries
+      .filter((summary) => String(summary?.room_type || "").toLowerCase() === "group")
+      .map((summary) => {
+        const stickerMessage = parseStickerMessage(summary?.last_message);
+        const roomLabel = normalizeText(summary?.room_name) || normalizeText(summary?.other_user_name) || "แชทกลุ่ม";
+        const lastPreview = stickerMessage?.sticker
+          ? `${stickerMessage.caption ? `สติกเกอร์: ${stickerMessage.caption}` : "ส่งสติกเกอร์"}`
+          : previewForSummary(summary, currentUserId);
+        return {
+          id: String(summary?.room_id || ""),
+          room_id: String(summary?.room_id || ""),
+          name: roomLabel,
+          role: "group",
+          email: normalizeText(summary?.member_names) || "",
+          avatar_url: normalizeText(summary?.group_avatar_url) || "",
+          status: summary?.other_user_status || "offline",
+          unread_count: Number(summary?.unread_count || 0),
+          last_message_created_at: summary?.last_message_created_at || "",
+          last_seen_at: summary?.other_user_last_seen_at || "",
+          last_preview: lastPreview,
+          member_count: Number(summary?.member_count || 0),
+          member_ids: Array.isArray(summary?.member_ids) ? summary.member_ids : [],
+          my_member_role: normalizeText(summary?.my_member_role).toLowerCase(),
+          created_by: String(summary?.created_by || ""),
+        };
+      })
+      .sort(compareMembers);
+  }, [currentUserId, roomSummaries]);
+
+  const normalizedSearch = useMemo(
+    () => normalizeText(deferredSearchQuery).toLowerCase(),
+    [deferredSearchQuery],
+  );
+
+  const filteredGroupRooms = useMemo(() => {
+    if (!normalizedSearch) return groupRooms;
+    return groupRooms.filter((room) => {
+      const haystack = `${room.name || ""} ${room.email || ""}`.toLowerCase();
+      return haystack.includes(normalizedSearch);
+    });
+  }, [groupRooms, normalizedSearch]);
+
+  const filteredDirectoryMembers = useMemo(() => {
+    if (!normalizedSearch) return directoryMembers;
+    return directoryMembers
       .filter((member) => {
-        if (!normalizedSearch) return true;
         const haystack = `${member.name || ""} ${member.email || ""} ${member.role || ""}`.toLowerCase();
         return haystack.includes(normalizedSearch);
       })
       .sort(compareMembers);
-  }, [currentUserId, deferredSearchQuery, members, presenceTick, summaryMap]);
+  }, [directoryMembers, normalizedSearch]);
 
-  const selectedMember = useMemo(
-    () => directoryMembers.find((member) => String(member?.id || "") === String(selectedMemberId || "")) || null,
-    [directoryMembers, selectedMemberId]
-  );
+  const selectedMember = useMemo(() => {
+    const selectedId = String(selectedMemberId || "");
+    if (!selectedId) return null;
 
-  const launcherTitle = selectedMember?.name || "Messenger";
-  const typingHintVisible = Boolean(typingMemberId) && String(selectedMemberId || "") === String(typingMemberId);
+    if (selectedId.startsWith("group:")) {
+      const roomId = selectedId.replace("group:", "");
+      const room = groupRooms.find((item) => String(item.room_id || "") === roomId);
+      if (!room) return null;
+      return {
+        ...room,
+        id: selectedId,
+        is_group: true,
+      };
+    }
+
+    const direct = directoryMembers.find((member) => String(member?.id || "") === selectedId);
+    if (!direct) return null;
+    return {
+      ...direct,
+      is_group: false,
+    };
+  }, [directoryMembers, groupRooms, selectedMemberId]);
+
+  const memberByIdMap = useMemo(() => {
+    const nextMap = new Map();
+    directoryMembers.forEach((member) => {
+      nextMap.set(String(member?.id || ""), member);
+    });
+    return nextMap;
+  }, [directoryMembers]);
+
+  const selectedRoomMemberIds = useMemo(() => {
+    if (!selectedMember?.is_group) return [];
+    return Array.isArray(selectedMember?.member_ids) ? selectedMember.member_ids : [];
+  }, [selectedMember]);
+
+  const selectedRoomSummary = useMemo(() => {
+    const activeRoomId = String(selectedRoomId || selectedMember?.room_id || "");
+    if (!activeRoomId) return null;
+    return roomSummaries.find((summary) => String(summary?.room_id || "") === activeRoomId) || null;
+  }, [roomSummaries, selectedMember?.room_id, selectedRoomId]);
+
+  const canManageSelectedGroup = useMemo(() => {
+    if (!selectedMember?.is_group) return false;
+    if (GROUP_MANAGER_ROLES.has(currentUserRole)) return true;
+    return (
+      String(selectedRoomSummary?.created_by || "") === currentUserId ||
+      String(selectedRoomSummary?.my_member_role || "").toLowerCase() === "owner"
+    );
+  }, [currentUserId, currentUserRole, selectedMember?.is_group, selectedRoomSummary?.created_by, selectedRoomSummary?.my_member_role]);
+
+  const launcherTitle = selectedMember?.name || "แชทกลาง";
+  const typingHintVisible = Boolean(typingMemberId) && Boolean(selectedRoomId);
 
   const scrollToBottom = useCallback((behavior = "auto") => {
     const container = messageListRef.current;
@@ -376,6 +510,78 @@ export default function CentralChatDock({
     setPendingFilePreview("");
   }, [pendingFilePreview]);
 
+  const resetEditGroupForm = useCallback(() => {
+    if (editingGroupAvatarPreview) {
+      URL.revokeObjectURL(editingGroupAvatarPreview);
+    }
+    setEditingGroupId("");
+    setEditingGroupName("");
+    setEditingGroupAvatarUrl("");
+    setEditingGroupInitialAvatarUrl("");
+    setEditingGroupAvatarFile(null);
+    setEditingGroupAvatarPreview("");
+  }, [editingGroupAvatarPreview]);
+
+  const openEditGroupDialog = useCallback(() => {
+    if (!selectedMember?.is_group) return;
+    const currentAvatarUrl = normalizeText(selectedMember?.avatar_url || selectedRoomSummary?.group_avatar_url || "");
+    if (editingGroupAvatarPreview) {
+      URL.revokeObjectURL(editingGroupAvatarPreview);
+    }
+    setEditingGroupId(String(selectedMember?.room_id || selectedRoomId || ""));
+    setEditingGroupName(normalizeText(selectedMember?.name));
+    setEditingGroupAvatarUrl(currentAvatarUrl);
+    setEditingGroupInitialAvatarUrl(currentAvatarUrl);
+    setEditingGroupAvatarFile(null);
+    setEditingGroupAvatarPreview("");
+    setError("");
+    setNotice("");
+    setIsEditGroupOpen(true);
+  }, [editingGroupAvatarPreview, selectedMember, selectedRoomId, selectedRoomSummary?.group_avatar_url]);
+
+  const uploadGroupAvatar = useCallback(async (file, roomId) => {
+    const safeRoomId = sanitizePathSegment(roomId || "group");
+    const safeName = sanitizePathSegment(file?.name || `group_${Date.now()}`);
+    const filePath = `group/profile/${safeRoomId}/${Date.now()}_${safeName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("chat-files")
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from("chat-files").getPublicUrl(filePath);
+    return data?.publicUrl || "";
+  }, []);
+
+  const handleEditGroupAvatarSelection = useCallback((file) => {
+    if (!file) return;
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setError("Group profile image must be 20 MB or smaller.");
+      return;
+    }
+    if (!isImageMime(file.type, file.name)) {
+      setError("Group profile image must be an image file.");
+      return;
+    }
+
+    setError("");
+    if (editingGroupAvatarPreview) {
+      URL.revokeObjectURL(editingGroupAvatarPreview);
+    }
+
+    setEditingGroupAvatarFile(file);
+    setEditingGroupAvatarPreview(URL.createObjectURL(file));
+  }, [editingGroupAvatarPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (editingGroupAvatarPreview) {
+        URL.revokeObjectURL(editingGroupAvatarPreview);
+      }
+    };
+  }, [editingGroupAvatarPreview]);
+
   const loadUserDirectory = useCallback(async ({ background = false } = {}) => {
     if (!currentUserId) return;
     if (!background) {
@@ -385,9 +591,9 @@ export default function CentralChatDock({
 
     if (queryError) {
       if (isMissingMessengerSchema(queryError)) {
-        setNotice("ยังไม่ได้ติดตั้ง schema แชทใหม่บน Supabase");
+        setNotice("ยังไม่ได้ติดตั้ง schema ของ Messenger บน Supabase");
       } else if (isPermissionDenied(queryError)) {
-        setNotice("Chat permission denied. Run database/20260321_direct_messenger.sql and re-login.");
+        setNotice("ไม่มีสิทธิ์ใช้งานแชท กรุณารัน SQL migration และเข้าสู่ระบบใหม่");
       } else {
         setError("โหลดรายชื่อผู้ใช้ไม่สำเร็จ");
       }
@@ -397,12 +603,7 @@ export default function CentralChatDock({
       }
       return;
     }
-
     const normalizedMembers = (data || []).map((member) => normalizeMemberRecord(member));
-    /*
-      name: member?.name || "สมาชิก",
-
-    */
     setMembers((previousMembers) => mergeMembers(previousMembers, normalizedMembers));
     if (!background) {
       setMembersLoading(false);
@@ -450,7 +651,7 @@ export default function CentralChatDock({
     const { data, error: queryError } = await supabase.rpc("get_my_chat_room_summaries");
 
     if (queryError && isPermissionDenied(queryError)) {
-      setNotice("Chat permission denied. Run database/20260321_direct_messenger.sql and re-login.");
+      setNotice("ไม่มีสิทธิ์ใช้งานแชท กรุณารัน SQL migration และเข้าสู่ระบบใหม่");
       setRoomSummaries([]);
       setTotalUnreadCount(0);
       return;
@@ -458,9 +659,9 @@ export default function CentralChatDock({
 
     if (queryError) {
       if (isMissingMessengerSchema(queryError)) {
-        setNotice("ยังไม่ได้ติดตั้ง schema แชทใหม่บน Supabase");
+        setNotice("ยังไม่ได้ติดตั้ง schema ของ Messenger บน Supabase");
       } else {
-        setError("โหลดห้องแชทไม่สำเร็จ");
+        setError("โหลดรายการสนทนาไม่สำเร็จ");
       }
       setRoomSummaries([]);
       setTotalUnreadCount(0);
@@ -472,6 +673,14 @@ export default function CentralChatDock({
       room_id: String(summary?.room_id || ""),
       other_user_id: String(summary?.other_user_id || ""),
       unread_count: Number(summary?.unread_count || 0),
+      room_type: String(summary?.room_type || "direct").toLowerCase() === "group" ? "group" : "direct",
+      room_name: normalizeText(summary?.room_name) || normalizeText(summary?.other_user_name) || "",
+      group_avatar_url: normalizeText(summary?.group_avatar_url),
+      created_by: String(summary?.created_by || ""),
+      my_member_role: normalizeText(summary?.my_member_role).toLowerCase(),
+      member_count: Number(summary?.member_count || 0),
+      member_ids: Array.isArray(summary?.member_ids) ? summary.member_ids.filter(Boolean).map((id) => String(id)) : [],
+      member_names: normalizeText(summary?.member_names),
     }));
 
     setRoomSummaries(nextSummaries);
@@ -514,7 +723,7 @@ export default function CentralChatDock({
     if (loadMessagesRequestRef.current !== requestId) return;
 
     if (queryError && isPermissionDenied(queryError)) {
-      setNotice("Chat permission denied. Run database/20260321_direct_messenger.sql and re-login.");
+      setNotice("ไม่มีสิทธิ์ใช้งานแชท กรุณารัน SQL migration และเข้าสู่ระบบใหม่");
       setMessages([]);
       setMessagesLoading(false);
       return;
@@ -522,7 +731,7 @@ export default function CentralChatDock({
 
     if (queryError) {
       if (isMissingMessengerSchema(queryError)) {
-        setNotice("ยังไม่ได้ติดตั้ง schema แชทใหม่บน Supabase");
+        setNotice("ยังไม่ได้ติดตั้ง schema ของ Messenger บน Supabase");
       } else {
         setError("โหลดข้อความไม่สำเร็จ");
       }
@@ -546,7 +755,7 @@ export default function CentralChatDock({
 
     if (queryError) {
       if (isMissingMessengerSchema(queryError)) {
-        setNotice("ยังไม่ได้ติดตั้ง schema แชทใหม่บน Supabase");
+        setNotice("ยังไม่ได้ติดตั้ง schema ของ Messenger บน Supabase");
       } else {
         setError("สร้างห้องแชทไม่สำเร็จ");
       }
@@ -591,6 +800,19 @@ export default function CentralChatDock({
     await loadRoomSummaries();
   }, [ensureRoomForMember, loadMessages, loadRoomSummaries, summaryMap]);
 
+  const selectGroupRoom = useCallback(async (roomId) => {
+    const normalizedRoomId = String(roomId || "");
+    if (!normalizedRoomId) return;
+
+    setSelectedMemberId(`group:${normalizedRoomId}`);
+    setSelectedRoomId(normalizedRoomId);
+    selectedRoomIdRef.current = normalizedRoomId;
+    setMobileThreadVisible(true);
+    setError("");
+    setNotice("");
+    await loadMessages(normalizedRoomId);
+  }, [loadMessages]);
+
   const chooseDefaultSupportMember = useCallback(async () => {
     const candidate = directoryMembers.find((member) =>
       SUPPORT_ROLES.has(String(member?.role || "").toLowerCase())
@@ -599,10 +821,287 @@ export default function CentralChatDock({
     await selectMember(candidate.id);
   }, [directoryMembers, selectMember]);
 
+  const toggleGroupMemberSelection = useCallback((memberId, checked) => {
+    const normalizedId = String(memberId || "");
+    if (!normalizedId) return;
+    setGroupMemberIds((previousIds) => {
+      if (checked) {
+        if (previousIds.includes(normalizedId)) return previousIds;
+        return [...previousIds, normalizedId];
+      }
+      return previousIds.filter((id) => id !== normalizedId);
+    });
+  }, []);
+
+  const createGroupRoomDirect = useCallback(async (memberIds, roomName) => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    const ownerUserId = String(authUser?.id || currentUserId || "");
+    const normalizedMemberIds = [...new Set((memberIds || []).map((memberId) => String(memberId || "")).filter(Boolean))]
+      .map((memberId) => (memberId === String(currentUserId || "") ? ownerUserId : memberId));
+    const dedupedMemberIds = [...new Set(normalizedMemberIds)];
+    const secondMemberId = dedupedMemberIds.find((memberId) => memberId !== ownerUserId);
+    if (!ownerUserId || !secondMemberId) {
+      throw new Error("Missing group members");
+    }
+
+    const { data: roomRow, error: roomError } = await supabase
+      .from("chat_rooms")
+      .insert({
+        user1_id: ownerUserId,
+        user2_id: secondMemberId,
+        room_type: "group",
+        room_name: roomName || "Group chat",
+        created_by: ownerUserId,
+      })
+      .select("id")
+      .single();
+
+    if (roomError) throw roomError;
+
+    const roomId = Number(roomRow?.id || 0);
+    if (!roomId) {
+      throw new Error("Group room id missing");
+    }
+
+    const memberRows = dedupedMemberIds.map((memberId) => ({
+      room_id: roomId,
+      user_id: memberId,
+      role: String(memberId) === ownerUserId ? "owner" : "member",
+      added_by: ownerUserId,
+    }));
+
+    const { error: membersError } = await supabase
+      .from("chat_room_members")
+      .upsert(memberRows, { onConflict: "room_id,user_id" });
+
+    if (membersError) throw membersError;
+
+    return String(roomId);
+  }, [currentUserId]);
+
+  const handleCreateGroup = useCallback(async () => {
+    if (creatingGroup) return;
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    const ownerUserId = String(authUser?.id || currentUserId || "");
+    if (!ownerUserId) return;
+    const uniqueMemberIds = [...new Set([...groupMemberIds, ownerUserId].map((memberId) => String(memberId || "")).filter(Boolean))];
+    if (uniqueMemberIds.length < 2) {
+      setError("กรุณาเลือกสมาชิกอย่างน้อย 1 คนก่อนสร้างกลุ่ม");
+      return;
+    }
+
+    setCreatingGroup(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const payload = {
+        _name: normalizeText(groupNameDraft) || null,
+        _member_ids: uniqueMemberIds,
+      };
+      const fallbackRoomName = normalizeText(groupNameDraft) || null;
+
+      let createdRoomId = "";
+      let latestCreateError = null;
+      const attemptErrors = [];
+      const { data: createdRoomIdV2, error: createV2Error } = await supabase.rpc("create_chat_group_v2", payload);
+      if (!createV2Error) {
+        createdRoomId = String(createdRoomIdV2 || "");
+      } else {
+        latestCreateError = createV2Error;
+        attemptErrors.push({ step: "create_chat_group_v2", error: createV2Error });
+        const { data, error: createError } = await supabase.rpc("create_chat_group", payload);
+        if (!createError) {
+          createdRoomId = String(data?.id || data?.room_id || "");
+        } else {
+          latestCreateError = createError;
+          attemptErrors.push({ step: "create_chat_group", error: createError });
+          try {
+            createdRoomId = await createGroupRoomDirect(uniqueMemberIds, fallbackRoomName);
+          } catch (directInsertError) {
+            directInsertError.attemptErrors = attemptErrors;
+            throw directInsertError;
+          }
+        }
+      }
+
+      if (!createdRoomId) {
+        throw latestCreateError || new Error("Group room id missing");
+      }
+
+      await loadRoomSummaries();
+      setIsCreateGroupOpen(false);
+      setGroupMemberIds([]);
+      setGroupNameDraft("");
+
+      if (createdRoomId) {
+        await selectGroupRoom(createdRoomId);
+      }
+    } catch (createError) {
+      console.error("createGroup failed", {
+        createError,
+        attemptErrors: createError?.attemptErrors || [],
+      });
+      console.error("createGroup failed details", {
+        code: createError?.code || "",
+        message: createError?.message || "",
+        details: createError?.details || "",
+        hint: createError?.hint || "",
+        attemptErrors: (createError?.attemptErrors || []).map((attempt) => ({
+          step: attempt?.step || "",
+          code: attempt?.error?.code || "",
+          message: attempt?.error?.message || "",
+          details: attempt?.error?.details || "",
+          hint: attempt?.error?.hint || "",
+        })),
+      });
+      if (isMissingMessengerSchema(createError)) {
+        setNotice("ยังไม่ได้ติดตั้ง schema ของ Messenger บน Supabase");
+      } else if (isPermissionDenied(createError)) {
+        setNotice("ไม่มีสิทธิ์สร้างกลุ่มแชท กรุณารัน SQL migration และเข้าสู่ระบบใหม่");
+      } else {
+        const rawErrorText = [
+          `${createError?.message || ""} ${createError?.details || ""} ${createError?.hint || ""}`,
+          ...(createError?.attemptErrors || []).map((attempt) =>
+            `${attempt?.step || ""} ${attempt?.error?.message || ""} ${attempt?.error?.details || ""} ${attempt?.error?.hint || ""}`,
+          ),
+        ].join(" ").toLowerCase();
+        if (
+          rawErrorText.includes("duplicate key") &&
+          rawErrorText.includes("user1") &&
+          rawErrorText.includes("user2")
+        ) {
+          setError("ยังมี unique key เก่าบน chat_rooms กรุณารันไฟล์ SQL migration ใหม่ทั้งไฟล์");
+          setCreatingGroup(false);
+          return;
+        }
+        if (rawErrorText.includes("chat_rooms_id_seq") && rawErrorText.includes("permission")) {
+          setError("Missing sequence permission on chat_rooms_id_seq. Re-run the full SQL migration.");
+          setCreatingGroup(false);
+          return;
+        }
+        if (
+          rawErrorText.includes("chat_rooms_order_check") ||
+          rawErrorText.includes("chat_rooms_direct_order_check") ||
+          (rawErrorText.includes("check constraint") && rawErrorText.includes("chat_rooms"))
+        ) {
+          setError("chat_rooms ยังติด check constraint แบบ direct อยู่ กรุณารัน 20260323_chat_group_messenger.sql ใหม่ทั้งไฟล์");
+          setCreatingGroup(false);
+          return;
+        }
+        const errorDetail = describeSupabaseError(createError);
+        setError(errorDetail ? `สร้างกลุ่มแชทไม่สำเร็จ: ${errorDetail}` : "สร้างกลุ่มแชทไม่สำเร็จ");
+      }
+    } finally {
+      setCreatingGroup(false);
+    }
+  }, [createGroupRoomDirect, creatingGroup, currentUserId, groupMemberIds, groupNameDraft, loadRoomSummaries, selectGroupRoom]);
+
+  const handleSaveGroupSettings = useCallback(async () => {
+    if (!editingGroupId || savingGroupSettings) return;
+
+    setSavingGroupSettings(true);
+    setError("");
+    setNotice("");
+
+    try {
+      let nextAvatarUrl = normalizeText(editingGroupAvatarUrl);
+      if (editingGroupAvatarFile) {
+        nextAvatarUrl = await uploadGroupAvatar(editingGroupAvatarFile, editingGroupId);
+      }
+
+      const clearAvatar = !nextAvatarUrl && Boolean(editingGroupInitialAvatarUrl) && !editingGroupAvatarFile;
+      const { error: updateError } = await supabase.rpc("update_chat_group_details", {
+        _room_id: Number(editingGroupId),
+        _room_name: normalizeText(editingGroupName) || null,
+        _group_avatar_url: nextAvatarUrl || null,
+        _clear_avatar: clearAvatar,
+      });
+
+      if (updateError) throw updateError;
+
+      await loadRoomSummaries();
+      setIsEditGroupOpen(false);
+      resetEditGroupForm();
+    } catch (updateError) {
+      if (isMissingMessengerSchema(updateError) || isMissingRpcFunction(updateError, "update_chat_group_details")) {
+        setNotice("Please run the latest Messenger SQL migration on Supabase.");
+      } else if (isPermissionDenied(updateError)) {
+        setError("You do not have permission to edit this group.");
+      } else {
+        const errorDetail = describeSupabaseError(updateError);
+        setError(errorDetail ? `Update group failed: ${errorDetail}` : "Update group failed.");
+      }
+    } finally {
+      setSavingGroupSettings(false);
+    }
+  }, [
+    editingGroupAvatarFile,
+    editingGroupAvatarUrl,
+    editingGroupId,
+    editingGroupInitialAvatarUrl,
+    editingGroupName,
+    loadRoomSummaries,
+    resetEditGroupForm,
+    savingGroupSettings,
+    uploadGroupAvatar,
+  ]);
+
+  const handleDeleteGroup = useCallback(async () => {
+    if (!editingGroupId || deletingGroup) return;
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm("Delete this group chat?");
+      if (!confirmed) return;
+    }
+
+    setDeletingGroup(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const { data, error: deleteError } = await supabase.rpc("delete_chat_group", {
+        _room_id: Number(editingGroupId),
+      });
+
+      if (deleteError) throw deleteError;
+      if (!data) {
+        throw new Error("Group delete did not complete.");
+      }
+
+      if (String(selectedRoomIdRef.current || "") === String(editingGroupId)) {
+        setSelectedMemberId("");
+        setSelectedRoomId("");
+        selectedRoomIdRef.current = "";
+        setMessages([]);
+        setMobileThreadVisible(false);
+      }
+
+      await loadRoomSummaries();
+      setIsEditGroupOpen(false);
+      resetEditGroupForm();
+    } catch (deleteError) {
+      if (isMissingMessengerSchema(deleteError) || isMissingRpcFunction(deleteError, "delete_chat_group")) {
+        setNotice("Please run the latest Messenger SQL migration on Supabase.");
+      } else if (isPermissionDenied(deleteError)) {
+        setError("You do not have permission to delete this group.");
+      } else {
+        const errorDetail = describeSupabaseError(deleteError);
+        setError(errorDetail ? `Delete group failed: ${errorDetail}` : "Delete group failed.");
+      }
+    } finally {
+      setDeletingGroup(false);
+    }
+  }, [deletingGroup, editingGroupId, loadRoomSummaries, resetEditGroupForm]);
+
   const uploadAttachment = useCallback(async (file) => {
     const safeUserId = sanitizePathSegment(currentUserId || "unknown");
     const safeName = sanitizePathSegment(file?.name || `file_${Date.now()}`);
-    const filePath = `direct/${safeUserId}/${Date.now()}_${safeName}`;
+    const folder = selectedMember?.is_group ? "group" : "direct";
+    const filePath = `${folder}/${safeUserId}/${Date.now()}_${safeName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("chat-files")
@@ -612,12 +1111,12 @@ export default function CentralChatDock({
 
     const { data } = supabase.storage.from("chat-files").getPublicUrl(filePath);
     return data?.publicUrl || "";
-  }, [currentUserId]);
+  }, [currentUserId, selectedMember?.is_group]);
 
   const handleIncomingFile = useCallback((file) => {
     if (!file) return;
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setError("ไฟล์ต้องมีขนาดไม่เกิน 20MB");
+      setError("ไฟล์ต้องมีขนาดไม่เกิน 20 MB");
       return;
     }
 
@@ -633,7 +1132,9 @@ export default function CentralChatDock({
 
   const handleSend = useCallback(async () => {
     const content = normalizeText(draft);
-    if ((!content && !pendingFile) || sending || !currentUserId || !selectedMemberId) return;
+    const selectedId = String(selectedMemberId || "");
+    const isGroupTarget = selectedId.startsWith("group:");
+    if ((!content && !pendingFile) || sending || !currentUserId || !selectedId) return;
 
     setSending(true);
     setError("");
@@ -641,7 +1142,13 @@ export default function CentralChatDock({
 
     let roomId = String(selectedRoomIdRef.current || "");
     if (!roomId) {
-      const room = await ensureRoomForMember(selectedMemberId);
+      if (isGroupTarget) {
+        setSending(false);
+        setError("ไม่สามารถระบุห้องแชทกลุ่มได้");
+        return;
+      }
+
+      const room = await ensureRoomForMember(selectedId);
       if (!room?.id) {
         setSending(false);
         return;
@@ -697,9 +1204,9 @@ export default function CentralChatDock({
       scrollToBottomSoon("smooth");
     } catch (sendError) {
       if (isMissingMessengerSchema(sendError)) {
-        setNotice("ยังไม่ได้ติดตั้ง schema แชทใหม่บน Supabase");
+        setNotice("ยังไม่ได้ติดตั้ง schema ของ Messenger บน Supabase");
       } else if (isPermissionDenied(sendError)) {
-        setNotice("Chat permission denied. Run database/20260321_direct_messenger.sql and re-login.");
+        setNotice("ไม่มีสิทธิ์ส่งข้อความ กรุณารัน SQL migration และเข้าสู่ระบบใหม่");
       } else {
         setError("ส่งข้อความไม่สำเร็จ");
       }
@@ -721,7 +1228,9 @@ export default function CentralChatDock({
   ]);
 
   const handleStickerSelect = useCallback(async (stickerId) => {
-    if (!selectedMember || sending || !currentUserId || !selectedMemberId) return;
+    const selectedId = String(selectedMemberId || "");
+    const isGroupTarget = selectedId.startsWith("group:");
+    if (!selectedMember || sending || !currentUserId || !selectedId) return;
 
     setStickerPickerOpen(false);
     setSending(true);
@@ -730,7 +1239,13 @@ export default function CentralChatDock({
 
     let roomId = String(selectedRoomIdRef.current || "");
     if (!roomId) {
-      const room = await ensureRoomForMember(selectedMemberId);
+      if (isGroupTarget) {
+        setSending(false);
+        setError("ไม่สามารถระบุห้องแชทกลุ่มได้");
+        return;
+      }
+
+      const room = await ensureRoomForMember(selectedId);
       if (!room?.id) {
         setSending(false);
         return;
@@ -770,11 +1285,11 @@ export default function CentralChatDock({
       scrollToBottomSoon("smooth");
     } catch (sendError) {
       if (isMissingMessengerSchema(sendError)) {
-        setNotice("à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸•à¸´à¸”à¸•à¸±à¹‰à¸‡ schema à¹à¸Šà¸—à¹ƒà¸«à¸¡à¹ˆà¸šà¸™ Supabase");
+        setNotice("ยังไม่ได้ติดตั้ง schema ของ Messenger บน Supabase");
       } else if (isPermissionDenied(sendError)) {
-        setNotice("Chat permission denied. Run database/20260321_direct_messenger.sql and re-login.");
+        setNotice("ไม่มีสิทธิ์ส่งสติกเกอร์ กรุณารัน SQL migration และเข้าสู่ระบบใหม่");
       } else {
-        setError("à¸ªà¹ˆà¸‡à¸ªà¸•à¸´à¹Šà¸à¹€à¸à¸­à¸£à¹Œà¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ");
+        setError("ส่งสติกเกอร์ไม่สำเร็จ");
       }
     } finally {
       setSending(false);
@@ -990,12 +1505,26 @@ export default function CentralChatDock({
 
   useEffect(() => {
     if (selectedMemberId) return;
-    const firstRecentMemberId = String(roomSummaries[0]?.other_user_id || "");
-    if (!firstRecentMemberId) return;
-    setSelectedMemberId(firstRecentMemberId);
-    setSelectedRoomId(String(roomSummaries[0]?.room_id || ""));
-    selectedRoomIdRef.current = String(roomSummaries[0]?.room_id || "");
+    const firstSummary = roomSummaries[0];
+    if (!firstSummary?.room_id) return;
+
+    if (String(firstSummary.room_type || "").toLowerCase() === "group") {
+      setSelectedMemberId(`group:${String(firstSummary.room_id)}`);
+    } else if (firstSummary.other_user_id) {
+      setSelectedMemberId(String(firstSummary.other_user_id));
+    } else {
+      return;
+    }
+
+    setSelectedRoomId(String(firstSummary.room_id || ""));
+    selectedRoomIdRef.current = String(firstSummary.room_id || "");
   }, [roomSummaries, selectedMemberId]);
+
+  useEffect(() => {
+    if (isCreateGroupOpen) return;
+    setGroupMemberIds([]);
+    setGroupNameDraft("");
+  }, [isCreateGroupOpen]);
 
   useEffect(() => {
     if (!selectedRoomId) {
@@ -1051,15 +1580,11 @@ export default function CentralChatDock({
       const { error: presenceError } = await supabase.rpc("touch_chat_presence");
       if (!presenceError) return;
       if (isMissingMessengerSchema(presenceError)) {
-        setNotice("Chat schema is missing on Supabase. Run database/20260321_direct_messenger.sql.");
-        return;
-      }
-      if (isMissingMessengerSchema(presenceError)) {
-        setNotice("à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸•à¸´à¸”à¸•à¸±à¹‰à¸‡ schema à¹à¸Šà¸—à¹ƒà¸«à¸¡à¹ˆà¸šà¸™ Supabase");
+        setNotice("ยังไม่ได้ติดตั้ง schema ของ Messenger บน Supabase");
         return;
       }
       if (isPermissionDenied(presenceError)) {
-        setNotice("Chat permission denied. Run database/20260321_direct_messenger.sql and re-login.");
+        setNotice("ไม่มีสิทธิ์ใช้งานแชท กรุณารัน SQL migration และเข้าสู่ระบบใหม่");
       }
     };
 
@@ -1140,6 +1665,13 @@ export default function CentralChatDock({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_rooms" },
+        () => {
+          loadRoomSummaries();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "chat_room_members" },
         () => {
           loadRoomSummaries();
         }
@@ -1246,8 +1778,8 @@ export default function CentralChatDock({
           className={`pointer-events-auto inline-flex items-center gap-3 rounded-full border border-[#12b981]/20 bg-white px-4 py-3 text-left shadow-[0_24px_60px_-28px_rgba(43,89,176,0.45)] transition hover:-translate-y-1 hover:border-[#12b981]/35 ${
             isDraggingDock ? "cursor-grabbing" : "cursor-grab"
           } ${isMobileViewport ? "h-14 w-14 justify-center px-0" : ""}`}
-          aria-label="เปิด Messenger"
-          title="กดค้างแล้วลากเพื่อย้าย Messenger"
+          aria-label="เปิดแชท"
+          title="ลากเพื่อย้ายหน้าต่างแชท"
         >
           <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 via-[#2b59b0] to-[#244a95] text-white shadow-[0_14px_26px_-14px_rgba(16,185,129,0.55)]">
             <span className="absolute inset-0 rounded-full bg-emerald-400/25 opacity-70 blur-[2px] animate-pulse" aria-hidden="true" />
@@ -1261,7 +1793,7 @@ export default function CentralChatDock({
           {!isMobileViewport && (
             <span className="min-w-0">
             <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Messenger
+              แชทกลาง
             </span>
             <span className="block max-w-[220px] truncate text-sm font-bold text-slate-800">
               {launcherTitle}
@@ -1291,13 +1823,13 @@ export default function CentralChatDock({
               <GripVertical size={16} />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#2b59b0]/70">Central Messenger</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#2b59b0]/70">CENTRAL MESSAGE</p>
               <h3 className={`truncate font-black text-slate-900 ${isMobileViewport ? "mt-0.5 text-sm" : "mt-1 text-base"}`}>
-                {isMobileViewport ? "Messenger" : selectedMember ? selectedMember.name : "เลือกผู้ใช้เพื่อเริ่มแชท"}
+                {isMobileViewport ? "แชทกลาง" : selectedMember ? selectedMember.name : "เลือกห้องสนทนา"}
               </h3>
               {!isMobileViewport && (
                 <p className="mt-1 text-xs text-slate-500">
-                {totalUnreadCount > 0 ? `มีข้อความที่ยังไม่อ่าน ${totalUnreadCount} รายการ` : "คุยแบบ 1-1 กับสมาชิกทุกคน"}
+                {totalUnreadCount > 0 ? `ยังไม่อ่าน ${totalUnreadCount} ข้อความ` : "รวมแชทส่วนตัวและแชทกลุ่มในที่เดียว"}
                 </p>
               )}
             </div>
@@ -1308,7 +1840,7 @@ export default function CentralChatDock({
               type="button"
               onClick={() => setIsCollapsed((value) => !value)}
               className={`inline-flex items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 ${isMobileViewport ? "h-8 w-8 rounded-xl" : "h-9 w-9 rounded-2xl"}`}
-              aria-label={isCollapsed ? "ขยายแชท" : "พับแชท"}
+              aria-label={isCollapsed ? "ขยายหน้าต่างแชท" : "ย่อหน้าต่างแชท"}
             >
               <Circle size={12} className={isCollapsed ? "fill-current text-[#2b59b0]" : "text-slate-400"} />
             </button>
@@ -1319,7 +1851,7 @@ export default function CentralChatDock({
                 setIsCollapsed(false);
               }}
               className={`inline-flex items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 ${isMobileViewport ? "h-8 w-8 rounded-xl" : "h-9 w-9 rounded-2xl"}`}
-              aria-label="ปิดแชท"
+              aria-label="ปิดหน้าต่างแชท"
             >
               <X size={15} />
             </button>
@@ -1327,85 +1859,165 @@ export default function CentralChatDock({
         </div>
 
         {!isCollapsed ? (
-          <div className={`grid min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[280px,1fr] ${isMobileViewport ? "h-[min(66dvh,540px)]" : "max-h-[calc(100dvh-4.5rem)] md:h-[min(78dvh,640px)]"}`}>
+          <>
+          <div className={`relative grid min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[280px,1fr] ${isMobileViewport ? "h-[min(66dvh,540px)]" : "max-h-[calc(100dvh-4.5rem)] md:h-[min(78dvh,640px)]"}`}>
             <aside className={`${mobileThreadVisible ? "hidden md:flex" : "flex"} min-h-0 flex-col border-b border-slate-200 bg-[#fbfcff] md:border-b-0 md:border-r`}>
-              <div className="border-b border-slate-200 px-4 py-3">
-                <div className="relative">
-                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="ค้นหาผู้ใช้"
-                    className="w-full rounded-2xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 focus:border-[#2b59b0] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/15"
-                  />
+              <div className="border-b border-slate-200 px-3 py-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative min-w-0 flex-1">
+                    <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="ค้นหา"
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 focus:border-[#2b59b0] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/15"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateGroupOpen(true)}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-50"
+                    aria-label="สร้างกลุ่มแชท"
+                    title="สร้างกลุ่มแชท"
+                  >
+                    <UserPlus size={16} />
+                  </button>
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-2 py-2">
                 {membersLoading ? (
                   <div className="flex items-center gap-2 rounded-2xl px-3 py-3 text-sm text-slate-500">
                     <Loader2 size={15} className="animate-spin" />
                     กำลังโหลดรายชื่อ...
                   </div>
-                ) : directoryMembers.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-sm text-slate-500">
-                    ไม่พบผู้ใช้
-                  </div>
                 ) : (
-                  directoryMembers.map((member) => {
-                    const isActive = String(member.id) === String(selectedMemberId || "");
-                    const avatarUrl = toAvatarUrl(member.avatar_url, member.name, member.status === "online" ? "059669" : "64748b");
-                    return (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onClick={() => selectMember(member.id)}
-                        className={`mb-1 flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition ${
-                          isActive
-                            ? "bg-white shadow-[0_12px_26px_-20px_rgba(43,89,176,0.55)] ring-1 ring-[#2b59b0]/15"
-                            : "hover:bg-white"
-                        }`}
-                      >
-                        <div className="relative">
-                          <img
-                            src={avatarUrl}
-                            alt={member.name}
-                            onError={(event) => {
-                              event.currentTarget.src = buildAvatarFallback(member.name, "2b59b0");
-                            }}
-                            className="h-11 w-11 rounded-full border border-slate-200 bg-white object-cover"
-                          />
-                          <span
-                            className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white ${
-                              member.status === "online" ? "bg-emerald-500" : "bg-slate-300"
-                            }`}
-                            aria-hidden="true"
-                          />
+                  <>
+                    <div>
+                      <p className="px-2 pb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">กลุ่ม</p>
+                      {filteredGroupRooms.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-3 py-3 text-xs text-slate-400">
+                          ยังไม่มีกลุ่มแชท
                         </div>
+                      ) : (
+                        filteredGroupRooms.map((room) => {
+                          const isActive = String(selectedMemberId || "") === `group:${room.room_id}`;
+                          return (
+                            <button
+                              key={`group-${room.room_id}`}
+                              type="button"
+                              onClick={() => selectGroupRoom(room.room_id)}
+                              className={`mb-1 flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition ${
+                                isActive
+                                  ? "bg-white shadow-[0_12px_26px_-20px_rgba(43,89,176,0.55)] ring-1 ring-[#2b59b0]/15"
+                                  : "hover:bg-white"
+                              }`}
+                            >
+                              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[#2b59b0] overflow-hidden">
+                                {room.avatar_url ? (
+                                  <img
+                                    src={toAvatarUrl(room.avatar_url, room.name, "2b59b0")}
+                                    alt={room.name}
+                                    onError={(event) => {
+                                      event.currentTarget.src = buildAvatarFallback(room.name, "2b59b0");
+                                    }}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <Users size={16} />
+                                )}
+                                <span className="absolute bottom-0 right-0 inline-flex min-w-4 items-center justify-center rounded-full border border-white bg-slate-900 px-1 text-[9px] font-black text-white">
+                                  {room.member_count > 9 ? "9+" : Math.max(room.member_count, 2)}
+                                </span>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="truncate text-sm font-bold text-slate-900">{room.name}</p>
+                                  <span className="shrink-0 text-[11px] text-slate-400">
+                                    {formatRelativeClock(room.last_message_created_at || room.last_seen_at)}
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                                  {room.email || `${Math.max(room.member_count, 2)} สมาชิก`}
+                                </p>
+                                <div className="mt-1 flex items-center justify-between gap-2">
+                                  <p className="truncate text-xs text-slate-500">{room.last_preview}</p>
+                                  {room.unread_count > 0 && (
+                                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black text-white">
+                                      {room.unread_count > 9 ? "9+" : room.unread_count}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="truncate text-sm font-bold text-slate-900">{member.name}</p>
-                            <span className="shrink-0 text-[11px] text-slate-400">
-                              {formatRelativeClock(member.last_message_created_at || member.last_seen_at)}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                            {roleLabel(member.role)}
-                          </p>
-                          <div className="mt-1 flex items-center justify-between gap-2">
-                            <p className="truncate text-xs text-slate-500">{member.last_preview}</p>
-                            {member.unread_count > 0 && (
-                              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black text-white">
-                                {member.unread_count > 9 ? "9+" : member.unread_count}
-                              </span>
-                            )}
-                          </div>
+                    <div>
+                      <p className="px-2 pb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">บุคคล</p>
+                      {filteredDirectoryMembers.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-3 py-3 text-xs text-slate-400">
+                          ไม่พบผู้ใช้
                         </div>
-                      </button>
-                    );
-                  })
+                      ) : (
+                        filteredDirectoryMembers.map((member) => {
+                          const isActive = String(member.id) === String(selectedMemberId || "");
+                          const avatarUrl = toAvatarUrl(member.avatar_url, member.name, member.status === "online" ? "059669" : "64748b");
+                          return (
+                            <button
+                              key={member.id}
+                              type="button"
+                              onClick={() => selectMember(member.id)}
+                              className={`mb-1 flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition ${
+                                isActive
+                                  ? "bg-white shadow-[0_12px_26px_-20px_rgba(43,89,176,0.55)] ring-1 ring-[#2b59b0]/15"
+                                  : "hover:bg-white"
+                              }`}
+                            >
+                              <div className="relative">
+                                <img
+                                  src={avatarUrl}
+                                  alt={member.name}
+                                  onError={(event) => {
+                                    event.currentTarget.src = buildAvatarFallback(member.name, "2b59b0");
+                                  }}
+                                  className="h-11 w-11 rounded-full border border-slate-200 bg-white object-cover"
+                                />
+                                <span
+                                  className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white ${
+                                    member.status === "online" ? "bg-emerald-500" : "bg-slate-300"
+                                  }`}
+                                  aria-hidden="true"
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="truncate text-sm font-bold text-slate-900">{member.name}</p>
+                                  <span className="shrink-0 text-[11px] text-slate-400">
+                                    {formatRelativeClock(member.last_message_created_at || member.last_seen_at)}
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                  {roleLabel(member.role)}
+                                </p>
+                                <div className="mt-1 flex items-center justify-between gap-2">
+                                  <p className="truncate text-xs text-slate-500">{member.last_preview}</p>
+                                  {member.unread_count > 0 && (
+                                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black text-white">
+                                      {member.unread_count > 9 ? "9+" : member.unread_count}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </aside>
@@ -1416,21 +2028,38 @@ export default function CentralChatDock({
                   type="button"
                   onClick={() => setMobileThreadVisible(false)}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 md:hidden"
-                  aria-label="กลับไปยังรายชื่อผู้ใช้"
+                  aria-label="ย้อนกลับไปหน้ารายการแชท"
                 >
                   <ArrowLeft size={15} />
                 </button>
 
                 {selectedMember ? (
                   <>
-                    <img
-                      src={toAvatarUrl(selectedMember.avatar_url, selectedMember.name, selectedMember.status === "online" ? "059669" : "64748b")}
-                      alt={selectedMember.name}
-                      onError={(event) => {
-                        event.currentTarget.src = buildAvatarFallback(selectedMember.name, "2b59b0");
-                      }}
-                      className={`${isMobileViewport ? "h-10 w-10" : "h-11 w-11"} rounded-full border border-slate-200 bg-white object-cover`}
-                    />
+                    {selectedMember?.is_group ? (
+                      selectedMember.avatar_url ? (
+                        <img
+                          src={toAvatarUrl(selectedMember.avatar_url, selectedMember.name, "2b59b0")}
+                          alt={selectedMember.name}
+                          onError={(event) => {
+                            event.currentTarget.src = buildAvatarFallback(selectedMember.name, "2b59b0");
+                          }}
+                          className={`${isMobileViewport ? "h-10 w-10" : "h-11 w-11"} rounded-full border border-slate-200 bg-white object-cover`}
+                        />
+                      ) : (
+                        <div className={`${isMobileViewport ? "h-10 w-10" : "h-11 w-11"} inline-flex items-center justify-center rounded-full border border-slate-200 bg-white text-[#2b59b0]`}>
+                          <Users size={16} />
+                        </div>
+                      )
+                    ) : (
+                      <img
+                        src={toAvatarUrl(selectedMember.avatar_url, selectedMember.name, selectedMember.status === "online" ? "059669" : "64748b")}
+                        alt={selectedMember.name}
+                        onError={(event) => {
+                          event.currentTarget.src = buildAvatarFallback(selectedMember.name, "2b59b0");
+                        }}
+                        className={`${isMobileViewport ? "h-10 w-10" : "h-11 w-11"} rounded-full border border-slate-200 bg-white object-cover`}
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <h4 className="truncate text-sm font-black text-slate-900">{selectedMember.name}</h4>
@@ -1439,19 +2068,34 @@ export default function CentralChatDock({
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-slate-100 text-slate-500"
                         }`}>
-                          {selectedMember.status === "online" ? "online" : "offline"}
+                          {selectedMember.status === "online" ? "ออนไลน์" : "ออฟไลน์"}
                         </span>
                       </div>
                       <p className="truncate text-[11px] text-slate-500">
-                        {roleLabel(selectedMember.role)}
-                        {!isMobileViewport && selectedMember.email ? ` · ${selectedMember.email}` : ""}
+                        {selectedMember?.is_group
+                          ? `${Math.max(Number(selectedMember?.member_count || selectedRoomMemberIds.length || 0), 2)} สมาชิก`
+                          : roleLabel(selectedMember.role)}
+                        {!isMobileViewport && !selectedMember?.is_group && selectedMember.email ? ` | ${selectedMember.email}` : ""}
                       </p>
                     </div>
+                    {selectedMember?.is_group && canManageSelectedGroup ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={openEditGroupDialog}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+                          aria-label="Edit group"
+                          title="Edit group"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <div>
-                    <h4 className="text-sm font-black text-slate-900">ยังไม่ได้เลือกผู้ใช้</h4>
-                    <p className="text-xs text-slate-500">เลือกชื่อจากฝั่งซ้ายเพื่อเริ่มแชท</p>
+                    <h4 className="text-sm font-black text-slate-900">เลือกห้องสนทนา</h4>
+                    <p className="text-xs text-slate-500">เลือกบุคคลหรือกลุ่มจากแถบด้านซ้าย</p>
                   </div>
                 )}
               </div>
@@ -1486,8 +2130,8 @@ export default function CentralChatDock({
                     <div className="flex h-full items-center justify-center">
                       <div className="rounded-[2rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
                         <MessageCircle size={24} className="mx-auto text-[#2b59b0]" />
-                        <p className="mt-3 text-sm font-semibold text-slate-700">เลือกผู้ใช้เพื่อเริ่มแชท</p>
-                        <p className="mt-1 text-xs text-slate-500">รองรับข้อความ รูปภาพ และไฟล์เอกสาร</p>
+                        <p className="mt-3 text-sm font-semibold text-slate-700">เลือกห้องสนทนา</p>
+                        <p className="mt-1 text-xs text-slate-500">รองรับข้อความ รูปภาพ และไฟล์</p>
                       </div>
                     </div>
                   ) : messages.length === 0 ? (
@@ -1495,13 +2139,17 @@ export default function CentralChatDock({
                       <div className="rounded-[2rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
                         <MessageCircle size={24} className="mx-auto text-[#2b59b0]" />
                         <p className="mt-3 text-sm font-semibold text-slate-700">ยังไม่มีข้อความ</p>
-                        <p className="mt-1 text-xs text-slate-500">เริ่มต้นพูดคุยกับ {selectedMember.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">เริ่มสนทนากับ {selectedMember.name}</p>
                       </div>
                     </div>
                   ) : (
                     messages.map((message) => {
                       const mine = String(message?.sender_id || "") === currentUserId;
-                      const senderName = mine ? (currentUser?.name || "คุณ") : (selectedMember?.name || "สมาชิก");
+                      const senderName = mine
+                        ? (currentUser?.name || "You")
+                        : selectedMember?.is_group
+                          ? (memberByIdMap.get(String(message?.sender_id || ""))?.name || "สมาชิก")
+                          : (selectedMember?.name || "สมาชิก");
                       const imageAttachment = message?.file_url && isImageMime(message?.file_mime_type, message?.file_name);
                       const stickerMessage = parseStickerMessage(message?.message);
                       const stickerOnly = Boolean(stickerMessage?.sticker) && !stickerMessage?.caption && !message?.file_url;
@@ -1609,8 +2257,8 @@ export default function CentralChatDock({
                   <div className="pointer-events-none absolute inset-4 flex items-center justify-center rounded-[1.8rem] border-2 border-dashed border-[#2b59b0]/35 bg-[#eef4ff]/90">
                     <div className="text-center">
                       <Paperclip size={22} className="mx-auto text-[#2b59b0]" />
-                      <p className="mt-3 text-sm font-semibold text-slate-700">ปล่อยไฟล์เพื่อแนบส่งในแชท</p>
-                      <p className="mt-1 text-xs text-slate-500">รองรับรูปภาพ PDF Excel และเอกสารทั่วไป</p>
+                      <p className="mt-3 text-sm font-semibold text-slate-700">ปล่อยไฟล์เพื่อแนบ</p>
+                      <p className="mt-1 text-xs text-slate-500">รองรับรูปภาพ PDF Excel และเอกสาร</p>
                     </div>
                   </div>
                 )}
@@ -1697,7 +2345,7 @@ export default function CentralChatDock({
                     onClick={() => cameraInputRef.current?.click()}
                     disabled={!selectedMember}
                     className={`inline-flex shrink-0 items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300 ${isMobileViewport ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl"}`}
-                    aria-label="open camera"
+                    aria-label="เปิดกล้อง"
                   >
                     <Camera size={16} />
                   </button>
@@ -1708,7 +2356,7 @@ export default function CentralChatDock({
                       onClick={() => setStickerPickerOpen((value) => !value)}
                       disabled={!selectedMember}
                       className={`inline-flex items-center justify-center border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300 ${isMobileViewport ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl"}`}
-                      aria-label="open stickers"
+                      aria-label="เปิดสติกเกอร์"
                     >
                       <Smile size={16} />
                     </button>
@@ -1716,7 +2364,7 @@ export default function CentralChatDock({
                     {stickerPickerOpen && (
                       <div className={`absolute z-10 rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-24px_rgba(15,23,42,0.35)] ${isMobileViewport ? "bottom-12 right-0 w-[220px]" : "bottom-14 left-0 w-[240px]"}`}>
                         <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                          Stickers
+                          สติกเกอร์
                         </p>
                         <div className="grid grid-cols-4 gap-2">
                           {CHAT_STICKERS.map((sticker) => (
@@ -1745,7 +2393,7 @@ export default function CentralChatDock({
                       onChange={(event) => setDraft(event.target.value)}
                       onKeyDown={handleComposerKeyDown}
                       onPaste={handleComposerPaste}
-                      placeholder={selectedMember ? `พิมพ์ข้อความถึง ${selectedMember.name}` : "เลือกผู้ใช้ก่อนพิมพ์ข้อความ"}
+                      placeholder={selectedMember ? `พิมพ์ข้อความถึง ${selectedMember.name}` : "กรุณาเลือกห้องสนทนาก่อน"}
                       disabled={!selectedMember}
                       className={`w-full resize-none border text-sm text-slate-700 focus:border-[#2b59b0] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/15 disabled:cursor-not-allowed disabled:bg-slate-50 ${isMobileViewport ? "min-h-9 max-h-24 rounded-xl border-slate-200 px-3 py-2 leading-5" : "rounded-[1.4rem] border-slate-300 px-4 py-3"}`}
                     />
@@ -1764,6 +2412,216 @@ export default function CentralChatDock({
               </div>
             </section>
           </div>
+          {isCreateGroupOpen ? (
+            <div
+              className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/35 p-3"
+              onClick={() => {
+                if (creatingGroup) return;
+                setIsCreateGroupOpen(false);
+              }}
+            >
+              <div
+                className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white shadow-[0_24px_60px_-28px_rgba(15,23,42,0.5)]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">กลุ่มใหม่</p>
+                    <h4 className="mt-1 text-sm font-black text-slate-900">สร้างกลุ่มแชท</h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateGroupOpen(false)}
+                    disabled={creatingGroup}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                    aria-label="ปิดหน้าต่างสร้างกลุ่ม"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <div className="space-y-3 p-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500">ชื่อกลุ่ม (ไม่บังคับ)</label>
+                    <input
+                      type="text"
+                      value={groupNameDraft}
+                      onChange={(event) => setGroupNameDraft(event.target.value)}
+                      placeholder="ตัวอย่าง: ทีม Operations"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#2b59b0] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/15"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold text-slate-500">สมาชิก</p>
+                    <div className="max-h-60 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
+                      {directoryMembers.length === 0 ? (
+                        <p className="px-2 py-2 text-xs text-slate-400">ยังไม่มีสมาชิกให้เลือก</p>
+                      ) : (
+                        directoryMembers.map((member) => {
+                          const checked = groupMemberIds.includes(String(member.id));
+                          return (
+                            <label key={`create-group-member-${member.id}`} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => toggleGroupMemberSelection(member.id, event.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300"
+                              />
+                              <span className="min-w-0 flex-1 truncate">{member.name}</span>
+                              <span className="text-[11px] uppercase tracking-[0.12em] text-slate-400">{roleLabel(member.role)}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-t border-slate-200 px-4 py-3">
+                  <p className="text-xs text-slate-500">
+                    เลือกแล้ว {groupMemberIds.length + 1} สมาชิก (รวมคุณ)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCreateGroup}
+                    disabled={creatingGroup || groupMemberIds.length === 0}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#2b59b0] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {creatingGroup ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                    สร้าง
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {isEditGroupOpen ? (
+            <div
+              className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/35 p-3"
+              onClick={() => {
+                if (savingGroupSettings || deletingGroup) return;
+                setIsEditGroupOpen(false);
+                resetEditGroupForm();
+              }}
+            >
+              <div
+                className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white shadow-[0_24px_60px_-28px_rgba(15,23,42,0.5)]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">GROUP SETTINGS</p>
+                    <h4 className="mt-1 text-sm font-black text-slate-900">Manage Group</h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditGroupOpen(false);
+                      resetEditGroupForm();
+                    }}
+                    disabled={savingGroupSettings || deletingGroup}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                    aria-label="Close group settings"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <div className="space-y-4 p-4">
+                  <div className="flex items-center gap-4">
+                    {editingGroupAvatarPreview || editingGroupAvatarUrl ? (
+                      <img
+                        src={editingGroupAvatarPreview || editingGroupAvatarUrl}
+                        alt={editingGroupName || "Group"}
+                        onError={(event) => {
+                          event.currentTarget.src = buildAvatarFallback(editingGroupName || "Group", "2b59b0");
+                        }}
+                        className="h-16 w-16 rounded-2xl border border-slate-200 object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-[#2b59b0]">
+                        <Users size={20} />
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => editGroupAvatarInputRef.current?.click()}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <Camera size={14} />
+                        Group Photo
+                      </button>
+                      {(editingGroupAvatarPreview || editingGroupAvatarUrl) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (editingGroupAvatarPreview) {
+                              URL.revokeObjectURL(editingGroupAvatarPreview);
+                            }
+                            setEditingGroupAvatarPreview("");
+                            setEditingGroupAvatarFile(null);
+                            setEditingGroupAvatarUrl("");
+                          }}
+                          className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                        >
+                          <Trash2 size={14} />
+                          Remove Photo
+                        </button>
+                      ) : null}
+                      <input
+                        ref={editGroupAvatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          handleEditGroupAvatarSelection(event.target.files?.[0]);
+                          event.target.value = "";
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500">Group Name</label>
+                    <input
+                      type="text"
+                      value={editingGroupName}
+                      onChange={(event) => setEditingGroupName(event.target.value)}
+                      placeholder="Operations Team"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#2b59b0] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/15"
+                    />
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+                    Group management is available for Admin, IT Manager, and the room owner.
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-t border-slate-200 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={handleDeleteGroup}
+                    disabled={savingGroupSettings || deletingGroup}
+                    className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {deletingGroup ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Delete Group
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveGroupSettings}
+                    disabled={savingGroupSettings || deletingGroup}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#2b59b0] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {savingGroupSettings ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />}
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          </>
         ) : (
           <button
             type="button"
@@ -1771,8 +2629,8 @@ export default function CentralChatDock({
             className="flex w-full items-center justify-between bg-white px-4 py-3 text-left"
           >
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Collapsed</p>
-              <p className="truncate text-sm font-semibold text-slate-800">แตะเพื่อขยาย Messenger</p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">ย่อหน้าต่าง</p>
+              <p className="truncate text-sm font-semibold text-slate-800">แตะเพื่อขยายแชท</p>
             </div>
             <MessageCircle size={16} className="text-[#2b59b0]" />
           </button>
@@ -1781,3 +2639,6 @@ export default function CentralChatDock({
     </div>
   );
 }
+
+
+

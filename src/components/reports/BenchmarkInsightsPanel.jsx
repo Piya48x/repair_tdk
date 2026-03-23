@@ -124,8 +124,8 @@ export default function BenchmarkInsightsPanel({ analysis, title = "Benchmark Ov
             </div>
           }
         >
-          <div className="h-[360px] rounded-[1.5rem] border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-4">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[360px] min-w-0 rounded-[1.5rem] border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-4">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
               {chartMode === "radar" ? (
                 <RadarChart data={gapAnalysis}>
                   <PolarGrid stroke="#cbd5e1" />

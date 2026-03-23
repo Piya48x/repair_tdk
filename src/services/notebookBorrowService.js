@@ -1,6 +1,7 @@
 ﻿import { supabase } from "../lib/supabaseClient";
 
 export const NOTEBOOK_PROOF_BUCKET = "notebook-borrow-proof";
+export const NOTEBOOK_ASSET_BUCKET = "notebook-assets";
 
 export const NOTEBOOK_STATUS = {
   AVAILABLE: "available",
@@ -14,8 +15,6 @@ export const NOTEBOOK_LOG_STATUS = {
   RETURNED: "returned",
 };
 
-export const NOTEBOOK_ALLOWED_ASSET_CODES = ["NB-018", "NB-017", "NB-016", "NB-014"];
-const NOTEBOOK_ALLOWED_ASSET_CODE_SET = new Set(NOTEBOOK_ALLOWED_ASSET_CODES.map((code) => code.toUpperCase()));
 const NOTEBOOK_RETURN_RPC_MODE_KEY = "notebook:return-rpc-mode";
 
 function readNotebookReturnRpcMode() {
@@ -65,6 +64,8 @@ export function isNotebookSchemaError(error) {
     text.includes("confirm_notebook_return") ||
     text.includes('relation "notebooks" does not exist') ||
     text.includes('relation "borrow_logs" does not exist') ||
+    text.includes('column "asset_image_url"') ||
+    text.includes('column "notes"') ||
     text.includes('column "return_image_url"') ||
     text.includes("could not find the function");
   return (
@@ -126,7 +127,29 @@ export function sanitizePathSegment(value) {
 
 function filterAllowedNotebookRows(rows) {
   if (!Array.isArray(rows)) return [];
-  return rows.filter((row) => NOTEBOOK_ALLOWED_ASSET_CODE_SET.has(String(row?.asset_code || "").toUpperCase()));
+  return rows;
+}
+
+function getStorageObjectPath(publicUrl, bucketName) {
+  const url = String(publicUrl || "").trim();
+  if (!url || !bucketName) return "";
+
+  const encodedBucket = encodeURIComponent(bucketName);
+  const pathMarkers = [
+    `/storage/v1/object/public/${encodedBucket}/`,
+    `/storage/v1/object/public/${bucketName}/`,
+    `/object/public/${encodedBucket}/`,
+    `/object/public/${bucketName}/`,
+  ];
+
+  for (const marker of pathMarkers) {
+    const markerIndex = url.indexOf(marker);
+    if (markerIndex >= 0) {
+      return decodeURIComponent(url.slice(markerIndex + marker.length));
+    }
+  }
+
+  return "";
 }
 
 export async function uploadNotebookProof(file, userId) {
@@ -161,6 +184,32 @@ export async function uploadNotebookReturnProof(file, userId) {
 
   const { data } = supabase.storage.from(NOTEBOOK_PROOF_BUCKET).getPublicUrl(filePath);
   return data?.publicUrl || "";
+}
+
+export async function uploadNotebookAssetImage(file, assetCode) {
+  if (!file) throw new Error("Missing file");
+
+  const safeAssetCode = sanitizePathSegment(assetCode || "notebook");
+  const safeName = sanitizePathSegment(file.name || `notebook_${Date.now()}`);
+  const filePath = `assets/${safeAssetCode}/${Date.now()}_${safeName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(NOTEBOOK_ASSET_BUCKET)
+    .upload(filePath, file, { upsert: false });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from(NOTEBOOK_ASSET_BUCKET).getPublicUrl(filePath);
+  return {
+    publicUrl: data?.publicUrl || "",
+    path: filePath,
+  };
+}
+
+export async function removeNotebookAssetImage(publicUrl) {
+  const path = getStorageObjectPath(publicUrl, NOTEBOOK_ASSET_BUCKET);
+  if (!path) return { error: null };
+  return supabase.storage.from(NOTEBOOK_ASSET_BUCKET).remove([path]);
 }
 
 export async function loadNotebookDashboard() {

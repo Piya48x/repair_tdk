@@ -16,6 +16,7 @@ import * as XLSX from "xlsx";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabaseClient";
 import ReportsTopbar from "../../components/reports/ReportsTopbar";
+import NotebookInventoryManagementPanel from "./NotebookInventoryManagementPanel";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("th-TH");
 
@@ -1454,6 +1455,17 @@ export default function ExecutiveAssetsManagementPage() {
               >
                 สต็อกไลเซนส์
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection("notebooks")}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  activeSection === "notebooks"
+                    ? "bg-blue-700 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-white"
+                }`}
+              >
+                Notebook Center
+              </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -2134,6 +2146,8 @@ export default function ExecutiveAssetsManagementPage() {
           </article>
         </section>
         ) : null}
+
+        {activeSection === "notebooks" ? <NotebookInventoryManagementPanel userRole={userRole} /> : null}
 
         {selectedAsset ? (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" onClick={() => setSelectedAsset(null)}>

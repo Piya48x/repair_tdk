@@ -533,14 +533,26 @@ export default function NotebookBorrowSection({ currentUser, isDarkTheme = false
                   const isBlockedByOtherBorrow = Boolean(pendingBorrowRequest || activeBorrowLog || pendingReturnLog || isMinePending || isMineReturnPending);
                   const canBorrow = notebook?.status === NOTEBOOK_STATUS.AVAILABLE && currentOwnerId === "" && !isBlockedByOtherBorrow;
                   const borrowerName = normalizeText(notebook?.current_user_name) || "ผู้ใช้งานอื่น";
+                  const notebookImageUrl = normalizeText(notebook?.asset_image_url);
 
                   return (
                     <article key={notebook.id} className={`rounded-3xl border p-4 ${isDarkTheme ? "border-slate-700 bg-slate-800/75" : "border-slate-200 bg-white"}`}>
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#2b59b0]/70">Asset</p>
-                          <h3 className={`mt-1 text-lg font-black ${headingClass}`}>{notebook.asset_code}</h3>
-                          <p className={`mt-1 text-sm ${bodyClass}`}>{notebook.model || "-"}</p>
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className={`h-16 w-24 overflow-hidden rounded-2xl border ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50"}`}>
+                            {notebookImageUrl ? (
+                              <img src={notebookImageUrl} alt={notebook.asset_code || "Notebook"} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className={`flex h-full items-center justify-center px-2 text-center text-[11px] font-bold ${subtleTextClass}`}>
+                                ไม่มีรูป
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#2b59b0]/70">Asset</p>
+                            <h3 className={`mt-1 text-lg font-black ${headingClass}`}>{notebook.asset_code}</h3>
+                            <p className={`mt-1 text-sm ${bodyClass}`}>{notebook.model || "-"}</p>
+                          </div>
                         </div>
                         <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${notebookMeta.cls}`}>{notebookMeta.label}</span>
                       </div>

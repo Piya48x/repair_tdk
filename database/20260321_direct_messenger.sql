@@ -287,6 +287,8 @@ $$;
 
 grant execute on function public.get_user_directory() to authenticated;
 
+drop function if exists public.get_my_chat_room_summaries();
+
 create or replace function public.get_my_chat_room_summaries()
 returns table (
   room_id bigint,

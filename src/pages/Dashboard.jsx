@@ -236,6 +236,7 @@ export default function Dashboard() {
   const [accessRequestError, setAccessRequestError] = useState("");
   const [workNotesPendingCount, setWorkNotesPendingCount] = useState(0);
   const [notebookAttentionCount, setNotebookAttentionCount] = useState(0);
+  const [chartsReady, setChartsReady] = useState(false);
   const [isCompactView, setIsCompactView] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 1279px)").matches;
@@ -245,6 +246,20 @@ export default function Dashboard() {
   const accessRequestChannelRef = useRef(null);
   const searchInputRef = useRef(null);
   const notificationTimeoutsRef = useRef(new Map());
+  const quickActionsSectionRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      setChartsReady(true);
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      setChartsReady(true);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
 
   // ============================================
   // âœ… REAL-TIME SUBSCRIPTION (Supabase Realtime)
@@ -1537,7 +1552,7 @@ export default function Dashboard() {
         cta: "ดำเนินการทันที",
         onClick: () => navigate("/create-ticket"),
         badgeCount: openTicketCount,
-        roles: ["user", "it_support", "admin"],
+        roles: ["user", "it_support", "executive", "admin"],
       },
       {
         id: "pick-up",
@@ -1548,7 +1563,7 @@ export default function Dashboard() {
         cta: "ตรวจสอบสต็อก",
         onClick: () => navigate("/pick-up-equipment"),
         badgeCount: accessRequestSummary.pending,
-        roles: ["user", "it_support", "admin"],
+        roles: ["user", "it_support", "executive", "admin"],
       },
       {
         id: "notebook-center",
@@ -1559,7 +1574,7 @@ export default function Dashboard() {
         cta: "เปิดหน้า Notebook",
         onClick: () => navigate("/notebook-center"),
         badgeCount: notebookAttentionCount,
-        roles: ["user", "it_support", "admin"],
+        roles: ["user", "it_support", "executive", "admin"],
       },
       {
         id: "work-notes",
@@ -1570,7 +1585,7 @@ export default function Dashboard() {
         cta: "เปิดหน้าโน้ต",
         onClick: () => navigate("/work-notes"),
         badgeCount: workNotesPendingCount,
-        roles: ["user", "it_support", "admin", "auditor"],
+        roles: ["user", "it_support", "executive", "admin", "auditor"],
       },
       {
         id: "meeting-room-booking",
@@ -1581,7 +1596,7 @@ export default function Dashboard() {
         cta: "เปิดหน้าจอง",
         onClick: () => navigate("/meeting-room-booking"),
         badgeCount: upcomingMeetingCount,
-        roles: ["user", "it_support", "admin"],
+        roles: ["user", "it_support", "executive", "admin"],
       },
       {
         id: "history",
@@ -1598,25 +1613,25 @@ export default function Dashboard() {
             },
           }),
         badgeCount: openTicketCount,
-        roles: ["user", "it_support", "admin", "auditor"],
+        roles: ["user", "it_support", "executive", "admin", "auditor"],
       },
       {
         id: "chat-it",
         label: "แชท IT / แจ้งปัญหาด่วน",
-        description: "เปิด CentralChatDock แล้วเริ่มคุยกับทีม IT แบบ realtime",
+        description: "คุยกับทีม IT แบบ realtime",
         icon: MessageSquare,
         accent: "emerald",
-        cta: "เปิดแชท IT",
+        cta: "เริ่มแชท",
         onClick: () => setSupportChatOpenSignal((value) => value + 1),
         roles: ["user", "it_support", "it_manager", "executive", "admin", "auditor"],
       },
       {
         id: "my-status",
-        label: "สถานะของฉัน",
-        description: "ดู notebook, ticket และคำขอสิทธิ์ในหน้าเดียว",
+        label: "สถานะของฉัน / ดู notebook, ticket และคำขอ",
+        description: "สรุปสถานะทั้งหมดในหน้าเดียว",
         icon: CheckCircle2,
         accent: "sky",
-        cta: "เปิดสรุปสถานะ",
+        cta: "เปิดสถานะ",
         onClick: () => navigate("/my-status"),
         roles: ["user", "it_support", "it_manager", "executive", "admin", "auditor"],
       },
@@ -1628,7 +1643,7 @@ export default function Dashboard() {
         accent: "indigo",
         cta: "เปิดฟอร์มคำขอ",
         onClick: () => navigate("/access-request"),
-        roles: ["user", "it_support", "admin", "auditor"],
+        roles: ["user", "it_support", "executive", "admin", "auditor"],
       },
       {
         id: "admin-dashboard",
@@ -1665,10 +1680,14 @@ export default function Dashboard() {
     [primaryQuickActionIds, quickActions],
   );
 
-  const secondaryQuickActions = useMemo(
-    () => quickActions.filter((action) => !primaryQuickActionIds.has(action.id)),
-    [primaryQuickActionIds, quickActions],
-  );
+  const secondaryQuickActions = useMemo(() => {
+    const items = quickActions.filter((action) => !primaryQuickActionIds.has(action.id));
+    return items.sort((left, right) => {
+      if (left.id === "chat-it" && right.id !== "chat-it") return -1;
+      if (right.id === "chat-it" && left.id !== "chat-it") return 1;
+      return 0;
+    });
+  }, [primaryQuickActionIds, quickActions]);
 
   const canSeePriorityInbox = useMemo(() => {
     const role = profile?.role || "user";
@@ -1677,13 +1696,20 @@ export default function Dashboard() {
 
   const isDarkTheme = themeMode === "dark";
   const currentRole = profile?.role || "user";
-  const isUserSearchMode = currentRole === "user";
+  const isUserSearchMode = currentRole === "user" || currentRole === "executive";
   const roleLabel = ROLE_LABELS[currentRole] || ROLE_LABELS.user;
   const canOpenAuditView = currentRole === "admin" || currentRole === "auditor";
 
   const toggleTheme = () => {
     setThemeMode((prev) => (prev === "dark" ? "light" : "dark"));
   };
+
+  const openMoreMenuPanel = useCallback(() => {
+    setShowMoreQuickActions((value) => !value);
+    const section = quickActionsSectionRef.current;
+    if (!section) return;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // Dark-mode-aware CSS classes
   const FORM_CONTROL_CLASS = isDarkTheme
@@ -2059,8 +2085,7 @@ export default function Dashboard() {
                   <p className={`mt-1 ${STAT_HELPER_TEXT_CLASS}`}>{card.helperText}</p>
                 </div>
               )}
-              <div className="mt-2 flex items-center justify-between">
-                <span className={`text-[11px] font-bold uppercase tracking-[0.16em] ${TEXT_SUBTLE_CLASS}`}>แตะเพื่อดูรายละเอียด</span>
+              <div className="mt-2 flex items-center justify-end">
                 <ChevronRight size={14} className={isDarkTheme ? "text-slate-500" : "text-slate-400"} />
               </div>
             </button>
@@ -2120,20 +2145,22 @@ export default function Dashboard() {
                 now
               </span>
             </div>
-            <div className="h-28">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={operationalStatusChartData} margin={{ top: 6, right: 4, left: -22, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} รายการ`, "จำนวน"]} />
-                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                    {operationalStatusChartData.map((entry) => (
-                      <Cell key={`mini-status-${entry.key}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="h-28 min-w-0">
+              {chartsReady ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                  <BarChart data={operationalStatusChartData} margin={{ top: 6, right: 4, left: -22, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} รายการ`, "จำนวน"]} />
+                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                      {operationalStatusChartData.map((entry) => (
+                        <Cell key={`mini-status-${entry.key}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : null}
             </div>
           </button>
 
@@ -2151,17 +2178,19 @@ export default function Dashboard() {
                 7 days
               </span>
             </div>
-            <div className="h-28">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={operationalTrendData} margin={{ top: 6, right: 4, left: -22, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name === "created" ? "เปิดใหม่" : "ปิดงาน"]} />
-                  <Line type="monotone" dataKey="created" stroke="#2563eb" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="closed" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="h-28 min-w-0">
+              {chartsReady ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                  <LineChart data={operationalTrendData} margin={{ top: 6, right: 4, left: -22, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name === "created" ? "เปิดใหม่" : "ปิดงาน"]} />
+                    <Line type="monotone" dataKey="created" stroke="#2563eb" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="closed" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : null}
             </div>
           </button>
 
@@ -2180,17 +2209,19 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3">
-              <div className="relative h-28">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name]} />
-                    <Pie data={operationalLoadData} dataKey="value" nameKey="name" innerRadius={28} outerRadius={42} paddingAngle={3} stroke="transparent">
-                      {operationalLoadData.map((entry, index) => (
-                        <Cell key={`mini-load-${entry.name}-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="relative h-28 min-w-0">
+                {chartsReady ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                    <PieChart>
+                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name]} />
+                      <Pie data={operationalLoadData} dataKey="value" nameKey="name" innerRadius={28} outerRadius={42} paddingAngle={3} stroke="transparent">
+                        {operationalLoadData.map((entry, index) => (
+                          <Cell key={`mini-load-${entry.name}-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : null}
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
                     <p className={`text-[9px] font-black uppercase tracking-[0.16em] ${TEXT_SUBTLE_CLASS}`}>Live</p>
@@ -2446,18 +2477,28 @@ export default function Dashboard() {
                   </button>
                   <button
                     type="button"
-                    onClick={toggleTheme}
-                    aria-label={isDarkTheme ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
+                    onClick={openMoreMenuPanel}
+                    aria-label={showMoreQuickActions ? "ซ่อนเมนูอื่นๆ" : "แสดงเมนูอื่นๆ"}
                     className={`inline-flex items-center gap-2 rounded-xl border px-2.5 sm:px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
                   >
-                    {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
-                    <span className="hidden lg:inline">{isDarkTheme ? "โหมดสว่าง" : "โหมดมืด"}</span>
+                    <SlidersHorizontal size={16} />
+                    <span className="hidden lg:inline">เมนูอื่นๆ</span>
+                    {showMoreQuickActions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
                 </div>
               </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={isDarkTheme ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
+                title={isDarkTheme ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+              >
+                {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
               <div className={`hidden xl:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
                 <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
                   <Hash size={12} />
@@ -2606,7 +2647,7 @@ export default function Dashboard() {
           {/* Main Content Area */}
           <div className="flex min-w-0 flex-col gap-4 xl:col-span-8">
             {/* Quick Actions */}
-            <section className={`order-1 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
+            <section ref={quickActionsSectionRef} className={`order-1 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className={QUICK_ACTIONS_HEADING_CLASS}>Quick Actions</h3>
@@ -2696,101 +2737,114 @@ export default function Dashboard() {
               </div>
 
               {secondaryQuickActions.length > 0 && (
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowMoreQuickActions((value) => !value)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all duration-300 ${isDarkTheme ? "border-slate-700 bg-slate-900/60 text-slate-100 hover:bg-slate-900" : "border-blue-100 bg-white text-slate-800 hover:bg-blue-50/70"}`}
+                <div className="mt-2">
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowMoreQuickActions((value) => !value)}
+                      aria-label="แสดงเมนูเพิ่มเติม"
+                      title="แสดงเมนูเพิ่มเติม"
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] ${isDarkTheme ? "border-slate-700 bg-slate-900/80 text-slate-100 hover:bg-slate-900" : "border-blue-100 bg-white text-slate-700 hover:bg-blue-50"}`}
+                    >
+                      {showMoreQuickActions ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                    </button>
+                  </div>
+
+                  <div
+                    className={`mt-2 overflow-hidden transition-all duration-200 ease-out ${
+                      showMoreQuickActions
+                        ? "max-h-[560px] translate-y-0 opacity-100"
+                        : "pointer-events-none max-h-0 -translate-y-1 opacity-0"
+                    }`}
                   >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${isDarkTheme ? "bg-slate-800 text-slate-200" : "bg-blue-50 text-[#2b59b0]"}`}>
-                        <Plus size={13} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black leading-tight">ดูรายการทั้งหมด</p>
-                        <p className={`text-[11px] leading-tight ${TEXT_MUTED_CLASS}`}>{secondaryQuickActions.length} รายการเพิ่มเติม</p>
-                      </div>
-                    </div>
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${isDarkTheme ? "border-slate-700 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
-                      {showMoreQuickActions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                      {showMoreQuickActions ? "ซ่อน" : "แสดง"}
-                    </span>
-                  </button>
+                    <div className={`rounded-2xl border p-2 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-blue-100 bg-white/95"}`}>
+                      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+                        {secondaryQuickActions.map((action) => {
+                          const Icon = action.icon;
+                          const accentClassMap = {
+                            indigo: {
+                              hoverBorder: "hover:border-indigo-500",
+                              hoverShadow: "hover:shadow-indigo-600/10",
+                              text: "text-indigo-600",
+                              gradient: "from-indigo-50 to-indigo-100",
+                              hoverBg: "group-hover:bg-indigo-100",
+                              pill: isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700",
+                            },
+                            emerald: {
+                              hoverBorder: "hover:border-emerald-600",
+                              hoverShadow: "hover:shadow-emerald-600/10",
+                              text: "text-emerald-600",
+                              gradient: "from-emerald-50 to-emerald-100",
+                              hoverBg: "group-hover:bg-emerald-100",
+                              pill: isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700",
+                            },
+                            sky: {
+                              hoverBorder: "hover:border-sky-500",
+                              hoverShadow: "hover:shadow-sky-600/10",
+                              text: "text-sky-600",
+                              gradient: "from-sky-50 to-sky-100",
+                              hoverBg: "group-hover:bg-sky-100",
+                              pill: isDarkTheme ? "bg-sky-900/40 text-sky-300" : "bg-sky-50 text-sky-700",
+                            },
+                            violet: {
+                              hoverBorder: "hover:border-violet-600",
+                              hoverShadow: "hover:shadow-violet-600/10",
+                              text: "text-violet-600",
+                              gradient: "from-violet-50 to-violet-100",
+                              hoverBg: "group-hover:bg-violet-100",
+                              pill: isDarkTheme ? "bg-violet-900/40 text-violet-300" : "bg-violet-50 text-violet-700",
+                            },
+                            slate: {
+                              hoverBorder: "hover:border-slate-500",
+                              hoverShadow: "hover:shadow-slate-600/10",
+                              text: "text-slate-600",
+                              gradient: "from-slate-50 to-slate-100",
+                              hoverBg: "group-hover:bg-slate-200",
+                              pill: isDarkTheme ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-700",
+                            },
+                          };
+                          const accent = accentClassMap[action.accent] || accentClassMap.indigo;
+                          const isChatAction = action.id === "chat-it";
 
-                  {showMoreQuickActions && (
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {secondaryQuickActions.map((action) => {
-                        const Icon = action.icon;
-                        const accentClassMap = {
-                          indigo: {
-                            hoverBorder: "hover:border-indigo-500",
-                            hoverShadow: "hover:shadow-indigo-600/10",
-                            text: "text-indigo-600",
-                            gradient: "from-indigo-50 to-indigo-100",
-                            hoverBg: "group-hover:bg-indigo-100",
-                            pill: isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700",
-                          },
-                          emerald: {
-                            hoverBorder: "hover:border-emerald-600",
-                            hoverShadow: "hover:shadow-emerald-600/10",
-                            text: "text-emerald-600",
-                            gradient: "from-emerald-50 to-emerald-100",
-                            hoverBg: "group-hover:bg-emerald-100",
-                            pill: isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700",
-                          },
-                          sky: {
-                            hoverBorder: "hover:border-sky-500",
-                            hoverShadow: "hover:shadow-sky-600/10",
-                            text: "text-sky-600",
-                            gradient: "from-sky-50 to-sky-100",
-                            hoverBg: "group-hover:bg-sky-100",
-                            pill: isDarkTheme ? "bg-sky-900/40 text-sky-300" : "bg-sky-50 text-sky-700",
-                          },
-                          violet: {
-                            hoverBorder: "hover:border-violet-600",
-                            hoverShadow: "hover:shadow-violet-600/10",
-                            text: "text-violet-600",
-                            gradient: "from-violet-50 to-violet-100",
-                            hoverBg: "group-hover:bg-violet-100",
-                            pill: isDarkTheme ? "bg-violet-900/40 text-violet-300" : "bg-violet-50 text-violet-700",
-                          },
-                          slate: {
-                            hoverBorder: "hover:border-slate-500",
-                            hoverShadow: "hover:shadow-slate-600/10",
-                            text: "text-slate-600",
-                            gradient: "from-slate-50 to-slate-100",
-                            hoverBg: "group-hover:bg-slate-200",
-                            pill: isDarkTheme ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-700",
-                          },
-                        };
-
-                        const accent = accentClassMap[action.accent] || accentClassMap.indigo;
-
-                        return (
-                          <button
-                            key={action.id}
-                            onClick={action.onClick}
-                            className={`group h-full rounded-[28px] border p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"} ${accent.hoverBorder} ${accent.hoverShadow}`}
-                          >
-                            <div className="mb-4 flex items-start justify-between gap-3">
-                              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg}`}>
-                                <Icon size={20} />
+                          return (
+                            <button
+                              key={action.id}
+                              onClick={action.onClick}
+                              className={`group h-full rounded-[28px] border p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                                isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"
+                              } ${accent.hoverBorder} ${accent.hoverShadow} ${
+                                isChatAction
+                                  ? isDarkTheme
+                                    ? "border-emerald-600/60 ring-1 ring-emerald-500/35"
+                                    : "border-emerald-300 ring-1 ring-emerald-200"
+                                  : ""
+                              }`}
+                            >
+                              <div className="mb-4 flex items-start justify-between gap-3">
+                                <div className={`relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg}`}>
+                                  <Icon size={20} />
+                                  {action.badgeCount > 0 && (
+                                    <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full border border-white bg-rose-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white shadow-sm">
+                                      {action.badgeCount > 9 ? "9+" : action.badgeCount}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${accent.pill}`}>
+                                  {isChatAction ? "เริ่มแชท" : action.cta}
+                                </span>
                               </div>
-                              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${accent.pill}`}>
-                                {action.cta}
-                              </span>
-                            </div>
-                            <h4 className={QUICK_ACTIONS_TITLE_CLASS}>{action.label}</h4>
-                            <p className={`mt-2 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
-                            <div className={`mt-4 flex items-center gap-1 text-[11px] font-bold ${accent.text}`}>
-                              <span>เปิดใช้งาน</span>
-                              <ChevronRight size={12} className="transform transition-transform group-hover:translate-x-1" />
-                            </div>
-                          </button>
-                        );
-                      })}
+                              <h4 className={QUICK_ACTIONS_TITLE_CLASS}>{action.label}</h4>
+                              <p className={`mt-2 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
+                              <div className={`mt-4 flex items-center gap-1 text-[11px] font-bold ${accent.text}`}>
+                                <span>เปิดใช้งาน</span>
+                                <ChevronRight size={12} className="transform transition-transform group-hover:translate-x-1" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
             </section>
@@ -3743,17 +3797,19 @@ export default function Dashboard() {
                       </div>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>rolling 7 days</span>
                     </div>
-                    <div className="h-[280px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={operationalTrendData} margin={{ top: 12, right: 12, left: -12, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
-                          <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name === "created" ? "เปิดใหม่" : "ปิดงาน"]} labelFormatter={(label) => `วันที่ ${label}`} />
-                          <Line type="monotone" dataKey="created" name="created" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                          <Line type="monotone" dataKey="closed" name="closed" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
+                    <div className="h-[280px] min-w-0">
+                      {chartsReady ? (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                          <LineChart data={operationalTrendData} margin={{ top: 12, right: 12, left: -12, bottom: 4 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                            <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name === "created" ? "เปิดใหม่" : "ปิดงาน"]} labelFormatter={(label) => `วันที่ ${label}`} />
+                            <Line type="monotone" dataKey="created" name="created" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                            <Line type="monotone" dataKey="closed" name="closed" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : null}
                     </div>
                   </section>
 
@@ -3765,20 +3821,22 @@ export default function Dashboard() {
                       </div>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>live queue</span>
                     </div>
-                    <div className="h-[240px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={operationalStatusChartData} margin={{ top: 12, right: 12, left: -12, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
-                          <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} รายการ`, "จำนวน"]} />
-                          <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                            {operationalStatusChartData.map((entry) => (
-                              <Cell key={`status-cell-${entry.key}`} fill={entry.fill} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="h-[240px] min-w-0">
+                      {chartsReady ? (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                          <BarChart data={operationalStatusChartData} margin={{ top: 12, right: 12, left: -12, bottom: 4 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                            <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
+                            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} รายการ`, "จำนวน"]} />
+                            <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                              {operationalStatusChartData.map((entry) => (
+                                <Cell key={`status-cell-${entry.key}`} fill={entry.fill} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : null}
                     </div>
                   </section>
                 </div>
@@ -3793,17 +3851,19 @@ export default function Dashboard() {
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>{operationalLoadTotal} รายการ</span>
                     </div>
 
-                    <div className="relative h-[250px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name]} />
-                          <Pie data={operationalLoadData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={4} stroke="transparent">
-                            {operationalLoadData.map((entry, index) => (
-                              <Cell key={`operational-load-${entry.name}-${index}`} fill={entry.fill} />
-                            ))}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
+                    <div className="relative h-[250px] min-w-0">
+                      {chartsReady ? (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                          <PieChart>
+                            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name]} />
+                            <Pie data={operationalLoadData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={4} stroke="transparent">
+                              {operationalLoadData.map((entry, index) => (
+                                <Cell key={`operational-load-${entry.name}-${index}`} fill={entry.fill} />
+                              ))}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : null}
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                         <div className="text-center">
                           <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Live Load</p>

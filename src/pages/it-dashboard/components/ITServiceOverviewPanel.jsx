@@ -549,8 +549,8 @@ const ITServiceOverviewPanel = ({
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h4 className="text-sm font-semibold text-slate-900">Service Trend (7 วัน)</h4>
           <p className="mb-2 text-xs text-slate-500">แนวโน้มรับแจ้งซ่อมเทียบปิดงาน</p>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[240px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
               <LineChart data={serviceTrend} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                 <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 12 }} />
@@ -570,8 +570,8 @@ const ITServiceOverviewPanel = ({
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h4 className="text-sm font-semibold text-slate-900">Asset Distribution (Top 5)</h4>
           <p className="mb-2 text-xs text-slate-500">ความต้องการใช้งานอุปกรณ์/ซอฟต์แวร์</p>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[240px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
               <BarChart data={topAssetData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                 <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} />
