@@ -66,7 +66,10 @@ export function isNotebookSchemaError(error) {
     text.includes('relation "borrow_logs" does not exist') ||
     text.includes('column "asset_image_url"') ||
     text.includes('column "notes"') ||
+    text.includes('column "show_in_notebook_center"') ||
     text.includes('column "return_image_url"') ||
+    text.includes("return_image_url does not exist") ||
+    text.includes("bl.return_image_url") ||
     text.includes("could not find the function");
   return (
     (isSchemaCode && mentionsNotebookSchemaObject) ||
@@ -128,6 +131,166 @@ export function sanitizePathSegment(value) {
 function filterAllowedNotebookRows(rows) {
   if (!Array.isArray(rows)) return [];
   return rows;
+}
+
+function getProfileDisplayName(profile) {
+  return (
+    normalizeText(profile?.full_name) ||
+    normalizeText(profile?.employee_code) ||
+    normalizeText(profile?.email) ||
+    ""
+  );
+}
+
+function getQueueSortValue(row) {
+  const value =
+    row?.return_confirmed_at ||
+    row?.return_time ||
+    row?.approved_at ||
+    row?.requested_at ||
+    row?.borrow_time ||
+    "";
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function loadNotebookRequestQueueFallback() {
+  const { data: logRows, error: logError } = await supabase
+    .from("borrow_logs")
+    .select(
+      [
+        "id",
+        "notebook_id",
+        "user_id",
+        "borrow_time",
+        "return_time",
+        "duration",
+        "reason",
+        "location",
+        "image_url",
+        "image_name",
+        "image_mime_type",
+        "image_size",
+        "status",
+        "requested_at",
+        "approved_at",
+        "return_confirmed_at",
+        "approved_by",
+        "confirmed_by",
+      ].join(", "),
+    )
+    .order("requested_at", { ascending: false });
+
+  if (logError) {
+    return { data: null, error: logError };
+  }
+
+  const safeLogs = Array.isArray(logRows) ? logRows : [];
+  const notebookIds = [...new Set(safeLogs.map((row) => Number(row?.notebook_id || 0)).filter((id) => id > 0))];
+  const profileIds = [
+    ...new Set(
+      safeLogs
+        .flatMap((row) => [row?.user_id, row?.approved_by, row?.confirmed_by])
+        .map((value) => normalizeText(value))
+        .filter(Boolean),
+    ),
+  ];
+
+  const notebookQuery =
+    notebookIds.length > 0
+      ? supabase
+          .from("notebooks")
+          .select("id, asset_code, model, status")
+          .in("id", notebookIds)
+      : Promise.resolve({ data: [], error: null });
+
+  const profileQuery =
+    profileIds.length > 0
+      ? supabase
+          .from("profiles")
+          .select("id, full_name, employee_code, email, role, avatar_url, id_card_url")
+          .in("id", profileIds)
+      : Promise.resolve({ data: [], error: null });
+
+  const [{ data: notebookRows, error: notebookError }, { data: profileRows, error: profileError }] = await Promise.all([
+    notebookQuery,
+    profileQuery,
+  ]);
+
+  if (notebookError) {
+    return { data: null, error: notebookError };
+  }
+
+  if (profileError && !isNotebookPermissionDenied(profileError)) {
+    return { data: null, error: profileError };
+  }
+
+  const notebookMap = new Map(
+    (Array.isArray(notebookRows) ? notebookRows : []).map((row) => [String(row?.id || ""), row]),
+  );
+  const profileMap = new Map(
+    (Array.isArray(profileRows) ? profileRows : []).map((row) => [normalizeText(row?.id), row]),
+  );
+  const borrowCountMap = safeLogs.reduce((acc, row) => {
+    const key = String(row?.notebook_id || "");
+    if (!key) return acc;
+    acc.set(key, (acc.get(key) || 0) + 1);
+    return acc;
+  }, new Map());
+
+  const data = safeLogs
+    .map((row) => {
+      const notebook = notebookMap.get(String(row?.notebook_id || ""));
+      if (!notebook) return null;
+
+      const borrowerProfile = profileMap.get(normalizeText(row?.user_id));
+      const approvedProfile = profileMap.get(normalizeText(row?.approved_by));
+      const confirmedProfile = profileMap.get(normalizeText(row?.confirmed_by));
+      const userName = getProfileDisplayName(borrowerProfile) || normalizeText(row?.user_id) || "-";
+
+      return {
+        log_id: row?.id ?? null,
+        notebook_id: row?.notebook_id ?? null,
+        asset_code: notebook?.asset_code || "",
+        model: notebook?.model || "",
+        notebook_status: notebook?.status || "",
+        user_id: row?.user_id || null,
+        user_name: userName,
+        user_role: normalizeText(borrowerProfile?.role) || "user",
+        user_avatar_url:
+          normalizeText(borrowerProfile?.avatar_url) ||
+          normalizeText(borrowerProfile?.id_card_url) ||
+          "",
+        borrow_time: row?.borrow_time || null,
+        return_time: row?.return_time || null,
+        duration: row?.duration ?? null,
+        reason: row?.reason || "",
+        location: row?.location || "",
+        image_url: row?.image_url || "",
+        image_name: row?.image_name || null,
+        image_mime_type: row?.image_mime_type || null,
+        image_size: row?.image_size ?? null,
+        return_image_url: "",
+        return_image_name: null,
+        return_image_mime_type: null,
+        return_image_size: null,
+        status: row?.status || "",
+        requested_at: row?.requested_at || null,
+        approved_at: row?.approved_at || null,
+        return_confirmed_at: row?.return_confirmed_at || null,
+        approved_by_name: getProfileDisplayName(approvedProfile) || "-",
+        confirmed_by_name: getProfileDisplayName(confirmedProfile) || "-",
+        borrow_count: borrowCountMap.get(String(row?.notebook_id || "")) || 0,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      const diff = getQueueSortValue(right) - getQueueSortValue(left);
+      if (diff !== 0) return diff;
+      return Number(right?.log_id || 0) - Number(left?.log_id || 0);
+    });
+
+  return { data, error: null };
 }
 
 function getStorageObjectPath(publicUrl, bucketName) {
@@ -227,6 +390,15 @@ export async function loadMyNotebookBorrowLogs() {
 
 export async function loadNotebookRequestQueue() {
   const result = await supabase.rpc("get_notebook_request_queue");
+  if (result?.error && isNotebookSchemaError(result.error)) {
+    const fallbackResult = await loadNotebookRequestQueueFallback();
+    if (!fallbackResult?.error) {
+      return {
+        data: filterAllowedNotebookRows(fallbackResult.data),
+        error: null,
+      };
+    }
+  }
   return {
     ...result,
     data: filterAllowedNotebookRows(result.data),

@@ -22,10 +22,17 @@ const NOTEBOOK_STATUS_OPTIONS = [
   { value: NOTEBOOK_STATUS.REPAIR, label: "ซ่อม" },
 ];
 
+const NOTEBOOK_MANUAL_STATUS_OPTIONS = NOTEBOOK_STATUS_OPTIONS.filter(
+  (item) => item.value !== NOTEBOOK_STATUS.BORROWED,
+);
+
+const NOTEBOOK_MANAGER_ROLES = new Set(["admin", "it_support", "it_manager"]);
+
 const EMPTY_NOTEBOOK_FORM = {
   asset_code: "",
   model: "",
   status: NOTEBOOK_STATUS.AVAILABLE,
+  show_in_notebook_center: true,
   notes: "",
 };
 
@@ -44,8 +51,28 @@ function normalizeNotebookStatus(value) {
   return NOTEBOOK_STATUS.AVAILABLE;
 }
 
-function getNotebookStatusChipClass(status) {
-  const normalized = normalizeNotebookStatus(status);
+function normalizeNotebookCenterVisibility(value) {
+  return value !== false;
+}
+
+function hasNotebookBorrowOwner(notebook) {
+  return normalizeText(notebook?.current_user_id) !== "";
+}
+
+function isNotebookBorrowStateInconsistent(notebook) {
+  return normalizeNotebookStatus(notebook?.status) === NOTEBOOK_STATUS.BORROWED && !hasNotebookBorrowOwner(notebook);
+}
+
+function isNotebookBorrowWorkflowLocked(notebook) {
+  return normalizeNotebookStatus(notebook?.status) === NOTEBOOK_STATUS.BORROWED && hasNotebookBorrowOwner(notebook);
+}
+
+function getNotebookStatusChipClass(notebook) {
+  if (isNotebookBorrowStateInconsistent(notebook)) {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+
+  const normalized = normalizeNotebookStatus(notebook?.status);
   if (normalized === NOTEBOOK_STATUS.AVAILABLE) {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
@@ -53,6 +80,14 @@ function getNotebookStatusChipClass(status) {
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
   return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function getNotebookStatusLabel(notebook) {
+  if (isNotebookBorrowStateInconsistent(notebook)) {
+    return "สถานะค้าง";
+  }
+
+  return NOTEBOOK_STATUS_OPTIONS.find((statusItem) => statusItem.value === normalizeNotebookStatus(notebook?.status))?.label || "-";
 }
 
 function formatDateTime(value) {
@@ -74,11 +109,12 @@ function revokePreviewUrl(value) {
 
 export default function NotebookInventoryManagementPanel({ userRole = "" }) {
   const imageInputRef = useRef(null);
-  const canManageNotebooks = normalizeText(userRole).toLowerCase() === "admin";
+  const canManageNotebooks = NOTEBOOK_MANAGER_ROLES.has(normalizeText(userRole).toLowerCase());
   const [notebooks, setNotebooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState("");
+  const [availabilityActionId, setAvailabilityActionId] = useState("");
   const [editingId, setEditingId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -86,6 +122,13 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [removeImage, setRemoveImage] = useState(false);
+
+  const editingNotebook = useMemo(
+    () => notebooks.find((item) => String(item?.id || "") === String(editingId || "")) || null,
+    [editingId, notebooks],
+  );
+  const isEditingBorrowedFromWorkflow = isNotebookBorrowWorkflowLocked(editingNotebook);
+  const isEditingStaleBorrowed = isNotebookBorrowStateInconsistent(editingNotebook);
 
   const loadNotebooks = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -160,10 +203,16 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
           if (status === NOTEBOOK_STATUS.AVAILABLE) acc.available += 1;
           if (status === NOTEBOOK_STATUS.BORROWED) acc.borrowed += 1;
           if (status === NOTEBOOK_STATUS.REPAIR) acc.repair += 1;
+          if (normalizeNotebookCenterVisibility(item?.show_in_notebook_center)) acc.visibleInCenter += 1;
           return acc;
         },
-        { total: 0, available: 0, borrowed: 0, repair: 0 },
+        { total: 0, available: 0, borrowed: 0, repair: 0, visibleInCenter: 0 },
       ),
+    [notebooks],
+  );
+
+  const staleBorrowedCount = useMemo(
+    () => notebooks.filter((item) => isNotebookBorrowStateInconsistent(item)).length,
     [notebooks],
   );
 
@@ -185,6 +234,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
       asset_code: item?.asset_code || "",
       model: item?.model || "",
       status: normalizeNotebookStatus(item?.status),
+      show_in_notebook_center: normalizeNotebookCenterVisibility(item?.show_in_notebook_center),
       notes: item?.notes || "",
     });
     setImageFile(null);
@@ -216,11 +266,61 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
     });
   }, []);
 
+  const handleToggleNotebookCenterVisibility = useCallback(
+    async (item) => {
+      if (!canManageNotebooks) {
+        toast.error("เฉพาะ admin / IT Support / IT Manager เท่านั้นที่จัดการ notebook inventory ได้");
+        return;
+      }
+
+      const rowId = String(item?.id || "");
+      if (!rowId || availabilityActionId === rowId) return;
+
+      const nextVisible = !normalizeNotebookCenterVisibility(item?.show_in_notebook_center);
+      setAvailabilityActionId(rowId);
+      try {
+        const { error } = await supabase
+          .from("notebooks")
+          .update({ show_in_notebook_center: nextVisible })
+          .eq("id", item.id);
+        if (error) throw error;
+
+        setNotebooks((prev) =>
+          prev.map((row) =>
+            String(row?.id || "") === rowId
+              ? { ...row, show_in_notebook_center: nextVisible }
+              : row,
+          ),
+        );
+        if (String(editingId || "") === rowId) {
+          setFormData((prev) => ({ ...prev, show_in_notebook_center: nextVisible }));
+        }
+        toast.success(
+          nextVisible
+            ? `เปิด ${item?.asset_code || "notebook"} ให้แสดงใน Notebook Center แล้ว`
+            : `ตั้ง ${item?.asset_code || "notebook"} เป็นไม่พร้อมให้ยืมแล้ว`,
+        );
+      } catch (error) {
+        console.error("Toggle notebook center visibility error:", error);
+        if (isNotebookSchemaError(error)) {
+          toast.error("schema notebook inventory ยังไม่อัปเดต");
+        } else if (isNotebookPermissionDenied(error)) {
+          toast.error("สิทธิ์ของบัญชีนี้ไม่พอสำหรับแก้ไข notebook");
+        } else {
+          toast.error(error?.message || "อัปเดตสถานะการให้ยืมไม่สำเร็จ");
+        }
+      } finally {
+        setAvailabilityActionId("");
+      }
+    },
+    [availabilityActionId, canManageNotebooks, editingId],
+  );
+
   const handleSaveNotebook = useCallback(
     async (event) => {
       event.preventDefault();
       if (!canManageNotebooks) {
-        toast.error("เฉพาะ admin เท่านั้นที่จัดการ notebook inventory ได้");
+        toast.error("เฉพาะ admin / IT Support / IT Manager เท่านั้นที่จัดการ notebook inventory ได้");
         return;
       }
       if (saving) return;
@@ -234,6 +334,11 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
 
       const currentRow = notebooks.find((item) => String(item?.id || "") === String(editingId || ""));
       const nextStatus = normalizeNotebookStatus(formData.status);
+      const canUseBorrowedStatus = isNotebookBorrowWorkflowLocked(currentRow);
+      if (nextStatus === NOTEBOOK_STATUS.BORROWED && !canUseBorrowedStatus) {
+        toast.error("สถานะ 'ถูกยืม' จะถูกตั้งจาก workflow ยืม-คืนเท่านั้น");
+        return;
+      }
       let uploadedAsset = null;
       let nextImageUrl = removeImage ? null : normalizeOptionalText(currentRow?.asset_image_url);
       let nextImageName = removeImage ? null : normalizeOptionalText(currentRow?.asset_image_name);
@@ -254,6 +359,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
           asset_code: assetCode,
           model,
           status: nextStatus,
+          show_in_notebook_center: Boolean(formData.show_in_notebook_center),
           notes: normalizeOptionalText(formData.notes),
           asset_image_url: nextImageUrl,
           asset_image_name: nextImageName,
@@ -302,7 +408,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
   const handleDeleteNotebook = useCallback(
     async (item) => {
       if (!canManageNotebooks) {
-        toast.error("เฉพาะ admin เท่านั้นที่ลบ notebook ได้");
+        toast.error("เฉพาะ admin / IT Support / IT Manager เท่านั้นที่ลบ notebook ได้");
         return;
       }
       if (actionId && actionId === item.id) return;
@@ -369,7 +475,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
 
         {!canManageNotebooks ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-            สิทธิ์ปัจจุบันเป็นแบบดูอย่างเดียว การเพิ่ม แก้ไข ลบ และอัปโหลดรูป notebook เปิดให้เฉพาะ admin
+            สิทธิ์ปัจจุบันเป็นแบบดูอย่างเดียว การเพิ่ม แก้ไข ลบ และอัปโหลดรูป notebook เปิดให้เฉพาะ admin / IT Support / IT Manager
           </div>
         ) : null}
 
@@ -393,18 +499,52 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             />
           </div>
 
-          <select
-            value={formData.status}
-            onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.value }))}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-            disabled={!canManageNotebooks}
-          >
-            {NOTEBOOK_STATUS_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+          <div>
+            <select
+              value={formData.status}
+              onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.value }))}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              disabled={!canManageNotebooks || isEditingBorrowedFromWorkflow}
+            >
+              {((isEditingBorrowedFromWorkflow || isEditingStaleBorrowed)
+                ? NOTEBOOK_STATUS_OPTIONS
+                : NOTEBOOK_MANUAL_STATUS_OPTIONS).map((item) => (
+                <option
+                  key={item.value}
+                  value={item.value}
+                  disabled={item.value === NOTEBOOK_STATUS.BORROWED && !isEditingBorrowedFromWorkflow}
+                >
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-slate-500">
+              {isEditingBorrowedFromWorkflow
+                ? "เครื่องนี้กำลังอยู่ใน workflow ยืม-คืนจริง สถานะถูกยืมจะแก้ได้จากหน้าอนุมัติของ IT เท่านั้น"
+                : "สถานะ 'ถูกยืม' จะถูกตั้งอัตโนมัติเมื่อ IT อนุมัติคำขอยืม"}
+            </p>
+            {isEditingStaleBorrowed ? (
+              <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                รายการนี้ค้างสถานะถูกยืม แต่ไม่พบผู้ยืมในระบบ ให้เปลี่ยนเป็น พร้อมให้ยืม หรือ ซ่อม เพื่อปลดล็อกหน้า Notebook Center
+              </div>
+            ) : null}
+          </div>
+
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <input
+              type="checkbox"
+              checked={Boolean(formData.show_in_notebook_center)}
+              onChange={(event) => setFormData((prev) => ({ ...prev, show_in_notebook_center: event.target.checked }))}
+              className="mt-1 h-4 w-4 rounded border-slate-300"
+              disabled={!canManageNotebooks}
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-slate-800">แสดงใน Notebook Center</span>
+              <span className="mt-1 block text-xs text-slate-500">
+                ถ้าต้องการให้มี notebook ให้ยืม 3 เครื่อง ให้เปิดตัวเลือกนี้ไว้ 3 รายการที่ต้องการแสดง
+              </span>
+            </span>
+          </label>
 
           <textarea
             value={formData.notes}
@@ -472,7 +612,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             <h2 className="text-lg font-black text-slate-900">
               รายการ notebook ({NUMBER_FORMATTER.format(filteredNotebooks.length)})
             </h2>
-            <p className="mt-1 text-sm text-slate-500">ใช้ร่วมกับหน้า /notebook-center และอัปเดตแบบ realtime</p>
+            <p className="mt-1 text-sm text-slate-500">ใช้ร่วมกับหน้า /notebook-center และอัปเดตแบบ realtime โดยแสดงเฉพาะรายการที่เปิดใน Notebook Center</p>
           </div>
 
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -497,10 +637,14 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-5">
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
             <p className="text-[11px] font-semibold text-slate-500">ทั้งหมด</p>
             <p className="text-lg font-black text-slate-900">{NUMBER_FORMATTER.format(summary.total)}</p>
+          </div>
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+            <p className="text-[11px] font-semibold text-indigo-700">แสดงใน Center</p>
+            <p className="text-lg font-black text-indigo-900">{NUMBER_FORMATTER.format(summary.visibleInCenter)}</p>
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
             <p className="text-[11px] font-semibold text-emerald-700">พร้อมให้ยืม</p>
@@ -515,6 +659,12 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             <p className="text-lg font-black text-amber-900">{NUMBER_FORMATTER.format(summary.repair)}</p>
           </div>
         </div>
+
+        {staleBorrowedCount > 0 ? (
+          <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+            พบ notebook สถานะค้าง {NUMBER_FORMATTER.format(staleBorrowedCount)} เครื่อง (ถูกยืมแต่ไม่ผูกผู้ยืม) ให้แก้เป็น พร้อมให้ยืม หรือ ซ่อม เพื่อปลดล็อกการใช้งาน
+          </div>
+        ) : null}
 
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
           <select
@@ -568,16 +718,26 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
               ) : (
                 filteredNotebooks.map((item) => {
                   const imageUrl = normalizeText(item?.asset_image_url);
+                  const isStaleBorrowed = isNotebookBorrowStateInconsistent(item);
+                  const showInNotebookCenter = normalizeNotebookCenterVisibility(item?.show_in_notebook_center);
                   return (
                     <tr key={item.id} className="border-b border-slate-100 align-top last:border-b-0">
                       <td className="px-3 py-3 text-slate-700">
                         <div className="font-semibold text-slate-900">{item?.asset_code || "-"}</div>
                         <div className="text-xs text-slate-500">{item?.model || "-"}</div>
                         {item?.notes ? <div className="mt-1 text-xs text-slate-500">{item.notes}</div> : null}
+                        <div className={`mt-1 text-xs font-semibold ${showInNotebookCenter ? "text-indigo-600" : "text-slate-400"}`}>
+                          Notebook Center: {showInNotebookCenter ? "แสดง" : "ซ่อน"}
+                        </div>
+                        {isStaleBorrowed ? (
+                          <div className="mt-1 text-xs font-semibold text-rose-600">
+                            สถานะค้าง: ไม่พบ current user ในระบบ
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-3 py-3">
-                        <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getNotebookStatusChipClass(item?.status)}`}>
-                          {NOTEBOOK_STATUS_OPTIONS.find((statusItem) => statusItem.value === normalizeNotebookStatus(item?.status))?.label || "-"}
+                        <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getNotebookStatusChipClass(item)}`}>
+                          {getNotebookStatusLabel(item)}
                         </span>
                       </td>
                       <td className="px-3 py-3">
@@ -594,6 +754,22 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                       <td className="px-3 py-3 text-xs text-slate-500">{formatDateTime(item?.updated_at || item?.created_at)}</td>
                       <td className="px-3 py-3">
                         <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleToggleNotebookCenterVisibility(item)}
+                            disabled={!canManageNotebooks || availabilityActionId === String(item.id || "")}
+                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                              showInNotebookCenter
+                                ? "border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            }`}
+                          >
+                            {availabilityActionId === String(item.id || "")
+                              ? "กำลังอัปเดต..."
+                              : showInNotebookCenter
+                                ? "ไม่พร้อมให้ยืม"
+                                : "พร้อมให้ยืม"}
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleEditNotebook(item)}

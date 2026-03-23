@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
-  UserRound,
   Image as ImageIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -69,6 +68,51 @@ const formatDuration = (startValue, endValue) => {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "-";
   return formatNotebookDuration(start, end);
 };
+
+const resolveBorrowerAvatarUrl = (row, profile, displayName) =>
+  normalizeText(
+    row?.user_avatar_url ||
+      profile?.avatar_url ||
+      profile?.id_card_url,
+  );
+
+const getAvatarInitials = (name) => {
+  const normalized = normalizeText(name);
+  if (!normalized) return "U";
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+  }
+  return normalized.slice(0, 2).toUpperCase();
+};
+
+const isRenderableAvatarUrl = (value) => /^(blob:|data:|https?:\/\/)/i.test(String(value || "").trim());
+
+function BorrowerAvatar({ src, name, theme }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const canRenderImage = isRenderableAvatarUrl(src) && !imageFailed;
+
+  return (
+    <div
+      className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border ${
+        theme === "dark"
+          ? "border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800 text-slate-200"
+          : "border-slate-200 bg-gradient-to-br from-teal-50 to-cyan-100 text-teal-700"
+      }`}
+    >
+      {canRenderImage ? (
+        <img
+          src={src}
+          alt={name}
+          className="h-full w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span className="text-sm font-black tracking-wide">{getAvatarInitials(name)}</span>
+      )}
+    </div>
+  );
+}
 
 const resolveNotebookProofUrl = (value) => {
   const raw = String(value || "").trim();
@@ -237,6 +281,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
   const proofLookupAttemptedRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
   const [queue, setQueue] = useState([]);
+  const [borrowerProfiles, setBorrowerProfiles] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [errorMessage, setErrorMessage] = useState("");
@@ -248,8 +293,47 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
     try {
       const { data, error } = await loadNotebookRequestQueue();
       if (error) throw error;
-      setQueue(Array.isArray(data) ? data : []);
+      const nextQueue = Array.isArray(data) ? data : [];
+      setQueue(nextQueue);
       setErrorMessage("");
+
+      const borrowerIds = [
+        ...new Set(
+          nextQueue
+            .filter((item) => !normalizeText(item?.user_avatar_url))
+            .map((item) => String(item?.user_id || "").trim())
+            .filter(Boolean),
+        ),
+      ];
+      if (borrowerIds.length === 0) {
+        setBorrowerProfiles({});
+      } else {
+        const { data: profileRows, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, id_card_url")
+          .in("id", borrowerIds);
+
+        if (profileError) {
+          console.error("Load notebook borrower profiles error:", profileError);
+        } else if (Array.isArray(profileRows)) {
+          const nextProfiles = borrowerIds.reduce((acc, id) => {
+            acc[id] = null;
+            return acc;
+          }, {});
+
+          profileRows.forEach((profile) => {
+            const profileId = String(profile?.id || "").trim();
+            if (!profileId) return;
+            nextProfiles[profileId] = {
+              full_name: profile?.full_name || "",
+              avatar_url: profile?.avatar_url || "",
+              id_card_url: profile?.id_card_url || "",
+            };
+          });
+
+          setBorrowerProfiles(nextProfiles);
+        }
+      }
     } catch (error) {
       console.error("Load notebook queue error:", error);
       if (isNotebookSchemaError(error)) {
@@ -260,6 +344,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
         setErrorMessage("ไม่สามารถโหลดรายการยืม-คืนโน้ตบุ๊กได้");
       }
       setQueue([]);
+      setBorrowerProfiles({});
     } finally {
       if (!silent) setLoading(false);
     }
@@ -543,6 +628,12 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
               const returnKey = `return:${row.log_id}`;
               const beforeImageUrl = proofUrlOverrides[beforeKey] || resolveNotebookProofUrl(row.image_url);
               const returnImageUrl = proofUrlOverrides[returnKey] || resolveNotebookProofUrl(row.return_image_url);
+              const borrowerProfile = borrowerProfiles[String(row?.user_id || "").trim()] || null;
+              const borrowerName =
+                decodePossibleMojibake(row.user_name) ||
+                decodePossibleMojibake(borrowerProfile?.full_name) ||
+                "-";
+              const borrowerAvatarUrl = resolveBorrowerAvatarUrl(row, borrowerProfile, borrowerName);
 
               return (
                 <article
@@ -568,7 +659,18 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
                       <h3 className={`mt-3 text-base font-bold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
                         {row.model || "-"}
                       </h3>
-                      <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
+                      <div className="mt-3 flex items-center gap-3">
+                        <BorrowerAvatar src={borrowerAvatarUrl} name={borrowerName} theme={theme} />
+                        <div className="min-w-0">
+                          <p className={`truncate text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-800"}`}>
+                            {borrowerName}
+                          </p>
+                          <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
+                            {row.user_role ? decodePossibleMojibake(row.user_role) : "-"}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="hidden">
                         {decodePossibleMojibake(row.user_name) || "-"} {row.user_role ? `• ${decodePossibleMojibake(row.user_role)}` : ""}
                       </p>
                     </div>

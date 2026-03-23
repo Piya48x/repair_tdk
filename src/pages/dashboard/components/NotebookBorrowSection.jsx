@@ -53,6 +53,22 @@ function getNotebookCodeFromLog(log, notebooksById) {
   );
 }
 
+function hasNotebookBorrowOwner(notebook) {
+  return normalizeText(notebook?.current_user_id) !== "";
+}
+
+function isNotebookBorrowStateInconsistent(notebook) {
+  return notebook?.status === NOTEBOOK_STATUS.BORROWED && !hasNotebookBorrowOwner(notebook);
+}
+
+function getNotebookDisplayStatusMeta(notebook) {
+  if (isNotebookBorrowStateInconsistent(notebook)) {
+    return { label: "สถานะค้าง", cls: "border-rose-200 bg-rose-50 text-rose-700" };
+  }
+
+  return STATUS_META[notebook?.status] || STATUS_META[NOTEBOOK_STATUS.AVAILABLE];
+}
+
 export default function NotebookBorrowSection({ currentUser, isDarkTheme = false, onOpenChat }) {
   const currentUserId = String(currentUser?.id || "");
   const currentUserName = currentUser?.name || currentUser?.full_name || "User";
@@ -176,28 +192,19 @@ export default function NotebookBorrowSection({ currentUser, isDarkTheme = false
     });
   }, [notebooks, searchQuery]);
 
-  const borrowedByOtherCount = useMemo(
-    () =>
-      notebooks.filter(
-        (item) =>
-          item?.status === NOTEBOOK_STATUS.BORROWED &&
-          String(item?.current_user_id || "") !== "" &&
-          String(item?.current_user_id || "") !== currentUserId,
-      ).length,
-    [currentUserId, notebooks],
-  );
-
   const visibleNotebooks = useMemo(() => {
     const getSortRank = (item) => {
       const ownerId = String(item?.current_user_id || "");
       const isMineActive = item?.status === NOTEBOOK_STATUS.BORROWED && ownerId === currentUserId;
       const isBorrowedByOther = item?.status === NOTEBOOK_STATUS.BORROWED && ownerId !== "" && ownerId !== currentUserId;
+      const isInconsistentBorrowed = isNotebookBorrowStateInconsistent(item);
 
       if (item?.status === NOTEBOOK_STATUS.AVAILABLE && ownerId === "") return 0;
       if (isMineActive) return 1;
       if (isBorrowedByOther) return 2;
-      if (item?.status === NOTEBOOK_STATUS.REPAIR) return 3;
-      return 4;
+      if (isInconsistentBorrowed) return 3;
+      if (item?.status === NOTEBOOK_STATUS.REPAIR) return 4;
+      return 5;
     };
 
     return [...filteredNotebooks].sort((left, right) => {
@@ -209,6 +216,16 @@ export default function NotebookBorrowSection({ currentUser, isDarkTheme = false
       });
     });
   }, [currentUserId, filteredNotebooks]);
+
+  const availableNotebooks = useMemo(
+    () =>
+      visibleNotebooks.filter(
+        (item) =>
+          item?.status === NOTEBOOK_STATUS.AVAILABLE &&
+          String(item?.current_user_id || "") === "",
+      ),
+    [visibleNotebooks],
+  );
 
   const closeBorrowModal = useCallback(() => {
     setSelectedNotebook(null);
@@ -250,12 +267,15 @@ export default function NotebookBorrowSection({ currentUser, isDarkTheme = false
     if (!notebook) return;
     const ownerId = String(notebook?.current_user_id || "");
     const isBorrowedByOther = notebook?.status === NOTEBOOK_STATUS.BORROWED && ownerId !== "" && ownerId !== currentUserId;
-    if (isBorrowedByOther || notebook?.status !== NOTEBOOK_STATUS.AVAILABLE) {
+    const isInconsistentBorrowed = isNotebookBorrowStateInconsistent(notebook);
+    if (isBorrowedByOther || isInconsistentBorrowed || notebook?.status !== NOTEBOOK_STATUS.AVAILABLE) {
       const borrowerName = normalizeText(notebook?.current_user_name) || "ผู้ใช้งานอื่น";
       toast.error(
         isBorrowedByOther
           ? `Notebook ${notebook?.asset_code || "-"} กำลังถูกยืมโดย ${borrowerName}`
-          : "Notebook เครื่องนี้ไม่ว่าง",
+          : isInconsistentBorrowed
+            ? `Notebook ${notebook?.asset_code || "-"} มีสถานะค้าง กรุณาให้ admin หรือ IT รีเซ็ตก่อน`
+            : "Notebook เครื่องนี้ไม่ว่าง",
       );
       return;
     }
@@ -476,7 +496,7 @@ export default function NotebookBorrowSection({ currentUser, isDarkTheme = false
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="ค้นหา asset code, model, สถานะ"
+              placeholder="ค้นหา asset code หรือ model ของเครื่องที่ว่าง"
               className={`w-full rounded-2xl border py-2.5 pl-9 pr-3 text-sm outline-none ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-100" : "border-slate-200 bg-white text-slate-700"}`}
             />
           </div>
@@ -496,41 +516,36 @@ export default function NotebookBorrowSection({ currentUser, isDarkTheme = false
           </div>
         ) : (
           <div className="space-y-4">
-            <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4`}>
-              {[
-                ["ทั้งหมด", notebooks.length, "text-slate-900"],
-                ["พร้อมให้ยืม", notebooks.filter((item) => item?.status === NOTEBOOK_STATUS.AVAILABLE).length, "text-emerald-500"],
-                ["ถูกยืม", notebooks.filter((item) => item?.status === NOTEBOOK_STATUS.BORROWED).length, "text-blue-500"],
-                ["ซ่อม", notebooks.filter((item) => item?.status === NOTEBOOK_STATUS.REPAIR).length, "text-amber-500"],
-              ].map(([label, value, color]) => (
-                <article key={label} className={`rounded-2xl border p-4 ${mutedClass}`}>
-                  <p className={`text-[11px] font-bold uppercase tracking-wider ${subtleTextClass}`}>{label}</p>
-                  <p className={`mt-1 text-2xl font-black ${color}`}>{value}</p>
-                </article>
-              ))}
+            <div className="grid grid-cols-1 gap-3 sm:max-w-xs">
+              <article className={`rounded-2xl border p-4 ${mutedClass}`}>
+                <p className={`text-[11px] font-bold uppercase tracking-wider ${subtleTextClass}`}>พร้อมให้ยืมตอนนี้</p>
+                <p className="mt-1 text-2xl font-black text-emerald-500">{availableNotebooks.length}</p>
+              </article>
             </div>
 
-            {borrowedByOtherCount > 0 && (
-              <div className={`rounded-3xl border px-4 py-3 text-sm font-semibold ${isDarkTheme ? "border-blue-700/50 bg-blue-950/30 text-blue-100" : "border-blue-200 bg-blue-50 text-blue-800"}`}>
-                มี notebook ถูกยืมอยู่แล้ว {borrowedByOtherCount} เครื่อง ให้เลือกเครื่องที่สถานะพร้อมให้ยืมแทน
-              </div>
-            )}
-
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-              {visibleNotebooks.length === 0 ? (
+              {availableNotebooks.length === 0 ? (
                 <div className={`rounded-3xl border border-dashed p-8 text-center ${mutedClass} lg:col-span-3`}>
-                  <p className={`text-sm font-semibold ${headingClass}`}>ไม่พบ notebook</p>
+                  <p className={`text-sm font-semibold ${headingClass}`}>ไม่มี notebook ว่างให้ยืม</p>
                 </div>
               ) : (
-                visibleNotebooks.map((notebook) => {
-                  const notebookMeta = STATUS_META[notebook?.status] || STATUS_META[NOTEBOOK_STATUS.AVAILABLE];
+                availableNotebooks.map((notebook) => {
+                  const notebookMeta = getNotebookDisplayStatusMeta(notebook);
                   const myLog = latestLogByNotebook.get(String(notebook?.id || ""));
                   const currentOwnerId = String(notebook?.current_user_id || "");
                   const isMineActive = notebook?.status === NOTEBOOK_STATUS.BORROWED && currentOwnerId === currentUserId;
                   const isBorrowedByOther = notebook?.status === NOTEBOOK_STATUS.BORROWED && currentOwnerId !== "" && currentOwnerId !== currentUserId;
+                  const isInconsistentBorrowed = isNotebookBorrowStateInconsistent(notebook);
                   const isMinePending = myLog?.status === NOTEBOOK_LOG_STATUS.PENDING;
                   const isMineReturnPending = myLog?.status === NOTEBOOK_LOG_STATUS.RETURNED && !myLog?.return_confirmed_at;
-                  const isBlockedByOtherBorrow = Boolean(pendingBorrowRequest || activeBorrowLog || pendingReturnLog || isMinePending || isMineReturnPending);
+                  const isBlockedByOtherBorrow = Boolean(
+                    pendingBorrowRequest ||
+                    activeBorrowLog ||
+                    pendingReturnLog ||
+                    isMinePending ||
+                    isMineReturnPending ||
+                    isInconsistentBorrowed,
+                  );
                   const canBorrow = notebook?.status === NOTEBOOK_STATUS.AVAILABLE && currentOwnerId === "" && !isBlockedByOtherBorrow;
                   const borrowerName = normalizeText(notebook?.current_user_name) || "ผู้ใช้งานอื่น";
                   const notebookImageUrl = normalizeText(notebook?.asset_image_url);
@@ -560,11 +575,22 @@ export default function NotebookBorrowSection({ currentUser, isDarkTheme = false
                       <div className="mt-4 space-y-2">
                         <div className={`flex items-center justify-between rounded-2xl border px-3 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-100 bg-slate-50"}`}>
                           <span className={`text-xs ${subtleTextClass}`}>{isBorrowedByOther ? "ผู้ยืมปัจจุบัน" : "ผู้ใช้งานล่าสุด"}</span>
-                          <span className={`max-w-[60%] truncate text-xs font-bold ${headingClass}`}>{isBorrowedByOther ? borrowerName : notebook.current_user_name || "-"}</span>
+                          <span className={`max-w-[60%] truncate text-xs font-bold ${headingClass}`}>
+                            {isBorrowedByOther
+                              ? borrowerName
+                              : isInconsistentBorrowed
+                                ? "ไม่พบผู้ยืม"
+                                : notebook.current_user_name || "-"}
+                          </span>
                         </div>
                         {isBorrowedByOther && (
                           <div className={`rounded-2xl border px-3 py-2 text-xs font-semibold ${isDarkTheme ? "border-blue-700/50 bg-blue-950/35 text-blue-200" : "border-blue-200 bg-blue-50 text-blue-700"}`}>
                             เครื่องนี้กำลังถูกยืมอยู่ ให้เลือก notebook ที่ว่างเครื่องอื่นแทน
+                          </div>
+                        )}
+                        {isInconsistentBorrowed && (
+                          <div className={`rounded-2xl border px-3 py-2 text-xs font-semibold ${isDarkTheme ? "border-rose-700/50 bg-rose-950/35 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                            เครื่องนี้มีสถานะค้างจากข้อมูลเดิม จึงขึ้นว่า "ถูกยืม" แต่ยังคืนจากหน้านี้ไม่ได้ ต้องให้ admin หรือ IT รีเซ็ตก่อน
                           </div>
                         )}
                         <div className={`flex items-center justify-between rounded-2xl border px-3 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-100 bg-slate-50"}`}>
@@ -588,7 +614,9 @@ export default function NotebookBorrowSection({ currentUser, isDarkTheme = false
                           <button type="button" onClick={() => handleBorrow(notebook)} className="w-full rounded-2xl bg-[#2b59b0] px-3 py-2 text-sm font-semibold text-white">ยืม</button>
                         ) : (
                           <button type="button" disabled className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-500">
-                            {isBorrowedByOther
+                            {isInconsistentBorrowed
+                              ? "รอ admin หรือ IT รีเซ็ตสถานะ"
+                              : isBorrowedByOther
                               ? `กำลังถูกยืมโดย ${borrowerName}`
                               : notebook?.status === NOTEBOOK_STATUS.BORROWED
                                 ? "มีผู้ใช้งาน"
