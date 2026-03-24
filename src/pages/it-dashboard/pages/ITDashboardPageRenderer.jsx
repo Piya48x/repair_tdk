@@ -7,6 +7,7 @@ import HistoryPage from "./HistoryPage";
 import CalendarPage from "./CalendarPage";
 import AccessRequestsPage from "./AccessRequestsPage";
 import NotebookBorrowRequestsPage from "./NotebookBorrowRequestsPage";
+import ITWorkEvidencePage from "./ITWorkEvidencePage";
 import ReportsPage from "./ReportsPage";
 import SettingsPage from "./SettingsPage";
 
@@ -26,6 +27,8 @@ const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
       return <AccessRequestsPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.NOTEBOOK_BORROW:
       return <NotebookBorrowRequestsPage {...workspaceProps} />;
+    case DASHBOARD_PAGE_IDS.IT_WORK_LOGS:
+      return <ITWorkEvidencePage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.REPORTS:
       return <ReportsPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.SETTINGS:
