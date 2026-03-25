@@ -1,18 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import {
-  CalendarDays,
-  Camera,
-  FileText,
-  Image as ImageIcon,
-  MapPin,
-  Monitor,
-  Printer,
-  Search,
-  Trash2,
-  Upload,
-  Wrench,
-} from "lucide-react";
+import { LayoutDashboard, ListChecks } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import {
   createITWorkRecord,
@@ -22,119 +10,156 @@ import {
   normalizeEvidenceImages,
   normalizeText,
   removeITWorkEvidenceFiles,
+  updateITWorkRecord,
   uploadITWorkEvidenceFiles,
 } from "../../../services/itWorkRecordService";
+import { DASHBOARD_PAGE_IDS } from "../constants/dashboardPages";
+import EvidenceFormSection from "./it-work-evidence/EvidenceFormSection";
+import EvidenceRecordsSection from "./it-work-evidence/EvidenceRecordsSection";
+import {
+  STATUS_OPTIONS,
+  TYPE_OPTIONS,
+  buildEndTimeFromDuration,
+  buildForm,
+  buildFormFromRecord,
+  calculateDurationMinutes,
+  formatDateTime,
+  formatDurationLabel,
+  getDurationParts,
+  getStatusMeta,
+  getTypeMeta,
+  toDateTimeLocalValue,
+} from "./it-work-evidence/shared";
 
-const MAX_FILES = 8;
-const TYPE_OPTIONS = [
-  { value: "camera_install", label: "ติดตั้งกล้อง", icon: Camera },
-  { value: "pc_install", label: "ติดตั้ง PC", icon: Monitor },
-  { value: "notebook_install", label: "ติดตั้ง Notebook", icon: Monitor },
-  { value: "printer_install", label: "ติดตั้ง Printer", icon: Printer },
-  { value: "maintenance", label: "บำรุงรักษา / ปรับปรุง", icon: Wrench },
-  { value: "repair", label: "ซ่อม / แก้ไข", icon: Wrench },
-  { value: "other", label: "งาน IT อื่น ๆ", icon: FileText },
-];
-const STATUS_OPTIONS = [
-  { value: "pending", label: "รอดำเนินการ" },
-  { value: "in_progress", label: "กำลังดำเนินการ" },
-  { value: "completed", label: "เสร็จสิ้น" },
-];
+function getStatusTone(theme, status) {
+  if (status === "completed") {
+    return theme === "dark"
+      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+      : "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (status === "in_progress") {
+    return theme === "dark"
+      ? "border-amber-500/20 bg-amber-500/10 text-amber-200"
+      : "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  return theme === "dark"
+    ? "border-slate-600 bg-slate-700/30 text-slate-200"
+    : "border-slate-200 bg-slate-100 text-slate-700";
+}
 
-const toDateTimeLocalValue = (value = new Date()) => {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
-
-const formatDateTime = (value) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("th-TH", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+function revokePreviewEntries(entries) {
+  if (!Array.isArray(entries)) return;
+  entries.forEach((entry) => {
+    if (entry?.previewUrl) URL.revokeObjectURL(entry.previewUrl);
   });
-};
+}
 
-const getTypeMeta = (type) => TYPE_OPTIONS.find((item) => item.value === type) || TYPE_OPTIONS[TYPE_OPTIONS.length - 1];
-const getStatusLabel = (status) => STATUS_OPTIONS.find((item) => item.value === status)?.label || "เสร็จสิ้น";
-const buildForm = (department = "") => ({
-  title: "",
-  job_type: TYPE_OPTIONS[0].value,
-  work_status: "completed",
-  performed_at: toDateTimeLocalValue(),
-  location: "",
-  reference_code: "",
-  requester_name: "",
-  department,
-  device_details: "",
-  description: "",
-  result_summary: "",
-});
+function sortRecordsByLatest(records) {
+  return [...records].sort((left, right) => {
+    const leftTime = new Date(left?.start_time || left?.performed_at || left?.created_at || 0).getTime();
+    const rightTime = new Date(right?.start_time || right?.performed_at || right?.created_at || 0).getTime();
+    return rightTime - leftTime;
+  });
+}
 
-export default function ITWorkEvidencePage({ theme, uiTheme, currentUser }) {
+function upsertRecord(records, nextRecord) {
+  return sortRecordsByLatest([
+    nextRecord,
+    ...records.filter((record) => record.id !== nextRecord.id),
+  ]);
+}
+
+function clampDurationInput(value, max) {
+  const numeric = Number.parseInt(String(value || "").replace(/[^\d]/g, ""), 10);
+  if (Number.isNaN(numeric) || numeric < 0) return 0;
+  return Math.min(numeric, max);
+}
+
+export default function ITWorkEvidencePage({
+  theme,
+  uiTheme,
+  currentUser,
+  onNavigatePage,
+}) {
   const fileInputRef = useRef(null);
-  const previewsRef = useRef([]);
+  const previewRef = useRef([]);
+  const listRef = useRef(null);
   const [records, setRecords] = useState([]);
   const [formData, setFormData] = useState(buildForm());
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
+  const [originalImages, setOriginalImages] = useState([]);
+  const [editingRecordId, setEditingRecordId] = useState(null);
+  const [editingRecordSnapshot, setEditingRecordSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
   const [loadError, setLoadError] = useState("");
   const [schemaMissing, setSchemaMissing] = useState(false);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [nowValue, setNowValue] = useState(new Date());
+  const [filters, setFilters] = useState({
+    query: "",
+    type: "ALL",
+    status: "ALL",
+    user: "ALL",
+    department: "ALL",
+  });
 
+  const deferredQuery = useDeferredValue(filters.query);
+  const isEditing = editingRecordId !== null;
   const cardClass = `${uiTheme.surfaceCard} rounded-3xl border`;
-  const subCardClass = theme === "dark" ? "rounded-2xl border border-slate-700 bg-[#162136]" : "rounded-2xl border border-slate-200 bg-slate-50";
+  const subCardClass = theme === "dark"
+    ? "rounded-2xl border border-slate-700 bg-[#162136]"
+    : "rounded-2xl border border-slate-200 bg-slate-50";
   const inputClass = `w-full rounded-2xl border px-4 py-3 text-sm ${uiTheme.searchInputMobile}`;
   const softTextClass = theme === "dark" ? "text-slate-400" : "text-slate-500";
 
   const loadRecords = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     const { data, error } = await loadITWorkRecords();
+
     if (error) {
-      console.error("Load IT work records error:", error);
       const missing = isITWorkRecordSchemaError(error);
       setSchemaMissing(missing);
-      setLoadError(missing ? "ยังไม่พบตารางหรือ bucket สำหรับบันทึกงาน IT กรุณารัน SQL migration ก่อนใช้งาน" : "ไม่สามารถโหลดบันทึกงาน IT ได้");
+      setLoadError(
+        missing
+          ? "ยังไม่พบโครงสร้างฐานข้อมูลสำหรับบันทึกงาน IT กรุณารัน SQL migration ก่อนใช้งาน"
+          : "ไม่สามารถโหลดบันทึกงาน IT ได้",
+      );
       setRecords([]);
     } else {
-      setRecords(Array.isArray(data) ? data : []);
+      setRecords(sortRecordsByLatest(Array.isArray(data) ? data : []));
       setLoadError("");
       setSchemaMissing(false);
     }
+
     if (!silent) setLoading(false);
   };
 
   useEffect(() => {
-    previewsRef.current = selectedFiles;
+    previewRef.current = selectedFiles;
   }, [selectedFiles]);
 
-  useEffect(() => {
-    return () => {
-      previewsRef.current.forEach((entry) => entry?.previewUrl && URL.revokeObjectURL(entry.previewUrl));
-    };
-  }, []);
+  useEffect(() => () => revokePreviewEntries(previewRef.current), []);
 
   useEffect(() => {
     if (!currentUser?.department) return;
-    setFormData((prev) => (normalizeText(prev.department) ? prev : { ...prev, department: currentUser.department }));
+    setFormData((prev) => (
+      normalizeText(prev.department)
+        ? prev
+        : { ...prev, department: currentUser.department }
+    ));
   }, [currentUser]);
 
   useEffect(() => {
     let mounted = true;
     let channel = null;
+
     const init = async () => {
       await loadRecords();
       if (!mounted) return;
+
       channel = supabase
         .channel("it_work_records_realtime")
         .on("postgres_changes", { event: "*", schema: "public", table: "it_work_records" }, () => {
@@ -142,45 +167,97 @@ export default function ITWorkEvidencePage({ theme, uiTheme, currentUser }) {
         })
         .subscribe();
     };
+
     void init();
+
     return () => {
       mounted = false;
       if (channel) supabase.removeChannel(channel);
     };
   }, []);
 
-  const resetForm = () => {
+  useEffect(() => {
+    if (!timerRunning) return undefined;
+    const timer = window.setInterval(() => setNowValue(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, [timerRunning]);
+
+  const clearFormState = () => {
+    setTimerRunning(false);
+    setNowValue(new Date());
+    setEditingRecordId(null);
+    setEditingRecordSnapshot(null);
+    setExistingImages([]);
+    setOriginalImages([]);
     setFormData(buildForm(currentUser?.department || ""));
     setSelectedFiles((prev) => {
-      prev.forEach((entry) => entry?.previewUrl && URL.revokeObjectURL(entry.previewUrl));
+      revokePreviewEntries(prev);
       return [];
     });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleFileSelect = (event) => {
-    const rawFiles = Array.from(event.target.files || []);
-    const incoming = rawFiles.filter((file) => String(file.type || "").startsWith("image/"));
-    const slots = MAX_FILES - selectedFiles.length;
-    if (incoming.length !== rawFiles.length) {
+  const resetForm = () => {
+    clearFormState();
+  };
+
+  const handleCancelEdit = () => {
+    clearFormState();
+  };
+
+  const appendEvidenceFiles = (files, { source = "upload", notifyInvalid = true } = {}) => {
+    const safeFiles = Array.isArray(files) ? files.filter(Boolean) : [];
+    if (safeFiles.length === 0) return false;
+
+    const normalizedFiles = safeFiles.map((file, index) => {
+      if (file instanceof File && file.name) return file;
+
+      const extension = String(file?.type || "image/png").split("/")[1] || "png";
+      return new File([file], `clipboard-${Date.now()}-${index}.${extension}`, {
+        type: file?.type || "image/png",
+      });
+    });
+
+    const imageFiles = normalizedFiles.filter((file) => String(file.type || "").startsWith("image/"));
+    const remainingSlots = 8 - existingImages.length - selectedFiles.length;
+
+    if (notifyInvalid && imageFiles.length !== normalizedFiles.length) {
       toast.error("ระบบรองรับเฉพาะไฟล์รูปภาพ");
     }
-    if (slots <= 0) {
-      toast.error(`อัปโหลดได้สูงสุด ${MAX_FILES} รูป`);
-      event.target.value = "";
-      return;
+    if (imageFiles.length === 0) {
+      return false;
     }
-    const nextEntries = incoming.slice(0, slots).map((file, index) => ({
-      id: `${file.name}_${file.lastModified}_${selectedFiles.length + index}`,
+    if (remainingSlots <= 0) {
+      toast.error("อัปโหลดได้สูงสุด 8 รูป");
+      return false;
+    }
+
+    const nextEntries = imageFiles.slice(0, remainingSlots).map((file, index) => ({
+      id: `${source}_${file.name}_${file.lastModified}_${selectedFiles.length + index}`,
       file,
       previewUrl: URL.createObjectURL(file),
     }));
-    if (incoming.length > slots) toast.error(`เลือกได้ไม่เกิน ${MAX_FILES} รูป`);
+
+    if (imageFiles.length > remainingSlots) {
+      toast.error("เลือกได้ไม่เกิน 8 รูป");
+    }
+
     setSelectedFiles((prev) => [...prev, ...nextEntries]);
+
+    if (source === "clipboard" && nextEntries.length > 0) {
+      toast.success(`วางรูปจากคลิปบอร์ดแล้ว ${nextEntries.length} รูป`);
+    }
+
+    return nextEntries.length > 0;
+  };
+
+  const handleFileSelect = (event) => {
+    const rawFiles = Array.from(event.target.files || []);
+    appendEvidenceFiles(rawFiles, { source: "upload", notifyInvalid: true });
     event.target.value = "";
   };
 
-  const removeSelectedFile = (fileId) => {
+  const handleRemoveFile = (fileId) => {
     setSelectedFiles((prev) => {
       const removed = prev.find((item) => item.id === fileId);
       if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
@@ -188,42 +265,294 @@ export default function ITWorkEvidencePage({ theme, uiTheme, currentUser }) {
     });
   };
 
+  const handleRemoveExistingImage = (imageUrl) => {
+    setExistingImages((prev) => prev.filter((image) => image.url !== imageUrl));
+  };
+
+  useEffect(() => {
+    const handleWindowPaste = (event) => {
+      if (event.defaultPrevented) return;
+
+      const clipboardItems = Array.from(event.clipboardData?.items || []);
+      const pastedImages = clipboardItems
+        .filter((item) => String(item.type || "").startsWith("image/"))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+
+      if (pastedImages.length === 0) return;
+
+      event.preventDefault();
+      appendEvidenceFiles(pastedImages, { source: "clipboard", notifyInvalid: false });
+    };
+
+    window.addEventListener("paste", handleWindowPaste);
+    return () => window.removeEventListener("paste", handleWindowPaste);
+  }, [existingImages.length, selectedFiles.length]);
+
+  const handleStartTimer = () => {
+    const startValue = toDateTimeLocalValue(new Date());
+    setNowValue(new Date());
+    setTimerRunning(true);
+    setFormData((prev) => ({
+      ...prev,
+      start_time: startValue,
+      end_time: "",
+      duration_minutes: 0,
+      work_status: "in_progress",
+    }));
+  };
+
+  const handleStopTimer = () => {
+    const endValue = toDateTimeLocalValue(new Date());
+    setTimerRunning(false);
+    setFormData((prev) => ({
+      ...prev,
+      end_time: endValue,
+      duration_minutes: calculateDurationMinutes(prev.start_time, endValue),
+      work_status: "completed",
+    }));
+  };
+
+  const currentDurationMinutes = useMemo(() => {
+    if (!formData.start_time) return Math.max(Number(formData.duration_minutes || 0), 0);
+    const endValue = formData.end_time || (timerRunning ? toDateTimeLocalValue(nowValue) : "");
+    return endValue
+      ? calculateDurationMinutes(formData.start_time, endValue)
+      : Math.max(Number(formData.duration_minutes || 0), 0);
+  }, [formData.duration_minutes, formData.end_time, formData.start_time, nowValue, timerRunning]);
+
+  const durationParts = useMemo(
+    () => getDurationParts(currentDurationMinutes),
+    [currentDurationMinutes],
+  );
+
+  const applyManualDuration = (nextHoursValue, nextMinutesValue) => {
+    if (!formData.start_time) {
+      toast.error("กรุณาระบุเวลาเริ่มก่อน");
+      return;
+    }
+
+    const totalMinutes = clampDurationInput(nextHoursValue, 999) * 60 + clampDurationInput(nextMinutesValue, 59);
+    const nextEndTime = buildEndTimeFromDuration(formData.start_time, totalMinutes);
+
+    setTimerRunning(false);
+    setFormData((prev) => ({
+      ...prev,
+      end_time: nextEndTime,
+      duration_minutes: totalMinutes,
+      work_status: totalMinutes > 0 ? "completed" : prev.work_status,
+    }));
+  };
+
+  const handleDurationHoursChange = (value) => {
+    applyManualDuration(value, durationParts.minutes);
+  };
+
+  const handleDurationMinutesChange = (value) => {
+    applyManualDuration(durationParts.hours, value);
+  };
+
+  const recordViews = useMemo(() => {
+    const activeNowIso = nowValue.toISOString();
+
+    return records.map((record) => {
+      const startValue = record.start_time || record.performed_at || record.created_at || "";
+      const activeEnd =
+        record.end_time ||
+        (record.work_status === "in_progress" ? activeNowIso : startValue);
+      const durationMinutes = Math.max(
+        Number(record.duration_minutes || 0),
+        calculateDurationMinutes(startValue, activeEnd),
+      );
+      const typeMeta = getTypeMeta(record.job_type);
+      const statusMeta = getStatusMeta(record.work_status);
+      const images = normalizeEvidenceImages(record.evidence_images);
+
+      return {
+        id: record.id,
+        raw: record,
+        title: normalizeText(record.title) || "-",
+        description: normalizeText(record.description),
+        resultSummary: normalizeText(record.result_summary),
+        deviceDetails: normalizeText(record.device_details),
+        location: normalizeText(record.location),
+        department: normalizeText(record.department),
+        referenceCode: normalizeText(record.reference_code),
+        requesterName: normalizeText(record.requester_name),
+        userName: normalizeText(record.created_by_name),
+        startValue,
+        startLabel: formatDateTime(startValue),
+        endLabel: formatDateTime(record.end_time),
+        startShort: startValue ? formatDateTime(startValue).split(" ").slice(-1)[0] : "-",
+        endShort: record.end_time
+          ? formatDateTime(record.end_time).split(" ").slice(-1)[0]
+          : record.work_status === "in_progress"
+            ? "กำลังทำ"
+            : "-",
+        durationMinutes,
+        durationLabel: formatDurationLabel(durationMinutes),
+        typeLabel: typeMeta.label,
+        statusLabel: statusMeta.label,
+        statusTone: getStatusTone(theme, record.work_status),
+        images,
+        imageCount: images.length,
+      };
+    });
+  }, [nowValue, records, theme]);
+
+  const userOptions = useMemo(
+    () => [...new Set(recordViews.map((item) => item.userName).filter(Boolean))].sort((left, right) => left.localeCompare(right, "th")),
+    [recordViews],
+  );
+
+  const departmentOptions = useMemo(
+    () => [...new Set(recordViews.map((item) => item.department).filter(Boolean))].sort((left, right) => left.localeCompare(right, "th")),
+    [recordViews],
+  );
+
+  const filteredRecords = useMemo(() => {
+    const searchValue = normalizeText(deferredQuery).toLowerCase();
+
+    return recordViews.filter((record) => {
+      const haystack = [
+        record.title,
+        record.description,
+        record.location,
+        record.referenceCode,
+        record.department,
+        record.userName,
+        record.deviceDetails,
+        record.requesterName,
+      ]
+        .map((value) => normalizeText(value).toLowerCase())
+        .join(" ");
+
+      return (
+        (filters.type === "ALL" || record.raw.job_type === filters.type) &&
+        (filters.status === "ALL" || record.raw.work_status === filters.status) &&
+        (filters.user === "ALL" || record.userName === filters.user) &&
+        (filters.department === "ALL" || record.department === filters.department) &&
+        (!searchValue || haystack.includes(searchValue))
+      );
+    });
+  }, [deferredQuery, filters.department, filters.status, filters.type, filters.user, recordViews]);
+
+  const beginEditRecord = (recordView) => {
+    const nextImages = normalizeEvidenceImages(recordView?.raw?.evidence_images);
+
+    setTimerRunning(false);
+    setNowValue(new Date());
+    setEditingRecordId(recordView.id);
+    setEditingRecordSnapshot(recordView.raw);
+    setExistingImages(nextImages);
+    setOriginalImages(nextImages);
+    setFormData(buildFormFromRecord(recordView.raw, currentUser?.department || ""));
+    setSelectedFiles((prev) => {
+      revokePreviewEntries(prev);
+      return [];
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const buildPayload = (uploadedImages) => {
+    const startIso = new Date(formData.start_time).toISOString();
+    const endIso = formData.end_time ? new Date(formData.end_time).toISOString() : null;
+    const durationMinutes = endIso
+      ? calculateDurationMinutes(formData.start_time, formData.end_time)
+      : 0;
+
+    return {
+      title: normalizeText(formData.title),
+      description: normalizeText(formData.description),
+      job_type: normalizeText(formData.job_type) || "other",
+      work_status: endIso ? normalizeText(formData.work_status || "completed") : "in_progress",
+      location: normalizeText(formData.location),
+      requester_name: normalizeText(formData.requester_name),
+      department: normalizeText(formData.department),
+      device_details: normalizeText(formData.device_details),
+      reference_code: normalizeText(formData.reference_code),
+      result_summary: normalizeText(formData.result_summary),
+      start_time: startIso,
+      end_time: endIso,
+      duration_minutes: durationMinutes,
+      performed_at: startIso,
+      evidence_images: uploadedImages,
+      created_by: editingRecordSnapshot?.created_by || currentUser.id,
+      created_by_name:
+        normalizeText(editingRecordSnapshot?.created_by_name) ||
+        normalizeText(currentUser.name) ||
+        normalizeText(currentUser.email) ||
+        "IT Support",
+    };
+  };
+
   const handleSave = async (event) => {
     event.preventDefault();
     if (saving) return;
-    if (!currentUser?.id) return toast.error("กำลังโหลดข้อมูลผู้ใช้งาน");
-    if (!normalizeText(formData.title) || !normalizeText(formData.description)) return toast.error("กรุณากรอกหัวข้อและรายละเอียดงาน");
+    if (!currentUser?.id) {
+      toast.error("กำลังโหลดข้อมูลผู้ใช้งาน");
+      return;
+    }
+    if (!normalizeText(formData.title) || !normalizeText(formData.description)) {
+      toast.error("กรุณากรอกชื่อเรื่องและรายละเอียดงาน");
+      return;
+    }
+    if (!formData.start_time) {
+      toast.error("กรุณาระบุเวลาเริ่ม");
+      return;
+    }
+    if (
+      formData.end_time &&
+      calculateDurationMinutes(formData.start_time, formData.end_time) === 0 &&
+      formData.end_time !== formData.start_time
+    ) {
+      toast.error("เวลาสิ้นสุดต้องมากกว่าหรือเท่ากับเวลาเริ่ม");
+      return;
+    }
 
     setSaving(true);
     let uploadedImages = [];
+
     try {
-      uploadedImages = await uploadITWorkEvidenceFiles(selectedFiles.map((entry) => entry.file), currentUser.id);
-      const { error } = await createITWorkRecord({
-        title: normalizeText(formData.title),
-        job_type: normalizeText(formData.job_type) || "other",
-        work_status: normalizeText(formData.work_status) || "completed",
-        performed_at: formData.performed_at ? new Date(formData.performed_at).toISOString() : new Date().toISOString(),
-        location: normalizeText(formData.location),
-        reference_code: normalizeText(formData.reference_code),
-        requester_name: normalizeText(formData.requester_name),
-        department: normalizeText(formData.department),
-        device_details: normalizeText(formData.device_details),
-        description: normalizeText(formData.description),
-        result_summary: normalizeText(formData.result_summary),
-        evidence_images: uploadedImages,
-        created_by: currentUser.id,
-        created_by_name: normalizeText(currentUser.name) || normalizeText(currentUser.email) || "IT Support",
-      });
-      if (error) throw error;
-      toast.success("บันทึกงาน IT สำเร็จ");
-      resetForm();
-      await loadRecords({ silent: true });
+      uploadedImages = await uploadITWorkEvidenceFiles(
+        selectedFiles.map((entry) => entry.file),
+        currentUser.id,
+      );
+
+      const nextImages = [...existingImages, ...uploadedImages];
+      const payload = buildPayload(nextImages);
+
+      if (isEditing && editingRecordId) {
+        const { data, error } = await updateITWorkRecord(editingRecordId, payload);
+        if (error) throw error;
+
+        setRecords((prev) => upsertRecord(prev, data));
+
+        const removedImages = originalImages.filter(
+          (image) => !existingImages.some((currentImage) => currentImage.url === image.url),
+        );
+        if (removedImages.length > 0) {
+          void removeITWorkEvidenceFiles(removedImages);
+        }
+
+        toast.success("แก้ไขบันทึกงาน IT สำเร็จ");
+      } else {
+        const { data, error } = await createITWorkRecord(payload);
+        if (error) throw error;
+
+        setRecords((prev) => upsertRecord(prev, data));
+        toast.success("บันทึกงาน IT สำเร็จ");
+      }
+
+      clearFormState();
     } catch (error) {
-      console.error("Save IT work record error:", error);
-      if (uploadedImages.length > 0) await removeITWorkEvidenceFiles(uploadedImages);
+      if (uploadedImages.length > 0) {
+        await removeITWorkEvidenceFiles(uploadedImages);
+      }
       if (isITWorkRecordSchemaError(error)) {
         setSchemaMissing(true);
-        setLoadError("ยังไม่พบตารางหรือ bucket สำหรับบันทึกงาน IT กรุณารัน SQL migration ก่อนใช้งาน");
+        setLoadError("ยังไม่พบโครงสร้างฐานข้อมูลสำหรับบันทึกงาน IT กรุณารัน SQL migration ก่อนใช้งาน");
       }
       toast.error(error?.message || "ไม่สามารถบันทึกงาน IT ได้");
     } finally {
@@ -234,206 +563,149 @@ export default function ITWorkEvidencePage({ theme, uiTheme, currentUser }) {
   const handleDelete = async (record) => {
     if (!record?.id || deletingId) return;
     if (!window.confirm("ต้องการลบบันทึกงาน IT รายการนี้ใช่หรือไม่?")) return;
+
     setDeletingId(record.id);
     try {
       const { error } = await deleteITWorkRecord(record.id);
       if (error) throw error;
+
       setRecords((prev) => prev.filter((item) => item.id !== record.id));
       await removeITWorkEvidenceFiles(record.evidence_images);
+
+      if (editingRecordId === record.id) {
+        clearFormState();
+      }
+
       toast.success("ลบบันทึกงานเรียบร้อย");
     } catch (error) {
-      console.error("Delete IT work record error:", error);
       toast.error(error?.message || "ไม่สามารถลบบันทึกงานได้");
     } finally {
       setDeletingId(null);
     }
   };
 
-  const filteredRecords = records.filter((record) => {
-    const searchValue = normalizeText(searchQuery).toLowerCase();
-    const haystack = [record.title, record.location, record.reference_code, record.requester_name, record.department, record.device_details, record.description, record.result_summary, record.created_by_name]
-      .map((value) => normalizeText(value).toLowerCase())
-      .join(" ");
-    return (typeFilter === "ALL" || record.job_type === typeFilter) &&
-      (statusFilter === "ALL" || record.work_status === statusFilter) &&
-      (!searchValue || haystack.includes(searchValue));
-  });
-
-  const summaryCards = [
-    { label: "บันทึกทั้งหมด", value: records.length, helper: "รายการสะสม", icon: FileText },
-    { label: "มีภาพหลักฐาน", value: records.filter((item) => normalizeEvidenceImages(item.evidence_images).length > 0).length, helper: "รายการที่แนบรูป", icon: ImageIcon },
-    { label: "เสร็จสิ้นแล้ว", value: records.filter((item) => item.work_status === "completed").length, helper: "completed", icon: Wrench },
-    {
-      label: "เดือนนี้",
-      value: records.filter((item) => {
-        const date = new Date(item.performed_at || item.created_at);
-        const now = new Date();
-        return !Number.isNaN(date.getTime()) && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-      }).length,
-      helper: "ตามวันปฏิบัติงาน",
-      icon: CalendarDays,
-    },
-  ];
+  const scrollToList = () => {
+    listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <div className="space-y-6">
       <section className={`${cardClass} p-5 sm:p-6`}>
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${theme === "dark" ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200" : "border-cyan-200 bg-cyan-50 text-cyan-700"}`}>
-              <Camera size={14} />
-              IT Work Evidence
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${
+              theme === "dark"
+                ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200"
+                : "border-cyan-200 bg-cyan-50 text-cyan-700"
+            }`}>
+              <ListChecks size={14} />
+              บันทึกงาน IT
             </div>
-            <h2 className={`mt-3 text-2xl font-black ${uiTheme.textPrimary}`}>บันทึกงานติดตั้ง ปรับปรุง และแก้ไข พร้อมภาพหลักฐาน</h2>
-            <p className={`mt-2 text-sm leading-6 ${uiTheme.textSecondary}`}>ใช้เก็บหลักฐานงาน IT เช่น ติดตั้งกล้อง ติดตั้ง PC / Notebook เครื่องพิมพ์ งานซ่อมบำรุง และงานปรับปรุงหน้างาน</p>
+            <h2 className={`mt-3 text-2xl font-black ${uiTheme.textPrimary}`}>
+              บันทึกงานติดตั้ง ปรับปรุง และแก้ไข พร้อมภาพหลักฐาน
+            </h2>
+            <p className={`mt-2 max-w-3xl text-sm leading-6 ${uiTheme.textSecondary}`}>
+              รองรับการบันทึกย้อนหลัง กำหนดชั่วโมงงานเอง และแก้ไขรายการเดิมได้จากหน้าเดียว
+            </p>
           </div>
-          <div className={`${subCardClass} px-4 py-3 text-sm`}>
-            <p className="font-semibold">ผู้บันทึกปัจจุบัน</p>
-            <p className={`mt-1 text-base font-black ${uiTheme.textPrimary}`}>{currentUser?.name || "กำลังโหลดข้อมูลผู้ใช้งาน"}</p>
-            <p className={`mt-1 text-xs ${softTextClass}`}>{currentUser?.department || "IT Department"}</p>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigatePage?.(DASHBOARD_PAGE_IDS.REPORTS)}
+              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
+                theme === "dark"
+                  ? "bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <LayoutDashboard size={16} />
+              Dashboard IT Usage
+            </button>
+            <button
+              type="button"
+              onClick={scrollToList}
+              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
+                theme === "dark"
+                  ? "bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <ListChecks size={16} />
+              รายการงาน
+            </button>
           </div>
-        </div>
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {summaryCards.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.label} className={`${subCardClass} p-4`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${softTextClass}`}>{item.label}</p>
-                    <p className={`mt-2 text-2xl font-black ${uiTheme.textPrimary}`}>{item.value}</p>
-                    <p className={`mt-1 text-xs ${softTextClass}`}>{item.helper}</p>
-                  </div>
-                  <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl ${theme === "dark" ? "bg-[#0f172a] text-cyan-300" : "bg-white text-[#2b59b0]"}`}>
-                    <Icon size={20} />
-                  </span>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </section>
 
-      {loadError && <section className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${schemaMissing ? (theme === "dark" ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-amber-200 bg-amber-50 text-amber-800") : (theme === "dark" ? "border-rose-500/30 bg-rose-500/10 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700")}`}>{loadError}</section>}
-
-      <section className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <aside className={`${cardClass} p-5 sm:p-6`}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className={`text-lg font-black ${uiTheme.textPrimary}`}>สร้างบันทึกงานใหม่</h3>
-              <p className={`mt-1 text-sm ${softTextClass}`}>แนบภาพประกอบเพื่อใช้เป็นหลักฐานงาน IT</p>
-            </div>
-            <button type="button" onClick={resetForm} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-slate-600 bg-[#162136] text-slate-200 hover:bg-[#1e2b44]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>ล้างฟอร์ม</button>
-          </div>
-          <form className="mt-5 space-y-4" onSubmit={handleSave}>
-            <input value={formData.title} onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))} className={inputClass} placeholder="หัวข้องาน เช่น ติดตั้งกล้องคลังสินค้า" maxLength={180} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <select value={formData.job_type} onChange={(event) => setFormData((prev) => ({ ...prev, job_type: event.target.value }))} className={inputClass}>{TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-              <select value={formData.work_status} onChange={(event) => setFormData((prev) => ({ ...prev, work_status: event.target.value }))} className={inputClass}>{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <input type="datetime-local" value={formData.performed_at} onChange={(event) => setFormData((prev) => ({ ...prev, performed_at: event.target.value }))} className={inputClass} />
-              <input value={formData.reference_code} onChange={(event) => setFormData((prev) => ({ ...prev, reference_code: event.target.value }))} className={inputClass} placeholder="เลขอ้างอิง / Ticket / Asset" maxLength={80} />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <input value={formData.location} onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))} className={inputClass} placeholder="สถานที่" maxLength={120} />
-              <input value={formData.department} onChange={(event) => setFormData((prev) => ({ ...prev, department: event.target.value }))} className={inputClass} placeholder="แผนก" maxLength={100} />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <input value={formData.requester_name} onChange={(event) => setFormData((prev) => ({ ...prev, requester_name: event.target.value }))} className={inputClass} placeholder="ผู้แจ้ง / ผู้ประสานงาน" maxLength={120} />
-              <input value={formData.device_details} onChange={(event) => setFormData((prev) => ({ ...prev, device_details: event.target.value }))} className={inputClass} placeholder="อุปกรณ์ / รายการที่ทำ" maxLength={180} />
-            </div>
-            <textarea rows={4} value={formData.description} onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))} className={inputClass} placeholder="รายละเอียดงานที่ติดตั้ง ปรับปรุง หรือซ่อมแก้ไข" />
-            <textarea rows={3} value={formData.result_summary} onChange={(event) => setFormData((prev) => ({ ...prev, result_summary: event.target.value }))} className={inputClass} placeholder="ผลลัพธ์ / หมายเหตุเพิ่มเติม" />
-            <div className={`${subCardClass} p-4`}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>ภาพประกอบหลักฐาน</p>
-                  <p className={`mt-1 text-xs ${softTextClass}`}>แนบได้สูงสุด {MAX_FILES} รูป</p>
-                </div>
-                <button type="button" onClick={() => fileInputRef.current?.click()} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${theme === "dark" ? "bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20" : "bg-cyan-50 text-cyan-700 hover:bg-cyan-100"}`}><Upload size={16} />เพิ่มรูป</button>
-              </div>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileSelect} />
-              {selectedFiles.length > 0 ? (
-                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {selectedFiles.map((entry) => (
-                    <div key={entry.id} className={`overflow-hidden rounded-2xl border ${theme === "dark" ? "border-slate-700 bg-[#0f172a]" : "border-slate-200 bg-white"}`}>
-                      <img src={entry.previewUrl} alt={entry.file?.name || "evidence-preview"} className="h-28 w-full object-cover" />
-                      <div className="flex items-center justify-between gap-2 px-3 py-2">
-                        <p className={`min-w-0 truncate text-xs font-semibold ${uiTheme.textSecondary}`}>{entry.file?.name}</p>
-                        <button type="button" onClick={() => removeSelectedFile(entry.id)} className={theme === "dark" ? "rounded-lg p-1 text-rose-300 hover:bg-rose-500/10" : "rounded-lg p-1 text-rose-600 hover:bg-rose-50"} aria-label="ลบรูปที่เลือก"><Trash2 size={14} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : <div className={`mt-4 rounded-2xl border border-dashed px-4 py-6 text-center ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-300 text-slate-500"}`}><ImageIcon size={20} className="mx-auto mb-2" /><p className="text-sm font-semibold">ยังไม่ได้เลือกรูปประกอบ</p></div>}
-            </div>
-            <button type="submit" disabled={saving || !currentUser?.id || schemaMissing} className={`flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-white ${saving || !currentUser?.id || schemaMissing ? "cursor-not-allowed bg-slate-400" : "bg-[#2b59b0] hover:bg-[#244a95]"}`}><Camera size={16} />{saving ? "กำลังบันทึก..." : "บันทึกงาน IT"}</button>
-          </form>
-        </aside>
-
-        <section className="space-y-4">
-          <div className={`${cardClass} p-5 sm:p-6`}>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h3 className={`text-lg font-black ${uiTheme.textPrimary}`}>รายการบันทึกย้อนหลัง</h3>
-                <p className={`mt-1 text-sm ${softTextClass}`}>ค้นหางานติดตั้ง ซ่อม และปรับปรุงที่เคยบันทึกไว้</p>
-              </div>
-              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${theme === "dark" ? "border-slate-600 bg-[#162136] text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"}`}>พบ {filteredRecords.length} รายการ</div>
-            </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
-              <label className={`group flex items-center gap-2 rounded-2xl border px-4 py-3 ${uiTheme.searchInputMobile}`}><Search size={16} className={uiTheme.searchIcon} /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none" placeholder="ค้นหาจากหัวข้อ สถานที่ อุปกรณ์ หรือเลขอ้างอิง" /></label>
-              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className={inputClass}><option value="ALL">ทุกประเภทงาน</option>{TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={inputClass}><option value="ALL">ทุกสถานะ</option>{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className={`${cardClass} p-10 text-center`}><div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[#2b59b0]/20 border-t-[#2b59b0]" /><p className={`mt-4 text-sm font-semibold ${uiTheme.textSecondary}`}>กำลังโหลดบันทึกงาน IT...</p></div>
-          ) : filteredRecords.length === 0 ? (
-            <div className={`${cardClass} border-dashed p-10 text-center`}><Camera size={24} className={`mx-auto ${softTextClass}`} /><p className={`mt-4 text-base font-black ${uiTheme.textPrimary}`}>ยังไม่มีบันทึกงานที่ตรงกับเงื่อนไข</p></div>
-          ) : filteredRecords.map((record) => {
-            const typeMeta = getTypeMeta(record.job_type);
-            const TypeIcon = typeMeta.icon;
-            const images = normalizeEvidenceImages(record.evidence_images);
-            return (
-              <article key={record.id} className={`${cardClass} p-5 sm:p-6`}>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${theme === "dark" ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-200" : "border-cyan-200 bg-cyan-50 text-cyan-700"}`}><TypeIcon size={13} />{typeMeta.label}</span>
-                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${record.work_status === "completed" ? (theme === "dark" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" : "border-emerald-200 bg-emerald-50 text-emerald-700") : record.work_status === "in_progress" ? (theme === "dark" ? "border-amber-500/20 bg-amber-500/10 text-amber-200" : "border-amber-200 bg-amber-50 text-amber-700") : (theme === "dark" ? "border-slate-600 bg-slate-700/30 text-slate-200" : "border-slate-200 bg-slate-100 text-slate-700")}`}>{getStatusLabel(record.work_status)}</span>
-                    </div>
-                    <h4 className={`mt-3 text-xl font-black ${uiTheme.textPrimary}`}>{record.title}</h4>
-                    <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm ${uiTheme.textSecondary}`}>
-                      <span className="inline-flex items-center gap-1.5"><CalendarDays size={15} />{formatDateTime(record.performed_at || record.created_at)}</span>
-                      {normalizeText(record.location) && <span className="inline-flex items-center gap-1.5"><MapPin size={15} />{record.location}</span>}
-                      {normalizeText(record.reference_code) && <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${theme === "dark" ? "border-slate-600 bg-[#162136] text-slate-200" : "border-slate-200 bg-slate-50 text-slate-600"}`}>{record.reference_code}</span>}
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => handleDelete(record)} disabled={deletingId === record.id} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${theme === "dark" ? "border-rose-500/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20" : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"} ${deletingId === record.id ? "cursor-not-allowed opacity-70" : ""}`}><Trash2 size={15} />{deletingId === record.id ? "กำลังลบ..." : "ลบรายการ"}</button>
-                </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className={`${subCardClass} p-4`}><p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ผู้บันทึก</p><p className={`mt-2 text-sm font-semibold ${uiTheme.textPrimary}`}>{record.created_by_name || "-"}</p></div>
-                  <div className={`${subCardClass} p-4`}><p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ผู้แจ้ง / ผู้ประสาน</p><p className={`mt-2 text-sm font-semibold ${uiTheme.textPrimary}`}>{record.requester_name || "-"}</p></div>
-                  <div className={`${subCardClass} p-4`}><p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>แผนก</p><p className={`mt-2 text-sm font-semibold ${uiTheme.textPrimary}`}>{record.department || "-"}</p></div>
-                  <div className={`${subCardClass} p-4`}><p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ภาพหลักฐาน</p><p className={`mt-2 text-sm font-semibold ${uiTheme.textPrimary}`}>{images.length} รูป</p></div>
-                </div>
-                <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                  <div className={`${subCardClass} p-4`}><p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>รายละเอียดงาน</p><p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.description || "-"}</p></div>
-                  <div className="space-y-4">
-                    <div className={`${subCardClass} p-4`}><p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>อุปกรณ์ / รายการที่ทำ</p><p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.device_details || "-"}</p></div>
-                    <div className={`${subCardClass} p-4`}><p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ผลลัพธ์ / หมายเหตุ</p><p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.result_summary || "-"}</p></div>
-                  </div>
-                </div>
-                <div className="mt-5">
-                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ภาพประกอบ</p>
-                  {images.length > 0 ? <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">{images.map((image, index) => <button key={`${image.url}_${index}`} type="button" onClick={() => window.open(image.url, "_blank", "noopener,noreferrer")} className={`overflow-hidden rounded-2xl border text-left transition hover:-translate-y-[1px] ${theme === "dark" ? "border-slate-700 bg-[#162136]" : "border-slate-200 bg-slate-50"}`}><img src={image.url} alt={image.name || `it-evidence-${index + 1}`} className="h-32 w-full object-cover" /><div className="px-3 py-2"><p className={`truncate text-xs font-semibold ${uiTheme.textSecondary}`}>{image.name || `หลักฐาน ${index + 1}`}</p></div></button>)}</div> : <div className={`mt-3 rounded-2xl border border-dashed px-4 py-5 text-sm ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-300 text-slate-500"}`}>รายการนี้ยังไม่มีภาพประกอบ</div>}
-                </div>
-              </article>
-            );
-          })}
+      {loadError && (
+        <section className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+          schemaMissing
+            ? theme === "dark"
+              ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+              : "border-amber-200 bg-amber-50 text-amber-800"
+            : theme === "dark"
+              ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
+              : "border-rose-200 bg-rose-50 text-rose-700"
+        }`}>
+          {loadError}
         </section>
+      )}
+
+      <section className="grid gap-6 xl:grid-cols-[430px_minmax(0,1fr)]">
+        <EvidenceFormSection
+          theme={theme}
+          uiTheme={uiTheme}
+          cardClass={cardClass}
+          subCardClass={subCardClass}
+          inputClass={inputClass}
+          softTextClass={softTextClass}
+          currentUser={currentUser}
+          formData={formData}
+          setFormData={setFormData}
+          selectedFiles={selectedFiles}
+          existingImages={existingImages}
+          fileInputRef={fileInputRef}
+          onFileSelect={handleFileSelect}
+          onRemoveFile={handleRemoveFile}
+          onRemoveExistingImage={handleRemoveExistingImage}
+          onReset={resetForm}
+          onSave={handleSave}
+          saving={saving}
+          schemaMissing={schemaMissing}
+          timerRunning={timerRunning}
+          durationLabel={formatDurationLabel(currentDurationMinutes)}
+          durationHours={durationParts.hours}
+          durationMinutes={durationParts.minutes}
+          onStartTimer={handleStartTimer}
+          onStopTimer={handleStopTimer}
+          onDurationHoursChange={handleDurationHoursChange}
+          onDurationMinutesChange={handleDurationMinutesChange}
+          isEditing={isEditing}
+          onCancelEdit={handleCancelEdit}
+        />
+
+        <EvidenceRecordsSection
+          theme={theme}
+          uiTheme={uiTheme}
+          cardClass={cardClass}
+          subCardClass={subCardClass}
+          inputClass={inputClass}
+          softTextClass={softTextClass}
+          listRef={listRef}
+          loading={loading}
+          records={filteredRecords}
+          filters={filters}
+          setFilters={setFilters}
+          typeOptions={TYPE_OPTIONS}
+          statusOptions={STATUS_OPTIONS}
+          userOptions={userOptions}
+          departmentOptions={departmentOptions}
+          onEdit={beginEditRecord}
+          editingId={editingRecordId}
+          onDelete={handleDelete}
+          deletingId={deletingId}
+        />
       </section>
     </div>
   );

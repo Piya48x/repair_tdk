@@ -1,12 +1,44 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Laptop, Moon, Sun } from "lucide-react";
+import { useScopedI18n } from "../i18n/useScopedI18n";
 import { supabase } from "../lib/supabaseClient";
 import CentralChatDock from "../components/CentralChatDock";
 import NotebookBorrowSection from "./dashboard/components/NotebookBorrowSection";
 import { DASHBOARD_THEME_KEY } from "./dashboard/constants";
 
+const NOTEBOOK_CENTER_TRANSLATIONS = {
+  th: {
+    back: "กลับไป Dashboard",
+    title: "ยืม-คืนโน้ตบุ๊ก",
+    subtitle: "ถ่ายรูป notebook ก่อนยืนยัน และส่งคำขอให้ IT อนุมัติ",
+    lightMode: "โหมดสว่าง",
+    darkMode: "โหมดมืด",
+    openChat: "เปิดแชท IT",
+    loading: "กำลังโหลด Notebook Center...",
+  },
+  en: {
+    back: "Back to Dashboard",
+    title: "Notebook Lending",
+    subtitle: "Capture the notebook before confirmation and send the request to IT for approval.",
+    lightMode: "Light mode",
+    darkMode: "Dark mode",
+    openChat: "Open IT chat",
+    loading: "Loading Notebook Center...",
+  },
+  ko: {
+    back: "대시보드로 돌아가기",
+    title: "노트북 대여/반납",
+    subtitle: "확인 전에 노트북 사진을 촬영하고 IT 승인 요청을 보냅니다.",
+    lightMode: "라이트 모드",
+    darkMode: "다크 모드",
+    openChat: "IT 채팅 열기",
+    loading: "Notebook Center를 불러오는 중...",
+  },
+};
+
 export default function NotebookCenter() {
+  const { tt } = useScopedI18n(NOTEBOOK_CENTER_TRANSLATIONS);
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +59,9 @@ export default function NotebookCenter() {
 
     const loadProfile = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!session) {
           navigate("/", { replace: true });
           return;
@@ -71,7 +105,7 @@ export default function NotebookCenter() {
               type="button"
               onClick={() => navigate("/dashboard")}
               className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-700"}`}
-              aria-label="กลับไป Dashboard"
+              aria-label={tt("back")}
             >
               <ArrowLeft size={18} />
             </button>
@@ -80,8 +114,8 @@ export default function NotebookCenter() {
                 <Laptop size={12} />
                 Notebook Center
               </p>
-              <h1 className={`mt-1 text-xl font-black sm:text-2xl ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>ยืม-คืนโน้ตบุ๊ก</h1>
-              <p className={`text-xs sm:text-sm ${isDarkTheme ? "text-slate-300" : "text-slate-500"}`}>ถ่ายรูป notebook ก่อนยืนยัน และส่งคำขอให้ IT อนุมัติ</p>
+              <h1 className={`mt-1 text-xl font-black sm:text-2xl ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>{tt("title")}</h1>
+              <p className={`text-xs sm:text-sm ${isDarkTheme ? "text-slate-300" : "text-slate-500"}`}>{tt("subtitle")}</p>
             </div>
           </div>
 
@@ -92,14 +126,14 @@ export default function NotebookCenter() {
               className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-700"}`}
             >
               {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
-              <span className="hidden sm:inline">{isDarkTheme ? "โหมดสว่าง" : "โหมดมืด"}</span>
+              <span className="hidden sm:inline">{isDarkTheme ? tt("lightMode") : tt("darkMode")}</span>
             </button>
             <button
               type="button"
               onClick={() => setSupportChatOpenSignal((value) => value + 1)}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#2b59b0] to-[#244a95] px-3 py-2 text-sm font-semibold text-white shadow-[0_16px_28px_-18px_rgba(43,89,176,0.7)]"
             >
-              เปิดแชท IT
+              {tt("openChat")}
             </button>
           </div>
         </div>
@@ -108,7 +142,7 @@ export default function NotebookCenter() {
       <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
         {loading ? (
           <div className={`flex min-h-[50vh] items-center justify-center rounded-3xl border ${isDarkTheme ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
-            <div className="text-sm font-semibold text-slate-500">กำลังโหลด Notebook Center...</div>
+            <div className="text-sm font-semibold text-slate-500">{tt("loading")}</div>
           </div>
         ) : currentUser ? (
           <NotebookBorrowSection

@@ -1,5 +1,22 @@
 import React from "react";
+import { useScopedI18n } from "../../../i18n/useScopedI18n";
 import ITServiceOverviewPanel from "../components/ITServiceOverviewPanel";
+import ITWorkReportPanel from "../components/ITWorkReportPanel";
+
+const REPORTS_PAGE_TRANSLATIONS = {
+  th: {
+    title: "รายงานภาพรวม Dashboard IT Usage",
+    description: "รวม KPI การแจ้งซ่อมและสรุปบันทึกงาน IT ไว้หน้าเดียว เพื่อใช้ติดตามงานและทำรายงานสำหรับบริษัท",
+  },
+  en: {
+    title: "IT Usage Dashboard Overview",
+    description: "Bring repair KPIs and IT work-log summaries into one page for operational tracking and company reporting.",
+  },
+  ko: {
+    title: "IT 사용 대시보드 개요",
+    description: "수리 KPI와 IT 작업 기록 요약을 한 화면에 모아 운영 추적과 회사 보고에 활용합니다.",
+  },
+};
 
 const ReportsPage = ({
   theme,
@@ -9,29 +26,43 @@ const ReportsPage = ({
   onOpenWalkInTicket,
   onPickUpEquipment,
   onOpenRepairFromOverview,
-}) => (
-  <>
-    <section className="mb-6">
-      <div className={`rounded-lg border px-4 py-3 ${uiTheme.surfaceCard}`}>
-        <h3 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-          รายงานภาพรวม
-        </h3>
-        <p className={`text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-          สรุป KPI และกราฟวิเคราะห์สำหรับฝ่ายซ่อมและคลัง
-        </p>
-      </div>
-    </section>
+  onNavigatePage,
+}) => {
+  const { tt } = useScopedI18n(REPORTS_PAGE_TRANSLATIONS);
 
-    <section>
-      <ITServiceOverviewPanel
-        tickets={tickets}
-        onCreateTicket={onCreateTicket}
-        onOpenWalkInTicket={onOpenWalkInTicket}
-        onPickUpEquipment={onPickUpEquipment}
-        onOpenRepair={onOpenRepairFromOverview}
-      />
-    </section>
-  </>
-);
+  return (
+    <div className="space-y-6">
+      <section>
+        <div className={`rounded-3xl border px-5 py-4 sm:px-6 ${uiTheme.surfaceCard}`}>
+          <h3 className={`text-lg font-black ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
+            {tt("title")}
+          </h3>
+          <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
+            {tt("description")}
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <ITServiceOverviewPanel
+          tickets={tickets}
+          onCreateTicket={onCreateTicket}
+          onOpenWalkInTicket={onOpenWalkInTicket}
+          onPickUpEquipment={onPickUpEquipment}
+          onOpenRepair={onOpenRepairFromOverview}
+        />
+      </section>
+
+      <section>
+        <ITWorkReportPanel
+          theme={theme}
+          uiTheme={uiTheme}
+          tickets={tickets}
+          onNavigatePage={onNavigatePage}
+        />
+      </section>
+    </div>
+  );
+};
 
 export default ReportsPage;

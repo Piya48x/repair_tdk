@@ -1,10 +1,23 @@
-// src/components/ProtectedRoute.jsx
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { canAccessRoute } from "../lib/roleAccess";
+import { useScopedI18n } from "../i18n/useScopedI18n";
+
+const PROTECTED_ROUTE_TRANSLATIONS = {
+  th: {
+    checking: "กำลังตรวจสอบสิทธิ์การเข้าถึง...",
+  },
+  en: {
+    checking: "Checking access permissions...",
+  },
+  ko: {
+    checking: "접근 권한을 확인하는 중입니다...",
+  },
+};
 
 export default function ProtectedRoute({ children, allowedRoles }) {
+  const { tt } = useScopedI18n(PROTECTED_ROUTE_TRANSLATIONS);
   const [loading, setLoading] = useState(true);
   const [isAllowed, setIsAllowed] = useState(false);
 
@@ -15,12 +28,14 @@ export default function ProtectedRoute({ children, allowedRoles }) {
       try {
         setLoading(true);
 
-        // 1. Get current session (faster for UI)
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
         if (!session) {
-          // Wait a tiny bit and try getUser (more reliable)
-          const { data: { user } } = await supabase.auth.getUser();
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
           if (!user) {
             if (isMounted) {
               setIsAllowed(false);
@@ -33,8 +48,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
         const user = session?.user || (await supabase.auth.getUser()).data.user;
 
         if (user) {
-          // 2. Check role from profiles
-          const { data: profile, error } = await supabase
+          const { data: profile } = await supabase
             .from("profiles")
             .select("role")
             .eq("id", user.id)
@@ -53,9 +67,10 @@ export default function ProtectedRoute({ children, allowedRoles }) {
 
     checkAuth();
 
-    // Listen for auth state changes to handle logout while on page
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' && isMounted) {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT" && isMounted) {
         setIsAllowed(false);
         setLoading(false);
       }
@@ -72,7 +87,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600 font-medium italic">กำลังตรวจสอบสิทธิ์การเข้าถึง...</p>
+          <p className="text-slate-600 font-medium italic">{tt("checking")}</p>
         </div>
       </div>
     );

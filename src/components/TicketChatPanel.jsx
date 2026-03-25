@@ -10,6 +10,7 @@ import {
   Send,
   X,
 } from "lucide-react";
+import { useScopedI18n } from "../i18n/useScopedI18n";
 import { supabase } from "../lib/supabaseClient";
 
 const REMOTE_MODE = "remote";
@@ -18,6 +19,127 @@ const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 const BOTTOM_THRESHOLD_PX = 48;
 const MESSAGE_TOAST_TIMEOUT_MS = 4200;
 const NOTIFICATION_PROMPT_KEY = "ticket-chat:notification-permission-prompted";
+const CHAT_LOCALE = { th: "th-TH", en: "en-US", ko: "ko-KR" };
+
+const TICKET_CHAT_PANEL_TRANSLATIONS = {
+  th: {
+    user: "ผู้ใช้",
+    itStaff: "เจ้าหน้าที่ IT",
+    requester: "ผู้แจ้ง",
+    requesterCase: "ผู้แจ้งเคสนี้",
+    technician: "เจ้าหน้าที่ IT",
+    noAssignee: "ยังไม่ระบุผู้รับผิดชอบ",
+    newMessage: "ข้อความใหม่",
+    previewImage: "ส่งรูปภาพในแชท",
+    sendFailed: "ส่งข้อความไม่สำเร็จ",
+    networkError: "เครือข่ายขัดข้อง กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่",
+    permissionError: "ไม่มีสิทธิ์ใช้งานแชทของเคสนี้",
+    tableMissingError: "ระบบแชทยังไม่พร้อมใช้งานในฐานข้อมูล",
+    uploadError: "อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+    localTableMissing: "ยังไม่พบตารางแชทในฐานข้อมูล ระบบจะบันทึกแชทไว้เฉพาะเครื่องนี้ชั่วคราว",
+    localRealtimeUnavailable: "เชื่อมต่อแชทแบบเรียลไทม์ไม่ได้ชั่วคราว ระบบจะบันทึกแชทเฉพาะเครื่องนี้",
+    notificationsEnabled: "แจ้งเตือนเปิดอยู่",
+    notificationsBlocked: "เบราว์เซอร์บล็อกแจ้งเตือน",
+    enableNotifications: "เปิดแจ้งเตือนข้อความ",
+    imageOnly: "อัปโหลดได้เฉพาะไฟล์รูปภาพ",
+    imageTooLarge: "ขนาดรูปภาพต้องไม่เกิน 10MB",
+    chatTitle: "แชทติดต่อเจ้าหน้าที่",
+    chatSubtitle: "คุยรายละเอียดเคสนี้แบบเรียลไทม์ แนบรูปจากมือถือได้",
+    realtime: "เรียลไทม์",
+    offline: "โหมดออฟไลน์",
+    requesterLabel: "ผู้แจ้ง",
+    technicianLabel: "เจ้าหน้าที่",
+    loadingMessages: "กำลังโหลดข้อความ...",
+    emptyMessages: "ยังไม่มีข้อความ เริ่มคุยรายละเอียดเคสได้เลย",
+    you: "คุณ",
+    imageReady: "พร้อมส่งรูปภาพ",
+    composerPlaceholder: "พิมพ์ข้อความถึงอีกฝ่ายเพื่อคุยรายละเอียดงาน...",
+    composerHint: "กด Enter เพื่อส่ง | Shift + Enter ขึ้นบรรทัดใหม่",
+    uploadImage: "อัปโหลดรูป",
+    captureImage: "ถ่ายรูป",
+    sendMessage: "ส่งข้อความ",
+    unreadMessages: "มีข้อความใหม่ {{count}}",
+    browserNotificationTitle: "ข้อความใหม่: {{ticket}}",
+  },
+  en: {
+    user: "User",
+    itStaff: "IT Staff",
+    requester: "Reporter",
+    requesterCase: "Ticket reporter",
+    technician: "IT Staff",
+    noAssignee: "No assignee yet",
+    newMessage: "New message",
+    previewImage: "Sent an image in chat",
+    sendFailed: "Unable to send the message",
+    networkError: "Network issue. Please check your connection and try again.",
+    permissionError: "You do not have permission to use this ticket chat.",
+    tableMissingError: "The chat system is not ready in the database yet.",
+    uploadError: "Unable to upload the image. Please try again.",
+    localTableMissing: "The chat table was not found. Messages will be stored locally on this device for now.",
+    localRealtimeUnavailable: "Real-time chat is temporarily unavailable. Messages will be stored locally on this device.",
+    notificationsEnabled: "Notifications enabled",
+    notificationsBlocked: "Notifications blocked by browser",
+    enableNotifications: "Enable message notifications",
+    imageOnly: "Only image files can be uploaded",
+    imageTooLarge: "Images must be 10MB or smaller",
+    chatTitle: "Support Chat",
+    chatSubtitle: "Discuss this ticket in real time and attach photos from mobile.",
+    realtime: "Real-time",
+    offline: "Offline mode",
+    requesterLabel: "Reporter",
+    technicianLabel: "Technician",
+    loadingMessages: "Loading messages...",
+    emptyMessages: "No messages yet. Start the conversation for this ticket.",
+    you: "You",
+    imageReady: "Image ready to send",
+    composerPlaceholder: "Type a message to discuss this ticket...",
+    composerHint: "Press Enter to send | Shift + Enter for a new line",
+    uploadImage: "Upload image",
+    captureImage: "Take photo",
+    sendMessage: "Send message",
+    unreadMessages: "{{count}} new messages",
+    browserNotificationTitle: "New message: {{ticket}}",
+  },
+  ko: {
+    user: "사용자",
+    itStaff: "IT 담당자",
+    requester: "신청자",
+    requesterCase: "이 티켓의 신청자",
+    technician: "IT 담당자",
+    noAssignee: "담당자 미지정",
+    newMessage: "새 메시지",
+    previewImage: "채팅에 이미지를 보냈습니다",
+    sendFailed: "메시지를 보낼 수 없습니다",
+    networkError: "네트워크에 문제가 있습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.",
+    permissionError: "이 티켓 채팅을 사용할 권한이 없습니다.",
+    tableMissingError: "데이터베이스에 채팅 시스템이 아직 준비되지 않았습니다.",
+    uploadError: "이미지를 업로드할 수 없습니다. 다시 시도해 주세요.",
+    localTableMissing: "채팅 테이블을 찾지 못했습니다. 현재 기기에만 임시 저장됩니다.",
+    localRealtimeUnavailable: "실시간 채팅을 일시적으로 사용할 수 없어 현재 기기에만 저장됩니다.",
+    notificationsEnabled: "알림 사용 중",
+    notificationsBlocked: "브라우저에서 알림 차단됨",
+    enableNotifications: "메시지 알림 켜기",
+    imageOnly: "이미지 파일만 업로드할 수 있습니다",
+    imageTooLarge: "이미지 크기는 10MB 이하여야 합니다",
+    chatTitle: "지원 채팅",
+    chatSubtitle: "이 티켓을 실시간으로 논의하고 모바일 사진을 첨부할 수 있습니다.",
+    realtime: "실시간",
+    offline: "오프라인 모드",
+    requesterLabel: "신청자",
+    technicianLabel: "담당자",
+    loadingMessages: "메시지를 불러오는 중...",
+    emptyMessages: "아직 메시지가 없습니다. 이 티켓 대화를 시작해 보세요.",
+    you: "나",
+    imageReady: "이미지 전송 준비 완료",
+    composerPlaceholder: "이 티켓에 대해 메시지를 입력하세요...",
+    composerHint: "Enter로 전송 | Shift + Enter로 줄바꿈",
+    uploadImage: "이미지 업로드",
+    captureImage: "사진 촬영",
+    sendMessage: "메시지 전송",
+    unreadMessages: "새 메시지 {{count}}개",
+    browserNotificationTitle: "새 메시지: {{ticket}}",
+  },
+};
 
 function getStorageKey(ticketId) {
   return `ticket-chat:${ticketId}`;
@@ -64,14 +186,14 @@ function isMissingSenderAvatarColumn(error) {
   return text.includes("sender_avatar_url");
 }
 
-function toDisplayName(currentUser, fallbackUser) {
+function toDisplayName(currentUser, fallbackUser, fallbackLabel = "User") {
   return (
     currentUser?.name ||
     currentUser?.full_name ||
     currentUser?.employeeName ||
     fallbackUser?.user_metadata?.full_name ||
     fallbackUser?.email?.split("@")[0] ||
-    "ผู้ใช้"
+    fallbackLabel
   );
 }
 
@@ -86,17 +208,17 @@ function toDisplayAvatarUrl(currentUser, fallbackUser) {
   );
 }
 
-function toDisplayRole(currentUser) {
+function toDisplayRole(currentUser, labels = {}) {
   const role = String(currentUser?.role || "").toLowerCase();
-  if (role === "it_support" || role === "admin") return "เจ้าหน้าที่ IT";
-  return "ผู้แจ้ง";
+  if (role === "it_support" || role === "admin") return labels.itStaff || "IT Staff";
+  return labels.requester || "Requester";
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, locale = "en-US") {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("th-TH", {
+  return date.toLocaleString(locale, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -114,32 +236,32 @@ function deriveEmployeeCodeFromEmail(email) {
   return match ? match[0] : "";
 }
 
-function toMessagePreview(message) {
+function toMessagePreview(message, options = {}) {
   const text = String(message?.message || "").trim();
   if (text) {
     if (text.length <= 50) return text;
     return `${text.slice(0, 50)}...`;
   }
-  if (message?.image_url) return "ส่งรูปภาพในแชท";
-  return "มีข้อความใหม่";
+  if (message?.image_url) return options.previewImage || "Sent an image in chat";
+  return options.newMessage || "New message";
 }
 
-function toThaiChatError(message) {
+function toThaiChatError(message, labels = {}) {
   const text = String(message || "").toLowerCase();
-  if (!text) return "ส่งข้อความไม่สำเร็จ";
+  if (!text) return labels.sendFailed || "Unable to send the message";
   if (text.includes("network") || text.includes("fetch")) {
-    return "เครือข่ายขัดข้อง กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่";
+    return labels.networkError || labels.sendFailed || "Unable to send the message";
   }
   if (text.includes("permission") || text.includes("policy") || text.includes("rls")) {
-    return "ไม่มีสิทธิ์ใช้งานแชทของเคสนี้";
+    return labels.permissionError || labels.sendFailed || "Unable to send the message";
   }
   if (text.includes("ticket_messages")) {
-    return "ระบบแชทยังไม่พร้อมใช้งานในฐานข้อมูล";
+    return labels.tableMissingError || labels.sendFailed || "Unable to send the message";
   }
   if (text.includes("storage") || text.includes("bucket")) {
-    return "อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    return labels.uploadError || labels.sendFailed || "Unable to send the message";
   }
-  return "ส่งข้อความไม่สำเร็จ กรุณาลองใหม่";
+  return labels.sendFailed || "Unable to send the message";
 }
 
 function buildAvatarFallback(name, tone = "slate") {
@@ -160,6 +282,7 @@ function applyAvatarFallback(event, name, tone = "slate") {
 }
 
 export default function TicketChatPanel({ ticket, currentUser, embedded = false }) {
+  const { language, tt } = useScopedI18n(TICKET_CHAT_PANEL_TRANSLATIONS);
   const ticketId = ticket?.id ? String(ticket.id) : "";
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -191,17 +314,67 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
   const initialLoadDoneRef = useRef(false);
 
   const activeUserId = currentUser?.id || activeUser?.id || null;
+  const locale = CHAT_LOCALE[language] || CHAT_LOCALE.en;
+  const roleLabels = useMemo(() => ({ itStaff: tt("itStaff"), requester: tt("requester") }), [tt]);
 
-  const requesterName = ticket?.reporter_name || "ผู้แจ้ง";
+  const requesterName = ticket?.reporter_name || tt("requester");
   const requesterMeta =
     [
       ticket?.reporter_emp_id || deriveEmployeeCodeFromEmail(ticket?.reporter_email),
       ticket?.reporter_dept || ticket?.department,
     ]
       .filter(Boolean)
-      .join(" • ") || "ผู้แจ้งเคสนี้";
-  const technicianName = ticket?.assigned_name || "เจ้าหน้าที่ IT";
-  const technicianMeta = ticket?.assigned_employee_id || "ยังไม่ระบุผู้รับผิดชอบ";
+      .join(" • ") || tt("requesterCase");
+  const technicianName = ticket?.assigned_name || tt("technician");
+  const technicianMeta = ticket?.assigned_employee_id || tt("noAssignee");
+
+  const displayName = useCallback(
+    (primaryUser, fallbackUser) => toDisplayName(primaryUser, fallbackUser, tt("user")),
+    [tt]
+  );
+
+  const displayRole = useCallback(
+    (user) => toDisplayRole(user, roleLabels),
+    [roleLabels]
+  );
+
+  const formatDateTimeLabel = useCallback(
+    (value) => formatDateTime(value, locale),
+    [locale]
+  );
+
+  const messagePreview = useCallback(
+    (message) =>
+      toMessagePreview(message, {
+        previewImage: tt("previewImage"),
+        newMessage: tt("newMessage"),
+      }),
+    [tt]
+  );
+
+  const chatError = useCallback(
+    (message) => {
+      const text = String(message || "").toLowerCase();
+      if (!text) return tt("sendFailed");
+      if (text.includes("network") || text.includes("fetch")) return tt("networkError");
+      if (text.includes("permission") || text.includes("policy") || text.includes("rls")) return tt("permissionError");
+      if (text.includes("ticket_messages")) return tt("tableMissingError");
+      if (text.includes("storage") || text.includes("bucket")) return tt("uploadError");
+      return tt("sendFailed");
+    },
+    [tt]
+  );
+
+  const requesterNameLabel = ticket?.reporter_name || tt("requester");
+  const requesterMetaLabel =
+    [
+      ticket?.reporter_emp_id || deriveEmployeeCodeFromEmail(ticket?.reporter_email),
+      ticket?.reporter_dept || ticket?.department,
+    ]
+      .filter(Boolean)
+      .join(" • ") || tt("requesterCase");
+  const technicianNameLabel = ticket?.assigned_name || tt("technician");
+  const technicianMetaLabel = ticket?.assigned_employee_id || tt("noAssignee");
 
   useEffect(() => {
     profileMapRef.current = profileMap;
@@ -339,10 +512,10 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
       if (Notification.permission !== "granted") return;
       if (document.visibilityState === "visible" && isAtBottomRef.current) return;
 
-      const senderName = message?.sender_name || "ข้อความใหม่";
-      const preview = toMessagePreview(message);
+      const senderName = message?.sender_name || tt("newMessage");
+      const preview = messagePreview(message);
       try {
-        const browserNotification = new Notification(`ข้อความใหม่: ${ticket?.ticket_no || ticketId || "-"}`, {
+        const browserNotification = new Notification(tt("browserNotificationTitle", { ticket: ticket?.ticket_no || ticketId || "-" }), {
           body: `${senderName}: ${preview}`,
           tag: `ticket-chat-${ticketId}`,
           renotify: true,
@@ -360,7 +533,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
         navigator.vibrate(120);
       }
     },
-    [scrollToBottom, ticket?.ticket_no, ticketId]
+    [messagePreview, scrollToBottom, ticket?.ticket_no, ticketId, tt]
   );
 
   const handleIncomingMessage = useCallback(
@@ -470,11 +643,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
         const localMessages = readLocalMessages(ticketId);
         applyMessages(localMessages);
         setStorageMode(LOCAL_MODE);
-        setNotice(
-          isMissingTicketMessageTable(fetchError)
-            ? "ยังไม่พบตารางแชทในฐานข้อมูล ระบบจะบันทึกแชทไว้เฉพาะเครื่องนี้ชั่วคราว"
-            : "เชื่อมต่อแชทแบบเรียลไทม์ไม่ได้ชั่วคราว ระบบจะบันทึกแชทเฉพาะเครื่องนี้"
-        );
+        setNotice(isMissingTicketMessageTable(fetchError) ? tt("localTableMissing") : tt("localRealtimeUnavailable"));
       } else {
         applyMessages(data || []);
         setStorageMode(REMOTE_MODE);
@@ -489,7 +658,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
     return () => {
       ignore = true;
     };
-  }, [applyMessages, ticketId]);
+  }, [applyMessages, ticketId, tt]);
 
   useEffect(() => {
     if (loading || !ticketId || initialLoadDoneRef.current) return;
@@ -576,24 +745,24 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
   const notificationButtonProps = useMemo(() => {
     if (notificationPermission === "granted") {
       return {
-        label: "แจ้งเตือนเปิดอยู่",
+        label: tt("notificationsEnabled"),
         className: "border-emerald-200 bg-emerald-50 text-emerald-700",
         disabled: true,
       };
     }
     if (notificationPermission === "denied") {
       return {
-        label: "เบราว์เซอร์บล็อกแจ้งเตือน",
+        label: tt("notificationsBlocked"),
         className: "border-rose-200 bg-rose-50 text-rose-700",
         disabled: true,
       };
     }
     return {
-      label: "เปิดแจ้งเตือนข้อความ",
+      label: tt("enableNotifications"),
       className: "border-[#2b59b0]/30 bg-[#2b59b0]/10 text-[#2b59b0] hover:bg-[#2b59b0]/20",
       disabled: false,
     };
-  }, [notificationPermission]);
+  }, [notificationPermission, tt]);
 
   const submitReady = useMemo(
     () => !sending && (draft.trim().length > 0 || Boolean(selectedImage)),
@@ -653,12 +822,12 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
       if (!file) return;
 
       if (!file.type.startsWith("image/")) {
-        setError("อัปโหลดได้เฉพาะไฟล์รูปภาพ");
+        setError(tt("imageOnly"));
         return;
       }
 
       if (file.size > MAX_IMAGE_SIZE_BYTES) {
-        setError("ขนาดรูปภาพต้องไม่เกิน 10MB");
+        setError(tt("imageTooLarge"));
         return;
       }
 
@@ -667,7 +836,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
       setSelectedImage(file);
       setSelectedImagePreview(URL.createObjectURL(file));
     },
-    [selectedImagePreview]
+    [selectedImagePreview, tt]
   );
 
   const sendMessage = useCallback(async () => {
@@ -677,8 +846,8 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
     setSending(true);
     setError("");
 
-    const senderName = toDisplayName(currentUser, activeUser);
-    const senderRole = toDisplayRole(currentUser);
+    const senderName = displayName(currentUser, activeUser);
+    const senderRole = displayRole(currentUser);
     const senderAvatarUrl = toDisplayAvatarUrl(currentUser, activeUser);
     const basePayload = {
       ticket_id: ticketId,
@@ -734,7 +903,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
       if (insertError) {
         if (isMissingTicketMessageTable(insertError)) {
           setStorageMode(LOCAL_MODE);
-          setNotice("ยังไม่พบตารางแชทในฐานข้อมูล ระบบจะบันทึกแชทไว้เฉพาะเครื่องนี้ชั่วคราว");
+          setNotice(tt("localTableMissing"));
           addLocalMessage({
             ...payload,
             id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -748,7 +917,13 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
 
       resetComposer();
     } catch (sendError) {
-      setError(toThaiChatError(sendError?.message));
+      setError(toThaiChatError(sendError?.message, {
+        sendFailed: tt("sendFailed"),
+        networkError: tt("networkError"),
+        permissionError: tt("permissionError"),
+        tableMissingError: tt("tableMissingError"),
+        uploadError: tt("uploadError"),
+      }));
     } finally {
       setSending(false);
     }
@@ -758,11 +933,14 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
     addLocalMessage,
     currentUser,
     draft,
+    displayName,
+    displayRole,
     handleIncomingMessage,
     resetComposer,
     selectedImage,
     storageMode,
     ticketId,
+    tt,
     uploadImageToStorage,
   ]);
 
@@ -790,7 +968,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
         incomingToast?.sender_avatar_url ||
           profileMap[String(incomingToast?.sender_id || "")]?.avatarUrl ||
           "",
-        incomingToast?.sender_name || "ข้อความใหม่",
+        incomingToast?.sender_name || tt("newMessage"),
         "primary"
       )
     : "";
@@ -807,14 +985,14 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
         <div>
           <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-800">
             <MessageCircle size={16} className="text-[#2b59b0]" />
-            แชทติดต่อเจ้าหน้าที่
+            {tt("chatTitle")}
             {unreadCount > 0 && (
               <span className="inline-flex items-center rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">
                 {unreadCount}
               </span>
             )}
           </h3>
-          <p className="text-xs text-slate-500">คุยรายละเอียดเคสนี้แบบเรียลไทม์ แนบรูปจากมือถือได้</p>
+          <p className="text-xs text-slate-500">{tt("chatSubtitle")}</p>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -837,7 +1015,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
               storageMode === REMOTE_MODE ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
             }`}
           >
-            {storageMode === REMOTE_MODE ? "เรียลไทม์" : "โหมดออฟไลน์"}
+            {storageMode === REMOTE_MODE ? tt("realtime") : tt("offline")}
           </span>
         </div>
       </div>
@@ -853,9 +1031,9 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
               className="mt-0.5 h-8 w-8 shrink-0 rounded-full border border-[#2b59b0]/20 bg-white object-cover"
             />
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">ผู้แจ้ง</p>
-              <p className="truncate text-sm font-bold text-slate-800">{requesterName}</p>
-              <p className="truncate text-xs text-slate-500">{requesterMeta}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{tt("requesterLabel")}</p>
+              <p className="truncate text-sm font-bold text-slate-800">{requesterNameLabel}</p>
+              <p className="truncate text-xs text-slate-500">{requesterMetaLabel}</p>
             </div>
           </div>
         </div>
@@ -870,9 +1048,9 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
               className="mt-0.5 h-8 w-8 shrink-0 rounded-full border border-emerald-200 bg-white object-cover"
             />
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">เจ้าหน้าที่</p>
-              <p className="truncate text-sm font-bold text-slate-800">{technicianName}</p>
-              <p className="truncate text-xs text-slate-500">{technicianMeta}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{tt("technicianLabel")}</p>
+              <p className="truncate text-sm font-bold text-slate-800">{technicianNameLabel}</p>
+              <p className="truncate text-xs text-slate-500">{technicianMetaLabel}</p>
             </div>
           </div>
         </div>
@@ -896,16 +1074,16 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-6 text-sm text-slate-500">
               <Loader2 size={16} className="animate-spin" />
-              กำลังโหลดข้อความ...
+              {tt("loadingMessages")}
             </div>
           ) : messages.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500">
-              ยังไม่มีข้อความ เริ่มคุยรายละเอียดเคสได้เลย
+              {tt("emptyMessages")}
             </div>
           ) : (
             messages.map((message, index) => {
               const mine = Boolean(activeUserId) && String(message?.sender_id || "") === String(activeUserId);
-              const senderName = message?.sender_name || (mine ? "คุณ" : "ผู้ใช้งาน");
+              const senderName = message?.sender_name || (mine ? tt("you") : tt("user"));
               const senderRole = message?.sender_role || "";
               const shouldFlash = !mine && String(message?.id || "") === flashMessageId;
               const senderProfile = profileMap[String(message?.sender_id || "")];
@@ -950,7 +1128,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
                           {senderRole}
                         </span>
                       )}
-                      <span className={mine ? "text-blue-100" : "text-slate-500"}>{formatDateTime(message?.created_at)}</span>
+                      <span className={mine ? "text-blue-100" : "text-slate-500"}>{formatDateTimeLabel(message?.created_at)}</span>
                     </div>
 
                     {message?.message && (
@@ -1001,12 +1179,12 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
                   src={incomingToastAvatar}
                   onError={(event) => applyAvatarFallback(event, incomingToast?.sender_name, "primary")}
                   onLoad={keepLatestVisible}
-                  alt={incomingToast?.sender_name || "ข้อความใหม่"}
+                  alt={incomingToast?.sender_name || tt("newMessage")}
                   className="h-8 w-8 shrink-0 rounded-full border border-[#2b59b0]/20 bg-white object-cover"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-black text-slate-800">{incomingToast?.sender_name || "ข้อความใหม่"}</p>
-                  <p className="truncate text-xs text-slate-500">{toMessagePreview(incomingToast)}</p>
+                  <p className="truncate text-xs font-black text-slate-800">{incomingToast?.sender_name || tt("newMessage")}</p>
+                  <p className="truncate text-xs text-slate-500">{messagePreview(incomingToast)}</p>
                 </div>
                 <button
                   type="button"
@@ -1029,7 +1207,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
             style={{ animation: "chatBounce 1.4s ease-in-out infinite" }}
           >
             <ChevronDown size={14} />
-            มีข้อความใหม่ {unreadCount}
+            {tt("unreadMessages", { count: unreadCount })}
           </button>
         )}
       </div>
@@ -1047,7 +1225,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
             <div className="flex items-start gap-2">
               <img src={selectedImagePreview} alt="selected" className="h-14 w-14 rounded-md object-cover" />
               <div>
-                <p className="text-xs font-semibold text-slate-700">พร้อมส่งรูปภาพ</p>
+                <p className="text-xs font-semibold text-slate-700">{tt("imageReady")}</p>
                 <p className="text-[11px] text-slate-500">{selectedImage?.name || "photo"}</p>
               </div>
             </div>
@@ -1067,10 +1245,10 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleComposerKeyDown}
-          placeholder="พิมพ์ข้อความถึงอีกฝ่ายเพื่อคุยรายละเอียดงาน..."
+          placeholder={tt("composerPlaceholder")}
           className="w-full resize-y rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-[#2b59b0] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/20"
         />
-        <p className="text-[11px] text-slate-500">กด Enter เพื่อส่ง | Shift + Enter ขึ้นบรรทัดใหม่</p>
+        <p className="text-[11px] text-slate-500">{tt("composerHint")}</p>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -1089,7 +1267,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
               className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-[#2b59b0] hover:text-[#2b59b0]"
             >
               <ImagePlus size={14} />
-              อัปโหลดรูป
+              {tt("uploadImage")}
             </button>
             <button
               type="button"
@@ -1097,7 +1275,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
               className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-[#2b59b0] hover:text-[#2b59b0]"
             >
               <Camera size={14} />
-              ถ่ายรูป
+              {tt("captureImage")}
             </button>
           </div>
 
@@ -1108,7 +1286,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
             className="inline-flex items-center gap-1 rounded-lg bg-[#2b59b0] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#244a95] disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            ส่งข้อความ
+            {tt("sendMessage")}
           </button>
         </div>
       </div>

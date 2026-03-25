@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { getITDashboardTheme } from "../theme/itDashboardTheme";
 import tdkLogo from "../../../assets/4.png";
+import { useI18n } from "../../../i18n/LanguageProvider";
 
 const ITDashboardHeader = ({
   theme,
@@ -25,6 +26,7 @@ const ITDashboardHeader = ({
   syncAgoText,
   isOnline,
 }) => {
+  const { t } = useI18n();
   const uiTheme = getITDashboardTheme(theme);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileRef = useRef(null);
@@ -56,7 +58,7 @@ const ITDashboardHeader = ({
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className={`rounded-lg p-2 transition-colors lg:hidden ${uiTheme.iconButton}`}
-              aria-label="Toggle Sidebar"
+              aria-label={t("common.toggleSidebar")}
             >
               <Menu size={18} />
             </button>
@@ -67,9 +69,9 @@ const ITDashboardHeader = ({
 
             <div className="min-w-0">
               <p className={`truncate text-sm font-bold sm:text-base ${headingTextClass}`}>
-                IT Service Hub
+                {t("itDashboard.title")}
               </p>
-              <p className={`truncate text-xs ${secondaryTextClass}`}>Technician Dashboard</p>
+              <p className={`truncate text-xs ${secondaryTextClass}`}>{t("itDashboard.subtitle")}</p>
             </div>
           </div>
 
@@ -81,7 +83,7 @@ const ITDashboardHeader = ({
                 className={`h-2 w-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-slate-400"}`}
               />
               <RefreshCw size={12} />
-              <span>Sync {syncText || "--:--"}</span>
+              <span>{t("common.syncing")} {syncText || "--:--"}</span>
             </div>
 
             <button
@@ -90,7 +92,7 @@ const ITDashboardHeader = ({
                 setNotificationCount(0);
               }}
               className={`relative rounded-lg p-2 transition-colors ${uiTheme.iconButton}`}
-              aria-label="Notifications"
+              aria-label={t("common.notifications")}
             >
               <Bell size={17} />
               {notificationCount > 0 && (
@@ -103,7 +105,7 @@ const ITDashboardHeader = ({
             <button
               onClick={toggleTheme}
               className={`rounded-lg p-2 transition-colors ${uiTheme.iconButton}`}
-              aria-label="Toggle Theme"
+              aria-label={t("common.toggleTheme")}
             >
               {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
             </button>
@@ -139,7 +141,7 @@ const ITDashboardHeader = ({
                       {currentUser?.name || "IT"}
                     </p>
                     <p className={`truncate text-[11px] ${profileSecondaryTextClass}`}>
-                      {currentUser?.department || "IT Department"}
+                      {currentUser?.department || t("common.itDepartment")}
                     </p>
                     <p className={`text-[11px] ${profileMetaTextClass}`}>
                       {syncAgoText || "กำลังซิงก์"}

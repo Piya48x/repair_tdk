@@ -29,6 +29,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import { useI18n } from "../i18n/LanguageProvider";
 import {
   formatNotebookDuration,
   formatNotebookTime,
@@ -199,6 +200,7 @@ const fetchImageAsBase64 = async (url) => {
 export default function TicketHistory() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useI18n();
 
   const initialFilter = location.state?.initialFilter || "ALL";
   const initialTickets = Array.isArray(location.state?.tickets) ? location.state.tickets : [];
@@ -521,7 +523,7 @@ export default function TicketHistory() {
       <div className="app-theme app-page-bg min-h-screen flex items-center justify-center px-4  selection:bg-blue-100 antialiased">
         <div className="app-surface text-center p-8">
           <div className="mx-auto h-14 w-14 rounded-2xl border-4 border-[var(--brand-border)] border-t-[var(--brand-primary)] animate-spin" />
-          <p className="mt-4 text-sm font-semibold text-slate-600">กำลังโหลดประวัติการแจ้งซ่อม...</p>
+          <p className="mt-4 text-sm font-semibold text-slate-600">{t("ticketHistory.loading")}</p>
         </div>
       </div>
     );
@@ -536,17 +538,17 @@ export default function TicketHistory() {
               type="button"
               onClick={() => navigate("/dashboard")}
               className="app-btn-secondary p-2.5"
-              aria-label="กลับไปหน้า Dashboard"
+              aria-label={t("common.backDashboard")}
             >
               <ArrowLeft size={18} />
             </button>
             <div>
               <p className="inline-flex items-center gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-primary)]">
                 <Sparkles size={12} />
-                Ticket Center
+                {t("ticketHistory.badge")}
               </p>
-              <h1 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">ประวัติการแจ้งซ่อม</h1>
-              <p className="text-xs text-slate-500 sm:text-sm">ทั้งหมด {tickets.length} รายการ</p>
+              <h1 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">{t("ticketHistory.title")}</h1>
+              <p className="text-xs text-slate-500 sm:text-sm">{t("ticketHistory.totalItems", { count: tickets.length })}</p>
             </div>
           </div>
 
@@ -555,10 +557,10 @@ export default function TicketHistory() {
               type="button"
               onClick={fetchTickets}
               className="app-btn-secondary inline-flex items-center gap-2"
-              title="รีเฟรช"
+              title={t("ticketHistory.refresh")}
             >
               <RefreshCw size={16} />
-              <span className="hidden sm:inline">รีเฟรช</span>
+              <span className="hidden sm:inline">{t("ticketHistory.refresh")}</span>
             </button>
             <button
               type="button"
@@ -566,7 +568,7 @@ export default function TicketHistory() {
               className="app-btn-primary inline-flex items-center gap-2"
             >
               <Download size={16} />
-              <span>ส่งออก Excel</span>
+              <span>{t("ticketHistory.exportExcel")}</span>
             </button>
           </div>
         </div>
@@ -577,7 +579,7 @@ export default function TicketHistory() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ทั้งหมด</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t("ticketHistory.all")}</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-800">{stats.total}</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-soft)]">
@@ -589,7 +591,7 @@ export default function TicketHistory() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">รอดำเนินการ</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t("ticketHistory.pending")}</p>
                 <p className="mt-1 text-2xl font-semibold text-amber-600">{stats.pending}</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
@@ -601,7 +603,7 @@ export default function TicketHistory() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">สำเร็จ</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t("ticketHistory.success")}</p>
                 <p className="mt-1 text-2xl font-semibold text-emerald-600">{stats.closed}</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
@@ -613,7 +615,7 @@ export default function TicketHistory() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">เวลาเฉลี่ย</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t("ticketHistory.averageTime")}</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-800">{stats.avgResponse}</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">

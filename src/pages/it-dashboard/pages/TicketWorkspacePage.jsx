@@ -1,23 +1,85 @@
 import React from "react";
 import { Search, Filter, Plus, ChevronDown, X } from "lucide-react";
+import { useScopedI18n } from "../../../i18n/useScopedI18n";
 import TicketList from "../components/TicketList";
 
-const QUICK_FILTERS = [
-  { id: "ALL", label: "ทั้งหมด" },
-  { id: "URGENT", label: "งานด่วน" },
-  { id: "MINE", label: "งานของฉัน" },
-  { id: "TODAY", label: "วันนี้" },
-  { id: "HARDWARE", label: "ฮาร์ดแวร์" },
-  { id: "SYSTEM", label: "ระบบ" },
-];
+const TICKET_WORKSPACE_TRANSLATIONS = {
+  th: {
+    quickFilters: {
+      all: "ทั้งหมด",
+      urgent: "งานด่วน",
+      mine: "งานของฉัน",
+      today: "วันนี้",
+      hardware: "ฮาร์ดแวร์",
+      system: "ระบบ",
+    },
+    sortOptions: {
+      latest: "เรียง: ล่าสุด",
+      oldest: "เรียง: เก่าสุด",
+      priority: "เรียง: ความสำคัญ",
+      status: "เรียง: สถานะ",
+      updated: "เรียง: อัปเดตล่าสุด",
+    },
+    searchPlaceholder: "ค้นหาเลข Ticket, ผู้แจ้ง, สถานที่...",
+    clearSearch: "ล้างคำค้นหา",
+    filters: "ตัวกรอง",
+    createTicket: "สร้างงานใหม่",
+    walkIn: "บันทึกงาน (Walk-in)",
+    foundCount: "พบ {{count}} รายการ",
+  },
+  en: {
+    quickFilters: {
+      all: "All",
+      urgent: "Urgent",
+      mine: "My tickets",
+      today: "Today",
+      hardware: "Hardware",
+      system: "System",
+    },
+    sortOptions: {
+      latest: "Sort: Latest",
+      oldest: "Sort: Oldest",
+      priority: "Sort: Priority",
+      status: "Sort: Status",
+      updated: "Sort: Recently updated",
+    },
+    searchPlaceholder: "Search ticket number, requester, location...",
+    clearSearch: "Clear search",
+    filters: "Filters",
+    createTicket: "Create ticket",
+    walkIn: "Log walk-in ticket",
+    foundCount: "{{count}} items found",
+  },
+  ko: {
+    quickFilters: {
+      all: "전체",
+      urgent: "긴급 작업",
+      mine: "내 작업",
+      today: "오늘",
+      hardware: "하드웨어",
+      system: "시스템",
+    },
+    sortOptions: {
+      latest: "정렬: 최신순",
+      oldest: "정렬: 오래된순",
+      priority: "정렬: 우선순위",
+      status: "정렬: 상태",
+      updated: "정렬: 최근 업데이트",
+    },
+    searchPlaceholder: "티켓 번호, 요청자, 위치 검색...",
+    clearSearch: "검색 지우기",
+    filters: "필터",
+    createTicket: "새 작업 생성",
+    walkIn: "워크인 작업 등록",
+    foundCount: "{{count}}개 항목",
+  },
+};
 
-const SORT_OPTIONS = [
-  { id: "latest", label: "เรียง: ล่าสุด" },
-  { id: "oldest", label: "เรียง: เก่าสุด" },
-  { id: "priority", label: "เรียง: ความสำคัญ" },
-  { id: "status", label: "เรียง: สถานะ" },
-  { id: "updated", label: "เรียง: อัปเดตล่าสุด" },
-];
+const LOCALE_BY_LANGUAGE = {
+  th: "th-TH",
+  en: "en-US",
+  ko: "ko-KR",
+};
 
 const TicketWorkspacePage = ({
   title,
@@ -54,6 +116,27 @@ const TicketWorkspacePage = ({
   handleViewDetails,
   handleOpenNavigation,
 }) => {
+  const { language, tt } = useScopedI18n(TICKET_WORKSPACE_TRANSLATIONS);
+
+  const quickFilters = [
+    { id: "ALL", label: tt("quickFilters.all") },
+    { id: "URGENT", label: tt("quickFilters.urgent") },
+    { id: "MINE", label: tt("quickFilters.mine") },
+    { id: "TODAY", label: tt("quickFilters.today") },
+    { id: "HARDWARE", label: tt("quickFilters.hardware") },
+    { id: "SYSTEM", label: tt("quickFilters.system") },
+  ];
+
+  const sortOptions = [
+    { id: "latest", label: tt("sortOptions.latest") },
+    { id: "oldest", label: tt("sortOptions.oldest") },
+    { id: "priority", label: tt("sortOptions.priority") },
+    { id: "status", label: tt("sortOptions.status") },
+    { id: "updated", label: tt("sortOptions.updated") },
+  ];
+
+  const locale = LOCALE_BY_LANGUAGE[language] || LOCALE_BY_LANGUAGE.en;
+
   return (
     <>
       <section className="mb-4">
@@ -119,7 +202,7 @@ const TicketWorkspacePage = ({
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="ค้นหาเลข Ticket, ผู้แจ้ง, สถานที่..."
+                placeholder={tt("searchPlaceholder")}
                 value={searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
                 className={`w-full rounded-lg border py-2.5 pl-9 pr-9 text-sm ${uiTheme.searchInputMobile}`}
@@ -128,7 +211,7 @@ const TicketWorkspacePage = ({
                 <button
                   onClick={() => onSearchQueryChange("")}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-red-600"
-                  aria-label="ล้างคำค้นหา"
+                  aria-label={tt("clearSearch")}
                 >
                   <X size={14} />
                 </button>
@@ -142,7 +225,7 @@ const TicketWorkspacePage = ({
               }`}
             >
               <Filter size={14} />
-              ตัวกรอง {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
+              {tt("filters")} {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
             </button>
 
             <div className="relative">
@@ -151,7 +234,7 @@ const TicketWorkspacePage = ({
                 onChange={(event) => onSortByChange(event.target.value)}
                 className={`w-full appearance-none rounded-lg border py-2.5 pl-3 pr-8 text-sm font-semibold ${uiTheme.searchInputMobile}`}
               >
-                {SORT_OPTIONS.map((option) => (
+                {sortOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
                   </option>
@@ -166,7 +249,7 @@ const TicketWorkspacePage = ({
                 className="inline-flex items-center justify-center gap-1 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#244a95]"
               >
                 <Plus size={14} />
-                สร้างงานใหม่
+                {tt("createTicket")}
               </button>
 
               <button
@@ -174,7 +257,7 @@ const TicketWorkspacePage = ({
                 className="inline-flex items-center justify-center gap-1 rounded-lg border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-3 py-2.5 text-sm font-semibold text-[#2b59b0] transition hover:bg-[#2b59b0]/15"
               >
                 <Plus size={14} />
-                บันทึกงาน (Walk-in)
+                {tt("walkIn")}
               </button>
             </div>
           </div>
@@ -182,7 +265,7 @@ const TicketWorkspacePage = ({
           <div className="mt-3 flex flex-col gap-3">
             <div className="-mx-1 overflow-x-auto px-1 pb-1">
               <div className="flex w-max min-w-full items-center gap-2">
-                {QUICK_FILTERS.map((chip) => (
+                {quickFilters.map((chip) => (
                   <button
                     key={chip.id}
                     onClick={() => onQuickFilterChange(chip.id)}
@@ -198,7 +281,7 @@ const TicketWorkspacePage = ({
 
             <div className="flex items-center justify-between gap-2 border-t border-slate-200/70 pt-2 dark:border-slate-700/70">
               <span className={`text-xs sm:text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-                {"\u0e1e\u0e1a"} {sortedTickets.length.toLocaleString("th-TH")} {"\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23"}
+                {tt("foundCount", { count: sortedTickets.length.toLocaleString(locale) })}
               </span>
             </div>
           </div>

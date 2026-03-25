@@ -2,6 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { insertTicketWithSchemaFallback } from "../lib/ticketSchemaCompat";
+import { useScopedI18n } from "../i18n/useScopedI18n";
 import { motion, AnimatePresence } from "framer-motion";
 import Webcam from "react-webcam";
 import { toast, Toaster } from "react-hot-toast";
@@ -193,9 +194,317 @@ const sectionAnim = {
   transition: { duration: 0.4 },
 };
 
+const CREATE_TICKET_TRANSLATIONS = {
+  th: {
+    headerSubtitle: "สร้างคำขอแจ้งซ่อม • ระบบมาตรฐานองค์กร",
+    ready: "พร้อมใช้งาน",
+    successTitle: "แจ้งปัญหาสำเร็จ",
+    successSubtitle: "ระบบบันทึกคำขอเรียบร้อยแล้ว ทีม IT จะติดต่อกลับตามระดับความเร่งด่วน",
+    goDashboard: "ไปยัง Dashboard",
+    ticketReference: "Ticket Reference",
+    profileLabel: "Employee Profile",
+    slaResponse: "SLA Response",
+    secure: "Secure",
+    standard: "Standard",
+    enterpriseEdition: "Enterprise Edition",
+    supportLabel: "24/7 Support",
+    employeeFallback: "พนักงาน",
+    defaultDepartment: "ฝ่ายเทคโนโลยีสารสนเทศ",
+    defaultPosition: "เจ้าหน้าที่ระบบ",
+    employeeLevel: "ระดับพนักงาน",
+    categoryTitle: "หมวดหมู่ปัญหา",
+    categorySubtitle: "เลือกหมวดหมู่ที่ตรงกับปัญหาของคุณ",
+    required: "จำเป็น *",
+    issueTitle: "รายละเอียดปัญหา",
+    issueSubtitle: "กรุณาอธิบายปัญหาให้ชัดเจน",
+    commonIssues: "ปัญหาที่พบบ่อย",
+    extraDescription: "คำอธิบายเพิ่มเติม",
+    issuePlaceholder: "ระบุอาการที่พบ ข้อความผิดพลาด เวลาที่เกิดเหตุ และสิ่งที่ได้ลองแก้ไขแล้ว...",
+    issueHint: "การระบุรายละเอียดที่ชัดเจนช่วยให้ทีมงานแก้ไขปัญหาได้เร็วขึ้น",
+    attachmentsTitle: "หลักฐานประกอบ",
+    attachmentsSubtitle: "รูปภาพ, เอกสาร, หรือภาพหน้าจอ",
+    attached: "แนบแล้ว",
+    optional: "ไม่บังคับ",
+    cameraTitle: "ถ่ายภาพหลักฐาน",
+    cameraOverlayHint: "ถ่ายแล้วรูปจะทับบนกล้อง ไม่เปลืองพื้นที่",
+    cameraReviewHint: "รูปนี้จะถูกใช้เป็นหลักฐานทันที",
+    cameraReviewFooter: "กดยืนยันรูปนี้ หรือถ่ายใหม่ได้",
+    cameraFooter: "รองรับสลับกล้องหน้า/หลัง",
+    switchCamera: "สลับกล้อง",
+    retake: "ถ่ายใหม่",
+    takePhoto: "ถ่ายภาพ",
+    usePhoto: "ใช้รูปนี้",
+    closeCamera: "ปิดกล้อง",
+    openCamera: "เปิดกล้อง",
+    openCameraHint: "ถ่ายภาพหน้างานทันที",
+    uploadFile: "อัปโหลดไฟล์",
+    uploadFileHint: "JPG / PNG ไม่เกิน 5MB",
+    attachmentFile: "ไฟล์แนบ",
+    readyToUse: "พร้อมใช้งาน",
+    urgencyTitle: "ระดับความเร่งด่วน",
+    urgencySubtitle: "เลือกตามผลกระทบ",
+    processingTime: "เวลาดำเนินการ",
+    summaryTitle: "สรุปคำขอ",
+    readyToSubmit: "พร้อมส่ง",
+    reporter: "ผู้แจ้ง",
+    category: "หมวดหมู่",
+    urgency: "ความเร่งด่วน",
+    notSelected: "ยังไม่เลือก",
+    attachmentSummary: "หลักฐานแนบ",
+    hasAttachment: "มีไฟล์แนบ",
+    noAttachment: "ไม่มีไฟล์แนบ",
+    detail: "รายละเอียด",
+    characters: "ตัวอักษร",
+    submitting: "กำลังส่งคำขอ...",
+    submit: "ยืนยันการแจ้งซ่อม",
+    tipTitle: "เคล็ดลับการแจ้งซ่อม",
+    tipBody: "ระบุขั้นตอนที่ทำก่อนเกิดปัญหา เวลาที่เริ่มเกิดปัญหา และแนบภาพหน้าจอหรือภาพหน้างาน เพื่อให้ทีมงานแก้ไขปัญหาได้รวดเร็วขึ้น",
+    errors: {
+      fileTooLarge: "ไฟล์แนบต้องมีขนาดไม่เกิน 5MB",
+      cameraUnavailable: "กล้องไม่พร้อมใช้งาน",
+      captureFailed: "ไม่สามารถถ่ายรูปได้",
+      saveImageFailed: "ไม่สามารถบันทึกรูปได้",
+      imageAttached: "แนบรูปภาพเรียบร้อย",
+      formInvalid: "กรุณาเลือกหมวดหมู่และระบุรายละเอียดปัญหา",
+      userNotFound: "ไม่พบผู้ใช้งาน",
+      submitSuccess: "ส่งคำขอเรียบร้อยแล้ว",
+      submitFailed: "เกิดข้อผิดพลาด",
+    },
+  },
+  en: {
+    headerSubtitle: "Create an IT service request • enterprise standard workflow",
+    ready: "Ready",
+    successTitle: "Issue Submitted",
+    successSubtitle: "Your request has been saved. The IT team will contact you based on the selected urgency.",
+    goDashboard: "Go to Dashboard",
+    ticketReference: "Ticket Reference",
+    profileLabel: "Employee Profile",
+    slaResponse: "SLA Response",
+    secure: "Secure",
+    standard: "Standard",
+    enterpriseEdition: "Enterprise Edition",
+    supportLabel: "24/7 Support",
+    employeeFallback: "Employee",
+    defaultDepartment: "Information Technology",
+    defaultPosition: "System Officer",
+    employeeLevel: "Employee Level",
+    categoryTitle: "Issue Category",
+    categorySubtitle: "Choose the category that best matches your issue",
+    required: "Required *",
+    issueTitle: "Issue Details",
+    issueSubtitle: "Please describe the issue clearly",
+    commonIssues: "Common Issues",
+    extraDescription: "Additional Description",
+    issuePlaceholder: "Describe the symptoms, error messages, time of occurrence, and what you have already tried...",
+    issueHint: "Clear details help the team solve the issue faster.",
+    attachmentsTitle: "Attachments",
+    attachmentsSubtitle: "Images, documents, or screenshots",
+    attached: "Attached",
+    optional: "Optional",
+    cameraTitle: "Capture Evidence",
+    cameraOverlayHint: "The captured image stays on top of the camera preview to save space.",
+    cameraReviewHint: "This image will be used as evidence immediately.",
+    cameraReviewFooter: "Confirm this image or take another one.",
+    cameraFooter: "Supports switching between front and back cameras.",
+    switchCamera: "Switch Camera",
+    retake: "Retake",
+    takePhoto: "Take Photo",
+    usePhoto: "Use This Photo",
+    closeCamera: "Close Camera",
+    openCamera: "Open Camera",
+    openCameraHint: "Capture an on-site photo instantly",
+    uploadFile: "Upload File",
+    uploadFileHint: "JPG / PNG up to 5MB",
+    attachmentFile: "Attachment",
+    readyToUse: "Ready",
+    urgencyTitle: "Urgency Level",
+    urgencySubtitle: "Choose based on impact",
+    processingTime: "Response time",
+    summaryTitle: "Request Summary",
+    readyToSubmit: "Ready to submit",
+    reporter: "Reporter",
+    category: "Category",
+    urgency: "Urgency",
+    notSelected: "Not selected",
+    attachmentSummary: "Attachment",
+    hasAttachment: "File attached",
+    noAttachment: "No attachment",
+    detail: "Details",
+    characters: "characters",
+    submitting: "Submitting...",
+    submit: "Submit Ticket",
+    tipTitle: "Reporting Tip",
+    tipBody: "Describe what happened before the issue started, when it started, and attach screenshots or on-site photos so the team can resolve it faster.",
+    errors: {
+      fileTooLarge: "Attachments must be 5MB or smaller.",
+      cameraUnavailable: "Camera is not available.",
+      captureFailed: "Unable to capture the photo.",
+      saveImageFailed: "Unable to save the photo.",
+      imageAttached: "Image attached successfully.",
+      formInvalid: "Please choose a category and describe the issue.",
+      userNotFound: "User not found.",
+      submitSuccess: "Request submitted successfully.",
+      submitFailed: "Error",
+    },
+  },
+  ko: {
+    headerSubtitle: "IT 서비스 요청 생성 • 엔터프라이즈 표준 워크플로",
+    ready: "사용 가능",
+    successTitle: "문제가 접수되었습니다",
+    successSubtitle: "요청이 저장되었습니다. 선택한 긴급도에 따라 IT 팀이 연락드립니다.",
+    goDashboard: "대시보드로 이동",
+    ticketReference: "티켓 참조번호",
+    profileLabel: "직원 프로필",
+    slaResponse: "응답 SLA",
+    secure: "보안",
+    standard: "표준",
+    enterpriseEdition: "엔터프라이즈 에디션",
+    supportLabel: "24/7 지원",
+    employeeFallback: "직원",
+    defaultDepartment: "정보기술부서",
+    defaultPosition: "시스템 담당자",
+    employeeLevel: "직원 등급",
+    categoryTitle: "문제 분류",
+    categorySubtitle: "현재 문제와 가장 잘 맞는 분류를 선택하세요",
+    required: "필수 *",
+    issueTitle: "문제 상세",
+    issueSubtitle: "문제를 명확하게 설명해 주세요",
+    commonIssues: "자주 발생하는 문제",
+    extraDescription: "추가 설명",
+    issuePlaceholder: "증상, 오류 메시지, 발생 시간, 이미 시도한 조치를 적어 주세요...",
+    issueHint: "상세한 정보는 문제 해결 속도를 높여 줍니다.",
+    attachmentsTitle: "첨부 자료",
+    attachmentsSubtitle: "이미지, 문서, 또는 스크린샷",
+    attached: "첨부됨",
+    optional: "선택 사항",
+    cameraTitle: "증빙 사진 촬영",
+    cameraOverlayHint: "촬영 후 이미지가 카메라 위에 유지되어 공간을 아낍니다.",
+    cameraReviewHint: "이 사진이 바로 증빙 자료로 사용됩니다.",
+    cameraReviewFooter: "이 사진을 확정하거나 다시 촬영할 수 있습니다.",
+    cameraFooter: "전면/후면 카메라 전환을 지원합니다.",
+    switchCamera: "카메라 전환",
+    retake: "다시 촬영",
+    takePhoto: "사진 촬영",
+    usePhoto: "이 사진 사용",
+    closeCamera: "카메라 닫기",
+    openCamera: "카메라 열기",
+    openCameraHint: "현장 사진을 바로 촬영",
+    uploadFile: "파일 업로드",
+    uploadFileHint: "JPG / PNG 5MB 이하",
+    attachmentFile: "첨부 파일",
+    readyToUse: "사용 가능",
+    urgencyTitle: "긴급도",
+    urgencySubtitle: "영향도 기준으로 선택",
+    processingTime: "대응 시간",
+    summaryTitle: "요청 요약",
+    readyToSubmit: "제출 준비 완료",
+    reporter: "신청자",
+    category: "분류",
+    urgency: "긴급도",
+    notSelected: "선택 안 함",
+    attachmentSummary: "첨부 자료",
+    hasAttachment: "파일 첨부됨",
+    noAttachment: "첨부 파일 없음",
+    detail: "상세 내용",
+    characters: "자",
+    submitting: "제출 중...",
+    submit: "티켓 제출",
+    tipTitle: "신고 팁",
+    tipBody: "문제가 시작되기 전 상황, 시작 시점, 스크린샷이나 현장 사진을 함께 남기면 IT 팀이 더 빨리 처리할 수 있습니다.",
+    errors: {
+      fileTooLarge: "첨부 파일은 5MB 이하여야 합니다.",
+      cameraUnavailable: "카메라를 사용할 수 없습니다.",
+      captureFailed: "사진을 촬영할 수 없습니다.",
+      saveImageFailed: "사진을 저장할 수 없습니다.",
+      imageAttached: "사진이 첨부되었습니다.",
+      formInvalid: "분류를 선택하고 문제 내용을 입력해 주세요.",
+      userNotFound: "사용자를 찾을 수 없습니다.",
+      submitSuccess: "요청이 제출되었습니다.",
+      submitFailed: "오류",
+    },
+  },
+};
+
+const CREATE_TICKET_LOCALE = {
+  th: "th-TH",
+  en: "en-US",
+  ko: "ko-KR",
+};
+
+function getLocalizedCategories(language) {
+  if (language === "ko") {
+    return [
+      { ...CATEGORIES[0], label: "컴퓨터 / 장비", desc: "PC, 노트북, 모니터, 주변기기" },
+      { ...CATEGORIES[1], label: "네트워크 / Wi-Fi", desc: "LAN, Wi-Fi, VPN, 인터넷" },
+      { ...CATEGORIES[2], label: "프린터 / 스캔", desc: "프린터, 스캐너, 복합기" },
+      { ...CATEGORIES[3], label: "기업 이메일", desc: "Outlook, Exchange, 메일 송수신" },
+      { ...CATEGORIES[4], label: "시스템 / 소프트웨어", desc: "OS, 애플리케이션, 사용 권한" },
+    ];
+  }
+  if (language === "en") {
+    return [
+      { ...CATEGORIES[0], label: "Computer / Equipment", desc: "PC, notebook, monitor, peripherals" },
+      { ...CATEGORIES[1], label: "Network / Wi-Fi", desc: "LAN, Wi-Fi, VPN, Internet" },
+      { ...CATEGORIES[2], label: "Printer / Scan", desc: "Printer, scanner, copier" },
+      { ...CATEGORIES[3], label: "Corporate Email", desc: "Outlook, Exchange, mail delivery" },
+      { ...CATEGORIES[4], label: "System / Software", desc: "OS, applications, access rights" },
+    ];
+  }
+  return CATEGORIES;
+}
+
+function getLocalizedIssues(language) {
+  if (language === "ko") {
+    return {
+      Hardware: ["전원이 켜지지 않음", "기기가 매우 느림", "블루스크린", "주변기기가 동작하지 않음", "팬 소음이 비정상적임"],
+      Network: ["Wi-Fi 연결 불가", "인터넷이 느리거나 자주 끊김", "VPN 연결 불가", "공유 폴더 접근 불가", "DNS / IP 오류"],
+      Printer: ["인쇄가 되지 않음", "용지 걸림", "잉크 부족/색상 이상", "문서 스캔 불가", "드라이버 문제"],
+      Email: ["메일 송수신 불가", "비밀번호 분실", "Outlook 동기화 실패", "메일함 용량 초과", "서명 설정"],
+      System: ["프로그램 멈춤 / 오류", "Admin 권한 요청", "프로그램 설치", "시스템 업데이트 실패", "사내 시스템 접속 불가"],
+    };
+  }
+  if (language === "en") {
+    return {
+      Hardware: ["Device does not power on", "Device is very slow", "Blue screen", "Peripheral is not working", "Fan noise is abnormal"],
+      Network: ["Cannot connect to Wi-Fi", "Internet is slow or unstable", "Cannot connect to VPN", "Cannot access shared folder", "DNS / IP error"],
+      Printer: ["Cannot print", "Paper jam", "Ink empty / wrong colors", "Cannot scan documents", "Driver issue"],
+      Email: ["Cannot send or receive email", "Forgot password", "Outlook is not syncing", "Mailbox is full", "Set up signature"],
+      System: ["Program freezes / error", "Request admin rights", "Install software", "System update failed", "Cannot access internal system"],
+    };
+  }
+  return ISSUES;
+}
+
+function getLocalizedUrgency(language) {
+  if (language === "ko") {
+    return [
+      { ...URGENCY[0], label: "일반", desc: "48시간 이내" },
+      { ...URGENCY[1], label: "긴급", desc: "24시간 이내" },
+      { ...URGENCY[2], label: "위급", desc: "즉시 지원 필요" },
+    ];
+  }
+  if (language === "en") {
+    return [
+      { ...URGENCY[0], label: "Normal", desc: "Within 48 hours" },
+      { ...URGENCY[1], label: "Urgent", desc: "Within 24 hours" },
+      { ...URGENCY[2], label: "Critical", desc: "Immediate assistance required" },
+    ];
+  }
+  return URGENCY;
+}
+
+function formatLocalizedDateTime(date, language) {
+  const locale = CREATE_TICKET_LOCALE[language] || CREATE_TICKET_LOCALE.en;
+  return {
+    date: date.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" }),
+    time: date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
 const CreateTicket = () => {
   const navigate = useNavigate();
   const webcamRef = useRef(null);
+  const { language, tt } = useScopedI18n(CREATE_TICKET_TRANSLATIONS);
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -246,10 +555,10 @@ const CreateTicket = () => {
         setForm((p) => ({
           ...p,
           employeeId: profileData.employee_code || "EMP-001",
-          employeeName: profileData.full_name || "พนักงาน",
-          department: profileData.department || "ฝ่ายเทคโนโลยีสารสนเทศ",
-          position: profileData.position || "เจ้าหน้าที่ระบบ",
-          location: profileData.location || "ไม่ระบุสถานที่",
+          employeeName: profileData.full_name || tt("employeeFallback"),
+          department: profileData.department || tt("defaultDepartment"),
+          position: profileData.position || tt("defaultPosition"),
+          location: profileData.location || "-",
           profilePic: avatarUrl,
         }));
       } catch (err) {
@@ -272,7 +581,7 @@ const CreateTicket = () => {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("ไฟล์แนบต้องมีขนาดไม่เกิน 5MB");
+      toast.error(tt("errors.fileTooLarge"));
       return;
     }
 
@@ -298,7 +607,7 @@ const CreateTicket = () => {
 
   const capture = useCallback(() => {
     if (!webcamRef.current || typeof webcamRef.current.getScreenshot !== "function") {
-      toast.error("กล้องไม่พร้อมใช้งาน");
+      toast.error(tt("errors.cameraUnavailable"));
       return;
     }
 
@@ -310,9 +619,9 @@ const CreateTicket = () => {
       }
     } catch (err) {
       console.error("Capture error", err);
-      toast.error("ไม่สามารถถ่ายรูปได้");
+      toast.error(tt("errors.captureFailed"));
     }
-  }, []);
+  }, [tt]);
 
   const confirmCapture = () => {
     if (!tempImage) return;
@@ -326,15 +635,15 @@ const CreateTicket = () => {
         setPreview(tempImage);
         setIsReviewing(false);
         setIsCameraActive(false);
-        toast.success("แนบรูปภาพเรียบร้อย");
+        toast.success(tt("errors.imageAttached"));
       })
-      .catch(() => toast.error("ไม่สามารถบันทึกรูปได้"));
+      .catch(() => toast.error(tt("errors.saveImageFailed")));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.category || !form.issue.trim()) {
-      toast.error("กรุณาเลือกหมวดหมู่และระบุรายละเอียดปัญหา");
+      toast.error(tt("errors.formInvalid"));
       return;
     }
 
@@ -343,7 +652,7 @@ const CreateTicket = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      if (!user) throw new Error("ไม่พบผู้ใช้งาน");
+      if (!user) throw new Error(tt("errors.userNotFound"));
 
       let fileUrl = null;
       if (form.attachment) {
@@ -395,17 +704,20 @@ const CreateTicket = () => {
       const ref = data?.ticket_no || `T${String(data.id).padStart(6, "0")}`;
       setTicketRef(ref);
       setSuccess(true);
-      toast.success("ส่งคำขอเรียบร้อยแล้ว");
+      toast.success(tt("errors.submitSuccess"));
     } catch (err) {
-      toast.error(`เกิดข้อผิดพลาด: ${err.message}`);
+      toast.error(`${tt("errors.submitFailed").replace(": {{message}}", "")}: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const thaiDateTime = formatThaiDateTime(currentTime);
-  const selectedCategory = CATEGORIES.find((c) => c.id === form.category);
-  const selectedUrgency = URGENCY.find((u) => u.id === form.urgency);
+  const localizedCategories = getLocalizedCategories(language);
+  const localizedIssues = getLocalizedIssues(language);
+  const localizedUrgency = getLocalizedUrgency(language);
+  const thaiDateTime = formatLocalizedDateTime(currentTime, language);
+  const selectedCategory = localizedCategories.find((c) => c.id === form.category);
+  const selectedUrgency = localizedUrgency.find((u) => u.id === form.urgency);
   const canSubmit = !!form.category && !!form.issue.trim() && !loading;
 
   if (success) {
@@ -432,15 +744,15 @@ const CreateTicket = () => {
             </div>
 
             <h1 className="text-center text-2xl font-semibold text-slate-900 sm:text-[30px]">
-              แจ้งปัญหาสำเร็จ
+              {tt("successTitle")}
             </h1>
             <p className="mt-2 text-center text-sm text-slate-600 sm:text-base">
-              ระบบบันทึกคำขอเรียบร้อยแล้ว ทีม IT จะติดต่อกลับตามระดับความเร่งด่วน
+              {tt("successSubtitle")}
             </p>
 
             <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
               <p className="text-[11px] font-medium tracking-wide text-slate-500">
-                Ticket Reference
+                {tt("ticketReference")}
               </p>
               <p className="mt-2 text-3xl font-semibold tracking-tight text-[#2b59b0] sm:text-4xl">
                 #{String(ticketRef || "").toUpperCase()}
@@ -463,7 +775,7 @@ const CreateTicket = () => {
               onClick={() => navigate("/dashboard")}
               className="mt-6 w-full rounded-xl bg-[#2b59b0] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#244a95] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/30"
             >
-              ไปยัง Dashboard
+              {tt("goDashboard")}
             </button>
           </div>
         </motion.div>
@@ -496,11 +808,11 @@ const CreateTicket = () => {
                   IT Service Desk
                 </h1>
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-200">
-                  Standard
+                  {tt("standard")}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                สร้างคำขอแจ้งซ่อม • ระบบมาตรฐานองค์กร
+                {tt("headerSubtitle")}
               </p>
             </div>
           </div>
@@ -516,7 +828,7 @@ const CreateTicket = () => {
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-700">{thaiDateTime.date}</p>
-                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">{thaiDateTime.time} น.</p>
+                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">{thaiDateTime.time}</p>
               </div>
             </motion.div>
 
@@ -525,7 +837,7 @@ const CreateTicket = () => {
                 <div className="h-2 w-2 rounded-full bg-emerald-500" />
                 <div className="absolute -inset-1 animate-ping rounded-full bg-emerald-500 opacity-20" />
               </div>
-              <span className="text-xs font-bold text-emerald-700">พร้อมใช้งาน</span>
+              <span className="text-xs font-bold text-emerald-700">{tt("ready")}</span>
             </div>
           </div>
         </div>
@@ -581,10 +893,10 @@ const CreateTicket = () => {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
-                        Employee Profile
+                        {tt("profileLabel")}
                       </p>
                       <h2 className="text-xl font-black text-slate-800 sm:text-2xl">
-                        {form.employeeName || "พนักงาน"}
+                        {form.employeeName || tt("employeeFallback")}
                       </h2>
                     </div>
                     <span className="w-fit rounded-full bg-gradient-to-r from-indigo-50 to-purple-50 px-3 py-1.5 text-xs font-bold text-indigo-700 border border-indigo-200 shadow-sm">
@@ -596,17 +908,17 @@ const CreateTicket = () => {
                   <div className="mt-4 flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <Briefcase size={16} className="text-indigo-500" />
-                      <span className="font-medium">{form.position || "เจ้าหน้าที่ระบบ"}</span>
+                      <span className="font-medium">{form.position || tt("defaultPosition")}</span>
                     </div>
                     <div className="w-px h-4 bg-slate-200" />
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <Building size={16} className="text-indigo-500" />
-                      <span className="font-medium">{form.department || "ฝ่ายเทคโนโลยีสารสนเทศ"}</span>
+                      <span className="font-medium">{form.department || tt("defaultDepartment")}</span>
                     </div>
                     <div className="w-px h-4 bg-slate-200" />
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <Award size={16} className="text-amber-500" />
-                      <span className="font-medium">ระดับพนักงาน</span>
+                      <span className="font-medium">{tt("employeeLevel")}</span>
                     </div>
                   </div>
                 </div>
@@ -627,17 +939,17 @@ const CreateTicket = () => {
                       <div className="absolute -inset-1 animate-pulse rounded-full bg-indigo-500/20 blur-sm" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800 sm:text-base">หมวดหมู่ปัญหา</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">เลือกหมวดหมู่ที่ตรงกับปัญหาของคุณ</p>
+                      <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("categoryTitle")}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">{tt("categorySubtitle")}</p>
                     </div>
                   </div>
                   <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                    จำเป็น *
+                    {tt("required")}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {CATEGORIES.map((cat) => {
+                  {localizedCategories.map((cat) => {
                     const Icon = cat.icon;
                     const selected = form.category === cat.id;
                     return (
@@ -707,22 +1019,22 @@ const CreateTicket = () => {
                           <div className="absolute -inset-1 animate-pulse rounded-full bg-amber-500/20 blur-sm" />
                         </div>
                         <div>
-                          <h3 className="text-sm font-bold text-slate-800 sm:text-base">รายละเอียดปัญหา</h3>
-                          <p className="text-xs text-slate-500 mt-0.5">กรุณาอธิบายปัญหาให้ชัดเจน</p>
+                          <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("issueTitle")}</h3>
+                          <p className="text-xs text-slate-500 mt-0.5">{tt("issueSubtitle")}</p>
                         </div>
                       </div>
                       <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                        จำเป็น *
+                        {tt("required")}
                       </span>
                     </div>
 
                     <div className="mb-5">
                       <label className="mb-3 flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
                         <Sparkles size={14} className="text-amber-500" />
-                        ปัญหาที่พบบ่อย
+                        {tt("commonIssues")}
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {(ISSUES[form.category] || []).map((item, idx) => (
+                        {(localizedIssues[form.category] || []).map((item, idx) => (
                           <motion.button
                             key={item}
                             type="button"
@@ -749,7 +1061,7 @@ const CreateTicket = () => {
                     <div className="space-y-3">
                       <label className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
                         <FileText size={14} className="text-blue-500" />
-                        คำอธิบายเพิ่มเติม
+                        {tt("extraDescription")}
                       </label>
                       <div className="relative group/textarea">
                         <textarea
@@ -759,7 +1071,7 @@ const CreateTicket = () => {
                           onChange={(e) => setForm((p) => ({ ...p, issue: e.target.value }))}
                           onFocus={() => setFocusedField('description')}
                           onBlur={() => setFocusedField(null)}
-                          placeholder="ระบุอาการที่พบ ข้อความผิดพลาด เวลาที่เกิดเหตุ และสิ่งที่ได้ลองแก้ไขแล้ว..."
+                          placeholder={tt("issuePlaceholder")}
                           className={`
                             min-h-[180px] w-full rounded-2xl border-2 px-5 py-4 text-sm
                             outline-none transition-all duration-300 resize-none
@@ -789,7 +1101,7 @@ const CreateTicket = () => {
                       </div>
                       <p className="flex items-center gap-1.5 text-xs text-slate-500">
                         <Info size={14} />
-                        การระบุรายละเอียดที่ชัดเจนช่วยให้ทีมงานแก้ไขปัญหาได้เร็วขึ้น
+                        {tt("issueHint")}
                       </p>
                     </div>
                   </div>
@@ -811,8 +1123,8 @@ const CreateTicket = () => {
                       <div className="absolute -inset-1 animate-pulse rounded-full bg-cyan-500/20 blur-sm" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800 sm:text-base">หลักฐานประกอบ</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">รูปภาพ, เอกสาร, หรือภาพหน้าจอ</p>
+                      <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("attachmentsTitle")}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">{tt("attachmentsSubtitle")}</p>
                     </div>
                   </div>
                   <div className={`
@@ -823,7 +1135,7 @@ const CreateTicket = () => {
                     }
                   `}>
                     <Camera size={14} />
-                    {preview ? 'แนบแล้ว' : 'ไม่บังคับ'}
+                    {preview ? tt("attached") : tt("optional")}
                   </div>
                 </div>
 
@@ -843,20 +1155,20 @@ const CreateTicket = () => {
                       )}
                       <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-950/80 to-transparent px-4 py-3 text-white">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold">ถ่ายภาพหลักฐาน</p>
+                          <p className="text-sm font-bold">{tt("cameraTitle")}</p>
                           <p className="text-[11px] text-white/75">
-                            {isReviewing ? "รูปนี้จะถูกใช้เป็นหลักฐานทันที" : "ถ่ายแล้วรูปจะทับบนกล้อง ไม่เปลืองพื้นที่"}
+                            {isReviewing ? tt("cameraReviewHint") : tt("cameraOverlayHint")}
                           </p>
                         </div>
                         {isReviewing && (
                           <span className="inline-flex rounded-full border border-white/15 bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/90">
-                            พร้อมใช้
+                            {tt("readyToUse")}
                           </span>
                         )}
                       </div>
                       <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-[11px] text-white/75">
-                          {isReviewing ? "กดยืนยันรูปนี้ หรือถ่ายใหม่ได้" : "รองรับสลับกล้องหน้า/หลัง"}
+                          {isReviewing ? tt("cameraReviewFooter") : tt("cameraFooter")}
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {!isReviewing && (
@@ -866,7 +1178,7 @@ const CreateTicket = () => {
                               className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
                             >
                               <FlipHorizontal size={14} />
-                              <span className="hidden sm:inline">สลับกล้อง</span>
+                              <span className="hidden sm:inline">{tt("switchCamera")}</span>
                             </button>
                           )}
                           <button
@@ -875,7 +1187,7 @@ const CreateTicket = () => {
                             className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${isReviewing ? "bg-white text-[#244a95]" : "bg-white text-[#244a95]"}`}
                           >
                             <Camera size={14} />
-                            {isReviewing ? "ถ่ายใหม่" : "ถ่ายภาพ"}
+                            {isReviewing ? tt("retake") : tt("takePhoto")}
                           </button>
                           {isReviewing && (
                             <button
@@ -884,7 +1196,7 @@ const CreateTicket = () => {
                               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
                             >
                               <CheckCircle2 size={14} />
-                              ใช้รูปนี้
+                              {tt("usePhoto")}
                             </button>
                           )}
                         </div>
@@ -900,7 +1212,7 @@ const CreateTicket = () => {
                       }}
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all"
                     >
-                      ปิดกล้อง
+                      {tt("closeCamera")}
                     </button>
                   </div>
                 ) : (
@@ -915,16 +1227,16 @@ const CreateTicket = () => {
                       <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 group-hover:scale-110 transition-transform">
                         <Camera size={24} className="text-indigo-600" />
                       </div>
-                      <p className="text-sm font-bold text-slate-700 mb-1">เปิดกล้อง</p>
-                      <p className="text-xs text-slate-500">ถ่ายภาพหน้างานทันที</p>
+                      <p className="text-sm font-bold text-slate-700 mb-1">{tt("openCamera")}</p>
+                      <p className="text-xs text-slate-500">{tt("openCameraHint")}</p>
                     </motion.button>
 
                     <label className="group cursor-pointer rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50/80 to-white p-6 text-center transition-all hover:border-emerald-400 hover:bg-gradient-to-br hover:from-emerald-50/50 hover:to-white">
                       <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 group-hover:scale-110 transition-transform">
                         <Upload size={24} className="text-emerald-600" />
                       </div>
-                      <p className="text-sm font-bold text-slate-700 mb-1">อัปโหลดไฟล์</p>
-                      <p className="text-xs text-slate-500">JPG / PNG ไม่เกิน 5MB</p>
+                      <p className="text-sm font-bold text-slate-700 mb-1">{tt("uploadFile")}</p>
+                      <p className="text-xs text-slate-500">{tt("uploadFileHint")}</p>
                       <input type="file" hidden accept="image/*" onChange={handleFile} />
                     </label>
                   </div>
@@ -943,8 +1255,8 @@ const CreateTicket = () => {
                           <ImageIcon size={16} className="text-indigo-600" />
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-700">ไฟล์แนบ</p>
-                          <p className="text-[9px] text-slate-500">พร้อมใช้งาน</p>
+                          <p className="text-xs font-bold text-slate-700">{tt("attachmentFile")}</p>
+                          <p className="text-[9px] text-slate-500">{tt("readyToUse")}</p>
                         </div>
                       </div>
                       <motion.button
@@ -979,13 +1291,13 @@ const CreateTicket = () => {
                   <div className="absolute -inset-1 animate-pulse rounded-full bg-amber-500/20 blur-sm" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800 sm:text-base">ระดับความเร่งด่วน</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">เลือกตามผลกระทบ</p>
+                  <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("urgencyTitle")}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{tt("urgencySubtitle")}</p>
                 </div>
               </div>
 
               <div className="space-y-3">
-                {URGENCY.map((item, idx) => {
+                {localizedUrgency.map((item, idx) => {
                   const active = form.urgency === item.id;
                   return (
                     <motion.button
@@ -1041,10 +1353,10 @@ const CreateTicket = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock size={14} className="text-slate-500" />
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">SLA Response</span>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">{tt("slaResponse")}</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    {URGENCY.map((u) => (
+                    {localizedUrgency.map((u) => (
                       <div
                         key={u.id}
                         className={`
@@ -1060,7 +1372,7 @@ const CreateTicket = () => {
                 </div>
                 {selectedUrgency && (
                   <p className="text-[9px] text-slate-500 mt-2">
-                    เวลาดำเนินการ: <span className="font-bold text-slate-700">{selectedUrgency.desc}</span>
+                    {tt("processingTime")}: <span className="font-bold text-slate-700">{selectedUrgency.desc}</span>
                   </p>
                 )}
               </div>
@@ -1084,13 +1396,13 @@ const CreateTicket = () => {
                     <FileText size={16} className="text-white" />
                   </div>
                   <h3 className="text-sm font-black uppercase tracking-wider text-slate-800">
-                    สรุปคำขอ
+                    {tt("summaryTitle")}
                   </h3>
                 </div>
                 {canSubmit && (
                   <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
                     <Sparkles size={12} className="text-amber-600" />
-                    <span className="text-[9px] font-bold text-amber-700 uppercase tracking-wider">พร้อมส่ง</span>
+                    <span className="text-[9px] font-bold text-amber-700 uppercase tracking-wider">{tt("readyToSubmit")}</span>
                   </div>
                 )}
               </div>
@@ -1103,7 +1415,7 @@ const CreateTicket = () => {
                       <User size={16} className="text-indigo-600" />
                     </div>
                     <div>
-                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">ผู้แจ้ง</p>
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">{tt("reporter")}</p>
                       <p className="text-sm font-bold text-slate-800">{form.employeeName || "-"}</p>
                       <p className="text-[10px] text-slate-500">{form.position || "-"} • {form.department || "-"}</p>
                     </div>
@@ -1112,7 +1424,7 @@ const CreateTicket = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
-                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">หมวดหมู่</p>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">{tt("category")}</p>
                     {selectedCategory ? (
                       <div className="flex items-center gap-1.5">
                         <div className={`h-6 w-6 rounded-lg ${selectedCategory.softClass} flex items-center justify-center`}>
@@ -1121,12 +1433,12 @@ const CreateTicket = () => {
                         <span className="text-xs font-bold text-slate-800">{selectedCategory.label}</span>
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-400">ยังไม่เลือก</p>
+                      <p className="text-xs text-slate-400">{tt("notSelected")}</p>
                     )}
                   </div>
 
                   <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
-                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">ความเร่งด่วน</p>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">{tt("urgency")}</p>
                     {selectedUrgency ? (
                       <div className="flex items-center gap-1.5">
                         <span className={`h-2 w-2 rounded-full ${selectedUrgency.dot} animate-pulse`} />
@@ -1136,21 +1448,21 @@ const CreateTicket = () => {
                         </span>
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-400">ยังไม่เลือก</p>
+                      <p className="text-xs text-slate-400">{tt("notSelected")}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
-                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">หลักฐานแนบ</p>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">{tt("attachmentSummary")}</p>
                   {preview ? (
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-100 to-teal-100 flex items-center justify-center">
                         <ImageIcon size={16} className="text-cyan-600" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-800">มีไฟล์แนบ</p>
-                        <p className="text-[8px] text-slate-500">พร้อมส่ง</p>
+                        <p className="text-xs font-bold text-slate-800">{tt("hasAttachment")}</p>
+                        <p className="text-[8px] text-slate-500">{tt("readyToSubmit")}</p>
                       </div>
                     </div>
                   ) : (
@@ -1158,16 +1470,16 @@ const CreateTicket = () => {
                       <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
                         <Camera size={16} className="text-slate-400" />
                       </div>
-                      <p className="text-xs text-slate-500">ไม่มีไฟล์แนบ</p>
+                      <p className="text-xs text-slate-500">{tt("noAttachment")}</p>
                     </div>
                   )}
                 </div>
 
                 {form.issue && (
                   <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
-                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">รายละเอียด</p>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">{tt("detail")}</p>
                     <p className="text-xs text-slate-700 line-clamp-2">{form.issue}</p>
-                    <p className="text-[8px] text-slate-400 mt-1">{form.issue.length}/500 ตัวอักษร</p>
+                    <p className="text-[8px] text-slate-400 mt-1">{form.issue.length}/500 {tt("characters")}</p>
                   </div>
                 )}
               </div>
@@ -1194,7 +1506,7 @@ const CreateTicket = () => {
                     <>
                       <Loader2 className="animate-spin" size={18} />
                       <span className="bg-gradient-to-r from-white via-indigo-100 to-white bg-clip-text text-transparent">
-                        กำลังส่งคำขอ...
+                        {tt("submitting")}
                       </span>
                     </>
                   ) : (
@@ -1204,7 +1516,7 @@ const CreateTicket = () => {
                         <div className="absolute -inset-1 bg-white/30 rounded-full blur-sm animate-ping opacity-0 group-hover/btn:opacity-100" />
                       </div>
                       <span className="bg-gradient-to-r from-white via-indigo-100 to-white bg-clip-text text-transparent">
-                        ยืนยันการแจ้งซ่อม
+                        {tt("submit")}
                       </span>
                       <ChevronRight size={18} className="group-hover/btn:translate-x-2 transition-transform duration-300" />
                     </>
@@ -1216,15 +1528,15 @@ const CreateTicket = () => {
               <div className="mt-5 flex items-center justify-center gap-4">
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/80 backdrop-blur rounded-lg border border-slate-200/80 shadow-sm">
                   <Shield size={12} className="text-indigo-600" />
-                  <span className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">Secure</span>
+                  <span className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">{tt("secure")}</span>
                 </div>
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/80 backdrop-blur rounded-lg border border-slate-200/80 shadow-sm">
                   <Clock size={12} className="text-indigo-600" />
-                  <span className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">{thaiDateTime.time} น.</span>
+                  <span className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">{thaiDateTime.time}</span>
                 </div>
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 rounded-lg border border-slate-200 shadow-sm">
                   <Crown size={12} className="text-amber-600" />
-                  <span className="text-[8px] font-bold text-slate-700 uppercase tracking-wider">Standard</span>
+                  <span className="text-[8px] font-bold text-slate-700 uppercase tracking-wider">{tt("standard")}</span>
                 </div>
               </div>
             </div>
@@ -1242,10 +1554,9 @@ const CreateTicket = () => {
                 <Info size={16} className="text-blue-600" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-700 mb-1">เคล็ดลับการแจ้งซ่อม</p>
+                <p className="text-xs font-bold text-slate-700 mb-1">{tt("tipTitle")}</p>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  ระบุขั้นตอนที่ทำก่อนเกิดปัญหา เวลาที่เริ่มเกิดปัญหา และแนบภาพหน้าจอหรือภาพหน้างาน
-                  เพื่อให้ทีมงานแก้ไขปัญหาได้รวดเร็วขึ้น
+                  {tt("tipBody")}
                 </p>
               </div>
             </div>
@@ -1263,12 +1574,12 @@ const CreateTicket = () => {
           <span className="w-px h-3 bg-slate-200" />
           <span className="flex items-center gap-1.5">
             <Gem size={12} className="text-indigo-400" />
-            Enterprise Edition
+            {tt("enterpriseEdition")}
           </span>
           <span className="w-px h-3 bg-slate-200" />
           <span className="flex items-center gap-1.5">
             <Heart size={12} className="text-indigo-400" />
-            24/7 Support
+            {tt("supportLabel")}
           </span>
           <span className="w-px h-3 bg-slate-200" />
           <span className="flex items-center gap-1.5">

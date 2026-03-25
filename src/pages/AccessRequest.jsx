@@ -17,6 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import { useI18n } from "../i18n/LanguageProvider";
 
 const STATUS_VALUES = {
   PENDING: "Pending Approval",
@@ -87,6 +88,7 @@ const normalize = (value) => String(value || "").trim().toLowerCase();
 
 const AccessRequest = () => {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const channelRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
@@ -359,17 +361,17 @@ const AccessRequest = () => {
                 className="app-btn-secondary mt-0.5 inline-flex items-center gap-2"
               >
                 <ArrowLeft size={15} />
-                กลับ Dashboard
+                {t("common.backDashboard")}
               </button>
 
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-1 text-[11px] font-bold text-[var(--brand-primary)]">
                   <KeyRound size={13} />
-                  Access Request
+                  {t("accessRequest.badge")}
                 </div>
-                <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">ขอสิทธิ์ระบบ</h1>
+                <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">{t("accessRequest.title")}</h1>
                 <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-                  ส่งคำขอเข้าถึงระบบผ่าน workflow และติดตามสถานะอนุมัติแบบเรียลไทม์
+                  {t("accessRequest.subtitle")}
                 </p>
               </div>
             </div>
@@ -380,26 +382,26 @@ const AccessRequest = () => {
               className="app-btn-primary inline-flex items-center gap-2"
             >
               <Plus size={15} />
-              สร้างคำขอสิทธิ์
+              {t("accessRequest.create")}
             </button>
           </div>
         </header>
 
         <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <article className="app-surface p-4">
-            <p className="text-xs font-semibold text-slate-500">Pending Approval</p>
+            <p className="text-xs font-semibold text-slate-500">{t("accessRequest.pendingApproval")}</p>
             <p className="mt-2 text-3xl font-black text-amber-600">{summary.pending}</p>
           </article>
           <article className="app-surface p-4">
-            <p className="text-xs font-semibold text-slate-500">Approved</p>
+            <p className="text-xs font-semibold text-slate-500">{t("accessRequest.approved")}</p>
             <p className="mt-2 text-3xl font-black text-blue-600">{summary.approved}</p>
           </article>
           <article className="app-surface p-4">
-            <p className="text-xs font-semibold text-slate-500">Rejected</p>
+            <p className="text-xs font-semibold text-slate-500">{t("accessRequest.rejected")}</p>
             <p className="mt-2 text-3xl font-black text-rose-600">{summary.rejected}</p>
           </article>
           <article className="app-surface p-4">
-            <p className="text-xs font-semibold text-slate-500">Completed</p>
+            <p className="text-xs font-semibold text-slate-500">{t("accessRequest.completed")}</p>
             <p className="mt-2 text-3xl font-black text-emerald-600">{summary.completed}</p>
           </article>
         </section>

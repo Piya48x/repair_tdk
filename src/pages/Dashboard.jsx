@@ -2,6 +2,7 @@
 // ^^^ à¸•à¹‰à¸­à¸‡à¸¡à¸µ useRef à¸­à¸¢à¸¹à¹ˆà¸•à¸£à¸‡à¸™à¸µà¹‰à¸”à¹‰à¸§à¸¢
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
+import { useI18n } from "../i18n/LanguageProvider";
 import {
   LogOut, Wrench, Package, Laptop, ChevronRight,
   ChevronDown, ChevronUp,
@@ -30,14 +31,14 @@ import {
 } from "recharts";
 import {
   DASHBOARD_THEME_KEY,
-  FILTER_OPTIONS,
-  PRIORITY_CONFIG,
-  PRIORITY_FILTER_OPTIONS,
-  ROLE_BASED_VIEWS,
-  ROLE_LABELS,
-  SLA_FILTER_OPTIONS,
   SMART_FILTER_PRESET_KEY,
-  STATUS_CONFIG,
+  getFilterOptions as getLocalizedFilterOptions,
+  getPriorityConfig as getLocalizedPriorityConfig,
+  getPriorityFilterOptions as getLocalizedPriorityFilterOptions,
+  getRoleBasedViews as getLocalizedRoleBasedViews,
+  getRoleLabels as getLocalizedRoleLabels,
+  getSlaFilterOptions as getLocalizedSlaFilterOptions,
+  getStatusConfig as getLocalizedStatusConfig,
   getSlaState,
   resolveCategoryIcon,
 } from "./dashboard/constants";
@@ -59,6 +60,358 @@ const ACCESS_REQUEST_STATUS = {
   REJECTED: "Rejected",
   COMPLETED: "Completed",
 };
+
+const NAV_MORE_LINKS = [
+  {
+    id: "groupware-tdk",
+    label: "Groupware TDK",
+    description: "ไปยังระบบ Groupware",
+    href: "http://gw2.e-dk.co.kr/LoginInfo/",
+  },
+  {
+    id: "e-business-plus",
+    label: "E-Business Plus",
+    description: "ไปยังระบบ E-Business Plus",
+    href: "http://hr.tdk.co.th/TDK/Login.aspx",
+  },
+  {
+    id: "other-placeholder",
+    label: "อื่นๆ",
+    description: "ใส่อื่นๆไว้ก่อน",
+    href: "",
+  },
+];
+
+const DASHBOARD_TRANSLATIONS = {
+  th: {
+    statusBar: {
+      skipToContent: "ข้ามไปยังเนื้อหาหลัก",
+      systemReady: "ระบบพร้อมใช้งาน",
+      dataSource: "แหล่งข้อมูล: Supabase Realtime",
+      loading: "กำลังโหลด...",
+      role: "Role",
+      refreshData: "รีเฟรชข้อมูล",
+      auditLog: "Audit Log",
+    },
+    nav: {
+      meetingRoomStatus: "Meeting Room Status",
+      recentActivity: "กิจกรรมล่าสุด",
+      moreMenu: "เมนูอื่นๆ",
+      newTicket: "แจ้งซ่อมใหม่",
+      notSpecified: "ไม่ระบุ",
+      notSpecifiedDepartment: "ไม่ระบุแผนก",
+    },
+    quickActions: {
+      active: "เปิดใช้งาน",
+      startChat: "เริ่มแชท",
+      createTicket: {
+        label: "แจ้งซ่อม IT",
+        description: "รายงานปัญหาและติดตามผลตาม SLA",
+        cta: "ดำเนินการทันที",
+      },
+      pickup: {
+        label: "เบิกอุปกรณ์",
+        description: "ขออุปกรณ์หรือวัสดุสิ้นเปลืองผ่าน workflow",
+        cta: "ตรวจสอบสต็อก",
+      },
+      notebook: {
+        label: "การยืมคืน notebook",
+        description: "เปิดหน้า Notebook Center สำหรับยืม-คืน notebook",
+        cta: "เปิดหน้า Notebook",
+      },
+      workNotes: {
+        label: "โน้ตงาน / Work Notes",
+        description: "บันทึกงาน วางแผนงาน และตั้งเตือนความจำส่วนตัว",
+        cta: "เปิดหน้าโน้ต",
+      },
+      meetingRoom: {
+        label: "จองห้องประชุม",
+        description: "จองห้องประชุมและจัดตารางเวลาการใช้งาน",
+        cta: "เปิดหน้าจอง",
+      },
+      history: {
+        label: "ประวัติ Ticket",
+        description: "ค้นหาและติดตาม Ticket ที่เคยแจ้งทั้งหมด",
+        cta: "เปิดรายการ",
+      },
+      chatIt: {
+        label: "แชท IT / แจ้งปัญหาด่วน",
+        description: "คุยกับทีม IT แบบ realtime",
+        cta: "เริ่มแชท",
+      },
+      myStatus: {
+        label: "สถานะของฉัน / ดู notebook, ticket และคำขอ",
+        description: "สรุปสถานะทั้งหมดในหน้าเดียว",
+        cta: "เปิดสถานะ",
+      },
+      accessRequest: {
+        label: "ขอสิทธิ์ระบบ",
+        description: "ส่งคำขอสิทธิ์ ERP, Shared Folder, Email Group หรือ Software",
+        cta: "เปิดฟอร์มคำขอ",
+      },
+      adminDashboard: {
+        label: "Technician Dashboard",
+        description: "จัดคิวงาน, SLA และการมอบหมายระดับ IT",
+        cta: "เข้าสู่โหมดช่าง",
+      },
+      auditView: {
+        label: "Audit View",
+        description: "ตรวจสอบ Log และรายงานเพื่อการกำกับดูแล",
+        cta: "เปิดมุมมองตรวจสอบ",
+      },
+    },
+    activity: {
+      allCategories: "ทุกหมวดหมู่",
+      searchByHint: "ค้นหาได้จาก: เลขงาน, หัวข้อ, รายละเอียด, หมวดหมู่, สถานที่, สถานะ, ความเร่งด่วน",
+      selectSavedView: "เลือกมุมมองที่บันทึกไว้",
+      applyView: "ใช้มุมมอง",
+      saveView: "บันทึกมุมมอง",
+      clearFilters: "ล้างตัวกรอง",
+      tapCard: "แตะการ์ดเพื่อเปิดรายละเอียดทันที",
+      selectTicket: "เลือก Ticket เพื่อดูสรุปด้านล่าง หรือเปิดรายละเอียดเต็มได้ทันที",
+      viewAllHistory: "ดูประวัติทั้งหมด ({{count}} รายการ)",
+      fullDetails: "เปิดรายละเอียดเต็ม",
+      noSelectedTicket: "ยังไม่มีรายการที่เลือก",
+      selectTicketAbove: "เลือก Ticket จากรายการด้านบนเพื่อดูรายละเอียด",
+      noTicketsFound: "ไม่พบรายการแจ้งซ่อม",
+      noTicketsForCurrentSmartFilter: "ไม่พบรายการที่ตรงกับ Smart Filter ปัจจุบัน",
+      startFirstTicket: "เริ่มต้นใช้งานระบบโดยการแจ้งซ่อมครั้งแรกของคุณ",
+      noTitle: "ไม่มีหัวข้อ",
+      noCategory: "ไม่ระบุหมวดหมู่",
+      noDescription: "ไม่มีรายละเอียด",
+      timeline: "Activity Timeline",
+    },
+    navMore: {
+      "groupware-tdk": "Groupware TDK",
+      "e-business-plus": "E-Business Plus",
+      "other-placeholder": "อื่นๆ",
+    },
+  },
+  en: {
+    statusBar: {
+      skipToContent: "Skip to main content",
+      systemReady: "System ready",
+      dataSource: "Data source: Supabase Realtime",
+      loading: "Loading...",
+      role: "Role",
+      refreshData: "Refresh data",
+      auditLog: "Audit Log",
+    },
+    nav: {
+      meetingRoomStatus: "Meeting Room Status",
+      recentActivity: "Recent Activity",
+      moreMenu: "More Menu",
+      newTicket: "New Ticket",
+      notSpecified: "Not specified",
+      notSpecifiedDepartment: "No department",
+    },
+    quickActions: {
+      active: "Open",
+      startChat: "Start chat",
+      createTicket: {
+        label: "Report IT Issue",
+        description: "Report a problem and track progress by SLA",
+        cta: "Take action",
+      },
+      pickup: {
+        label: "Equipment Request",
+        description: "Request equipment or consumables through a workflow",
+        cta: "Check stock",
+      },
+      notebook: {
+        label: "Notebook Borrowing",
+        description: "Open Notebook Center for borrow and return flows",
+        cta: "Open Notebook page",
+      },
+      workNotes: {
+        label: "Work Notes",
+        description: "Track work, plans, and personal reminders",
+        cta: "Open notes",
+      },
+      meetingRoom: {
+        label: "Meeting Room Booking",
+        description: "Book meeting rooms and manage schedules",
+        cta: "Open booking",
+      },
+      history: {
+        label: "Ticket History",
+        description: "Search and track all tickets you created",
+        cta: "Open list",
+      },
+      chatIt: {
+        label: "IT Chat / Urgent Support",
+        description: "Talk to the IT team in real time",
+        cta: "Start chat",
+      },
+      myStatus: {
+        label: "My Status",
+        description: "See notebook, ticket, and request status in one place",
+        cta: "Open status",
+      },
+      accessRequest: {
+        label: "Access Request",
+        description: "Submit ERP, shared folder, email group, or software access requests",
+        cta: "Open request form",
+      },
+      adminDashboard: {
+        label: "Technician Dashboard",
+        description: "Manage queue, SLA, and IT assignment flow",
+        cta: "Open technician mode",
+      },
+      auditView: {
+        label: "Audit View",
+        description: "Review logs and reports for governance",
+        cta: "Open audit view",
+      },
+    },
+    activity: {
+      allCategories: "All categories",
+      searchByHint: "Search by ticket no, title, description, category, location, status, or priority",
+      selectSavedView: "Select a saved view",
+      applyView: "Apply view",
+      saveView: "Save view",
+      clearFilters: "Clear filters",
+      tapCard: "Tap a card to open details immediately",
+      selectTicket: "Select a ticket to see the summary below or open full details immediately",
+      viewAllHistory: "View all history ({{count}} items)",
+      fullDetails: "Open full details",
+      noSelectedTicket: "No ticket selected",
+      selectTicketAbove: "Select a ticket from the list above to view details",
+      noTicketsFound: "No tickets found",
+      noTicketsForCurrentSmartFilter: "No items match the current smart filter",
+      startFirstTicket: "Start by creating your first ticket",
+      noTitle: "Untitled",
+      noCategory: "Uncategorized",
+      noDescription: "No description",
+      timeline: "Activity Timeline",
+    },
+    navMore: {
+      "groupware-tdk": "Groupware TDK",
+      "e-business-plus": "E-Business Plus",
+      "other-placeholder": "Others",
+    },
+  },
+  ko: {
+    statusBar: {
+      skipToContent: "본문으로 바로가기",
+      systemReady: "시스템 정상",
+      dataSource: "데이터 소스: Supabase Realtime",
+      loading: "불러오는 중...",
+      role: "역할",
+      refreshData: "데이터 새로고침",
+      auditLog: "감사 로그",
+    },
+    nav: {
+      meetingRoomStatus: "회의실 현황",
+      recentActivity: "최근 활동",
+      moreMenu: "추가 메뉴",
+      newTicket: "새 티켓",
+      notSpecified: "미지정",
+      notSpecifiedDepartment: "부서 미지정",
+    },
+    quickActions: {
+      active: "열기",
+      startChat: "채팅 시작",
+      createTicket: {
+        label: "IT 문제 접수",
+        description: "문제를 접수하고 SLA 기준으로 진행 상태를 추적합니다",
+        cta: "바로 진행",
+      },
+      pickup: {
+        label: "장비 요청",
+        description: "워크플로우로 장비나 소모품을 요청합니다",
+        cta: "재고 확인",
+      },
+      notebook: {
+        label: "노트북 대여/반납",
+        description: "Notebook Center에서 대여와 반납을 처리합니다",
+        cta: "노트북 페이지 열기",
+      },
+      workNotes: {
+        label: "업무 노트",
+        description: "업무, 계획, 개인 리마인더를 관리합니다",
+        cta: "노트 열기",
+      },
+      meetingRoom: {
+        label: "회의실 예약",
+        description: "회의실을 예약하고 사용 일정을 관리합니다",
+        cta: "예약 열기",
+      },
+      history: {
+        label: "티켓 이력",
+        description: "등록한 모든 티켓을 검색하고 추적합니다",
+        cta: "목록 열기",
+      },
+      chatIt: {
+        label: "IT 채팅 / 긴급 지원",
+        description: "IT 팀과 실시간으로 대화합니다",
+        cta: "채팅 시작",
+      },
+      myStatus: {
+        label: "내 상태",
+        description: "노트북, 티켓, 요청 상태를 한 곳에서 봅니다",
+        cta: "상태 열기",
+      },
+      accessRequest: {
+        label: "권한 요청",
+        description: "ERP, 공유 폴더, 메일 그룹, 소프트웨어 권한을 요청합니다",
+        cta: "요청 폼 열기",
+      },
+      adminDashboard: {
+        label: "기술자 대시보드",
+        description: "작업 대기열, SLA, IT 배정 흐름을 관리합니다",
+        cta: "기술자 모드 열기",
+      },
+      auditView: {
+        label: "감사 보기",
+        description: "거버넌스를 위한 로그와 보고서를 검토합니다",
+        cta: "감사 화면 열기",
+      },
+    },
+    activity: {
+      allCategories: "전체 카테고리",
+      searchByHint: "티켓 번호, 제목, 설명, 카테고리, 위치, 상태, 우선순위로 검색할 수 있습니다",
+      selectSavedView: "저장된 보기 선택",
+      applyView: "보기 적용",
+      saveView: "보기 저장",
+      clearFilters: "필터 초기화",
+      tapCard: "카드를 탭하면 바로 상세를 엽니다",
+      selectTicket: "티켓을 선택하면 아래 요약을 보거나 전체 상세를 바로 열 수 있습니다",
+      viewAllHistory: "전체 이력 보기 ({{count}}건)",
+      fullDetails: "전체 상세 열기",
+      noSelectedTicket: "선택된 티켓이 없습니다",
+      selectTicketAbove: "위 목록에서 티켓을 선택해 상세를 확인하세요",
+      noTicketsFound: "티켓을 찾을 수 없습니다",
+      noTicketsForCurrentSmartFilter: "현재 스마트 필터와 일치하는 항목이 없습니다",
+      startFirstTicket: "첫 티켓을 등록해서 시작하세요",
+      noTitle: "제목 없음",
+      noCategory: "카테고리 없음",
+      noDescription: "설명 없음",
+      timeline: "활동 타임라인",
+    },
+    navMore: {
+      "groupware-tdk": "Groupware TDK",
+      "e-business-plus": "E-Business Plus",
+      "other-placeholder": "기타",
+    },
+  },
+};
+
+function getDashboardTranslationValue(language, key) {
+  return String(key || "")
+    .split(".")
+    .reduce(
+      (current, segment) => (current && typeof current === "object" ? current[segment] : undefined),
+      DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en,
+    );
+}
+
+function interpolateDashboardTranslation(template, variables = {}) {
+  return String(template).replace(/\{\{(.*?)\}\}/g, (_, rawKey) => {
+    const key = String(rawKey || "").trim();
+    return variables[key] ?? "";
+  });
+}
 
 const TICKET_STATUS_LABELS = {
   NEW: "รอดำเนินการ",
@@ -176,12 +529,60 @@ const normalizeBookingForDisplay = (booking) => {
   };
 };
 
+function StableChartContainer({ className, children }) {
+  const containerRef = useRef(null);
+  const [hasSize, setHasSize] = useState(false);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return undefined;
+
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect();
+      setHasSize(rect.width > 0 && rect.height > 0);
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => updateSize());
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, []);
+
+  return (
+    <div ref={containerRef} className={className}>
+      {hasSize ? children : null}
+    </div>
+  );
+}
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { language, t } = useI18n();
+  const dt = useCallback(
+    (key, variables) => {
+      const primary = getDashboardTranslationValue(language, key);
+      const fallback = getDashboardTranslationValue("en", key);
+      return interpolateDashboardTranslation(primary ?? fallback ?? key, variables);
+    },
+    [language],
+  );
+  const localizedStatusConfig = useMemo(() => getLocalizedStatusConfig(language), [language]);
+  const localizedPriorityConfig = useMemo(() => getLocalizedPriorityConfig(language), [language]);
+  const localizedFilterOptions = useMemo(() => getLocalizedFilterOptions(language), [language]);
+  const localizedPriorityFilterOptions = useMemo(() => getLocalizedPriorityFilterOptions(language), [language]);
+  const localizedSlaFilterOptions = useMemo(() => getLocalizedSlaFilterOptions(language), [language]);
+  const localizedRoleLabels = useMemo(() => getLocalizedRoleLabels(language), [language]);
+  const localizedRoleViews = useMemo(() => getLocalizedRoleBasedViews(language), [language]);
 
   // State Management
   const [profile, setProfile] = useState(null);
@@ -202,6 +603,7 @@ export default function Dashboard() {
   const [selectedKpiMetricKey, setSelectedKpiMetricKey] = useState("");
   const [supportChatOpenSignal, setSupportChatOpenSignal] = useState(0);
   const [showMoreQuickActions, setShowMoreQuickActions] = useState(false);
+  const [navMoreSelection, setNavMoreSelection] = useState("");
   const [activeTicketId, setActiveTicketId] = useState(null);
   const [isMessengerOpen, setIsMessengerOpen] = useState(false);
   const [isOperationalOverviewModalOpen, setIsOperationalOverviewModalOpen] = useState(false);
@@ -578,14 +980,16 @@ export default function Dashboard() {
       const [workNotesRes, notebookLogsRes] = await Promise.all([
         supabase
           .from("notes")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .neq("status", "DONE"),
+          .select("status")
+          .eq("user_id", user.id),
         loadMyNotebookBorrowLogs(),
       ]);
 
       if (!workNotesRes.error) {
-        setWorkNotesPendingCount(Number(workNotesRes.count || 0));
+        const workNotesRows = Array.isArray(workNotesRes.data) ? workNotesRes.data : [];
+        setWorkNotesPendingCount(
+          workNotesRows.filter((item) => String(item?.status || "").trim().toLowerCase() !== "done").length,
+        );
       } else {
         setWorkNotesPendingCount(0);
       }
@@ -786,7 +1190,7 @@ export default function Dashboard() {
         const hoursDiff = (closed - created) / (1000 * 60 * 60);
 
         const priority = ticket.priority || 'normal';
-        const slaHours = PRIORITY_CONFIG[priority]?.slaHours || 8;
+        const slaHours = localizedPriorityConfig[priority]?.slaHours || 8;
 
         if (hoursDiff <= slaHours) {
           onTimeCount++;
@@ -950,15 +1354,8 @@ export default function Dashboard() {
         .filter(Boolean);
 
       filtered = filtered.filter((t) => {
-        const statusSearchLabel = t.status === "NEW"
-          ? "รอดำเนินการ"
-          : t.status === "IN_PROGRESS"
-            ? "กำลังซ่อม"
-            : t.status === "CLOSED"
-              ? "สำเร็จ ปิดงาน"
-              : "";
-
-        const prioritySearchLabel = PRIORITY_CONFIG[t.priority || "normal"]?.label || "";
+        const statusSearchLabel = localizedStatusConfig[t.status]?.label || "";
+        const prioritySearchLabel = localizedPriorityConfig[t.priority || "normal"]?.label || "";
 
         const haystack = [
           t.ticket_no,
@@ -981,7 +1378,16 @@ export default function Dashboard() {
     }
 
     return filtered;
-  }, [tickets, activeFilter, priorityFilter, categoryFilter, slaFilter, searchQuery]);
+  }, [
+    tickets,
+    activeFilter,
+    priorityFilter,
+    categoryFilter,
+    slaFilter,
+    searchQuery,
+    localizedPriorityConfig,
+    localizedStatusConfig,
+  ]);
 
   const visibleTickets = useMemo(
     () => filteredTickets.slice(0, isCompactView ? 8 : 5),
@@ -990,8 +1396,8 @@ export default function Dashboard() {
 
   const roleViews = useMemo(() => {
     const role = profile?.role || "user";
-    return ROLE_BASED_VIEWS[role] || ROLE_BASED_VIEWS.user;
-  }, [profile?.role]);
+    return localizedRoleViews[role] || localizedRoleViews.user;
+  }, [profile?.role, localizedRoleViews]);
 
   const priorityInbox = useMemo(() => {
     const priorityRank = { urgent: 4, high: 3, normal: 2, low: 1 };
@@ -1064,7 +1470,7 @@ export default function Dashboard() {
     const hoursPassed = (now - created) / (1000 * 60 * 60);
 
     const priority = ticket.priority || 'normal';
-    const slaHours = PRIORITY_CONFIG[priority]?.slaHours || 8;
+    const slaHours = localizedPriorityConfig[priority]?.slaHours || 8;
     const remainingHours = slaHours - hoursPassed;
 
     if (remainingHours <= 0) return { overdue: true, atRisk: false, hours: Math.abs(remainingHours) };
@@ -1094,8 +1500,8 @@ export default function Dashboard() {
 
   // Get status config (using static map)
   const getStatusConfig = (status) => {
-    return STATUS_CONFIG[status] || {
-      label: 'ไม่ระบุ',
+    return localizedStatusConfig[status] || {
+      label: dt("activity.noCategory"),
       color: 'text-slate-600',
       bg: 'bg-slate-50',
       border: 'border-slate-200',
@@ -1107,8 +1513,8 @@ export default function Dashboard() {
 
   // Get priority config (using static map)
   const getPriorityConfig = (priority) => {
-    return PRIORITY_CONFIG[priority] || {
-      label: 'ไม่ระบุ',
+    return localizedPriorityConfig[priority] || {
+      label: dt("activity.noCategory"),
       color: 'bg-gradient-to-r from-slate-500 to-slate-600',
       icon: Timer,
       slaHours: 8
@@ -1545,66 +1951,66 @@ export default function Dashboard() {
     const items = [
       {
         id: "create-ticket",
-        label: "แจ้งซ่อม IT",
-        description: "รายงานปัญหาและติดตามผลตาม SLA",
+        label: dt("quickActions.createTicket.label"),
+        description: dt("quickActions.createTicket.description"),
         icon: Wrench,
         accent: "indigo",
-        cta: "ดำเนินการทันที",
+        cta: dt("quickActions.createTicket.cta"),
         onClick: () => navigate("/create-ticket"),
         badgeCount: openTicketCount,
         roles: ["user", "it_support", "executive", "admin"],
       },
       {
         id: "pick-up",
-        label: "เบิกอุปกรณ์",
-        description: "ขออุปกรณ์หรือวัสดุสิ้นเปลืองผ่าน workflow",
+        label: dt("quickActions.pickup.label"),
+        description: dt("quickActions.pickup.description"),
         icon: Package,
         accent: "emerald",
-        cta: "ตรวจสอบสต็อก",
+        cta: dt("quickActions.pickup.cta"),
         onClick: () => navigate("/pick-up-equipment"),
         badgeCount: accessRequestSummary.pending,
         roles: ["user", "it_support", "executive", "admin"],
       },
       {
         id: "notebook-center",
-        label: "การยืมคืน notebook",
-        description: "เปิดหน้า Notebook Center สำหรับยืม-คืน notebook",
+        label: dt("quickActions.notebook.label"),
+        description: dt("quickActions.notebook.description"),
         icon: Laptop,
         accent: "violet",
-        cta: "เปิดหน้า Notebook",
+        cta: dt("quickActions.notebook.cta"),
         onClick: () => navigate("/notebook-center"),
         badgeCount: notebookAttentionCount,
         roles: ["user", "it_support", "executive", "admin"],
       },
       {
         id: "work-notes",
-        label: "โน้ตงาน / Work Notes",
-        description: "บันทึกงาน วางแผนงาน และตั้งเตือนความจำส่วนตัว",
+        label: dt("quickActions.workNotes.label"),
+        description: dt("quickActions.workNotes.description"),
         icon: FileText,
         accent: "indigo",
-        cta: "เปิดหน้าโน้ต",
+        cta: dt("quickActions.workNotes.cta"),
         onClick: () => navigate("/work-notes"),
         badgeCount: workNotesPendingCount,
         roles: ["user", "it_support", "executive", "admin", "auditor"],
       },
       {
         id: "meeting-room-booking",
-        label: "จองห้องประชุม",
-        description: "จองห้องประชุมและจัดตารางเวลาการใช้งาน",
+        label: dt("quickActions.meetingRoom.label"),
+        description: dt("quickActions.meetingRoom.description"),
         icon: Calendar,
         accent: "sky",
-        cta: "เปิดหน้าจอง",
+        cta: dt("quickActions.meetingRoom.cta"),
         onClick: () => navigate("/meeting-room-booking"),
         badgeCount: upcomingMeetingCount,
         roles: ["user", "it_support", "executive", "admin"],
       },
       {
         id: "history",
-        label: "ประวัติ Ticket",
-        description: "ค้นหาและติดตาม Ticket ที่เคยแจ้งทั้งหมด",
+        label: dt("quickActions.history.label"),
+        description: dt("quickActions.history.description"),
         icon: BarChart3,
         accent: "sky",
-        cta: "เปิดรายการ",
+        cta: dt("quickActions.history.cta"),
         onClick: () =>
           navigate("/ticket-history", {
             state: {
@@ -1617,58 +2023,58 @@ export default function Dashboard() {
       },
       {
         id: "chat-it",
-        label: "แชท IT / แจ้งปัญหาด่วน",
-        description: "คุยกับทีม IT แบบ realtime",
+        label: dt("quickActions.chatIt.label"),
+        description: dt("quickActions.chatIt.description"),
         icon: MessageSquare,
         accent: "emerald",
-        cta: "เริ่มแชท",
+        cta: dt("quickActions.chatIt.cta"),
         onClick: () => setSupportChatOpenSignal((value) => value + 1),
         roles: ["user", "it_support", "it_manager", "executive", "admin", "auditor"],
       },
       {
         id: "my-status",
-        label: "สถานะของฉัน / ดู notebook, ticket และคำขอ",
-        description: "สรุปสถานะทั้งหมดในหน้าเดียว",
+        label: dt("quickActions.myStatus.label"),
+        description: dt("quickActions.myStatus.description"),
         icon: CheckCircle2,
         accent: "sky",
-        cta: "เปิดสถานะ",
+        cta: dt("quickActions.myStatus.cta"),
         onClick: () => navigate("/my-status"),
         roles: ["user", "it_support", "it_manager", "executive", "admin", "auditor"],
       },
       {
         id: "access-request",
-        label: "ขอสิทธิ์ระบบ",
-        description: "ส่งคำขอสิทธิ์ ERP, Shared Folder, Email Group หรือ Software",
+        label: dt("quickActions.accessRequest.label"),
+        description: dt("quickActions.accessRequest.description"),
         icon: KeyRound,
         accent: "indigo",
-        cta: "เปิดฟอร์มคำขอ",
+        cta: dt("quickActions.accessRequest.cta"),
         onClick: () => navigate("/access-request"),
         roles: ["user", "it_support", "executive", "admin", "auditor"],
       },
       {
         id: "admin-dashboard",
-        label: "Technician Dashboard",
-        description: "จัดคิวงาน, SLA และการมอบหมายระดับ IT",
+        label: dt("quickActions.adminDashboard.label"),
+        description: dt("quickActions.adminDashboard.description"),
         icon: ShieldCheck,
         accent: "violet",
-        cta: "เข้าสู่โหมดช่าง",
+        cta: dt("quickActions.adminDashboard.cta"),
         onClick: () => navigate("/admin-dashboard"),
         roles: ["it_support", "admin"],
       },
       {
         id: "audit-view",
-        label: "Audit View",
-        description: "ตรวจสอบ Log และรายงานเพื่อการกำกับดูแล",
+        label: dt("quickActions.auditView.label"),
+        description: dt("quickActions.auditView.description"),
         icon: Shield,
         accent: "slate",
-        cta: "เปิดมุมมองตรวจสอบ",
+        cta: dt("quickActions.auditView.cta"),
         onClick: () => navigate("/audit-view"),
         roles: ["auditor", "admin"],
       },
     ];
 
     return items.filter((item) => item.roles.includes(role));
-  }, [accessRequestSummary.pending, activeFilter, navigate, notebookAttentionCount, openTicketCount, profile?.role, tickets, upcomingMeetingCount, workNotesPendingCount]);
+  }, [accessRequestSummary.pending, activeFilter, dt, navigate, notebookAttentionCount, openTicketCount, profile?.role, tickets, upcomingMeetingCount, workNotesPendingCount]);
 
   const primaryQuickActionIds = useMemo(
     () => new Set(["create-ticket", "pick-up", "notebook-center", "work-notes", "meeting-room-booking", "history"]),
@@ -1689,6 +2095,15 @@ export default function Dashboard() {
     });
   }, [primaryQuickActionIds, quickActions]);
 
+  const localizedNavMoreLinks = useMemo(
+    () =>
+      NAV_MORE_LINKS.map((item) => ({
+        ...item,
+        label: dt(`navMore.${item.id}`),
+      })),
+    [dt],
+  );
+
   const canSeePriorityInbox = useMemo(() => {
     const role = profile?.role || "user";
     return role === "it_support" || role === "admin";
@@ -1697,19 +2112,23 @@ export default function Dashboard() {
   const isDarkTheme = themeMode === "dark";
   const currentRole = profile?.role || "user";
   const isUserSearchMode = currentRole === "user" || currentRole === "executive";
-  const roleLabel = ROLE_LABELS[currentRole] || ROLE_LABELS.user;
+  const roleLabel = localizedRoleLabels[currentRole] || localizedRoleLabels.user;
   const canOpenAuditView = currentRole === "admin" || currentRole === "auditor";
 
   const toggleTheme = () => {
     setThemeMode((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  const openMoreMenuPanel = useCallback(() => {
-    setShowMoreQuickActions((value) => !value);
-    const section = quickActionsSectionRef.current;
-    if (!section) return;
-    section.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  const handleNavMoreSelection = (event) => {
+    const selectedId = event.target.value;
+    setNavMoreSelection(selectedId);
+
+    const selectedItem = NAV_MORE_LINKS.find((item) => item.id === selectedId);
+    if (selectedItem?.href) {
+      window.open(selectedItem.href, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => setNavMoreSelection(""), 0);
+    }
+  };
 
   // Dark-mode-aware CSS classes
   const FORM_CONTROL_CLASS = isDarkTheme
@@ -2145,7 +2564,7 @@ export default function Dashboard() {
                 now
               </span>
             </div>
-            <div className="h-28 min-w-0">
+            <StableChartContainer className="h-28 min-w-0">
               {chartsReady ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <BarChart data={operationalStatusChartData} margin={{ top: 6, right: 4, left: -22, bottom: 0 }}>
@@ -2161,7 +2580,7 @@ export default function Dashboard() {
                   </BarChart>
                 </ResponsiveContainer>
               ) : null}
-            </div>
+            </StableChartContainer>
           </button>
 
           <button
@@ -2178,7 +2597,7 @@ export default function Dashboard() {
                 7 days
               </span>
             </div>
-            <div className="h-28 min-w-0">
+            <StableChartContainer className="h-28 min-w-0">
               {chartsReady ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <LineChart data={operationalTrendData} margin={{ top: 6, right: 4, left: -22, bottom: 0 }}>
@@ -2191,7 +2610,7 @@ export default function Dashboard() {
                   </LineChart>
                 </ResponsiveContainer>
               ) : null}
-            </div>
+            </StableChartContainer>
           </button>
 
           <button
@@ -2209,7 +2628,7 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3">
-              <div className="relative h-28 min-w-0">
+              <StableChartContainer className="relative h-28 min-w-0">
                 {chartsReady ? (
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                     <PieChart>
@@ -2228,7 +2647,7 @@ export default function Dashboard() {
                     <p className={`text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{operationalLoadTotal}</p>
                   </div>
                 </div>
-              </div>
+              </StableChartContainer>
 
               <div className="space-y-2">
                 {loadLegend.length > 0 ? (
@@ -2375,21 +2794,21 @@ export default function Dashboard() {
         href="#dashboard-main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-indigo-700 focus:shadow-lg"
       >
-        ข้ามไปยังเนื้อหาหลัก
+        {dt("statusBar.skipToContent")}
       </a>
       {/* Status Bar - Real-time Indicator */}
       <div className={`shrink-0 border-b px-3 py-1.5 backdrop-blur-xl sm:px-4 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-1.5 text-xs sm:text-sm lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className={`font-semibold ${isDarkTheme ? "text-slate-300" : "text-slate-700"}`}>ระบบพร้อมใช้งาน</span>
-            <span className={`hidden sm:inline ${isDarkTheme ? "text-slate-500" : "text-slate-500"}`}>แหล่งข้อมูล: Supabase Realtime</span>
+            <span className={`font-semibold ${isDarkTheme ? "text-slate-300" : "text-slate-700"}`}>{dt("statusBar.systemReady")}</span>
+            <span className={`hidden sm:inline ${isDarkTheme ? "text-slate-500" : "text-slate-500"}`}>{dt("statusBar.dataSource")}</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <span className={`hidden sm:inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
               <Calendar size={12} />
-              Sync: {lastUpdated ? formatDateTime(lastUpdated) : "กำลังโหลด..."}
+              {t("common.syncing")}: {lastUpdated ? formatDateTime(lastUpdated) : dt("statusBar.loading")}
             </span>
             <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
               <RefreshCw size={12} />
@@ -2397,7 +2816,7 @@ export default function Dashboard() {
             </span>
             <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-400" : "border-blue-200 bg-blue-100 text-blue-800"}`}>
               <ShieldCheck size={12} />
-              Role: {roleLabel}
+              {dt("statusBar.role")}: {roleLabel}
             </span>
             {canOpenAuditView && (
               <button
@@ -2406,7 +2825,7 @@ export default function Dashboard() {
                 className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
               >
                 <Shield size={12} />
-                Audit Log
+                {dt("statusBar.auditLog")}
               </button>
             )}
             <button
@@ -2415,7 +2834,7 @@ export default function Dashboard() {
               className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
             >
               <RefreshCw size={12} />
-              รีเฟรชข้อมูล
+              {dt("statusBar.refreshData")}
             </button>
           </div>
         </div>
@@ -2423,8 +2842,8 @@ export default function Dashboard() {
 
       {/* Navigation */}
       <nav className={`sticky top-0 z-40 shrink-0 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
-        <div className="mx-auto flex min-h-[56px] max-w-[1440px] items-center gap-3 px-4 py-2 sm:min-h-[64px] sm:px-6 lg:px-8">
-          <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border p-1.5 shadow-sm sm:flex-none ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-2 sm:min-h-[64px] sm:px-6 lg:flex-nowrap lg:px-8">
+          <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border p-1.5 shadow-sm lg:flex-none ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
             <div className="relative">
               <img
                 src={tdkLogo}
@@ -2449,7 +2868,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="ml-auto flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          <div className="flex min-w-0 basis-full items-center gap-2 sm:gap-3 lg:ml-auto lg:basis-auto lg:flex-1">
             <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-w-max items-center gap-2 sm:gap-3 pr-1">
                 <div className={`flex items-center gap-2 rounded-2xl border p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
@@ -2459,7 +2878,7 @@ export default function Dashboard() {
                     className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
                   >
                     <Calendar size={16} />
-                    <span className="hidden 2xl:inline">Meeting Room Status</span>
+                    <span className="hidden 2xl:inline">{dt("nav.meetingRoomStatus")}</span>
                     <span className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
                       {todayMeetingBookings.length}
                     </span>
@@ -2470,21 +2889,27 @@ export default function Dashboard() {
                     className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
                   >
                     <Clock size={16} />
-                    <span className="hidden 2xl:inline">กิจกรรมล่าสุด</span>
+                    <span className="hidden 2xl:inline">{dt("nav.recentActivity")}</span>
                     <span className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-amber-900/40 text-amber-300" : "bg-amber-50 text-amber-700"}`}>
                       {Math.min(filteredTickets.length, 99)}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={openMoreMenuPanel}
-                    aria-label={showMoreQuickActions ? "ซ่อนเมนูอื่นๆ" : "แสดงเมนูอื่นๆ"}
-                    className={`inline-flex items-center gap-2 rounded-xl border px-2.5 sm:px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
-                  >
+                  <label className={`inline-flex min-w-[180px] items-center gap-2 rounded-xl border px-2.5 sm:px-3 py-2 text-sm font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200" : "border-blue-200 bg-white/90 text-slate-700"}`}>
                     <SlidersHorizontal size={16} />
-                    <span className="hidden lg:inline">เมนูอื่นๆ</span>
-                    {showMoreQuickActions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
+                    <select
+                      value={navMoreSelection}
+                      onChange={handleNavMoreSelection}
+                      aria-label={dt("nav.moreMenu")}
+                      className={`w-full min-w-0 bg-transparent text-sm font-bold outline-none ${isDarkTheme ? "text-slate-200" : "text-slate-700"}`}
+                    >
+                      <option value="">{dt("nav.moreMenu")}</option>
+                      {localizedNavMoreLinks.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               </div>
             </div>
@@ -2493,8 +2918,8 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={toggleTheme}
-                aria-label={isDarkTheme ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
-                title={isDarkTheme ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
+                aria-label={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
+                title={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
                 className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
               >
                 {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
@@ -2502,17 +2927,17 @@ export default function Dashboard() {
               <div className={`hidden xl:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
                 <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
                   <Hash size={12} />
-                  ID: {profile?.employee_code || "ไม่ระบุ"}
+                  ID: {profile?.employee_code || dt("nav.notSpecified")}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
                   <Building2 size={12} />
-                  {profile?.department || "ไม่ระบุแผนก"}
+                  {profile?.department || dt("nav.notSpecifiedDepartment")}
                 </span>
               </div>
               <button
                 onClick={() => navigate("/create-ticket")}
                 className="inline-flex sm:hidden items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-white shadow-sm"
-                aria-label="แจ้งซ่อมใหม่"
+                aria-label={dt("nav.newTicket")}
               >
                 <Plus size={18} />
               </button>
@@ -2521,14 +2946,14 @@ export default function Dashboard() {
                 className="hidden lg:flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-white font-bold transition-all transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 active:translate-y-0"
               >
                 <Plus size={18} />
-                <span>แจ้งซ่อมใหม่</span>
+                <span>{dt("nav.newTicket")}</span>
               </button>
               <button
                 onClick={() => setIsLogoutConfirmOpen(true)}
                 className={`flex shrink-0 items-center gap-2 rounded-xl px-2.5 sm:px-3 lg:px-4 py-2 text-sm font-bold text-rose-600 transition-all ${isDarkTheme ? "hover:bg-rose-900/30" : "hover:bg-rose-50"}`}
               >
                 <LogOut size={18} />
-                <span className="hidden md:inline">ออกจากระบบ</span>
+                <span className="hidden md:inline">{t("common.signOut")}</span>
               </button>
             </div>
           </div>
@@ -2623,7 +3048,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-start pt-1">
+                  <div className="flex items-center justify-end pt-1">
                     <button
                       type="button"
                       onClick={() => setShowProfileDetails((prev) => !prev)}
@@ -2751,11 +3176,10 @@ export default function Dashboard() {
                   </div>
 
                   <div
-                    className={`mt-2 overflow-hidden transition-all duration-200 ease-out ${
-                      showMoreQuickActions
+                    className={`mt-2 overflow-hidden transition-all duration-200 ease-out ${showMoreQuickActions
                         ? "max-h-[560px] translate-y-0 opacity-100"
                         : "pointer-events-none max-h-0 -translate-y-1 opacity-0"
-                    }`}
+                      }`}
                   >
                     <div className={`rounded-2xl border p-2 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-blue-100 bg-white/95"}`}>
                       <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
@@ -2810,15 +3234,13 @@ export default function Dashboard() {
                             <button
                               key={action.id}
                               onClick={action.onClick}
-                              className={`group h-full rounded-[28px] border p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
-                                isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"
-                              } ${accent.hoverBorder} ${accent.hoverShadow} ${
-                                isChatAction
+                              className={`group h-full rounded-[28px] border p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"
+                                } ${accent.hoverBorder} ${accent.hoverShadow} ${isChatAction
                                   ? isDarkTheme
                                     ? "border-emerald-600/60 ring-1 ring-emerald-500/35"
                                     : "border-emerald-300 ring-1 ring-emerald-200"
                                   : ""
-                              }`}
+                                }`}
                             >
                               <div className="mb-4 flex items-start justify-between gap-3">
                                 <div className={`relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg}`}>
@@ -2830,13 +3252,13 @@ export default function Dashboard() {
                                   )}
                                 </div>
                                 <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${accent.pill}`}>
-                                  {isChatAction ? "เริ่มแชท" : action.cta}
+                                  {isChatAction ? dt("quickActions.startChat") : action.cta}
                                 </span>
                               </div>
                               <h4 className={QUICK_ACTIONS_TITLE_CLASS}>{action.label}</h4>
                               <p className={`mt-2 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
                               <div className={`mt-4 flex items-center gap-1 text-[11px] font-bold ${accent.text}`}>
-                                <span>เปิดใช้งาน</span>
+                                <span>{dt("quickActions.active")}</span>
                                 <ChevronRight size={12} className="transform transition-transform group-hover:translate-x-1" />
                               </div>
                             </button>
@@ -3281,7 +3703,7 @@ export default function Dashboard() {
                         aria-label="กรองตามสถานะ"
                         className={FORM_CONTROL_CLASS}
                       >
-                        {FILTER_OPTIONS.map((filter) => (
+                        {localizedFilterOptions.map((filter) => (
                           <option key={filter.id} value={filter.id}>{filter.label}</option>
                         ))}
                       </select>
@@ -3296,7 +3718,7 @@ export default function Dashboard() {
                       >
                         {categoryOptions.map((category) => (
                           <option key={category} value={category}>
-                            {category === "ALL" ? "ทุกหมวดหมู่" : category}
+                            {category === "ALL" ? dt("activity.allCategories") : category}
                           </option>
                         ))}
                       </select>
@@ -3310,7 +3732,7 @@ export default function Dashboard() {
                           aria-label="กรองตามความเร่งด่วน"
                           className={FORM_CONTROL_CLASS}
                         >
-                          {PRIORITY_FILTER_OPTIONS.map((option) => (
+                          {localizedPriorityFilterOptions.map((option) => (
                             <option key={option.id} value={option.id}>{option.label}</option>
                           ))}
                         </select>
@@ -3325,7 +3747,7 @@ export default function Dashboard() {
                           aria-label="กรองตาม SLA"
                           className={FORM_CONTROL_CLASS}
                         >
-                          {SLA_FILTER_OPTIONS.map((option) => (
+                          {localizedSlaFilterOptions.map((option) => (
                             <option key={option.id} value={option.id}>{option.label}</option>
                           ))}
                         </select>
@@ -3334,7 +3756,7 @@ export default function Dashboard() {
                   </div>
 
                   <p className={`mt-2 text-[11px] ${TEXT_MUTED_CLASS}`}>
-                    ค้นหาได้จาก: เลขงาน, หัวข้อ, รายละเอียด, หมวดหมู่, สถานที่, สถานะ, ความเร่งด่วน
+                    {dt("activity.searchByHint")}
                   </p>
 
                   <div className="mt-3 flex flex-col gap-3">
@@ -3346,7 +3768,7 @@ export default function Dashboard() {
                           aria-label="เลือกมุมมองที่บันทึกไว้"
                           className={`w-full sm:min-w-[220px] sm:flex-1 ${FORM_CONTROL_CLASS}`}
                         >
-                          <option value="">เลือกมุมมองที่บันทึกไว้</option>
+                          <option value="">{dt("activity.selectSavedView")}</option>
                           {savedFilterPresets.map((preset) => (
                             <option key={preset.id} value={preset.id}>{preset.name}</option>
                           ))}
@@ -3357,7 +3779,7 @@ export default function Dashboard() {
                           disabled={!selectedPresetId}
                           className={`${SECONDARY_BUTTON_CLASS} disabled:opacity-40`}
                         >
-                          ใช้มุมมอง
+                          {dt("activity.applyView")}
                         </button>
                         <button
                           type="button"
@@ -3379,7 +3801,7 @@ export default function Dashboard() {
                           className="inline-flex items-center gap-1 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
                         >
                           <BookmarkPlus size={14} />
-                          บันทึกมุมมอง
+                          {dt("activity.saveView")}
                         </button>
                       )}
                       {hasActiveSmartFilters && (
@@ -3388,7 +3810,7 @@ export default function Dashboard() {
                           onClick={clearSmartFilters}
                           className={SECONDARY_BUTTON_CLASS}
                         >
-                          ล้างตัวกรอง
+                          {dt("activity.clearFilters")}
                         </button>
                       )}
                     </div>
@@ -3400,8 +3822,8 @@ export default function Dashboard() {
                     <div className="space-y-3">
                       <p className={`text-[11px] font-semibold ${TEXT_MUTED_CLASS}`}>
                         {isCompactView
-                          ? "แตะการ์ดเพื่อเปิดรายละเอียดทันที"
-                          : "เลือก Ticket เพื่อดูสรุปด้านล่าง หรือเปิดรายละเอียดเต็มได้ทันที"}
+                          ? dt("activity.tapCard")
+                          : dt("activity.selectTicket")}
                       </p>
 
                       <div className="space-y-3" role="listbox" aria-label="รายการ Ticket ล่าสุด">
@@ -3412,9 +3834,9 @@ export default function Dashboard() {
                         type="button"
                         onClick={handleViewAllClick}
                         className={`group/view-all w-full rounded-xl border border-dashed py-3 text-center text-sm font-bold transition-all duration-300 ${isDarkTheme ? "border-indigo-500/40 text-indigo-300 hover:border-indigo-400 hover:bg-indigo-900/30" : "border-indigo-200 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50"}`}
-                      >
+                        >
                         <div className="flex items-center justify-center gap-2">
-                          <span>ดูประวัติทั้งหมด ({tickets.length} รายการ)</span>
+                          <span>{dt("activity.viewAllHistory", { count: tickets.length })}</span>
                           <ChevronRight size={14} className="transform transition-transform group-hover/view-all:translate-x-1" />
                         </div>
                       </button>
@@ -3435,15 +3857,15 @@ export default function Dashboard() {
                                     {activeTicketPriority.label}
                                   </span>
                                 </div>
-                                <h4 className={`text-base font-black ${TEXT_PRIMARY_CLASS}`}>{activeTicket.title || "ไม่มีหัวข้อ"}</h4>
-                                <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{activeTicket.category || "ไม่ระบุหมวดหมู่"} • {formatDate(activeTicket.created_at)}</p>
+                                <h4 className={`text-base font-black ${TEXT_PRIMARY_CLASS}`}>{activeTicket.title || dt("activity.noTitle")}</h4>
+                                <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{activeTicket.category || dt("activity.noCategory")} • {formatDate(activeTicket.created_at)}</p>
                                 <p className={`mt-3 rounded-xl border p-3 text-xs leading-relaxed ${isDarkTheme ? "border-slate-700 bg-slate-900/80 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}>
-                                  {activeTicket.description || "ไม่มีรายละเอียด"}
+                                  {activeTicket.description || dt("activity.noDescription")}
                                 </p>
                               </div>
 
                               <div className={`mb-4 rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white"}`}>
-                                <p className={`mb-2 text-[11px] font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>Activity Timeline</p>
+                                <p className={`mb-2 text-[11px] font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>{dt("activity.timeline")}</p>
                                 <div className="space-y-3">
                                   {activeTimeline.map((event, index) => (
                                     <div key={event.id} className="relative pl-5">
@@ -3464,13 +3886,13 @@ export default function Dashboard() {
                                 onClick={() => setSelectedTicket(activeTicket)}
                                 className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-bold text-white transition-all hover:shadow-lg hover:shadow-indigo-500/25"
                               >
-                                เปิดรายละเอียดเต็ม
+                                {dt("activity.fullDetails")}
                               </button>
                             </div>
                           ) : (
                             <div className={`rounded-xl border border-dashed p-5 text-center ${isDarkTheme ? "border-slate-700" : "border-slate-300"}`}>
-                              <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ยังไม่มีรายการที่เลือก</p>
-                              <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>เลือก Ticket จากรายการด้านบนเพื่อดูรายละเอียด</p>
+                              <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{dt("activity.noSelectedTicket")}</p>
+                              <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{dt("activity.selectTicketAbove")}</p>
                             </div>
                           )}
                         </div>
@@ -3481,11 +3903,11 @@ export default function Dashboard() {
                       <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br ${isDarkTheme ? "from-slate-700 to-slate-800" : "from-slate-50 to-slate-100"}`}>
                         <AlertCircle size={24} className="text-slate-300" />
                       </div>
-                      <h3 className={`mb-2 text-lg font-bold ${TEXT_SECONDARY_CLASS}`}>ไม่พบรายการแจ้งซ่อม</h3>
+                      <h3 className={`mb-2 text-lg font-bold ${TEXT_SECONDARY_CLASS}`}>{dt("activity.noTicketsFound")}</h3>
                       <p className={`mx-auto mb-6 max-w-md text-sm ${TEXT_MUTED_CLASS}`}>
                         {hasActiveSmartFilters
-                          ? "ไม่พบรายการที่ตรงกับ Smart Filter ปัจจุบัน"
-                          : "เริ่มต้นใช้งานระบบโดยการแจ้งซ่อมครั้งแรกของคุณ"}
+                          ? dt("activity.noTicketsForCurrentSmartFilter")
+                          : dt("activity.startFirstTicket")}
                       </p>
                       <div className="flex flex-wrap justify-center gap-2">
                         {hasActiveSmartFilters && (
@@ -3494,7 +3916,7 @@ export default function Dashboard() {
                             onClick={clearSmartFilters}
                             className={`inline-flex items-center gap-2 rounded-lg border px-5 py-2.5 text-sm font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}
                           >
-                            ล้างตัวกรอง
+                            {dt("activity.clearFilters")}
                           </button>
                         )}
                         <button
@@ -3797,7 +4219,7 @@ export default function Dashboard() {
                       </div>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>rolling 7 days</span>
                     </div>
-                    <div className="h-[280px] min-w-0">
+                    <StableChartContainer className="h-[280px] min-w-0">
                       {chartsReady ? (
                         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                           <LineChart data={operationalTrendData} margin={{ top: 12, right: 12, left: -12, bottom: 4 }}>
@@ -3810,7 +4232,7 @@ export default function Dashboard() {
                           </LineChart>
                         </ResponsiveContainer>
                       ) : null}
-                    </div>
+                    </StableChartContainer>
                   </section>
 
                   <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
@@ -3821,7 +4243,7 @@ export default function Dashboard() {
                       </div>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>live queue</span>
                     </div>
-                    <div className="h-[240px] min-w-0">
+                    <StableChartContainer className="h-[240px] min-w-0">
                       {chartsReady ? (
                         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                           <BarChart data={operationalStatusChartData} margin={{ top: 12, right: 12, left: -12, bottom: 4 }}>
@@ -3837,7 +4259,7 @@ export default function Dashboard() {
                           </BarChart>
                         </ResponsiveContainer>
                       ) : null}
-                    </div>
+                    </StableChartContainer>
                   </section>
                 </div>
 
@@ -3851,7 +4273,7 @@ export default function Dashboard() {
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>{operationalLoadTotal} รายการ</span>
                     </div>
 
-                    <div className="relative h-[250px] min-w-0">
+                    <StableChartContainer className="relative h-[250px] min-w-0">
                       {chartsReady ? (
                         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                           <PieChart>
@@ -3870,7 +4292,7 @@ export default function Dashboard() {
                           <p className={`mt-1 text-3xl font-black ${TEXT_PRIMARY_CLASS}`}>{operationalLoadTotal}</p>
                         </div>
                       </div>
-                    </div>
+                    </StableChartContainer>
 
                     <div className="space-y-2">
                       {operationalLoadData.map((item) => (
@@ -4089,7 +4511,7 @@ export default function Dashboard() {
                               <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${roomCard.bookedCount > 0
                                 ? (isDarkTheme ? "bg-rose-900/40 text-rose-300" : "bg-rose-50 text-rose-700")
                                 : (isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700")
-                              }`}>
+                                }`}>
                                 {roomCard.bookedCount > 0 ? "Booked" : "Available"}
                               </span>
                             </div>
@@ -4100,7 +4522,7 @@ export default function Dashboard() {
                                   className={`rounded-xl border px-3 py-2 text-xs ${slot.type === "booked"
                                     ? (isDarkTheme ? "border-rose-700/50 bg-rose-900/20 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700")
                                     : (isDarkTheme ? "border-emerald-700/40 bg-emerald-900/20 text-emerald-200" : "border-emerald-200 bg-emerald-50 text-emerald-700")
-                                  }`}
+                                    }`}
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="font-bold">
@@ -4222,7 +4644,7 @@ export default function Dashboard() {
                   </div>
 
                   <select value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)} aria-label="กรองตามสถานะ" className={FORM_CONTROL_CLASS}>
-                    {FILTER_OPTIONS.map((filter) => (
+                    {localizedFilterOptions.map((filter) => (
                       <option key={filter.id} value={filter.id}>{filter.label}</option>
                     ))}
                   </select>
@@ -4235,7 +4657,7 @@ export default function Dashboard() {
 
                   {!isUserSearchMode && (
                     <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} aria-label="กรองตามความเร่งด่วน" className={FORM_CONTROL_CLASS}>
-                      {PRIORITY_FILTER_OPTIONS.map((option) => (
+                      {localizedPriorityFilterOptions.map((option) => (
                         <option key={option.id} value={option.id}>{option.label}</option>
                       ))}
                     </select>
@@ -4243,7 +4665,7 @@ export default function Dashboard() {
 
                   {!isUserSearchMode && (
                     <select value={slaFilter} onChange={(e) => setSlaFilter(e.target.value)} aria-label="กรองตาม SLA" className={FORM_CONTROL_CLASS}>
-                      {SLA_FILTER_OPTIONS.map((option) => (
+                      {localizedSlaFilterOptions.map((option) => (
                         <option key={option.id} value={option.id}>{option.label}</option>
                       ))}
                     </select>

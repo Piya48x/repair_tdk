@@ -16,9 +16,25 @@ import {
   Mail,
 } from "lucide-react";
 
-export const STATUS_CONFIG = {
+function normalizeLanguage(language) {
+  const value = String(language || "").toLowerCase();
+  if (value.startsWith("th")) return "th";
+  if (value.startsWith("ko")) return "ko";
+  return "en";
+}
+
+function pickLabel(labels, language) {
+  const normalized = normalizeLanguage(language);
+  return labels[normalized] || labels.en;
+}
+
+const STATUS_DEFINITIONS = {
   NEW: {
-    label: "รอดำเนินการ",
+    labels: {
+      th: "รอดำเนินการ",
+      en: "Pending",
+      ko: "대기 중",
+    },
     color: "text-rose-600",
     bg: "bg-rose-50",
     border: "border-rose-200",
@@ -27,7 +43,11 @@ export const STATUS_CONFIG = {
     badgeGradient: "from-rose-500 to-rose-600",
   },
   IN_PROGRESS: {
-    label: "กำลังซ่อม",
+    labels: {
+      th: "กำลังซ่อม",
+      en: "In Progress",
+      ko: "진행 중",
+    },
     color: "text-amber-600",
     bg: "bg-amber-50",
     border: "border-amber-200",
@@ -36,7 +56,11 @@ export const STATUS_CONFIG = {
     badgeGradient: "from-amber-500 to-orange-600",
   },
   CLOSED: {
-    label: "สำเร็จ",
+    labels: {
+      th: "สำเร็จ",
+      en: "Completed",
+      ko: "완료",
+    },
     color: "text-emerald-600",
     bg: "bg-emerald-50",
     border: "border-emerald-200",
@@ -46,31 +70,283 @@ export const STATUS_CONFIG = {
   },
 };
 
-export const PRIORITY_CONFIG = {
+const PRIORITY_DEFINITIONS = {
   urgent: {
-    label: "ด่วน",
+    labels: {
+      th: "ด่วน",
+      en: "Urgent",
+      ko: "긴급",
+    },
     color: "bg-gradient-to-r from-rose-500 to-pink-600",
     icon: Zap,
     slaHours: 2,
   },
   high: {
-    label: "สูง",
+    labels: {
+      th: "สูง",
+      en: "High",
+      ko: "높음",
+    },
     color: "bg-gradient-to-r from-amber-500 to-orange-600",
     icon: Activity,
     slaHours: 4,
   },
   normal: {
-    label: "ปกติ",
+    labels: {
+      th: "ปกติ",
+      en: "Normal",
+      ko: "보통",
+    },
     color: "bg-gradient-to-r from-blue-500 to-indigo-600",
     icon: Timer,
     slaHours: 8,
   },
   low: {
-    label: "ต่ำ",
+    labels: {
+      th: "ต่ำ",
+      en: "Low",
+      ko: "낮음",
+    },
     color: "bg-gradient-to-r from-emerald-500 to-green-600",
     icon: Battery,
     slaHours: 24,
   },
+};
+
+const FILTER_OPTION_DEFINITIONS = [
+  {
+    id: "ALL",
+    labels: {
+      th: "ทั้งหมด",
+      en: "All",
+      ko: "전체",
+    },
+    color: "bg-slate-100 text-slate-700",
+  },
+  {
+    id: "PENDING",
+    labels: {
+      th: "รอดำเนินการ",
+      en: "Pending",
+      ko: "대기 중",
+    },
+    color: "bg-amber-100 text-amber-700",
+  },
+  {
+    id: "CLOSED",
+    labels: {
+      th: "สำเร็จ",
+      en: "Completed",
+      ko: "완료",
+    },
+    color: "bg-emerald-100 text-emerald-700",
+  },
+];
+
+const PRIORITY_FILTER_DEFINITIONS = [
+  {
+    id: "ALL",
+    labels: {
+      th: "ทุกความเร่งด่วน",
+      en: "All priorities",
+      ko: "전체 우선순위",
+    },
+  },
+  { id: "urgent", labels: PRIORITY_DEFINITIONS.urgent.labels },
+  { id: "high", labels: PRIORITY_DEFINITIONS.high.labels },
+  { id: "normal", labels: PRIORITY_DEFINITIONS.normal.labels },
+  { id: "low", labels: PRIORITY_DEFINITIONS.low.labels },
+];
+
+const SLA_FILTER_DEFINITIONS = [
+  {
+    id: "ALL",
+    labels: {
+      th: "SLA ทั้งหมด",
+      en: "All SLA states",
+      ko: "전체 SLA 상태",
+    },
+  },
+  {
+    id: "ON_TRACK",
+    labels: {
+      th: "อยู่ใน SLA",
+      en: "On track",
+      ko: "SLA 내",
+    },
+  },
+  {
+    id: "RISK",
+    labels: {
+      th: "เสี่ยงหลุด SLA",
+      en: "At risk",
+      ko: "SLA 위험",
+    },
+  },
+  {
+    id: "OVERDUE",
+    labels: {
+      th: "หลุด SLA",
+      en: "Overdue",
+      ko: "SLA 초과",
+    },
+  },
+];
+
+const ROLE_LABEL_DEFINITIONS = {
+  user: {
+    th: "ผู้ใช้งาน",
+    en: "User",
+    ko: "사용자",
+  },
+  it_support: {
+    th: "ทีม IT Support",
+    en: "IT Support",
+    ko: "IT Support",
+  },
+  admin: {
+    th: "ผู้ดูแลระบบ",
+    en: "Administrator",
+    ko: "관리자",
+  },
+  auditor: {
+    th: "ผู้ตรวจสอบ",
+    en: "Auditor",
+    ko: "감사 담당자",
+  },
+  it_manager: {
+    th: "IT Manager",
+    en: "IT Manager",
+    ko: "IT Manager",
+  },
+  executive: {
+    th: "Executive",
+    en: "Executive",
+    ko: "Executive",
+  },
+};
+
+const ROLE_VIEW_DEFINITIONS = {
+  user: [
+    {
+      id: "user-my-open",
+      labels: {
+        th: "งานที่ต้องตาม",
+        en: "My Open Work",
+        ko: "내 진행 작업",
+      },
+      descriptions: {
+        th: "งานที่ยังไม่ปิดทั้งหมด",
+        en: "All work items that are still open.",
+        ko: "아직 완료되지 않은 모든 작업입니다.",
+      },
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
+    },
+    {
+      id: "user-sla-risk",
+      labels: {
+        th: "งานเสี่ยง SLA",
+        en: "SLA Risk",
+        ko: "SLA 위험 작업",
+      },
+      descriptions: {
+        th: "โฟกัสงานที่ต้องเร่งติดตาม",
+        en: "Focus on tickets that need urgent follow-up.",
+        ko: "긴급 추적이 필요한 작업에 집중합니다.",
+      },
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "RISK", searchQuery: "" },
+    },
+  ],
+  it_support: [
+    {
+      id: "it-overdue",
+      labels: {
+        th: "คิวงานเกิน SLA",
+        en: "Overdue Queue",
+        ko: "SLA 초과 큐",
+      },
+      descriptions: {
+        th: "งานหลุด SLA ที่ต้องเร่งปิด",
+        en: "Tickets that exceeded SLA and need immediate closure.",
+        ko: "SLA를 초과해 즉시 처리해야 하는 작업입니다.",
+      },
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "OVERDUE", searchQuery: "" },
+    },
+    {
+      id: "it-priority",
+      labels: {
+        th: "งาน Priority สูง",
+        en: "High Priority",
+        ko: "높은 우선순위",
+      },
+      descriptions: {
+        th: "ด่วนและสูงเพื่อจัดคิวช่าง",
+        en: "Urgent and high-priority work for technician assignment.",
+        ko: "긴급 및 높은 우선순위 작업을 기술자에게 배정합니다.",
+      },
+      filters: { activeFilter: "PENDING", priorityFilter: "high", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
+    },
+  ],
+  admin: [
+    {
+      id: "admin-ops",
+      labels: {
+        th: "ภาพรวมงานปฏิบัติการ",
+        en: "Ops Control",
+        ko: "운영 통제",
+      },
+      descriptions: {
+        th: "ภาพรวมงานค้างทุกประเภท",
+        en: "Overview of all pending operational work.",
+        ko: "모든 대기 중 운영 작업의 개요입니다.",
+      },
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
+    },
+    {
+      id: "admin-sla",
+      labels: {
+        th: "SLA Critical",
+        en: "SLA Critical",
+        ko: "SLA 중요",
+      },
+      descriptions: {
+        th: "รวมงานเสี่ยงและหลุด SLA",
+        en: "Collects at-risk and overdue SLA tickets.",
+        ko: "SLA 위험 및 초과 작업을 모아봅니다.",
+      },
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "RISK", searchQuery: "" },
+    },
+  ],
+  auditor: [
+    {
+      id: "audit-closed",
+      labels: {
+        th: "งานที่ปิดแล้ว",
+        en: "Closed Tickets",
+        ko: "완료된 티켓",
+      },
+      descriptions: {
+        th: "ตรวจสอบงานที่ปิดแล้ว",
+        en: "Review tickets that have already been closed.",
+        ko: "이미 완료된 작업을 검토합니다.",
+      },
+      filters: { activeFilter: "CLOSED", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
+    },
+    {
+      id: "audit-sla",
+      labels: {
+        th: "SLA Findings",
+        en: "SLA Findings",
+        ko: "SLA 이슈",
+      },
+      descriptions: {
+        th: "ดูงานหลุด SLA สำหรับตรวจสอบ",
+        en: "Inspect overdue SLA cases for auditing.",
+        ko: "감사를 위해 SLA 초과 사례를 검토합니다.",
+      },
+      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "OVERDUE", searchQuery: "" },
+    },
+  ],
 };
 
 export const CATEGORY_ICONS = {
@@ -85,97 +361,76 @@ export const CATEGORY_ICONS = {
   Website: Globe,
 };
 
-export const FILTER_OPTIONS = [
-  { id: "ALL", label: "ทั้งหมด", color: "bg-slate-100 text-slate-700" },
-  { id: "PENDING", label: "รอดำเนินการ", color: "bg-amber-100 text-amber-700" },
-  { id: "CLOSED", label: "สำเร็จ", color: "bg-emerald-100 text-emerald-700" },
-];
-
-export const PRIORITY_FILTER_OPTIONS = [
-  { id: "ALL", label: "ทุกความเร่งด่วน" },
-  { id: "urgent", label: "ด่วน" },
-  { id: "high", label: "สูง" },
-  { id: "normal", label: "ปกติ" },
-  { id: "low", label: "ต่ำ" },
-];
-
-export const SLA_FILTER_OPTIONS = [
-  { id: "ALL", label: "SLA ทั้งหมด" },
-  { id: "ON_TRACK", label: "อยู่ใน SLA" },
-  { id: "RISK", label: "เสี่ยงหลุด SLA" },
-  { id: "OVERDUE", label: "หลุด SLA" },
-];
-
 export const SMART_FILTER_PRESET_KEY = "dashboard-smart-filter-presets-v1";
 export const DASHBOARD_THEME_KEY = "dashboard-theme-v1";
 
-export const ROLE_LABELS = {
-  user: "ผู้ใช้งาน",
-  it_support: "ทีม IT Support",
-  admin: "ผู้ดูแลระบบ",
-  auditor: "ผู้ตรวจสอบ",
-  it_manager: "IT Manager",
-  executive: "Executive",
-};
+export function getStatusConfig(language) {
+  return Object.fromEntries(
+    Object.entries(STATUS_DEFINITIONS).map(([key, value]) => [
+      key,
+      {
+        ...value,
+        label: pickLabel(value.labels, language),
+      },
+    ]),
+  );
+}
 
-export const ROLE_BASED_VIEWS = {
-  user: [
-    {
-      id: "user-my-open",
-      label: "งานที่ต้องตาม",
-      description: "งานที่ยังไม่ปิดทั้งหมด",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
-    },
-    {
-      id: "user-sla-risk",
-      label: "งานเสี่ยง SLA",
-      description: "โฟกัสงานที่ต้องเร่งติดตาม",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "RISK", searchQuery: "" },
-    },
-  ],
-  it_support: [
-    {
-      id: "it-overdue",
-      label: "Overdue Queue",
-      description: "งานหลุด SLA ที่ต้องเร่งปิด",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "OVERDUE", searchQuery: "" },
-    },
-    {
-      id: "it-priority",
-      label: "งาน Priority สูง",
-      description: "ด่วนและสูงเพื่อจัดคิวช่าง",
-      filters: { activeFilter: "PENDING", priorityFilter: "high", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
-    },
-  ],
-  admin: [
-    {
-      id: "admin-ops",
-      label: "Ops Control",
-      description: "ภาพรวมงานค้างทุกประเภท",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
-    },
-    {
-      id: "admin-sla",
-      label: "SLA Critical",
-      description: "รวมงานเสี่ยงและหลุด SLA",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "RISK", searchQuery: "" },
-    },
-  ],
-  auditor: [
-    {
-      id: "audit-closed",
-      label: "Closed Tickets",
-      description: "ตรวจสอบงานที่ปิดแล้ว",
-      filters: { activeFilter: "CLOSED", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "ALL", searchQuery: "" },
-    },
-    {
-      id: "audit-sla",
-      label: "SLA Findings",
-      description: "ดูงานหลุด SLA สำหรับตรวจสอบ",
-      filters: { activeFilter: "PENDING", priorityFilter: "ALL", categoryFilter: "ALL", slaFilter: "OVERDUE", searchQuery: "" },
-    },
-  ],
-};
+export function getPriorityConfig(language) {
+  return Object.fromEntries(
+    Object.entries(PRIORITY_DEFINITIONS).map(([key, value]) => [
+      key,
+      {
+        ...value,
+        label: pickLabel(value.labels, language),
+      },
+    ]),
+  );
+}
+
+export function getFilterOptions(language) {
+  return FILTER_OPTION_DEFINITIONS.map((item) => ({
+    id: item.id,
+    color: item.color,
+    label: pickLabel(item.labels, language),
+  }));
+}
+
+export function getPriorityFilterOptions(language) {
+  return PRIORITY_FILTER_DEFINITIONS.map((item) => ({
+    id: item.id,
+    label: pickLabel(item.labels, language),
+  }));
+}
+
+export function getSlaFilterOptions(language) {
+  return SLA_FILTER_DEFINITIONS.map((item) => ({
+    id: item.id,
+    label: pickLabel(item.labels, language),
+  }));
+}
+
+export function getRoleLabels(language) {
+  return Object.fromEntries(
+    Object.entries(ROLE_LABEL_DEFINITIONS).map(([key, value]) => [key, pickLabel(value, language)]),
+  );
+}
+
+export function getRoleBasedViews(language) {
+  return Object.fromEntries(
+    Object.entries(ROLE_VIEW_DEFINITIONS).map(([role, views]) => [
+      role,
+      views.map((view) => ({
+        id: view.id,
+        label: pickLabel(view.labels, language),
+        description: pickLabel(view.descriptions, language),
+        filters: view.filters,
+      })),
+    ]),
+  );
+}
+
+export const PRIORITY_CONFIG = getPriorityConfig("th");
 
 export const getSlaState = (ticket) => {
   if (!ticket?.created_at || ticket.status === "CLOSED") return "CLOSED";
@@ -184,7 +439,7 @@ export const getSlaState = (ticket) => {
   const now = new Date();
   const hoursPassed = (now - created) / (1000 * 60 * 60);
   const priority = ticket.priority || "normal";
-  const slaHours = PRIORITY_CONFIG[priority]?.slaHours || 8;
+  const slaHours = PRIORITY_DEFINITIONS[priority]?.slaHours || 8;
   const remaining = slaHours - hoursPassed;
 
   if (remaining <= 0) return "OVERDUE";

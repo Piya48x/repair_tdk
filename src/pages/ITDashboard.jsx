@@ -1447,6 +1447,7 @@ const ITDashboard = () => {
 
           <ITDashboardPageRenderer
             currentPage={currentPage}
+            onNavigatePage={handleNavigatePage}
             theme={theme}
             uiTheme={uiTheme}
             statCards={statCards}

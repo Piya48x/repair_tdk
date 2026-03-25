@@ -1,6 +1,76 @@
 import React, { useMemo } from "react";
 import { CheckCircle2, FileText, X } from "lucide-react";
 import TicketChatPanel from "../../../components/TicketChatPanel";
+import { useScopedI18n } from "../../../i18n/useScopedI18n";
+
+const TICKET_DETAIL_MODAL_TRANSLATIONS = {
+  th: {
+    reporter: "ผู้แจ้ง",
+    noEmployeeId: "ไม่ระบุรหัส",
+    noDepartment: "ไม่ระบุแผนก",
+    untitledTicket: "ไม่มีหัวข้อ",
+    closeAria: "ปิดรายละเอียดเคส",
+    problemDetails: "รายละเอียดปัญหา",
+    noDescription: "ไม่มีรายละเอียดเพิ่มเติม",
+    ticketInfo: "ข้อมูลเคส",
+    category: "หมวดหมู่",
+    createdAt: "วันที่สร้าง",
+    location: "สถานที่",
+    people: "ผู้เกี่ยวข้อง",
+    technician: "ช่างผู้รับผิดชอบ",
+    waitingAssignment: "รอมอบหมายงาน",
+    itSupport: "IT Support",
+    resolutionNote: "บันทึกการแก้ไข",
+    attachments: "ไฟล์แนบ",
+    attachmentLabel: "ไฟล์แนบ {{index}}",
+    close: "ปิด",
+    createNewTicket: "สร้าง Ticket ใหม่",
+  },
+  en: {
+    reporter: "Reporter",
+    noEmployeeId: "No employee ID",
+    noDepartment: "No department",
+    untitledTicket: "Untitled ticket",
+    closeAria: "Close ticket details",
+    problemDetails: "Problem details",
+    noDescription: "No description provided",
+    ticketInfo: "Ticket info",
+    category: "Category",
+    createdAt: "Created at",
+    location: "Location",
+    people: "People",
+    technician: "Technician",
+    waitingAssignment: "Waiting for assignment",
+    itSupport: "IT Support",
+    resolutionNote: "Resolution note",
+    attachments: "Attachments",
+    attachmentLabel: "Attachment {{index}}",
+    close: "Close",
+    createNewTicket: "Create new ticket",
+  },
+  ko: {
+    reporter: "신청자",
+    noEmployeeId: "사번 없음",
+    noDepartment: "부서 없음",
+    untitledTicket: "제목 없음",
+    closeAria: "티켓 상세 닫기",
+    problemDetails: "문제 상세",
+    noDescription: "설명이 없습니다",
+    ticketInfo: "티켓 정보",
+    category: "카테고리",
+    createdAt: "생성일",
+    location: "위치",
+    people: "관련자",
+    technician: "담당자",
+    waitingAssignment: "담당자 배정 대기",
+    itSupport: "IT Support",
+    resolutionNote: "처리 메모",
+    attachments: "첨부 파일",
+    attachmentLabel: "첨부 {{index}}",
+    close: "닫기",
+    createNewTicket: "새 티켓 만들기",
+  },
+};
 
 function buildAvatarFallback(name, color = "2b59b0") {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(String(name || "U"))}&background=${color}&color=fff&size=96`;
@@ -41,16 +111,17 @@ export default function TicketDetailModal({
   formatDate,
   currentUser,
 }) {
+  const { tt } = useScopedI18n(TICKET_DETAIL_MODAL_TRANSLATIONS);
   const attachmentUrls = useMemo(() => collectAttachmentUrls(ticket), [ticket]);
 
   if (!ticket) return null;
 
   const statusConfig = getStatusConfig(ticket.status);
   const priorityConfig = getPriorityConfig(ticket.priority);
-  const reporterName = ticket.reporter_name || "ผู้แจ้ง";
+  const reporterName = ticket.reporter_name || tt("reporter");
   const reporterEmpId =
-    ticket.reporter_emp_id || deriveEmployeeCodeFromEmail(ticket.reporter_email) || "ไม่ระบุรหัส";
-  const reporterDept = ticket.reporter_dept || ticket.department || "ไม่ระบุแผนก";
+    ticket.reporter_emp_id || deriveEmployeeCodeFromEmail(ticket.reporter_email) || tt("noEmployeeId");
+  const reporterDept = ticket.reporter_dept || ticket.department || tt("noDepartment");
   const reporterAvatar =
     ticket.reporter_avatar_url || buildAvatarFallback(reporterName, "2b59b0");
   const technicianAvatar =
@@ -81,12 +152,12 @@ export default function TicketDetailModal({
                   {priorityConfig.label}
                 </span>
               </div>
-              <h2 className="text-2xl font-black text-slate-800">{ticket.title || "Untitled ticket"}</h2>
+              <h2 className="text-2xl font-black text-slate-800">{ticket.title || tt("untitledTicket")}</h2>
             </div>
             <button
               onClick={onClose}
               className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-              aria-label="close ticket detail"
+              aria-label={tt("closeAria")}
             >
               <X size={22} />
             </button>
@@ -96,36 +167,36 @@ export default function TicketDetailModal({
             <section>
               <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500">
                 <FileText size={14} />
-                Problem Details
+                {tt("problemDetails")}
               </h3>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="whitespace-pre-line text-sm text-slate-700">
-                  {ticket.description || "No description provided"}
+                  {ticket.description || tt("noDescription")}
                 </p>
               </div>
             </section>
 
             <section className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Ticket Info</h3>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">{tt("ticketInfo")}</h3>
                 <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-slate-500">Category</span>
+                    <span className="text-slate-500">{tt("category")}</span>
                     <span className="font-semibold text-slate-800">{ticket.category || "-"}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-slate-500">Created at</span>
+                    <span className="text-slate-500">{tt("createdAt")}</span>
                     <span className="font-semibold text-slate-800">{formatDate(ticket.created_at)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-slate-500">Location</span>
+                    <span className="text-slate-500">{tt("location")}</span>
                     <span className="font-semibold text-slate-800">{ticket.location || "-"}</span>
                   </div>
                 </div>
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">People</h3>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">{tt("people")}</h3>
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-[#2b59b0]/20 bg-[#2b59b0]/10 p-4">
                     <div className="flex items-center gap-3">
@@ -155,15 +226,15 @@ export default function TicketDetailModal({
                             "059669",
                           );
                         }}
-                        alt={ticket.assigned_name || "Technician"}
+                        alt={ticket.assigned_name || tt("technician")}
                         className="h-10 w-10 rounded-full border border-emerald-200 bg-white object-cover"
                       />
                       <div>
                         <p className="font-bold text-slate-800">
-                          {ticket.assigned_name || "Waiting for assignment"}
+                          {ticket.assigned_name || tt("waitingAssignment")}
                         </p>
                         <p className="text-xs text-slate-600">
-                          {ticket.assigned_employee_id || "IT Support"}
+                          {ticket.assigned_employee_id || tt("itSupport")}
                         </p>
                       </div>
                     </div>
@@ -176,7 +247,7 @@ export default function TicketDetailModal({
               <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <h3 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-emerald-700">
                   <CheckCircle2 size={14} />
-                  Resolution Note
+                  {tt("resolutionNote")}
                 </h3>
                 <p className="text-sm leading-relaxed text-emerald-800">{ticket.solution_note}</p>
               </section>
@@ -184,7 +255,7 @@ export default function TicketDetailModal({
 
             {attachmentUrls.length > 0 && (
               <section>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Attachments</h3>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">{tt("attachments")}</h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {attachmentUrls.map((url, index) => (
                     <button
@@ -195,11 +266,11 @@ export default function TicketDetailModal({
                     >
                       <img
                         src={url}
-                        alt={`attachment-${index + 1}`}
+                        alt={tt("attachmentLabel", { index: index + 1 })}
                         className="h-44 w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                       <div className="border-t border-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
-                        Attachment {index + 1}
+                        {tt("attachmentLabel", { index: index + 1 })}
                       </div>
                     </button>
                   ))}
@@ -215,13 +286,13 @@ export default function TicketDetailModal({
               onClick={onClose}
               className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
             >
-              Close
+              {tt("close")}
             </button>
             <button
               onClick={onNewTicket}
               className="rounded-xl bg-[#2b59b0] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#244a95]"
             >
-              Create New Ticket
+              {tt("createNewTicket")}
             </button>
           </div>
         </div>

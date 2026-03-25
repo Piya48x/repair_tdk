@@ -14,8 +14,66 @@ import {
   PanelLeftOpen,
   X as XIcon,
 } from "lucide-react";
+import { useScopedI18n } from "../../../i18n/useScopedI18n";
 import { getITDashboardTheme } from "../theme/itDashboardTheme";
 import tdkLogo from "../../../assets/2.png";
+
+const SIDEBAR_TRANSLATIONS = {
+  th: {
+    companyName: "บริษัท ที.ดี.เค.อินดัสเตรียล จำกัด",
+    expandSidebar: "ขยายเมนูด้านข้าง",
+    collapseSidebar: "ย่อเมนูด้านข้าง",
+    closeSidebar: "ปิดเมนูด้านข้าง",
+    nav: {
+      dashboard: "แดชบอร์ด",
+      tickets: "งานซ่อม",
+      accessRequests: "ขอสิทธิ์ระบบ",
+      notebookBorrow: "ยืม-คืนโน้ตบุ๊ก",
+      workLogs: "บันทึกงาน IT",
+      active: "กำลังดำเนินการ",
+      history: "ประวัติ",
+      calendar: "ปฏิทิน",
+      reports: "รายงาน",
+      settings: "ตั้งค่า",
+    },
+  },
+  en: {
+    companyName: "TDK Industrial Co., Ltd.",
+    expandSidebar: "Expand sidebar",
+    collapseSidebar: "Collapse sidebar",
+    closeSidebar: "Close sidebar",
+    nav: {
+      dashboard: "Dashboard",
+      tickets: "Repair tickets",
+      accessRequests: "Access requests",
+      notebookBorrow: "Notebook lending",
+      workLogs: "IT work logs",
+      active: "In progress",
+      history: "History",
+      calendar: "Calendar",
+      reports: "Reports",
+      settings: "Settings",
+    },
+  },
+  ko: {
+    companyName: "TDK Industrial Co., Ltd.",
+    expandSidebar: "사이드바 펼치기",
+    collapseSidebar: "사이드바 접기",
+    closeSidebar: "사이드바 닫기",
+    nav: {
+      dashboard: "대시보드",
+      tickets: "수리 작업",
+      accessRequests: "권한 요청",
+      notebookBorrow: "노트북 대여/반납",
+      workLogs: "IT 작업 기록",
+      active: "진행 중",
+      history: "이력",
+      calendar: "캘린더",
+      reports: "보고서",
+      settings: "설정",
+    },
+  },
+};
 
 const ITDashboardSidebar = ({
   sidebarOpen,
@@ -28,19 +86,20 @@ const ITDashboardSidebar = ({
   notificationCount = 0,
   notebookNotificationCount = 0,
 }) => {
+  const { tt } = useScopedI18n(SIDEBAR_TRANSLATIONS);
   const uiTheme = getITDashboardTheme(theme);
 
   const navItems = [
-    { id: "DASHBOARD", label: "แดชบอร์ด", icon: LayoutDashboard },
-    { id: "TICKETS", label: "งานซ่อม", icon: Ticket },
-    { id: "ACCESS_REQUESTS", label: "ขอสิทธิ์ระบบ", icon: KeyRound },
-    { id: "NOTEBOOK_BORROW", label: "ยืม-คืนโน้ตบุ๊ก", icon: Laptop },
-    { id: "IT_WORK_LOGS", label: "บันทึกงาน IT", icon: Camera },
-    { id: "ACTIVE", label: "กำลังดำเนินการ", icon: Activity },
-    { id: "HISTORY", label: "ประวัติ", icon: History },
-    { id: "CALENDAR", label: "ปฏิทิน", icon: CalendarDays },
-    { id: "REPORTS", label: "รายงาน", icon: BarChart3 },
-    { id: "SETTINGS", label: "ตั้งค่า", icon: Settings },
+    { id: "DASHBOARD", label: tt("nav.dashboard"), icon: LayoutDashboard },
+    { id: "TICKETS", label: tt("nav.tickets"), icon: Ticket },
+    { id: "ACCESS_REQUESTS", label: tt("nav.accessRequests"), icon: KeyRound },
+    { id: "NOTEBOOK_BORROW", label: tt("nav.notebookBorrow"), icon: Laptop },
+    { id: "IT_WORK_LOGS", label: tt("nav.workLogs"), icon: Camera },
+    { id: "ACTIVE", label: tt("nav.active"), icon: Activity },
+    { id: "HISTORY", label: tt("nav.history"), icon: History },
+    { id: "CALENDAR", label: tt("nav.calendar"), icon: CalendarDays },
+    { id: "REPORTS", label: tt("nav.reports"), icon: BarChart3 },
+    { id: "SETTINGS", label: tt("nav.settings"), icon: Settings },
   ];
 
   const resolveActive = (itemId) => itemId === currentPage;
@@ -68,9 +127,7 @@ const ITDashboardSidebar = ({
               {!sidebarCollapsed && (
                 <div className="min-w-0">
                   <p className={`truncate text-sm font-black ${uiTheme.sidebarHeading}`}>TDK INDUSTRIAL</p>
-                  <p className={`truncate text-[11px] ${uiTheme.sidebarVersion}`}>
-                    บริษัท ที.ดี.เค.อินดัสเตรียล จำกัด
-                  </p>
+                  <p className={`truncate text-[11px] ${uiTheme.sidebarVersion}`}>{tt("companyName")}</p>
                 </div>
               )}
             </div>
@@ -80,7 +137,7 @@ const ITDashboardSidebar = ({
                 type="button"
                 onClick={() => setSidebarCollapsed((prev) => !prev)}
                 className={`hidden lg:inline-flex rounded-lg p-2 transition-colors ${uiTheme.sidebarCloseButton}`}
-                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-label={sidebarCollapsed ? tt("expandSidebar") : tt("collapseSidebar")}
               >
                 {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
               </button>
@@ -89,7 +146,7 @@ const ITDashboardSidebar = ({
                 type="button"
                 onClick={() => setSidebarOpen(false)}
                 className={`lg:hidden rounded-lg p-2 transition-colors ${uiTheme.sidebarCloseButton}`}
-                aria-label="Close sidebar"
+                aria-label={tt("closeSidebar")}
               >
                 <XIcon size={16} />
               </button>

@@ -22,6 +22,7 @@ import ExecutiveAssetOverviewPage from "./pages/reports/ExecutiveAssetOverviewPa
 import ExecutiveAssetsManagementPage from "./pages/reports/ExecutiveAssetsManagementPage.jsx";
 import { REPORT_ROUTE_PERMISSIONS } from "./lib/roleAccess";
 import { Toaster } from "react-hot-toast";
+import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
 
 function AppInner() {
   return (
@@ -130,6 +131,7 @@ export default function App() {
       }}
     >
       <Toaster />
+      <LanguageSwitcher />
       <AppInner />
     </BrowserRouter>
   );

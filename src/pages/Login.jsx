@@ -1,4 +1,41 @@
 import React, { useState } from "react";
+import { useScopedI18n } from "../i18n/useScopedI18n";
+
+const LOGIN_TRANSLATIONS = {
+  th: {
+    title: "Sign in",
+    subtitle: "เข้าสู่ระบบ IT HELPDESK สำหรับพนักงาน",
+    identifierLabel: "Employee Code / Email",
+    identifierPlaceholder: "รหัสพนักงาน หรือ Email",
+    passwordLabel: "Password",
+    rememberMe: "จดจำรหัสพนักงานและรหัสผ่าน",
+    forgotPassword: "ลืมรหัสผ่าน?",
+    submitting: "กำลังตรวจสอบ...",
+    submit: "เข้าสู่ระบบ",
+  },
+  en: {
+    title: "Sign in",
+    subtitle: "Access the IT HELPDESK system for employees.",
+    identifierLabel: "Employee Code / Email",
+    identifierPlaceholder: "Employee code or email",
+    passwordLabel: "Password",
+    rememberMe: "Remember employee code and password",
+    forgotPassword: "Forgot password?",
+    submitting: "Checking...",
+    submit: "Sign in",
+  },
+  ko: {
+    title: "Sign in",
+    subtitle: "직원용 IT HELPDESK 시스템에 로그인합니다.",
+    identifierLabel: "Employee Code / Email",
+    identifierPlaceholder: "사번 또는 이메일",
+    passwordLabel: "Password",
+    rememberMe: "사번과 비밀번호 기억하기",
+    forgotPassword: "비밀번호를 잊으셨나요?",
+    submitting: "확인 중...",
+    submit: "로그인",
+  },
+};
 
 export default function Login({
   employeeCode,
@@ -11,39 +48,29 @@ export default function Login({
   onForgotPassword,
   loading,
 }) {
+  const { tt } = useScopedI18n(LOGIN_TRANSLATIONS);
   const [showPassword, setShowPassword] = useState(false);
 
-  // ===== Submit =====
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = (event) => {
+    event.preventDefault();
     onLogin();
   };
 
   return (
     <div className="w-full max-w-xl mx-auto animate-in fade-in duration-700">
-
-      {/* Header */}
       <div className="mb-10 text-center md:text-left">
-        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-3">
-          Sign in
-        </h1>
-        <p className="text-slate-500 font-medium">
-          เข้าสู่ระบบ IT HELPDESK สำหรับพนักงาน
-        </p>
+        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-3">{tt("title")}</h1>
+        <p className="text-slate-500 font-medium">{tt("subtitle")}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-7">
-
-        {/* Employee Code */}
         <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700 ml-1">
-            Employee Code / Email
-          </label>
+          <label className="text-sm font-bold text-slate-700 ml-1">{tt("identifierLabel")}</label>
           <input
             type="text"
             value={employeeCode}
-            onChange={(e) => setEmployeeCode(e.target.value)}
-            placeholder="รหัสพนักงาน หรือ Email"
+            onChange={(event) => setEmployeeCode(event.target.value)}
+            placeholder={tt("identifierPlaceholder")}
             className="
               w-full px-5 py-4 rounded-2xl border-2 border-slate-200
               bg-white font-bold text-lg
@@ -54,16 +81,13 @@ export default function Login({
           />
         </div>
 
-        {/* Password */}
         <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700 ml-1">
-            Password
-          </label>
+          <label className="text-sm font-bold text-slate-700 ml-1">{tt("passwordLabel")}</label>
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••"
               className="
                 w-full px-5 py-4 pr-14 rounded-2xl border-2 border-slate-200
@@ -74,20 +98,13 @@ export default function Login({
               required
             />
 
-            {/* Eye Icon */}
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition"
             >
               {showPassword ? (
-                // Eye Off
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -96,19 +113,8 @@ export default function Login({
                   />
                 </svg>
               ) : (
-                // Eye
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -121,18 +127,15 @@ export default function Login({
           </div>
         </div>
 
-        {/* Remember Me */}
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
+              onChange={(event) => setRememberMe(event.target.checked)}
               className="w-5 h-5 rounded-lg text-blue-600 focus:ring-blue-600"
             />
-            <span className="text-sm font-bold text-slate-600">
-              จดจำรหัสพนักงานและรหัสผ่าน
-            </span>
+            <span className="text-sm font-bold text-slate-600">{tt("rememberMe")}</span>
           </label>
 
           <button
@@ -140,24 +143,24 @@ export default function Login({
             onClick={onForgotPassword}
             className="text-sm font-bold text-blue-600 hover:underline"
           >
-            ลืมรหัสผ่าน?
+            {tt("forgotPassword")}
           </button>
         </div>
 
-        {/* Submit */}
         <button
           type="submit"
           disabled={loading}
           className={`
             w-full py-5 rounded-2xl text-xl font-black text-white
             transition-all duration-300 shadow-xl
-            ${loading
-              ? "bg-slate-300 cursor-not-allowed shadow-none"
-              : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 active:scale-[0.98] shadow-blue-200"
+            ${
+              loading
+                ? "bg-slate-300 cursor-not-allowed shadow-none"
+                : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 active:scale-[0.98] shadow-blue-200"
             }
           `}
         >
-          {loading ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบ"}
+          {loading ? tt("submitting") : tt("submit")}
         </button>
       </form>
     </div>

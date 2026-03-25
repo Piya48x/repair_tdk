@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { fontFamily } from "./theme/typography";
+import { LanguageProvider } from "./i18n/LanguageProvider";
 
 if (typeof document !== "undefined") {
   document.documentElement.style.setProperty("--app-font-family", fontFamily.primary);
@@ -10,6 +11,8 @@ if (typeof document !== "undefined") {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <LanguageProvider>
+      <App />
+    </LanguageProvider>
   </React.StrictMode>
 );

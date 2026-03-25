@@ -35,6 +35,9 @@ export function isITWorkRecordSchemaError(error) {
     code === "PGRST205" ||
     status === 404 ||
     text.includes('relation "it_work_records" does not exist') ||
+    text.includes('column "start_time"') ||
+    text.includes('column "end_time"') ||
+    text.includes('column "duration_minutes"') ||
     text.includes('bucket "it-work-evidence" not found') ||
     text.includes("bucket not found")
   );
@@ -72,10 +75,13 @@ async function cleanupUploadedPaths(paths) {
   }
 }
 
-export async function loadITWorkRecords() {
+export async function loadITWorkRecords(options = {}) {
+  const { columns = "*" } = options;
+
   return supabase
     .from("it_work_records")
-    .select("*")
+    .select(columns)
+    .order("start_time", { ascending: false })
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
 }
@@ -121,6 +127,15 @@ export async function uploadITWorkEvidenceFiles(files, createdBy) {
 
 export async function createITWorkRecord(payload) {
   return supabase.from("it_work_records").insert(payload).select("*").single();
+}
+
+export async function updateITWorkRecord(recordId, payload) {
+  return supabase
+    .from("it_work_records")
+    .update(payload)
+    .eq("id", recordId)
+    .select("*")
+    .single();
 }
 
 export async function deleteITWorkRecord(recordId) {
