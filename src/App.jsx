@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AuthPage from "./pages/AuthPage.jsx";
 import Dashboard from "./pages/Dashboard";
 import CreateTicket from "./pages/CreateTicket";
@@ -13,6 +13,7 @@ import WorkNotes from "./pages/WorkNotes.jsx";
 import AccessRequest from "./pages/AccessRequest.jsx";
 import NotebookCenter from "./pages/NotebookCenter.jsx";
 import MyStatus from "./pages/MyStatus.jsx";
+import MyBorrowRequests from "./pages/MyBorrowRequests.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 import ReportsHomePage from "./pages/reports/ReportsHomePage.jsx";
@@ -59,6 +60,11 @@ function AppInner() {
       <Route path="/my-status" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'it_manager', 'executive', 'admin', 'auditor']}>
           <MyStatus />
+        </ProtectedRoute>
+      } />
+      <Route path="/my-borrow-requests" element={
+        <ProtectedRoute allowedRoles={['user', 'it_support', 'it_manager', 'executive', 'admin', 'auditor']}>
+          <MyBorrowRequests />
         </ProtectedRoute>
       } />
 
@@ -122,6 +128,18 @@ function AppInner() {
   );
 }
 
+function AppChrome() {
+  const location = useLocation();
+  const hideFloatingLanguageSwitcher =
+    location.pathname === "/dashboard" ||
+    location.pathname === "/my-borrow-requests" ||
+    location.pathname === "/notebook-center" ||
+    location.pathname === "/admin-dashboard" ||
+    location.pathname.startsWith("/reports");
+
+  return hideFloatingLanguageSwitcher ? null : <LanguageSwitcher />;
+}
+
 export default function App() {
   return (
     <BrowserRouter
@@ -131,7 +149,7 @@ export default function App() {
       }}
     >
       <Toaster />
-      <LanguageSwitcher />
+      <AppChrome />
       <AppInner />
     </BrowserRouter>
   );

@@ -22,6 +22,7 @@ const ReportsPage = ({
   theme,
   uiTheme,
   tickets,
+  serviceRequests,
   onCreateTicket,
   onOpenWalkInTicket,
   onPickUpEquipment,
@@ -44,21 +45,22 @@ const ReportsPage = ({
       </section>
 
       <section>
-        <ITServiceOverviewPanel
+        <ITWorkReportPanel
+          theme={theme}
           tickets={tickets}
-          onCreateTicket={onCreateTicket}
-          onOpenWalkInTicket={onOpenWalkInTicket}
-          onPickUpEquipment={onPickUpEquipment}
-          onOpenRepair={onOpenRepairFromOverview}
+          serviceRequests={serviceRequests}
+          onNavigatePage={onNavigatePage}
         />
       </section>
 
       <section>
-        <ITWorkReportPanel
-          theme={theme}
-          uiTheme={uiTheme}
+        <ITServiceOverviewPanel
           tickets={tickets}
-          onNavigatePage={onNavigatePage}
+          serviceRequests={serviceRequests}
+          onCreateTicket={onCreateTicket}
+          onOpenWalkInTicket={onOpenWalkInTicket}
+          onPickUpEquipment={onPickUpEquipment}
+          onOpenRepair={onOpenRepairFromOverview}
         />
       </section>
     </div>

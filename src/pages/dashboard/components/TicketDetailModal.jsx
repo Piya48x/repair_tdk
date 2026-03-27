@@ -102,6 +102,20 @@ function collectAttachmentUrls(ticket) {
   return Array.from(new Set(urls));
 }
 
+function isImageAttachmentUrl(url) {
+  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)(?:[?#].*)?$/i.test(String(url || ""));
+}
+
+function getAttachmentName(url) {
+  try {
+    const pathname = new URL(String(url || "")).pathname;
+    return decodeURIComponent(pathname.split("/").pop() || "attachment");
+  } catch {
+    const cleanUrl = String(url || "").split("?")[0];
+    return decodeURIComponent(cleanUrl.split("/").pop() || "attachment");
+  }
+}
+
 export default function TicketDetailModal({
   ticket,
   onClose,
@@ -264,13 +278,29 @@ export default function TicketDetailModal({
                       onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
                       className="group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm"
                     >
-                      <img
-                        src={url}
-                        alt={tt("attachmentLabel", { index: index + 1 })}
-                        className="h-44 w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
+                      {isImageAttachmentUrl(url) ? (
+                        <img
+                          src={url}
+                          alt={tt("attachmentLabel", { index: index + 1 })}
+                          className="h-44 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-44 items-center gap-3 bg-gradient-to-br from-slate-50 to-white px-4">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                            <FileText size={24} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                              {tt("attachmentLabel", { index: index + 1 })}
+                            </p>
+                            <p className="mt-2 line-clamp-2 text-sm font-semibold text-slate-700">
+                              {getAttachmentName(url)}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       <div className="border-t border-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
-                        {tt("attachmentLabel", { index: index + 1 })}
+                        {isImageAttachmentUrl(url) ? tt("attachmentLabel", { index: index + 1 }) : getAttachmentName(url)}
                       </div>
                     </button>
                   ))}

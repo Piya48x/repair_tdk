@@ -1,6 +1,7 @@
 import React from "react";
 import {
   LayoutDashboard,
+  Package,
   Ticket,
   Activity,
   History,
@@ -84,6 +85,7 @@ const ITDashboardSidebar = ({
   currentPage,
   onNavigatePage,
   notificationCount = 0,
+  serviceRequestNotificationCount = 0,
   notebookNotificationCount = 0,
 }) => {
   const { tt } = useScopedI18n(SIDEBAR_TRANSLATIONS);
@@ -92,6 +94,7 @@ const ITDashboardSidebar = ({
   const navItems = [
     { id: "DASHBOARD", label: tt("nav.dashboard"), icon: LayoutDashboard },
     { id: "TICKETS", label: tt("nav.tickets"), icon: Ticket },
+    { id: "SERVICE_REQUESTS", label: "คำขอเบิกของ", icon: Package },
     { id: "ACCESS_REQUESTS", label: tt("nav.accessRequests"), icon: KeyRound },
     { id: "NOTEBOOK_BORROW", label: tt("nav.notebookBorrow"), icon: Laptop },
     { id: "IT_WORK_LOGS", label: tt("nav.workLogs"), icon: Camera },
@@ -160,6 +163,7 @@ const ITDashboardSidebar = ({
               const Icon = item.icon;
               const isActive = resolveActive(item.id);
               const showTicketBadge = item.id === "TICKETS" && notificationCount > 0;
+              const showServiceRequestBadge = item.id === "SERVICE_REQUESTS" && serviceRequestNotificationCount > 0;
               const showNotebookBadge = item.id === "NOTEBOOK_BORROW" && notebookNotificationCount > 0;
 
               return (
@@ -181,6 +185,11 @@ const ITDashboardSidebar = ({
                       {showTicketBadge && (
                         <span className="absolute -right-2 -top-2 inline-flex min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-none text-white shadow">
                           {notificationCount > 9 ? "9+" : notificationCount}
+                        </span>
+                      )}
+                      {showServiceRequestBadge && (
+                        <span className="absolute -right-2 -top-2 inline-flex min-w-4 items-center justify-center rounded-full bg-violet-500 px-1 py-0.5 text-[9px] font-black leading-none text-white shadow">
+                          {serviceRequestNotificationCount > 9 ? "9+" : serviceRequestNotificationCount}
                         </span>
                       )}
                       {showNotebookBadge && (

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -17,7 +17,157 @@ import {
   Sparkles,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
-import { useI18n } from "../i18n/LanguageProvider";
+import { useScopedI18n } from "../i18n/useScopedI18n";
+
+const ACCESS_REQUEST_TRANSLATIONS = {
+  th: {
+    back: "กลับ Dashboard",
+    badge: "คำขอสิทธิ์ระบบ",
+    title: "Access Request / คำขอสิทธิ์ระบบ",
+    subtitle: "ส่งคำขอสิทธิ์การเข้าถึงระบบ และติดตามสถานะในหน้าเดียว",
+    create: "สร้างคำขอสิทธิ์",
+    pendingApproval: "รออนุมัติ",
+    approved: "อนุมัติแล้ว",
+    rejected: "ไม่อนุมัติ",
+    completed: "เสร็จสิ้น",
+    allRequests: "รายการคำขอสิทธิ์ทั้งหมด",
+    myRequests: "รายการคำขอสิทธิ์ของฉัน",
+    totalCount: "ทั้งหมด {{count}} รายการ",
+    searchPlaceholder: "ค้นหาระบบ, ผู้ขอ, เหตุผล",
+    allStatus: "ทุกสถานะ",
+    emptyState: "ยังไม่มีคำขอสิทธิ์ที่ตรงเงื่อนไข",
+    loadError: "ไม่สามารถโหลดคำขอสิทธิ์ระบบได้",
+    updateError: "อัปเดตสถานะคำขอสิทธิ์ไม่สำเร็จ",
+    unknownUser: "ผู้ใช้งาน",
+    unknownRequester: "ไม่ระบุผู้ขอ",
+    unknownDepartment: "ไม่ระบุแผนก",
+    approverLabel: "ผู้อนุมัติ:",
+    processedBy: "โดย",
+    approve: "อนุมัติ",
+    reject: "ปฏิเสธ",
+    markCompleted: "เสร็จสิ้น",
+    drawerTitle: "สร้างคำขอสิทธิ์ระบบ",
+    drawerSubtitle: "กรอกข้อมูลให้ครบเพื่อเข้าสู่กระบวนการอนุมัติ",
+    closeForm: "ปิดแบบฟอร์ม",
+    requesterName: "ชื่อผู้ขอ",
+    department: "แผนก",
+    departmentPlaceholder: "เช่น IT, HR, Finance",
+    systemName: "ระบบที่ต้องการเข้าถึง",
+    systemNamePlaceholder: "เช่น ERP, Shared Folder, Email Group",
+    accessType: "ประเภทสิทธิ์",
+    urgency: "ระดับความเร่งด่วน",
+    urgencyLow: "ต่ำ",
+    urgencyNormal: "ปกติ",
+    urgencyHigh: "สูง",
+    urgencyUrgent: "ด่วน",
+    approver: "ผู้อนุมัติ",
+    reason: "เหตุผลในการขอสิทธิ์",
+    reasonPlaceholder: "ระบุเหตุผลเพื่อใช้ประกอบการอนุมัติ",
+    validationError: "กรุณากรอกระบบที่ต้องการเข้าถึงและเหตุผลในการขอสิทธิ์",
+    saveError: "ไม่สามารถบันทึกคำขอสิทธิ์ได้ กรุณาลองใหม่",
+    saving: "กำลังบันทึก...",
+    submit: "ส่งคำขอ",
+    cancel: "ยกเลิก",
+  },
+  en: {
+    back: "Back to Dashboard",
+    badge: "System Access Requests",
+    title: "Access Request",
+    subtitle: "Submit system access requests and track their status in one place.",
+    create: "Create request",
+    pendingApproval: "Pending Approval",
+    approved: "Approved",
+    rejected: "Rejected",
+    completed: "Completed",
+    allRequests: "All access requests",
+    myRequests: "My access requests",
+    totalCount: "Total {{count}} items",
+    searchPlaceholder: "Search system, requester, reason",
+    allStatus: "All statuses",
+    emptyState: "No requests match the current filter",
+    loadError: "Unable to load system access requests",
+    updateError: "Failed to update the access request status",
+    unknownUser: "User",
+    unknownRequester: "Unknown requester",
+    unknownDepartment: "Unknown department",
+    approverLabel: "Approver:",
+    processedBy: "By",
+    approve: "Approve",
+    reject: "Reject",
+    markCompleted: "Mark completed",
+    drawerTitle: "Create system access request",
+    drawerSubtitle: "Fill in all required details to start the approval process.",
+    closeForm: "Close form",
+    requesterName: "Requester name",
+    department: "Department",
+    departmentPlaceholder: "E.g. IT, HR, Finance",
+    systemName: "System to access",
+    systemNamePlaceholder: "E.g. ERP, Shared Folder, Email Group",
+    accessType: "Access type",
+    urgency: "Urgency level",
+    urgencyLow: "Low",
+    urgencyNormal: "Normal",
+    urgencyHigh: "High",
+    urgencyUrgent: "Urgent",
+    approver: "Approver",
+    reason: "Reason for request",
+    reasonPlaceholder: "Provide a reason to support the approval decision",
+    validationError: "Please enter the target system and the reason for access.",
+    saveError: "Unable to save the access request. Please try again.",
+    saving: "Saving...",
+    submit: "Submit request",
+    cancel: "Cancel",
+  },
+  ko: {
+    back: "대시보드로 돌아가기",
+    badge: "시스템 권한 요청",
+    title: "Access Request / 권한 요청",
+    subtitle: "시스템 접근 권한을 요청하고 한 페이지에서 상태를 추적합니다.",
+    create: "요청 생성",
+    pendingApproval: "승인 대기",
+    approved: "승인됨",
+    rejected: "반려됨",
+    completed: "완료됨",
+    allRequests: "전체 권한 요청 목록",
+    myRequests: "내 권한 요청 목록",
+    totalCount: "총 {{count}}건",
+    searchPlaceholder: "시스템, 요청자, 사유 검색",
+    allStatus: "전체 상태",
+    emptyState: "현재 조건에 맞는 요청이 없습니다",
+    loadError: "권한 요청 목록을 불러올 수 없습니다",
+    updateError: "권한 요청 상태 업데이트에 실패했습니다",
+    unknownUser: "사용자",
+    unknownRequester: "요청자 미상",
+    unknownDepartment: "부서 미상",
+    approverLabel: "승인자:",
+    processedBy: "처리자",
+    approve: "승인",
+    reject: "반려",
+    markCompleted: "완료 처리",
+    drawerTitle: "시스템 권한 요청 생성",
+    drawerSubtitle: "승인 프로세스를 시작하려면 모든 항목을 입력하세요.",
+    closeForm: "양식 닫기",
+    requesterName: "요청자 이름",
+    department: "부서",
+    departmentPlaceholder: "예: IT, HR, Finance",
+    systemName: "접근할 시스템",
+    systemNamePlaceholder: "예: ERP, Shared Folder, Email Group",
+    accessType: "권한 유형",
+    urgency: "긴급도",
+    urgencyLow: "낮음",
+    urgencyNormal: "보통",
+    urgencyHigh: "높음",
+    urgencyUrgent: "긴급",
+    approver: "승인자",
+    reason: "요청 사유",
+    reasonPlaceholder: "승인 결정에 참고할 사유를 입력하세요",
+    validationError: "접근할 시스템과 요청 사유를 입력해 주세요.",
+    saveError: "권한 요청을 저장할 수 없습니다. 다시 시도해 주세요.",
+    saving: "저장 중...",
+    submit: "요청 제출",
+    cancel: "취소",
+  },
+};
 
 const STATUS_VALUES = {
   PENDING: "Pending Approval",
@@ -26,33 +176,7 @@ const STATUS_VALUES = {
   COMPLETED: "Completed",
 };
 
-const STATUS_META = {
-  [STATUS_VALUES.PENDING]: {
-    label: "Pending Approval",
-    badgeClass: "border-amber-200 bg-amber-50 text-amber-700",
-  },
-  [STATUS_VALUES.APPROVED]: {
-    label: "Approved",
-    badgeClass: "border-blue-200 bg-blue-50 text-blue-700",
-  },
-  [STATUS_VALUES.REJECTED]: {
-    label: "Rejected",
-    badgeClass: "border-rose-200 bg-rose-50 text-rose-700",
-  },
-  [STATUS_VALUES.COMPLETED]: {
-    label: "Completed",
-    badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  },
-};
-
 const ACCESS_TYPE_OPTIONS = ["Read", "Write", "Admin"];
-
-const URGENCY_OPTIONS = [
-  { value: "low", label: "ต่ำ" },
-  { value: "normal", label: "ปกติ" },
-  { value: "high", label: "สูง" },
-  { value: "urgent", label: "ด่วน" },
-];
 
 const APPROVER_OPTIONS = [
   { value: "Manager", label: "Manager" },
@@ -71,11 +195,12 @@ const createDefaultForm = (profile = null, fallbackName = "") => ({
 
 const isManagementRole = (role) => role === "it_support" || role === "admin";
 
-const formatDateTime = (value) => {
+const formatDateTime = (value, language = "th") => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("th-TH", {
+  const locales = { th: "th-TH", en: "en-US", ko: "ko-KR" };
+  return date.toLocaleString(locales[language] || "en-US", {
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -88,7 +213,7 @@ const normalize = (value) => String(value || "").trim().toLowerCase();
 
 const AccessRequest = () => {
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { language, tt } = useScopedI18n(ACCESS_REQUEST_TRANSLATIONS);
   const channelRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
@@ -104,6 +229,38 @@ const AccessRequest = () => {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [formData, setFormData] = useState(createDefaultForm());
+
+  const statusMeta = useMemo(
+    () => ({
+      [STATUS_VALUES.PENDING]: {
+        label: tt("pendingApproval"),
+        badgeClass: "border-amber-200 bg-amber-50 text-amber-700",
+      },
+      [STATUS_VALUES.APPROVED]: {
+        label: tt("approved"),
+        badgeClass: "border-blue-200 bg-blue-50 text-blue-700",
+      },
+      [STATUS_VALUES.REJECTED]: {
+        label: tt("rejected"),
+        badgeClass: "border-rose-200 bg-rose-50 text-rose-700",
+      },
+      [STATUS_VALUES.COMPLETED]: {
+        label: tt("completed"),
+        badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      },
+    }),
+    [tt],
+  );
+
+  const urgencyOptions = useMemo(
+    () => [
+      { value: "low", label: tt("urgencyLow") },
+      { value: "normal", label: tt("urgencyNormal") },
+      { value: "high", label: tt("urgencyHigh") },
+      { value: "urgent", label: tt("urgencyUrgent") },
+    ],
+    [tt],
+  );
 
   const loadRequests = useCallback(async (targetUserId, role, { silent = false } = {}) => {
     if (!targetUserId) return;
@@ -127,12 +284,12 @@ const AccessRequest = () => {
       setLoadError("");
     } catch (error) {
       console.error("Load access requests error:", error);
-      setLoadError("ไม่สามารถโหลดคำขอสิทธิ์ระบบได้");
+      setLoadError(tt("loadError"));
       setRequests([]);
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [tt]);
 
   const setupRealtime = useCallback(
     (targetUserId, role) => {
@@ -183,7 +340,7 @@ const AccessRequest = () => {
         const fallbackName =
           session.user.user_metadata?.full_name ||
           session.user.email?.split("@")[0] ||
-          "ผู้ใช้งาน";
+          tt("unknownUser");
 
         if (!mounted) return;
 
@@ -220,7 +377,7 @@ const AccessRequest = () => {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [loadRequests, navigate, setupRealtime]);
+  }, [loadRequests, navigate, setupRealtime, tt]);
 
   const canManage = isManagementRole(userRole);
 
@@ -288,7 +445,7 @@ const AccessRequest = () => {
     if (!userId || saving) return;
 
     if (!formData.systemName.trim() || !formData.reason.trim()) {
-      setFormError("กรุณากรอกระบบที่ต้องการเข้าถึงและเหตุผลในการขอสิทธิ์");
+      setFormError(tt("validationError"));
       return;
     }
 
@@ -297,7 +454,7 @@ const AccessRequest = () => {
 
       const payload = {
         requester_user_id: userId,
-        requester_name: formData.requesterName.trim() || profile?.full_name || sessionName || "ผู้ใช้งาน",
+        requester_name: formData.requesterName.trim() || profile?.full_name || sessionName || tt("unknownUser"),
         department: formData.department.trim() || profile?.department || null,
         system_name: formData.systemName.trim(),
         access_type: formData.accessType,
@@ -315,7 +472,7 @@ const AccessRequest = () => {
       await loadRequests(userId, userRole, { silent: true });
     } catch (error) {
       console.error("Create access request error:", error);
-      setFormError("ไม่สามารถบันทึกคำขอสิทธิ์ได้ กรุณาลองใหม่");
+      setFormError(tt("saveError"));
     } finally {
       setSaving(false);
     }
@@ -342,7 +499,7 @@ const AccessRequest = () => {
 
     if (error) {
       console.error("Update access request status error:", error);
-      setLoadError("อัปเดตสถานะคำขอสิทธิ์ไม่สำเร็จ");
+      setLoadError(tt("updateError"));
       return;
     }
 
@@ -361,17 +518,17 @@ const AccessRequest = () => {
                 className="app-btn-secondary mt-0.5 inline-flex items-center gap-2"
               >
                 <ArrowLeft size={15} />
-                {t("common.backDashboard")}
+                {tt("back")}
               </button>
 
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-1 text-[11px] font-bold text-[var(--brand-primary)]">
                   <KeyRound size={13} />
-                  {t("accessRequest.badge")}
+                  {tt("badge")}
                 </div>
-                <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">{t("accessRequest.title")}</h1>
+                <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">{tt("title")}</h1>
                 <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-                  {t("accessRequest.subtitle")}
+                  {tt("subtitle")}
                 </p>
               </div>
             </div>
@@ -382,26 +539,26 @@ const AccessRequest = () => {
               className="app-btn-primary inline-flex items-center gap-2"
             >
               <Plus size={15} />
-              {t("accessRequest.create")}
+              {tt("create")}
             </button>
           </div>
         </header>
 
         <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <article className="app-surface p-4">
-            <p className="text-xs font-semibold text-slate-500">{t("accessRequest.pendingApproval")}</p>
+            <p className="text-xs font-semibold text-slate-500">{tt("pendingApproval")}</p>
             <p className="mt-2 text-3xl font-black text-amber-600">{summary.pending}</p>
           </article>
           <article className="app-surface p-4">
-            <p className="text-xs font-semibold text-slate-500">{t("accessRequest.approved")}</p>
+            <p className="text-xs font-semibold text-slate-500">{tt("approved")}</p>
             <p className="mt-2 text-3xl font-black text-blue-600">{summary.approved}</p>
           </article>
           <article className="app-surface p-4">
-            <p className="text-xs font-semibold text-slate-500">{t("accessRequest.rejected")}</p>
+            <p className="text-xs font-semibold text-slate-500">{tt("rejected")}</p>
             <p className="mt-2 text-3xl font-black text-rose-600">{summary.rejected}</p>
           </article>
           <article className="app-surface p-4">
-            <p className="text-xs font-semibold text-slate-500">{t("accessRequest.completed")}</p>
+            <p className="text-xs font-semibold text-slate-500">{tt("completed")}</p>
             <p className="mt-2 text-3xl font-black text-emerald-600">{summary.completed}</p>
           </article>
         </section>
@@ -410,9 +567,9 @@ const AccessRequest = () => {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-base font-black text-slate-900">
-                {canManage ? "รายการคำขอสิทธิ์ทั้งหมด" : "รายการคำขอสิทธิ์ของฉัน"}
+                {canManage ? tt("allRequests") : tt("myRequests")}
               </h2>
-              <p className="text-xs text-slate-500">ทั้งหมด {filteredRequests.length.toLocaleString("th-TH")} รายการ</p>
+              <p className="text-xs text-slate-500">{tt("totalCount", { count: filteredRequests.length.toLocaleString() })}</p>
             </div>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(240px,1fr)_180px]">
@@ -421,7 +578,7 @@ const AccessRequest = () => {
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="ค้นหาระบบ, ผู้ขอ, เหตุผล"
+                  placeholder={tt("searchPlaceholder")}
                   className="app-input pl-9"
                 />
               </div>
@@ -431,11 +588,11 @@ const AccessRequest = () => {
                 onChange={(event) => setStatusFilter(event.target.value)}
                 className="app-input"
               >
-                <option value="ALL">ทุกสถานะ</option>
-                <option value={STATUS_VALUES.PENDING}>Pending Approval</option>
-                <option value={STATUS_VALUES.APPROVED}>Approved</option>
-                <option value={STATUS_VALUES.REJECTED}>Rejected</option>
-                <option value={STATUS_VALUES.COMPLETED}>Completed</option>
+                <option value="ALL">{tt("allStatus")}</option>
+                <option value={STATUS_VALUES.PENDING}>{tt("pendingApproval")}</option>
+                <option value={STATUS_VALUES.APPROVED}>{tt("approved")}</option>
+                <option value={STATUS_VALUES.REJECTED}>{tt("rejected")}</option>
+                <option value={STATUS_VALUES.COMPLETED}>{tt("completed")}</option>
               </select>
             </div>
           </div>
@@ -455,12 +612,12 @@ const AccessRequest = () => {
 
             {!loading && filteredRequests.length === 0 && (
               <div className="rounded-2xl border border-dashed border-[var(--brand-border)] bg-[var(--brand-soft)] p-8 text-center">
-                <p className="text-sm font-semibold text-slate-600">ยังไม่มีคำขอสิทธิ์ที่ตรงเงื่อนไข</p>
+                <p className="text-sm font-semibold text-slate-600">{tt("emptyState")}</p>
               </div>
             )}
 
             {!loading && filteredRequests.map((item) => {
-              const status = STATUS_META[item.status] || STATUS_META[STATUS_VALUES.PENDING];
+              const status = statusMeta[item.status] || statusMeta[STATUS_VALUES.PENDING];
 
               return (
                 <article
@@ -487,24 +644,24 @@ const AccessRequest = () => {
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
                         <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1">
                           <User size={12} />
-                          {item.requester_name || "ไม่ระบุผู้ขอ"}
+                          {item.requester_name || tt("unknownRequester")}
                         </span>
                         <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1">
                           <Building2 size={12} />
-                          {item.department || "ไม่ระบุแผนก"}
+                          {item.department || tt("unknownDepartment")}
                         </span>
                         <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1">
                           <ShieldCheck size={12} />
-                          ผู้อนุมัติ: {item.approver || "-"}
+                          {tt("approverLabel")} {item.approver || "-"}
                         </span>
                         <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1">
                           <Clock3 size={12} />
-                          {formatDateTime(item.created_at)}
+                          {formatDateTime(item.created_at, language)}
                         </span>
                         {item.processed_by_name && (
                           <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1">
                             <Sparkles size={12} />
-                            โดย {item.processed_by_name}
+                            {tt("processedBy")} {item.processed_by_name}
                           </span>
                         )}
                       </div>
@@ -520,7 +677,7 @@ const AccessRequest = () => {
                               className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
                             >
                               <CheckCircle2 size={13} />
-                              อนุมัติ
+                              {tt("approve")}
                             </button>
                             <button
                               type="button"
@@ -528,7 +685,7 @@ const AccessRequest = () => {
                               className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
                             >
                               <XCircle size={13} />
-                              ปฏิเสธ
+                              {tt("reject")}
                             </button>
                           </>
                         )}
@@ -540,7 +697,7 @@ const AccessRequest = () => {
                             className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
                           >
                             <CheckCheck size={13} />
-                            Completed
+                            {tt("markCompleted")}
                           </button>
                         )}
                       </div>
@@ -564,14 +721,14 @@ const AccessRequest = () => {
           <aside className="absolute right-0 top-0 h-full w-full max-w-[480px] border-l border-slate-200 bg-white p-4 shadow-2xl sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-black text-slate-900">สร้างคำขอสิทธิ์ระบบ</h3>
-                <p className="mt-1 text-xs text-slate-500">กรอกข้อมูลให้ครบเพื่อเข้าสู่กระบวนการอนุมัติ</p>
+                <h3 className="text-lg font-black text-slate-900">{tt("drawerTitle")}</h3>
+                <p className="mt-1 text-xs text-slate-500">{tt("drawerSubtitle")}</p>
               </div>
               <button
                 type="button"
                 onClick={closeDrawer}
                 className="app-icon-btn"
-                aria-label="ปิดแบบฟอร์ม"
+                aria-label={tt("closeForm")}
               >
                 <X size={15} />
               </button>
@@ -579,7 +736,7 @@ const AccessRequest = () => {
 
             <form onSubmit={handleSubmit} className="mt-4 space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-500">ชื่อผู้ขอ</label>
+                <label className="mb-1 block text-xs font-bold text-slate-500">{tt("requesterName")}</label>
                 <input
                   value={formData.requesterName}
                   readOnly
@@ -588,28 +745,28 @@ const AccessRequest = () => {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-500">แผนก</label>
+                <label className="mb-1 block text-xs font-bold text-slate-500">{tt("department")}</label>
                 <input
                   value={formData.department}
                   onChange={(event) => updateFormField("department", event.target.value)}
                   className="app-input"
-                  placeholder="เช่น IT, HR, Finance"
+                  placeholder={tt("departmentPlaceholder")}
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-500">ระบบที่ต้องการเข้าถึง</label>
+                <label className="mb-1 block text-xs font-bold text-slate-500">{tt("systemName")}</label>
                 <input
                   value={formData.systemName}
                   onChange={(event) => updateFormField("systemName", event.target.value)}
                   className="app-input"
-                  placeholder="เช่น ERP, Shared Folder, Email Group"
+                  placeholder={tt("systemNamePlaceholder")}
                 />
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-500">ประเภทสิทธิ์</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-500">{tt("accessType")}</label>
                   <select
                     value={formData.accessType}
                     onChange={(event) => updateFormField("accessType", event.target.value)}
@@ -624,13 +781,13 @@ const AccessRequest = () => {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-500">ระดับความเร่งด่วน</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-500">{tt("urgency")}</label>
                   <select
                     value={formData.urgency}
                     onChange={(event) => updateFormField("urgency", event.target.value)}
                     className="app-input"
                   >
-                    {URGENCY_OPTIONS.map((option) => (
+                    {urgencyOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -640,7 +797,7 @@ const AccessRequest = () => {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-500">ผู้อนุมัติ</label>
+                <label className="mb-1 block text-xs font-bold text-slate-500">{tt("approver")}</label>
                 <select
                   value={formData.approver}
                   onChange={(event) => updateFormField("approver", event.target.value)}
@@ -655,13 +812,13 @@ const AccessRequest = () => {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-500">เหตุผลในการขอสิทธิ์</label>
+                <label className="mb-1 block text-xs font-bold text-slate-500">{tt("reason")}</label>
                 <textarea
                   value={formData.reason}
                   onChange={(event) => updateFormField("reason", event.target.value)}
                   rows={4}
                   className="app-input resize-none"
-                  placeholder="ระบุเหตุผลเพื่อใช้ประกอบการอนุมัติ"
+                  placeholder={tt("reasonPlaceholder")}
                 />
               </div>
 
@@ -677,14 +834,14 @@ const AccessRequest = () => {
                   onClick={closeDrawer}
                   className="app-btn-secondary"
                 >
-                  ยกเลิก
+                  {tt("cancel")}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="app-btn-primary disabled:opacity-60"
                 >
-                  {saving ? "กำลังบันทึก..." : "ส่งคำขอ"}
+                  {saving ? tt("saving") : tt("submit")}
                 </button>
               </div>
             </form>

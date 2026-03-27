@@ -447,8 +447,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
           <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-800">แนบรูปประกอบ</p>
-                <p className="text-xs text-slate-500">รองรับแนบไฟล์รูปจากเครื่อง หรือถ่ายจากกล้อง</p>
+                <p className="text-sm font-semibold text-slate-800">แนบหลักฐาน</p>
+                <p className="text-xs text-slate-500">รูปจากเครื่องหรือกล้อง</p>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -465,7 +465,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   <ImagePlus size={16} />
-                  แนบไฟล์รูป
+                  แนบรูป
                 </button>
                 <button
                   type="button"
@@ -486,7 +486,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-800">{selectedAttachmentName}</p>
-                  <p className="text-xs text-slate-500">ไฟล์ที่เลือกจะถูกอัปโหลดและผูกกับ Ticket นี้</p>
+                  <p className="text-xs text-slate-500">พร้อมอัปโหลดเข้า Ticket</p>
                 </div>
                 <button
                   type="button"

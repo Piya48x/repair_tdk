@@ -11,6 +11,7 @@ import {
 import { getITDashboardTheme } from "../theme/itDashboardTheme";
 import tdkLogo from "../../../assets/4.png";
 import { useI18n } from "../../../i18n/LanguageProvider";
+import LanguageSwitcher from "../../../components/LanguageSwitcher.jsx";
 
 const ITDashboardHeader = ({
   theme,
@@ -102,13 +103,16 @@ const ITDashboardHeader = ({
               )}
             </button>
 
-            <button
-              onClick={toggleTheme}
-              className={`rounded-lg p-2 transition-colors ${uiTheme.iconButton}`}
-              aria-label={t("common.toggleTheme")}
-            >
-              {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-            </button>
+            <div className={`flex items-center gap-1 rounded-2xl border p-1 ${theme === "dark" ? "border-slate-700 bg-slate-900/85" : "border-slate-200 bg-white/90 shadow-sm shadow-slate-200/70"}`}>
+              <button
+                onClick={toggleTheme}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${uiTheme.iconButton}`}
+                aria-label={t("common.toggleTheme")}
+              >
+                {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+              </button>
+              <LanguageSwitcher mode="nav" isDarkTheme={theme === "dark"} />
+            </div>
 
             <div className="relative z-[80]" ref={profileRef}>
               <button

@@ -21,6 +21,7 @@ import {
   loadMyNotebookBorrowLogs,
   NOTEBOOK_LOG_STATUS,
 } from "../services/notebookBorrowService";
+import { splitTicketBuckets } from "../lib/serviceRequestUtils";
 import { DASHBOARD_THEME_KEY } from "./dashboard/constants";
 
 const MY_STATUS_TRANSLATIONS = {
@@ -315,7 +316,7 @@ export default function MyStatus() {
     if (accessResult.error) throw accessResult.error;
 
     setNotebookLogs(Array.isArray(notebookData) ? notebookData : []);
-    setTickets(Array.isArray(ticketsResult.data) ? ticketsResult.data : []);
+    setTickets(splitTicketBuckets(ticketsResult.data || []).repairTickets);
     setAccessRequests(Array.isArray(accessResult.data) ? accessResult.data : []);
   };
 

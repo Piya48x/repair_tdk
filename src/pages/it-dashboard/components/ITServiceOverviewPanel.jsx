@@ -258,6 +258,7 @@ const StatusBadge = ({ status }) => {
 
 const ITServiceOverviewPanel = ({
   tickets,
+  serviceRequests = [],
   onCreateTicket,
   onOpenWalkInTicket,
   onPickUpEquipment,
@@ -266,15 +267,21 @@ const ITServiceOverviewPanel = ({
   const [period, setPeriod] = useState("all");
   const [department, setDepartment] = useState("ALL");
 
-  const departments = useMemo(() => {
-    const uniq = [...new Set((tickets || []).map((item) => item.department).filter(Boolean))];
-    return uniq.sort((a, b) => a.localeCompare(b, "th"));
-  }, [tickets]);
+  const allTickets = useMemo(
+    () => [...(tickets || []), ...(serviceRequests || [])],
+    [serviceRequests, tickets],
+  );
 
-  const departmentTickets = useMemo(() => {
-    if (department === "ALL") return tickets || [];
-    return (tickets || []).filter((item) => item.department === department);
-  }, [tickets, department]);
+  const departments = useMemo(() => {
+    const uniq = [
+      ...new Set(
+        allTickets
+          .map((item) => item.department || item.reporter_dept)
+          .filter(Boolean),
+      ),
+    ];
+    return uniq.sort((a, b) => a.localeCompare(b, "th"));
+  }, [allTickets]);
 
   const periodStart = useMemo(() => {
     const selected = PERIOD_OPTIONS.find((item) => item.id === period);
@@ -286,17 +293,28 @@ const ITServiceOverviewPanel = ({
     return startOfDay(start);
   }, [period]);
 
-  const scopedTickets = useMemo(() => {
-    if (!periodStart) return departmentTickets;
+  const filterByScope = useMemo(
+    () => (rows = []) =>
+      rows.filter((item) => {
+        const departmentValue = item.department || item.reporter_dept || "";
+        if (department !== "ALL" && departmentValue !== department) return false;
+        if (!periodStart) return true;
+        const created = toDate(item.created_at);
+        return created && created >= periodStart;
+      }),
+    [department, periodStart],
+  );
 
-    return departmentTickets.filter((item) => {
-      const created = toDate(item.created_at);
-      return created && created >= periodStart;
-    });
-  }, [departmentTickets, periodStart]);
-
-  const repairTickets = scopedTickets.filter((item) => classifyTicketType(item) === "repair");
-  const assetTickets = scopedTickets.filter((item) => classifyTicketType(item) === "asset");
+  const repairTickets = useMemo(() => filterByScope(tickets || []), [filterByScope, tickets]);
+  const assetTickets = useMemo(() => {
+    const fallbackRequests = (tickets || []).filter((item) => classifyTicketType(item) === "asset");
+    const source = (serviceRequests || []).length > 0 ? serviceRequests : fallbackRequests;
+    return filterByScope(source);
+  }, [filterByScope, serviceRequests, tickets]);
+  const departmentTickets = useMemo(
+    () => [...repairTickets, ...assetTickets],
+    [assetTickets, repairTickets],
+  );
 
   const todayKey = formatDateKey(new Date());
 
@@ -407,7 +425,7 @@ const ITServiceOverviewPanel = ({
   }, [departmentTickets]);
 
   const recentActivities = useMemo(() => {
-    return [...scopedTickets]
+    return [...departmentTickets]
       .sort((a, b) => {
         const left = toDate(b.updated_at || b.closed_at || b.created_at)?.getTime() || 0;
         const right = toDate(a.updated_at || a.closed_at || a.created_at)?.getTime() || 0;
@@ -431,7 +449,7 @@ const ITServiceOverviewPanel = ({
           duration: formatDuration(duration),
         };
       });
-  }, [scopedTickets]);
+  }, [departmentTickets]);
 
   return (
     <section className="mb-6 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm lg:p-5">

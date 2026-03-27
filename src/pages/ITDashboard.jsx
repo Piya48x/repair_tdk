@@ -116,6 +116,10 @@ import {
   getStatusText,
   getPriorityText,
 } from "./it-dashboard/utils/ticketUtils";
+import {
+  isPickUpEquipmentRequest,
+  splitTicketBuckets,
+} from "../lib/serviceRequestUtils";
 
 function buildStructuredRepairReport({
   problem,
@@ -162,10 +166,35 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+const CLOSE_JOB_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const CLOSE_JOB_IMAGE_ACCEPT = "image/*";
+const CLOSE_JOB_FILE_ACCEPT = "image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt";
+
+function formatAttachmentSize(size) {
+  const bytes = Number(size || 0);
+  if (!bytes) return "-";
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+function isImageLikeFile(file) {
+  const mimeType = String(file?.type || "").toLowerCase();
+  if (mimeType.startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)$/i.test(String(file?.name || ""));
+}
+
+function inferClipboardFileName(file) {
+  if (file?.name) return file.name;
+  const extension = String(file?.type || "").split("/")[1] || "png";
+  return `clipboard_${Date.now()}.${extension}`;
+}
+
 const ITDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [tickets, setTickets] = useState([]);
+  const [serviceRequests, setServiceRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(DASHBOARD_PAGE_IDS.DASHBOARD);
   const [activeTab, setActiveTab] = useState("INCOMING");
@@ -190,6 +219,7 @@ const ITDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [serviceRequestNotificationCount, setServiceRequestNotificationCount] = useState(0);
   const [notebookNotificationCount, setNotebookNotificationCount] = useState(0);
   const [theme, setTheme] = useState("dark");
   const [isMobile, setIsMobile] = useState(false);
@@ -447,6 +477,12 @@ const ITDashboard = () => {
           user.user_metadata?.picture,
 
         phone: profileData?.phone || user.user_metadata?.phone,
+        location:
+          profileData?.location ||
+          profileData?.work_location ||
+          user.user_metadata?.location ||
+          user.user_metadata?.work_location ||
+          "",
         created_at: profileData?.created_at || user.created_at,
       });
     };
@@ -486,14 +522,15 @@ const ITDashboard = () => {
         async (payload) => {
           if (isMounted) {
             if (payload.eventType === "INSERT") {
-              try {
-                await audioRef.current.play();
-              } catch (e) {
-                console.log("Audio play failed", e);
-              }
+              if (!isPickUpEquipmentRequest(payload.new)) {
+                try {
+                  await audioRef.current.play();
+                } catch (e) {
+                  console.log("Audio play failed", e);
+                }
 
-              showNewTicketNotification(payload.new);
-              setNotificationCount((prev) => prev + 1);
+                showNewTicketNotification(payload.new);
+              }
             }
             await fetchTickets();
           }
@@ -666,13 +703,20 @@ const ITDashboard = () => {
       if (error) throw error;
 
       const enrichedTickets = await enrichTicketsWithProfiles(data || []);
+      const {
+        repairTickets,
+        serviceRequests: nextServiceRequests,
+      } = splitTicketBuckets(enrichedTickets);
 
-      setTickets(enrichedTickets);
-      calculateStats(enrichedTickets);
+      setTickets(repairTickets);
+      setServiceRequests(nextServiceRequests);
+      calculateStats(repairTickets);
       setLastRefreshedAt(new Date());
 
-      const newTickets = enrichedTickets?.filter((t) => t.status === "NEW") || [];
+      const newTickets = repairTickets.filter((ticket) => ticket.status === "NEW");
+      const newServiceRequests = nextServiceRequests.filter((request) => request.status === "NEW");
       setNotificationCount(newTickets.length);
+      setServiceRequestNotificationCount(newServiceRequests.length);
     } catch (error) {
       console.error("Error fetching tickets:", error);
       fireThemedSwal({
@@ -913,30 +957,256 @@ const ITDashboard = () => {
       ? "w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/30"
       : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/20";
     const helperClass = isDark ? "text-slate-500" : "text-slate-500";
-    const fileInputClass = isDark
-      ? "block w-full cursor-pointer rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300"
-      : "block w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700";
     const chipClass = isDark
       ? "inline-flex items-center rounded-full border border-[#2b59b0]/40 bg-[#2b59b0]/15 px-2.5 py-1 text-[11px] font-semibold text-[#9dbbf8]"
       : "inline-flex items-center rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2.5 py-1 text-[11px] font-semibold text-[#2b59b0]";
     const cancelButtonClass = isDark
       ? "inline-flex items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
       : "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300";
+    const attachTriggerClass = isDark
+      ? "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-600 bg-slate-800 text-slate-200 transition hover:bg-slate-700"
+      : "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50";
+    const attachMenuClass = isDark
+      ? "absolute right-0 top-full z-30 mt-2 hidden w-48 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 p-2 shadow-2xl"
+      : "absolute right-0 top-full z-30 mt-2 hidden w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl";
+    const attachMenuButtonClass = isDark
+      ? "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+      : "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50";
+    const pasteZoneClass = isDark
+      ? "mt-3 rounded-2xl border-2 border-dashed border-slate-600 bg-slate-900/60 p-4 outline-none transition hover:border-[#2b59b0]/60 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/30"
+      : "mt-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white/90 p-4 outline-none transition hover:border-[#2b59b0]/50 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/20";
+    const previewCardClass = isDark
+      ? "mt-3 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900"
+      : "mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white";
+    const previewFooterClass = isDark
+      ? "flex items-center justify-between gap-3 border-t border-slate-700 bg-slate-900/80 px-4 py-3"
+      : "flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3";
+    const removeButtonClass = isDark
+      ? "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600 bg-slate-800 text-slate-300 transition hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
+      : "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600";
+    const cameraPanelClass = isDark
+      ? "mt-3 hidden overflow-hidden rounded-2xl border border-slate-700 bg-slate-950"
+      : "mt-3 hidden overflow-hidden rounded-2xl border border-slate-200 bg-slate-950";
+    const smallGhostButtonClass = isDark
+      ? "inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+      : "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50";
+    const primaryCameraButtonClass = "inline-flex items-center gap-2 rounded-xl bg-[#2b59b0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#244a95]";
+    const paperclipIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.82l8.49-8.48"/></svg>';
+    const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>';
+    const imageIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
+    const fileIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+    const pasteIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-2"/><path d="M12 2H8a2 2 0 0 0-2 2v4h6V2Z"/><path d="M2 14h10"/><path d="m5 11-3 3 3 3"/></svg>';
+    const closeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+    const previewCardLabelClass = isDark ? "text-slate-100" : "text-slate-800";
+    const previewCardMetaClass = isDark ? "text-slate-400" : "text-slate-500";
+    const existingEvidenceHint = ticket?.image_after_url ? "ไม่เลือกใหม่จะใช้หลักฐานเดิม" : "ยังไม่ได้เลือกหลักฐาน";
+    let selectedEvidenceFile = null;
+    let selectedEvidencePreviewUrl = null;
+    let activeCameraStream = null;
+    let popupElement = null;
+    let attachMenuWrap = null;
+    let attachMenu = null;
+    let attachTrigger = null;
+    let openCameraButton = null;
+    let openGalleryButton = null;
+    let openFileButton = null;
+    let galleryInput = null;
+    let genericFileInput = null;
+    let pasteZone = null;
+    let fileMeta = null;
+    let attachmentPreview = null;
+    let cameraPanel = null;
+    let cameraVideo = null;
+    let cameraCloseButton = null;
+    let cameraCaptureButton = null;
+
+    const hideAttachMenu = () => {
+      attachMenu?.classList.add("hidden");
+    };
+
+    const stopCamera = () => {
+      if (activeCameraStream) {
+        activeCameraStream.getTracks().forEach((track) => track.stop());
+        activeCameraStream = null;
+      }
+      if (cameraVideo) {
+        cameraVideo.srcObject = null;
+      }
+      cameraPanel?.classList.add("hidden");
+    };
+
+    const revokePreviewUrl = () => {
+      if (selectedEvidencePreviewUrl && selectedEvidencePreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(selectedEvidencePreviewUrl);
+      }
+      selectedEvidencePreviewUrl = null;
+    };
+
+    const renderSelectedEvidence = () => {
+      if (!attachmentPreview || !fileMeta) return;
+
+      if (!selectedEvidenceFile) {
+        attachmentPreview.classList.add("hidden");
+        attachmentPreview.innerHTML = "";
+        fileMeta.textContent = existingEvidenceHint;
+        return;
+      }
+
+      const safeName = escapeHtml(selectedEvidenceFile.name || "attachment");
+      const sizeLabel = formatAttachmentSize(selectedEvidenceFile.size);
+      const previewMeta = escapeHtml(sizeLabel);
+      const isImage = isImageLikeFile(selectedEvidenceFile);
+
+      if (isImage && selectedEvidencePreviewUrl) {
+        attachmentPreview.innerHTML = `
+          <div class="${previewCardClass}">
+            <img src="${selectedEvidencePreviewUrl}" alt="${safeName}" class="aspect-video w-full object-cover" />
+            <div class="${previewFooterClass}">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold ${previewCardLabelClass}">${safeName}</p>
+                <p class="text-[11px] ${previewCardMetaClass}">${previewMeta}</p>
+              </div>
+              <button type="button" id="swal-remove-attachment" class="${removeButtonClass}" aria-label="ลบหลักฐาน">
+                ${closeIcon}
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        attachmentPreview.innerHTML = `
+          <div class="${previewCardClass}">
+            <div class="flex items-center justify-between gap-3 px-4 py-4">
+              <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                  ${fileIcon}
+                </div>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold ${previewCardLabelClass}">${safeName}</p>
+                  <p class="text-[11px] ${previewCardMetaClass}">${previewMeta}</p>
+                </div>
+              </div>
+              <button type="button" id="swal-remove-attachment" class="${removeButtonClass}" aria-label="ลบหลักฐาน">
+                ${closeIcon}
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      attachmentPreview.classList.remove("hidden");
+      fileMeta.textContent = `${isImage ? "พร้อมอัปโหลดรูป" : "พร้อมอัปโหลดไฟล์"} • ${sizeLabel}`;
+      attachmentPreview.querySelector("#swal-remove-attachment")?.addEventListener("click", clearSelectedEvidence);
+    };
+
+    function clearSelectedEvidence() {
+      selectedEvidenceFile = null;
+      revokePreviewUrl();
+      if (galleryInput) galleryInput.value = "";
+      if (genericFileInput) genericFileInput.value = "";
+      renderSelectedEvidence();
+    }
+
+    const applySelectedEvidence = (rawFile) => {
+      if (!rawFile) return false;
+
+      const normalizedFile =
+        rawFile instanceof File && rawFile.name
+          ? rawFile
+          : new File([rawFile], inferClipboardFileName(rawFile), {
+              type: rawFile?.type || "application/octet-stream",
+            });
+
+      if (normalizedFile.size > CLOSE_JOB_MAX_FILE_SIZE) {
+        toast.error("ไฟล์ต้องไม่เกิน 5MB");
+        return false;
+      }
+
+      selectedEvidenceFile = normalizedFile;
+      revokePreviewUrl();
+      selectedEvidencePreviewUrl = isImageLikeFile(normalizedFile) ? URL.createObjectURL(normalizedFile) : null;
+      hideAttachMenu();
+      stopCamera();
+      renderSelectedEvidence();
+      return true;
+    };
+
+    const startCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.error("อุปกรณ์นี้ไม่รองรับกล้อง");
+        return;
+      }
+
+      try {
+        stopCamera();
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+            audio: false,
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+
+        activeCameraStream = stream;
+        if (cameraVideo) {
+          cameraVideo.srcObject = stream;
+          await cameraVideo.play?.();
+        }
+        cameraPanel?.classList.remove("hidden");
+        hideAttachMenu();
+      } catch (error) {
+        console.error("Close job camera error:", error);
+        toast.error("เปิดกล้องไม่ได้");
+      }
+    };
+
+    const captureFromCamera = async () => {
+      if (!cameraVideo) {
+        toast.error("กล้องไม่พร้อมใช้งาน");
+        return;
+      }
+
+      const width = cameraVideo.videoWidth || 1280;
+      const height = cameraVideo.videoHeight || 720;
+      if (!width || !height) {
+        toast.error("จับภาพไม่ได้");
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      context?.drawImage(cameraVideo, 0, 0, width, height);
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          toast.error("จับภาพไม่ได้");
+          return;
+        }
+
+        const capturedFile = new File([blob], `after_${ticket.id}_${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
+        applySelectedEvidence(capturedFile);
+      }, "image/jpeg", 0.92);
+    };
 
     const { value: formValues } = await Swal.fire({
-      title: `<span class="${shellClass}">บันทึกและปิดงาน</span>`,
+      title: `<span class="${shellClass}">ปิดงาน</span>`,
       html: `
         <div class="space-y-3 text-left ">
           <div class="${sectionClass}">
             <div class="mb-2 flex flex-wrap items-center gap-2">
               <div class="flex flex-wrap items-center gap-2">
               <span class="${chipClass}">Ticket ${safeTicketNo}</span>
-              <span class="${chipClass}">รายงานมาตรฐาน 5 หัวข้อ</span>
+              <span class="${chipClass}">5 หัวข้อ</span>
               </div>
             </div>
-            <p class="text-sm font-semibold ${shellClass}">สรุปผลการซ่อมและการทดสอบหลังดำเนินการ</p>
+            <p class="text-sm font-semibold ${shellClass}">สรุปงานซ่อม</p>
             <p class="mt-1 text-[11px] ${mutedClass}">
-              กรอกข้อมูลแบบกระชับและตรวจสอบได้ ระบบจะจัดรายงานงานซ่อมให้อัตโนมัติในรูปแบบมาตรฐาน
+              กรอกสั้น ๆ ให้ครบ
             </p>
           </div>
 
@@ -961,21 +1231,77 @@ const ITDashboard = () => {
               <textarea id="swal-solution" class="${fieldClass}" rows="3" placeholder="เช่น ตรวจเช็กอุปกรณ์ ปรับการเชื่อมต่อและตั้งค่าใหม่"></textarea>
             </div>
 
-            <div>
+            <div class="sm:col-span-2">
               <label class="mb-1.5 block text-xs font-semibold ${labelClass}">อะไหล่ที่ใช้ (Parts Used)</label>
               <input id="swal-parts" class="${fieldClass}" placeholder="เช่น ไม่มีการเปลี่ยนอะไหล่ / พัดลม CPU 1 ตัว" />
-            </div>
-
-            <div>
-              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">รูปหลังซ่อม (ไม่บังคับ)</label>
-              <input type="file" id="swal-file" accept="image/*" capture="environment" class="${fileInputClass}" />
-              <p id="swal-file-meta" class="mt-1 text-[11px] ${helperClass}">รองรับไฟล์รูปภาพ</p>
             </div>
           </div>
 
           <div class="${sectionClass}">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <label class="mb-1.5 block text-xs font-semibold ${labelClass}">หลักฐาน (ไม่บังคับ)</label>
+                <p class="text-[11px] ${helperClass}">กล้อง / รูปภาพ / ไฟล์ / Ctrl+V</p>
+              </div>
+              <div id="swal-attach-menu-wrap" class="relative">
+                <button type="button" id="swal-attach-trigger" class="${attachTriggerClass}" aria-label="เพิ่มหลักฐาน">
+                  ${paperclipIcon}
+                </button>
+                <div id="swal-attach-menu" class="${attachMenuClass}">
+                  <button type="button" id="swal-open-camera" class="${attachMenuButtonClass}">
+                    <span class="text-[#2b59b0]">${cameraIcon}</span>
+                    <span>กล้อง</span>
+                  </button>
+                  <button type="button" id="swal-open-gallery" class="${attachMenuButtonClass}">
+                    <span class="text-emerald-600">${imageIcon}</span>
+                    <span>รูปภาพ</span>
+                  </button>
+                  <button type="button" id="swal-open-file" class="${attachMenuButtonClass}">
+                    <span class="text-amber-600">${fileIcon}</span>
+                    <span>ไฟล์</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <input type="file" id="swal-image-file" accept="${CLOSE_JOB_IMAGE_ACCEPT}" class="hidden" />
+            <input type="file" id="swal-file-input" accept="${CLOSE_JOB_FILE_ACCEPT}" class="hidden" />
+
+            <div id="swal-paste-zone" tabindex="0" class="${pasteZoneClass}">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#2b59b0]/10 text-[#2b59b0]">
+                  ${pasteIcon}
+                </div>
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold ${shellClass}">วางภาพหรือไฟล์</p>
+                  <p class="text-[11px] ${helperClass}">Win + Shift + S แล้ว Ctrl + V</p>
+                </div>
+              </div>
+            </div>
+
+            <div id="swal-camera-panel" class="${cameraPanelClass}">
+              <div class="relative p-3">
+                <video id="swal-camera-video" autoplay playsinline class="aspect-video w-full rounded-xl object-cover"></video>
+                <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p class="text-[11px] text-white/75">ถ่ายภาพหน้างานแล้วใช้เป็นหลักฐานได้ทันที</p>
+                  <div class="flex flex-wrap gap-2">
+                    <button type="button" id="swal-camera-close" class="${smallGhostButtonClass}">ปิด</button>
+                    <button type="button" id="swal-camera-capture" class="${primaryCameraButtonClass}">
+                      ${cameraIcon}
+                      <span>จับภาพ</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p id="swal-file-meta" class="mt-3 text-[11px] ${helperClass}">${existingEvidenceHint}</p>
+            <div id="swal-attachment-preview" class="hidden"></div>
+          </div>
+
+          <div class="${sectionClass}">
             <p class="text-[11px] leading-relaxed ${helperClass}">
-              แนวทางเขียนรายงาน: ระบุอาการจริง -> วิเคราะห์สาเหตุ -> บันทึกขั้นตอนที่ทำจริง -> ยืนยันผลทดสอบหลังซ่อม
+              ปัญหา > สาเหตุ > วิธีแก้ > ผล
             </p>
           </div>
         </div>
@@ -983,7 +1309,7 @@ const ITDashboard = () => {
       background: isDark ? "#0f172a" : "#ffffff",
       color: isDark ? "#fff" : "#1f2937",
       showCancelButton: true,
-      confirmButtonText: "บันทึกและปิดงาน",
+      confirmButtonText: "ปิดงาน",
       confirmButtonColor: "#2b59b0",
       cancelButtonText: "ยกเลิก",
       focusConfirm: false,
@@ -1005,19 +1331,72 @@ const ITDashboard = () => {
           problemEl.setSelectionRange?.(problemEl.value.length, problemEl.value.length);
         }
 
-        const fileInput = document.getElementById("swal-file");
-        const fileMeta = document.getElementById("swal-file-meta");
-        const updateFileMeta = () => {
-          if (!fileMeta || !fileInput) return;
-          const file = fileInput.files?.[0];
-          if (!file) {
-            fileMeta.textContent = "รองรับไฟล์รูปภาพ";
-            return;
+        popupElement = Swal.getPopup();
+        attachMenuWrap = document.getElementById("swal-attach-menu-wrap");
+        attachMenu = document.getElementById("swal-attach-menu");
+        attachTrigger = document.getElementById("swal-attach-trigger");
+        openCameraButton = document.getElementById("swal-open-camera");
+        openGalleryButton = document.getElementById("swal-open-gallery");
+        openFileButton = document.getElementById("swal-open-file");
+        galleryInput = document.getElementById("swal-image-file");
+        genericFileInput = document.getElementById("swal-file-input");
+        pasteZone = document.getElementById("swal-paste-zone");
+        fileMeta = document.getElementById("swal-file-meta");
+        attachmentPreview = document.getElementById("swal-attachment-preview");
+        cameraPanel = document.getElementById("swal-camera-panel");
+        cameraVideo = document.getElementById("swal-camera-video");
+        cameraCloseButton = document.getElementById("swal-camera-close");
+        cameraCaptureButton = document.getElementById("swal-camera-capture");
+
+        attachTrigger?.addEventListener("click", () => {
+          attachMenu?.classList.toggle("hidden");
+        });
+
+        popupElement?.addEventListener("click", (event) => {
+          if (attachMenuWrap && !attachMenuWrap.contains(event.target)) {
+            hideAttachMenu();
           }
-          const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
-          fileMeta.textContent = `เลือกไฟล์: ${file.name} (${fileSizeMb} MB)`;
-        };
-        fileInput?.addEventListener("change", updateFileMeta);
+        });
+
+        openCameraButton?.addEventListener("click", startCamera);
+        openGalleryButton?.addEventListener("click", () => {
+          hideAttachMenu();
+          galleryInput?.click();
+        });
+        openFileButton?.addEventListener("click", () => {
+          hideAttachMenu();
+          genericFileInput?.click();
+        });
+        galleryInput?.addEventListener("change", (event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          applySelectedEvidence(file);
+          event.target.value = "";
+        });
+        genericFileInput?.addEventListener("change", (event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          applySelectedEvidence(file);
+          event.target.value = "";
+        });
+        pasteZone?.addEventListener("click", () => pasteZone.focus());
+        pasteZone?.addEventListener("paste", (event) => {
+          const clipboardItems = Array.from(event.clipboardData?.items || []);
+          const clipboardFileItem = clipboardItems.find((item) => item.kind === "file");
+          const clipboardFile = clipboardFileItem?.getAsFile?.() || event.clipboardData?.files?.[0];
+
+          if (!clipboardFile) return;
+
+          event.preventDefault();
+          applySelectedEvidence(clipboardFile);
+        });
+        cameraCloseButton?.addEventListener("click", stopCamera);
+        cameraCaptureButton?.addEventListener("click", captureFromCamera);
+        renderSelectedEvidence();
+      },
+      willClose: () => {
+        stopCamera();
+        revokePreviewUrl();
       },
       preConfirm: () => {
         const problem = document.getElementById("swal-problem")?.value || "";
@@ -1025,7 +1404,6 @@ const ITDashboard = () => {
         const solution = document.getElementById("swal-solution")?.value || "";
         const parts = document.getElementById("swal-parts")?.value || "";
         const result = document.getElementById("swal-result")?.value || "";
-        const file = document.getElementById("swal-file")?.files?.[0];
 
         if (!problem.trim() || !rootCause.trim() || !solution.trim() || !result.trim()) {
           Swal.showValidationMessage('<span class="text-rose-400">กรุณากรอกข้อมูลให้ครบทุกหัวข้อหลักก่อนบันทึก</span>');
@@ -1049,7 +1427,7 @@ const ITDashboard = () => {
           result: result.trim(),
         });
 
-        return { solution: report, parts: normalizedParts, file: file || null };
+        return { solution: report, parts: normalizedParts, file: selectedEvidenceFile || null };
       },
     });
 
@@ -1403,6 +1781,7 @@ const ITDashboard = () => {
         currentPage={currentPage}
         onNavigatePage={handleNavigatePage}
         notificationCount={notificationCount}
+        serviceRequestNotificationCount={serviceRequestNotificationCount}
         notebookNotificationCount={notebookNotificationCount}
       />
 
@@ -1466,8 +1845,10 @@ const ITDashboard = () => {
             onQuickFilterChange={setQuickFilter}
             sortedTickets={sortedTickets}
             tickets={tickets}
+            serviceRequests={serviceRequests}
             onOpenRepairFromOverview={handleOpenRepairFromOverview}
             onPickUpEquipment={() => navigate("/pick-up-equipment")}
+            onRefreshData={fetchTickets}
             loading={loading}
             isMobile={isMobile}
             dateRange={dateRange}
@@ -1481,6 +1862,9 @@ const ITDashboard = () => {
             handleDeleteTicket={handleDeleteTicket}
             handleViewDetails={handleViewDetails}
             handleOpenNavigation={handleOpenNavigation}
+            onCurrentUserUpdate={(patch) => {
+              setCurrentUser((previous) => (previous ? { ...previous, ...patch } : previous));
+            }}
           />
         </main>
 

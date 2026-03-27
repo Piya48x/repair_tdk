@@ -2,11 +2,15 @@ import React, { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useScopedI18n } from "../i18n/useScopedI18n";
 
+const WORK_LOCATION_OPTIONS = ["MIANOFFICE", "DS", "DV", "PL", "MK", "SQ", "D1", "D2", "HN"];
+
 const REGISTER_TRANSLATIONS = {
   th: {
     uploadFailed: "อัปโหลดรูปบัตรไม่สำเร็จ: {{message}}",
     acceptPolicyError: "กรุณายินยอมนโยบายก่อนลงทะเบียน",
     passwordMismatch: "รหัสผ่านไม่ตรงกัน",
+    passwordTooShort: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร",
+    invalidEmail: "กรุณากรอก Work Email ให้ถูกต้อง",
     title: "ลงทะเบียนพนักงาน",
     subtitle: "เพื่อเข้าใช้งานระบบแจ้งซ่อมและบริการ IT",
     employeeInfo: "ข้อมูลพนักงาน",
@@ -33,6 +37,8 @@ const REGISTER_TRANSLATIONS = {
     uploadFailed: "ID card upload failed: {{message}}",
     acceptPolicyError: "Please accept the policy before registering.",
     passwordMismatch: "Passwords do not match.",
+    passwordTooShort: "Password must be at least 8 characters.",
+    invalidEmail: "Please enter a valid work email.",
     title: "Employee registration",
     subtitle: "Register to use the IT service and repair request system.",
     employeeInfo: "Employee information",
@@ -59,6 +65,8 @@ const REGISTER_TRANSLATIONS = {
     uploadFailed: "신분증 이미지 업로드 실패: {{message}}",
     acceptPolicyError: "등록 전에 정책에 동의해 주세요.",
     passwordMismatch: "비밀번호가 일치하지 않습니다.",
+    passwordTooShort: "비밀번호는 최소 8자 이상이어야 합니다.",
+    invalidEmail: "올바른 Work Email을 입력해 주세요.",
     title: "직원 등록",
     subtitle: "IT 서비스 및 수리 요청 시스템 사용을 위해 등록합니다.",
     employeeInfo: "직원 정보",
@@ -101,6 +109,8 @@ export default function Register({ onRegister, loading }) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [acceptPolicy, setAcceptPolicy] = useState(false);
 
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+
   const handleUploadIdCard = async () => {
     if (!idCardFile) return null;
 
@@ -141,6 +151,16 @@ export default function Register({ onRegister, loading }) {
 
     if (password !== confirmPassword) {
       alert(tt("passwordMismatch"));
+      return;
+    }
+
+    if (password.length < 8) {
+      alert(tt("passwordTooShort"));
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      alert(tt("invalidEmail"));
       return;
     }
 
@@ -189,6 +209,7 @@ export default function Register({ onRegister, loading }) {
             value={email}
             onChange={(event) => setEmail(event.target.value.toLowerCase().trim())}
             required
+            autoComplete="email"
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
           />
 
@@ -236,14 +257,21 @@ export default function Register({ onRegister, loading }) {
               className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
-          <input
-            type="text"
-            placeholder={tt("location")}
+          <select
             value={location}
             onChange={(event) => setLocation(event.target.value)}
             required
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
-          />
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value="" disabled>
+              {tt("location")}
+            </option>
+            {WORK_LOCATION_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-4">
@@ -265,6 +293,8 @@ export default function Register({ onRegister, loading }) {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
+              minLength={8}
+              autoComplete="new-password"
               className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
             />
             <button
@@ -282,6 +312,8 @@ export default function Register({ onRegister, loading }) {
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             required
+            minLength={8}
+            autoComplete="new-password"
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>

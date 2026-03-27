@@ -22,6 +22,8 @@ const AUTH_PAGE_TRANSLATIONS = {
     invalidWorkEmail: "อีเมลพนักงานไม่ถูกต้องหรือถูกใช้งานแล้ว",
     passwordPolicy: "รหัสผ่านไม่ผ่านเงื่อนไขของระบบ",
     registerFailed: "ลงทะเบียนไม่สำเร็จ",
+    signupDisabled: "ขณะนี้ระบบปิดการสมัครสมาชิกใหม่ กรุณาติดต่อผู้ดูแลระบบ",
+    captchaRequired: "ระบบต้องยืนยันความปลอดภัยก่อนสมัคร กรุณาลองใหม่อีกครั้ง",
     loginRequired: "กรุณากรอกข้อมูลให้ครบถ้วน",
     loginFailed: "เข้าสู่ระบบไม่สำเร็จ: {{message}}",
     invalidEmail: "กรุณากรอกอีเมลพนักงานให้ถูกต้อง",
@@ -40,6 +42,8 @@ const AUTH_PAGE_TRANSLATIONS = {
     invalidWorkEmail: "The employee email is invalid or already in use.",
     passwordPolicy: "The password does not meet system requirements.",
     registerFailed: "Registration failed.",
+    signupDisabled: "Sign-up is currently disabled. Please contact an administrator.",
+    captchaRequired: "Security verification is required before sign-up. Please try again.",
     loginRequired: "Please complete all required fields.",
     loginFailed: "Sign in failed: {{message}}",
     invalidEmail: "Please enter a valid employee email.",
@@ -58,6 +62,8 @@ const AUTH_PAGE_TRANSLATIONS = {
     invalidWorkEmail: "직원 이메일이 올바르지 않거나 이미 사용 중입니다.",
     passwordPolicy: "비밀번호가 시스템 정책을 충족하지 않습니다.",
     registerFailed: "등록에 실패했습니다.",
+    signupDisabled: "현재 회원가입이 비활성화되어 있습니다. 관리자에게 문의해 주세요.",
+    captchaRequired: "회원가입 전 보안 인증이 필요합니다. 다시 시도해 주세요.",
     loginRequired: "필수 정보를 모두 입력해 주세요.",
     loginFailed: "로그인 실패: {{message}}",
     invalidEmail: "올바른 직원 이메일을 입력하세요.",
@@ -151,9 +157,18 @@ export default function AuthPage() {
       const messageText = String(error?.message || "").trim();
       const code = String(error?.code || "").trim().toLowerCase();
       const status = Number(error?.status);
+      const messageLower = messageText.toLowerCase();
 
       if (code === "user_already_exists" || /already registered|already exists/i.test(messageText)) {
         return tt("emailInUse");
+      }
+
+      if (status === 422 && (messageLower.includes("signup is disabled") || messageLower.includes("signups not allowed"))) {
+        return tt("signupDisabled");
+      }
+
+      if (status === 422 && (messageLower.includes("captcha") || code.includes("captcha"))) {
+        return tt("captchaRequired");
       }
 
       if (status === 422 && /email/i.test(messageText)) {
@@ -321,6 +336,12 @@ export default function AuthPage() {
       setMessage({ type: "success", text: tt("registerSuccess") });
       setMode("login");
     } catch (err) {
+      console.error("Register error details:", {
+        message: err?.message,
+        code: err?.code,
+        status: err?.status,
+        name: err?.name,
+      });
       setMessage({ type: "error", text: getRegisterErrorMessage(err) });
     } finally {
       setLoading(false);

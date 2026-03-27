@@ -129,6 +129,9 @@ export const formatTicketId = (id) => {
     return `IT-${shortId.padStart(5, "0")}`;
 };
 
+const isLikelyImageAttachment = (url) =>
+    /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)(?:[?#].*)?$/i.test(String(url || ""));
+
 export const handleExportExcelWithImages = async (
     ticketsToExport,
     theme,
@@ -269,8 +272,8 @@ export const handleExportExcelWithImages = async (
                 closedBy: ticket.closed_by_name || "-",
                 durationMin: durationMinutes,
                 durationText: durationTextString,
-                imageBefore: ticket.image_url ? "รูปก่อนซ่อม" : "ไม่มีรูป",
-                imageAfter: ticket.image_after_url ? "รูปหลังซ่อม" : "ไม่มีรูป",
+                imageBefore: isLikelyImageAttachment(ticket.image_url) ? "รูปก่อนซ่อม" : "ไม่มีรูป",
+                imageAfter: isLikelyImageAttachment(ticket.image_after_url) ? "รูปหลังซ่อม" : "ไม่มีรูป",
                 notes: ticket.notes || "-",
                 createdAt: createdDate.toLocaleString("th-TH"),
                 updatedAt: updatedDate ? updatedDate.toLocaleString("th-TH") : "-",
@@ -312,13 +315,13 @@ export const handleExportExcelWithImages = async (
             priorityCell.alignment = { horizontal: "center", vertical: "middle" };
 
             try {
-                if (ticket.image_url) {
+                if (isLikelyImageAttachment(ticket.image_url)) {
                     const beforeImageResponse = await fetch(ticket.image_url);
                     const beforeImageBuffer = await beforeImageResponse.arrayBuffer();
                     const beforeImageId = workbook.addImage({ buffer: beforeImageBuffer, extension: "jpeg" });
                     worksheet.addImage(beforeImageId, { tl: { col: 27, row: rowIndex - 1 }, br: { col: 28, row: rowIndex }, editAs: "oneCell" });
                 }
-                if (ticket.image_after_url) {
+                if (isLikelyImageAttachment(ticket.image_after_url)) {
                     const afterImageResponse = await fetch(ticket.image_after_url);
                     const afterImageBuffer = await afterImageResponse.arrayBuffer();
                     const afterImageId = workbook.addImage({ buffer: afterImageBuffer, extension: "jpeg" });
@@ -449,7 +452,7 @@ export const handleExportExcelWithImages = async (
     </div>
     <div class="${theme === "dark" ? "bg-slate-800/40" : "bg-slate-50"} p-3 rounded-xl border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}">
       <p class="text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"} mb-1">จำนวนรูปภาพ</p>
-      <p class="text-xl font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}">${ticketsToExport.filter((t) => t.image_url || t.image_after_url).length}</p>
+      <p class="text-xl font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}">${ticketsToExport.filter((t) => isLikelyImageAttachment(t.image_url) || isLikelyImageAttachment(t.image_after_url)).length}</p>
     </div>
   </div>
   <div class="mb-5">

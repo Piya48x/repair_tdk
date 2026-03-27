@@ -287,10 +287,10 @@ export default function EvidenceFormSection({
             <div>
               <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>รูปหลักฐานงาน</p>
               <p className={`mt-1 text-xs ${softTextClass}`}>
-                แนบได้สูงสุด {MAX_FILES} รูป ผู้บันทึก: {currentUser?.name || "-"}
+                สูงสุด {MAX_FILES} รูป • {currentUser?.name || "-"}
               </p>
               <p className={`mt-1 text-xs ${softTextClass}`}>
-                ใช้ `Win+Shift+S` แล้วกด `Ctrl+V` เพื่อวางรูปจากคลิปบอร์ดได้
+                Ctrl+V วางรูปได้
               </p>
             </div>
             <button
@@ -303,7 +303,7 @@ export default function EvidenceFormSection({
               }`}
             >
               <Upload size={16} />
-              เพิ่มรูป
+              แนบรูป
             </button>
           </div>
 

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
-import { th } from "date-fns/locale";
+import { DATE_FNS_LOCALES } from "../i18n/config";
 import {
   Bar,
   BarChart,
@@ -48,7 +48,9 @@ import LogoutConfirmModal from "./dashboard/components/LogoutConfirmModal";
 import DashboardGlobalStyles from "./dashboard/components/DashboardGlobalStyles";
 import SupportSection from "./dashboard/components/SupportSection";
 import CentralChatDock from "../components/CentralChatDock";
+import LanguageSwitcher from "../components/LanguageSwitcher.jsx";
 import { loadMyNotebookBorrowLogs, NOTEBOOK_LOG_STATUS } from "../services/notebookBorrowService";
+import { isPickUpEquipmentRequest, splitTicketBuckets } from "../lib/serviceRequestUtils";
 import tdkLogo from "../../src/assets/2.png";
 
 const MEETING_ROOMS = ["Room A", "Room B", "Room C", "Room D"];
@@ -89,13 +91,14 @@ const DASHBOARD_TRANSLATIONS = {
       systemReady: "ระบบพร้อมใช้งาน",
       dataSource: "แหล่งข้อมูล: Supabase Realtime",
       loading: "กำลังโหลด...",
-      role: "Role",
+      role: "บทบาท",
       refreshData: "รีเฟรชข้อมูล",
       auditLog: "Audit Log",
     },
     nav: {
-      meetingRoomStatus: "Meeting Room Status",
+      meetingRoomStatus: "สถานะห้องประชุม",
       recentActivity: "กิจกรรมล่าสุด",
+      borrowRequests: "รายการเบิกของ",
       moreMenu: "เมนูอื่นๆ",
       newTicket: "แจ้งซ่อมใหม่",
       notSpecified: "ไม่ระบุ",
@@ -113,6 +116,11 @@ const DASHBOARD_TRANSLATIONS = {
         label: "เบิกอุปกรณ์",
         description: "ขออุปกรณ์หรือวัสดุสิ้นเปลืองผ่าน workflow",
         cta: "ตรวจสอบสต็อก",
+      },
+      myBorrowRequests: {
+        label: "การเบิกของคุณ",
+        description: "ดูสถานะและประวัติการเบิกของแยกจากงานแจ้งซ่อม",
+        cta: "เปิดรายการเบิก",
       },
       notebook: {
         label: "การยืมคืน notebook",
@@ -150,12 +158,12 @@ const DASHBOARD_TRANSLATIONS = {
         cta: "เปิดฟอร์มคำขอ",
       },
       adminDashboard: {
-        label: "Technician Dashboard",
+        label: "แดชบอร์ดช่างเทคนิค",
         description: "จัดคิวงาน, SLA และการมอบหมายระดับ IT",
         cta: "เข้าสู่โหมดช่าง",
       },
       auditView: {
-        label: "Audit View",
+        label: "มุมมองตรวจสอบ",
         description: "ตรวจสอบ Log และรายงานเพื่อการกำกับดูแล",
         cta: "เปิดมุมมองตรวจสอบ",
       },
@@ -179,7 +187,7 @@ const DASHBOARD_TRANSLATIONS = {
       noTitle: "ไม่มีหัวข้อ",
       noCategory: "ไม่ระบุหมวดหมู่",
       noDescription: "ไม่มีรายละเอียด",
-      timeline: "Activity Timeline",
+      timeline: "ไทม์ไลน์กิจกรรม",
     },
     navMore: {
       "groupware-tdk": "Groupware TDK",
@@ -200,6 +208,7 @@ const DASHBOARD_TRANSLATIONS = {
     nav: {
       meetingRoomStatus: "Meeting Room Status",
       recentActivity: "Recent Activity",
+      borrowRequests: "Borrow Requests",
       moreMenu: "More Menu",
       newTicket: "New Ticket",
       notSpecified: "Not specified",
@@ -217,6 +226,11 @@ const DASHBOARD_TRANSLATIONS = {
         label: "Equipment Request",
         description: "Request equipment or consumables through a workflow",
         cta: "Check stock",
+      },
+      myBorrowRequests: {
+        label: "Your Requests",
+        description: "Track equipment requests separately from repair tickets",
+        cta: "Open request list",
       },
       notebook: {
         label: "Notebook Borrowing",
@@ -304,6 +318,7 @@ const DASHBOARD_TRANSLATIONS = {
     nav: {
       meetingRoomStatus: "회의실 현황",
       recentActivity: "최근 활동",
+      borrowRequests: "장비 요청 목록",
       moreMenu: "추가 메뉴",
       newTicket: "새 티켓",
       notSpecified: "미지정",
@@ -321,6 +336,11 @@ const DASHBOARD_TRANSLATIONS = {
         label: "장비 요청",
         description: "워크플로우로 장비나 소모품을 요청합니다",
         cta: "재고 확인",
+      },
+      myBorrowRequests: {
+        label: "내 장비 요청",
+        description: "수리 티켓과 분리된 장비 요청 현황을 확인합니다",
+        cta: "요청 목록 열기",
       },
       notebook: {
         label: "노트북 대여/반납",
@@ -397,12 +417,804 @@ const DASHBOARD_TRANSLATIONS = {
   },
 };
 
+const DASHBOARD_RUNTIME_TEXT = {
+  th: {
+    ticketStatusLabels: {
+      NEW: "รอดำเนินการ",
+      IN_PROGRESS: "กำลังซ่อม",
+      CLOSED: "สำเร็จ",
+    },
+    notifications: {
+      assignedTitle: "IT รับเคสแล้ว",
+      assignedMessage: "{{ticketNo}} มอบหมายให้ {{assignee}}",
+      startedTitle: "IT เริ่มดำเนินการแล้ว",
+      startedMessage: "{{ticketNo}} อยู่ระหว่างซ่อม{{assigneeText}}",
+      startedBy: " โดย {{assignee}}",
+      closedTitle: "งานเสร็จเรียบร้อยแล้ว",
+      closedMessageWithNote: "{{ticketNo}} ปิดงานแล้ว: {{note}}",
+      closedMessage: "{{ticketNo}} ปิดงานเรียบร้อยแล้ว",
+      updatedTitle: "Ticket อัปเดตสถานะ",
+      updatedMessage: "{{ticketNo}} เปลี่ยนเป็น {{status}}",
+    },
+    common: {
+      loading: "กำลังโหลด...",
+      recently: "ไม่นานมานี้",
+      notSpecified: "ไม่ระบุ",
+      noEmail: "ไม่ระบุอีเมล",
+      noPhone: "ไม่ระบุเบอร์โทรศัพท์",
+      noLocation: "ไม่ระบุสถานที่",
+      noName: "ไม่พบชื่อ",
+      employee: "พนักงาน",
+      bookingTitle: "มีการจอง",
+      noBookedBy: "ไม่ระบุผู้จอง",
+      noSystem: "ไม่ระบุระบบ",
+      noDescription: "ไม่มีรายละเอียด",
+      noNextBooking: "ไม่มีคิวถัดไป",
+      noMeetingToday: "วันนี้ห้องประชุมว่าง",
+      partialLoadError: "มีปัญหาในการโหลดข้อมูลบางส่วน",
+      retryLoad: "ลองโหลดอีกครั้ง",
+      comparePrevious7Days: "เทียบ 7 วันก่อน",
+      currentStatus: "สถานะปัจจุบัน",
+      sync: "ซิงก์",
+      fullView: "ดูภาพเต็ม",
+      items: "รายการ",
+      amount: "จำนวน",
+      loadingDashboard: "กำลังเตรียมข้อมูล Dashboard...",
+      quickActionsTitle: "ทางลัดด่วน",
+      quickActionsSubtitle: "ทางลัดหลักของระบบสำหรับงานที่ใช้บ่อยที่สุด",
+      role: "บทบาท",
+      active: "เปิดใช้งาน",
+      moreMenu: "แสดงเมนูเพิ่มเติม",
+      profileShow: "แสดงรายละเอียดโปรไฟล์",
+      profileHide: "ซ่อนรายละเอียดโปรไฟล์",
+      department: "แผนก",
+      position: "ตำแหน่ง",
+      close: "ปิด",
+      profileInfo: "ข้อมูลที่ใช้ตอนสมัครสมาชิกพนักงาน",
+      companyName: "บริษัท ที.ดี.เค.อินดัสเตรียล จำกัด",
+      companyLogoAlt: "โลโก้ TDK Industrial",
+      profileAlt: "โปรไฟล์",
+      userFallback: "ผู้ใช้",
+      live: "เรียลไทม์",
+      closeNotification: "ปิดการแจ้งเตือน",
+    },
+    timeline: {
+      createdLabel: "สร้างใบแจ้งซ่อม",
+      createdDetail: "ระบบรับเรื่องเรียบร้อยและเริ่มนับ SLA",
+      progressLabel: "อยู่ระหว่างดำเนินการ",
+      assignedDetail: "ผู้รับผิดชอบ: {{name}}",
+      waitingDetail: "กำลังรอช่างเข้าดำเนินการ",
+      closedLabel: "ปิดงานสำเร็จ",
+      closedDetail: "งานนี้ถูกปิดเรียบร้อยแล้ว",
+      monitoringLabel: "ติดตาม SLA",
+      statusDetail: "สถานะปัจจุบัน: {{status}}",
+    },
+    metrics: {
+      statusNewLabel: "รอดำเนินการ",
+      pendingShare: "{{percent}}% ของงานค้าง",
+      statusProgressLabel: "กำลังซ่อม",
+      statusClosedLabel: "ปิดงานแล้ว",
+      totalLabel: "งานที่แจ้งทั้งหมด",
+      totalShare: "{{percent}}% ของงานทั้งหมด",
+      realtimeStatus: "อัปเดตสถานะล่าสุดแบบเรียลไทม์",
+      open7dLabel: "งานเปิดใหม่ (7 วัน)",
+      riskLabel: "งานเสี่ยง SLA",
+      overdueLabel: "งานเกิน SLA",
+      closed7dLabel: "งานปิดแล้ว (7 วัน)",
+    },
+    profile: {
+      employeeId: "รหัสพนักงาน",
+      email: "อีเมล",
+      phone: "โทรศัพท์",
+      location: "สถานที่",
+    },
+    errors: {
+      meetingRoomLoad: "ไม่สามารถโหลดสถานะห้องประชุมได้",
+      accessRequestLoad: "ไม่สามารถโหลดสถานะคำขอสิทธิ์ระบบได้",
+      dashboardLoad: "ไม่สามารถโหลดข้อมูล Dashboard ได้ กรุณาลองใหม่อีกครั้ง",
+    },
+    preset: {
+      title: "บันทึกมุมมองตัวกรอง",
+      inputLabel: "ชื่อมุมมอง",
+      inputPlaceholder: "เช่น งานด่วนของฉัน",
+      confirm: "บันทึก",
+      cancel: "ยกเลิก",
+      validation: "กรุณาระบุชื่อมุมมอง",
+    },
+    sla: {
+      overdue: "เลยกำหนด {{hours}} ชม.",
+      atRisk: "เสี่ยงหลุดใน {{hours}} ชม.",
+      remaining: "เหลือ {{hours}} ชม.",
+    },
+    kpiDetail: {
+      statusNewTitle: "รอดำเนินการ",
+      statusNewDescription: "Ticket ที่สร้างแล้วและยังรอเริ่มดำเนินการ",
+      statusProgressTitle: "กำลังซ่อม",
+      statusProgressDescription: "Ticket ที่ทีมกำลังดำเนินการอยู่ในตอนนี้",
+      statusClosedTitle: "ปิดงานแล้ว",
+      statusClosedDescription: "Ticket ที่ปิดเรียบร้อยแล้วทั้งหมด",
+      statusTotalTitle: "งานที่แจ้งทั้งหมด",
+      statusTotalDescription: "Ticket ทั้งหมดที่อยู่ในระบบ ณ ตอนนี้",
+      openTitle: "งานเปิดใหม่ 7 วันล่าสุด",
+      openDescription: "งานที่เปิดเข้ามาในรอบ 7 วันและยังไม่ปิด",
+      riskTitle: "งานเสี่ยง SLA",
+      riskDescription: "งานที่ยังไม่ปิดและมีความเสี่ยงหลุด SLA",
+      overdueTitle: "งานเกิน SLA",
+      overdueDescription: "งานที่เกิน SLA แล้วและควรเร่งติดตาม",
+      closedTitle: "งานปิดแล้ว 7 วันล่าสุด",
+      closedDescription: "งานที่ปิดสำเร็จในรอบ 7 วันที่ผ่านมา",
+      modalLabel: "รายละเอียด KPI",
+      closeAria: "ปิดรายละเอียด KPI",
+      totalLabel: "จำนวนทั้งหมด",
+      totalHelper: "รายการที่ตรงกับ KPI นี้",
+      popupLabel: "แสดงใน popup",
+      popupHelper: "สูงสุด 12 รายการล่าสุด",
+      usageLabel: "วิธีใช้งาน",
+      usageAction: "กดที่รายการเพื่อเปิดรายละเอียด ticket",
+      usageHelper: "เหมาะสำหรับ drill-down จากตัวเลขสรุปทันที",
+      updatedAt: "อัปเดต {{value}}",
+      emptyTitle: "ยังไม่มีรายการใน KPI นี้",
+      emptyDescription: "เมื่อมี ticket เข้ามาตรงเงื่อนไข ตัวเลขและรายการใน popup นี้จะอัปเดตตามทันที",
+      footerHint: "KPI cards ด้านบนสามารถกดเพื่อเปิด popup ดูรายการย่อยได้ทันที",
+      openHistory: "เปิดประวัติ Ticket",
+    },
+    operational: {
+      notSpecifiedRoom: "ไม่ระบุห้อง",
+      otherStatus: "สถานะอื่น",
+      openTickets: "Ticket ค้าง",
+      todayMeetings: "ประชุมวันนี้",
+      accessPending: "สิทธิ์รออนุมัติ",
+      pendingNotes: "โน้ตค้าง",
+      noQueue: "ยังไม่มีคิว",
+      uncategorized: "ไม่ระบุหมวดหมู่",
+      openLabel: "งานค้างเปิด",
+      openHelper: "{{newCount}} ใหม่ / {{progressCount}} กำลังซ่อม",
+      progressLabel: "กำลังซ่อม",
+      progressHelper: "ติดตามงานที่กำลังดำเนินการอยู่",
+      slaLabel: "เสี่ยงหรือเกิน SLA",
+      slaHelper: "{{count}} งานเกิน SLA แล้ว",
+      meetingLabel: "ห้องใช้งานตอนนี้",
+      meetingHelper: "จาก {{totalRooms}} ห้อง, วันนี้ {{count}} รายการ",
+      notebookLabel: "Notebook ต้องติดตาม",
+      notebookHelper: "คำขอยืม-คืนและรายการที่รอจัดการ",
+      accessLabel: "สิทธิ์รออนุมัติ",
+      accessHelper: "คำขอ workflow ที่ยังไม่ปิดงาน",
+      title: "แดชบอร์ดปฏิบัติการ",
+      subtitle: "ภาพรวมหน้างานแบบมินิ ดูคิวปัจจุบัน เทรนด์ 7 วัน และ workload ข้ามโมดูลในบล็อกเดียว",
+      slaWatch: "เฝ้าระวัง SLA {{count}}",
+      queueStatus: "สถานะคิว",
+      queueOpenItems: "งานค้าง {{count}} รายการ",
+      sevenDayMotion: "การเคลื่อนไหว 7 วัน",
+      createdVsClosed: "เปิดใหม่เทียบกับปิดงาน",
+      workloadMix: "สัดส่วนภาระงาน",
+      followUpItems: "{{count}} รายการที่ต้องตาม",
+      noExtraWorkload: "ยังไม่มี workload เพิ่มเติม",
+      modalLabel: "ภาพรวม Dashboard",
+      realtime: "เรียลไทม์",
+      modalDescription: "สรุปข้อมูลปัจจุบันแบบสดในหน้าเดียว โดยไม่ต้องเปลี่ยน layout หลักของ dashboard เดิม",
+      onTimeSla: "SLA ตรงเวลา {{percent}}%",
+      riskOverdue: "เสี่ยง {{risk}} / เกิน SLA {{overdue}}",
+      overlapCount: "พบเวลาจองซ้ำ {{count}} จุด",
+      trendLabel: "แนวโน้ม Ticket 7 วันล่าสุด",
+      trendTitle: "เปิดใหม่ vs ปิดงาน",
+      rolling7Days: "ย้อนหลัง 7 วัน",
+      lineCreated: "เปิดใหม่",
+      lineClosed: "ปิดงาน",
+      dateLabel: "วันที่ {{label}}",
+      statusOverviewLabel: "ภาพรวมสถานะ Ticket",
+      statusOverviewTitle: "สัดส่วนสถานะงานปัจจุบัน",
+      liveQueue: "คิวสด",
+      mixLabel: "สัดส่วนงานปัจจุบัน",
+      mixTitle: "สัดส่วนงานที่กำลังเกิดขึ้น",
+      liveLoad: "ภาระงานสด",
+      watchlistLabel: "จุดเฝ้าดูตอนนี้",
+      watchlistTitle: "จุดที่ควรจับตา",
+      liveFeed: "ฟีดสด",
+      roomsInUseNow: "ห้องที่กำลังใช้งาน",
+      nextMeetingQueue: "คิวประชุมถัดไป",
+      activeMeetingFallback: "มีการใช้งานห้องประชุม",
+      noMeetingInUse: "ไม่มีการใช้ห้องประชุมในตอนนี้",
+      topOpenCategories: "หมวดงานค้างสูงสุด",
+      noOpenTickets: "ตอนนี้ยังไม่มีงานค้างเปิด",
+      urgentTickets: "Ticket เร่งด่วน",
+      noUrgentTickets: "ไม่มี ticket เร่งด่วนที่ต้องจับตา",
+      footerHint: "เปิดดูภาพรวมปัจจุบันจาก nav ได้ทันที โดยไม่ต้องเลื่อนหาหลาย section ในหน้าเดิม",
+      openHistory: "เปิดประวัติ Ticket",
+    },
+    meeting: {
+      hiddenSubtitle: "สถานะห้องประชุมของวันนี้แบบเรียลไทม์สำหรับพนักงานทั้งองค์กร",
+      openBooking: "ไปหน้าจองห้องประชุม",
+      todayCount: "วันนี้: {{count}} รายการ",
+      tomorrowCount: "พรุ่งนี้: {{count}} รายการ",
+      upcomingCount: "ถัดไป: {{count}} รายการ",
+      nextBooking: "คิวถัดไป: {{value}}",
+      nextShort: "ถัดไป: {{value}}",
+      overlapCount: "พบเวลาจองซ้ำ {{count}} จุด",
+      todayBookings: "รายการจองวันนี้",
+      roomStatusToday: "สถานะห้องประชุมวันนี้",
+      upcomingBookings: "รายการจองถัดไป",
+      latestActivity: "กิจกรรมล่าสุด",
+      modalTitle: "สถานะห้องประชุมและกิจกรรมล่าสุด",
+      modalSubtitle: "ติดตามห้องว่าง คิวถัดไป และรายการจองล่าสุดแบบ popup",
+      footerHint: "เปิดดูสถานะห้องประชุมล่าสุดจาก nav ได้ทันทีโดยไม่ต้องเลื่อนหน้า",
+      noUpcomingQueue: "ไม่มีคิวห้องประชุมถัดไป",
+      closeAria: "ปิดสถานะห้องประชุม",
+      booked: "มีการจอง",
+      available: "ว่าง",
+    },
+    recentActivity: {
+      filteredCount: "แสดง {{visible}} จาก {{filtered}} รายการที่ผ่านตัวกรอง",
+      shortcuts: "คีย์ลัด: / ค้นหา, n สร้าง Ticket",
+      smartFilterBar: "แถบตัวกรองอัจฉริยะ",
+      searchPlaceholder: "ค้นหาเลขที่งาน / หัวข้อ / รายละเอียด...",
+      searchAria: "ค้นหา Ticket",
+      clearSearch: "ล้าง",
+      filterStatusAria: "กรองตามสถานะ",
+      filterCategoryAria: "กรองตามหมวดหมู่",
+      filterPriorityAria: "กรองตามความเร่งด่วน",
+      filterSlaAria: "กรองตาม SLA",
+      savedViewAria: "เลือกมุมมองที่บันทึกไว้",
+      deleteSavedViewAria: "ลบมุมมองที่เลือก",
+      listAria: "รายการ Ticket ล่าสุด",
+      firstTicketCta: "สร้างใบแจ้งซ่อมแรก",
+      modalTitle: "รายการ Ticket ล่าสุด",
+      modalSubtitle: "เปิดจาก nav ได้ทันที พร้อมค้นหาและกรองสถานะสำคัญ",
+      totalCount: "ทั้งหมด {{count}} รายการ",
+      popupCount: "แสดงใน popup {{count}} รายการ",
+      noResultsDescription: "ลองปรับคำค้นหาหรือล้างตัวกรองปัจจุบัน",
+      footerHint: "กิจกรรมล่าสุดถูกย้ายมาเปิดผ่าน nav และใช้งานใน popup ได้ทันที",
+      closeAria: "ปิดกิจกรรมล่าสุด",
+      openHistory: "เปิดประวัติทั้งหมด",
+    },
+    ticket: {
+      priorityInboxTitle: "กล่องงานสำคัญ",
+      noTitle: "ไม่มีหัวข้อ",
+      noCategory: "ไม่ระบุหมวดหมู่",
+      openCaseChat: "เปิดแชทเคส",
+      priorityInboxSubtitle: "งานที่ควรจัดการก่อน เรียงตามความเสี่ยง SLA และความเร่งด่วน",
+      defaultView: "เปิดมุมมองมาตรฐาน",
+      overdueView: "ดูงานหลุด SLA",
+      noPriorityInbox: "ไม่มีงานค้างในกล่องงานสำคัญ",
+      normalQueue: "ตอนนี้คิวงานอยู่ในเกณฑ์ปกติ",
+    },
+  },
+  en: {
+    ticketStatusLabels: {
+      NEW: "Pending",
+      IN_PROGRESS: "In Progress",
+      CLOSED: "Completed",
+    },
+    notifications: {
+      assignedTitle: "IT picked up the case",
+      assignedMessage: "{{ticketNo}} assigned to {{assignee}}",
+      startedTitle: "IT started working",
+      startedMessage: "{{ticketNo}} is now in progress{{assigneeText}}",
+      startedBy: " by {{assignee}}",
+      closedTitle: "Work completed",
+      closedMessageWithNote: "{{ticketNo}} closed: {{note}}",
+      closedMessage: "{{ticketNo}} has been closed",
+      updatedTitle: "Ticket status updated",
+      updatedMessage: "{{ticketNo}} changed to {{status}}",
+    },
+    common: {
+      loading: "Loading...",
+      recently: "Just now",
+      notSpecified: "Not specified",
+      noEmail: "No email",
+      noPhone: "No phone number",
+      noLocation: "No location",
+      noName: "No name found",
+      employee: "Employee",
+      bookingTitle: "Booked",
+      noBookedBy: "No booker",
+      noSystem: "No system",
+      noDescription: "No description",
+      noNextBooking: "No upcoming booking",
+      noMeetingToday: "Meeting rooms are free today",
+      partialLoadError: "Some dashboard data could not be loaded",
+      retryLoad: "Retry",
+      comparePrevious7Days: "Compared with previous 7 days",
+      currentStatus: "Current status",
+      sync: "Sync",
+      fullView: "Open full view",
+      items: "items",
+      amount: "Amount",
+      loadingDashboard: "Preparing dashboard data...",
+      quickActionsTitle: "Quick Actions",
+      quickActionsSubtitle: "Primary shortcuts for the tasks you use most often.",
+      role: "Role",
+      active: "Active",
+      moreMenu: "Toggle more menu",
+      profileShow: "Show profile details",
+      profileHide: "Hide profile details",
+      department: "Department",
+      position: "Position",
+      close: "Close",
+      profileInfo: "Information used during employee registration",
+      companyName: "TDK Industrial Co., Ltd.",
+      companyLogoAlt: "TDK Industrial logo",
+      profileAlt: "Profile",
+      userFallback: "User",
+      live: "Real-time",
+      closeNotification: "Dismiss notification",
+    },
+    timeline: {
+      createdLabel: "Ticket created",
+      createdDetail: "The system received the request and started SLA tracking.",
+      progressLabel: "In progress",
+      assignedDetail: "Owner: {{name}}",
+      waitingDetail: "Waiting for a technician to start work",
+      closedLabel: "Completed",
+      closedDetail: "This ticket has been completed.",
+      monitoringLabel: "SLA monitoring",
+      statusDetail: "Current status: {{status}}",
+    },
+    metrics: {
+      statusNewLabel: "Pending",
+      pendingShare: "{{percent}}% of open workload",
+      statusProgressLabel: "In Progress",
+      statusClosedLabel: "Closed",
+      totalLabel: "Total tickets",
+      totalShare: "{{percent}}% of all tickets",
+      realtimeStatus: "Latest status updates in real time",
+      open7dLabel: "Opened in last 7 days",
+      riskLabel: "SLA at risk",
+      overdueLabel: "SLA overdue",
+      closed7dLabel: "Closed in last 7 days",
+    },
+    profile: {
+      employeeId: "Employee ID",
+      email: "Email",
+      phone: "Phone",
+      location: "Location",
+    },
+    errors: {
+      meetingRoomLoad: "Failed to load meeting room status.",
+      accessRequestLoad: "Failed to load access request status.",
+      dashboardLoad: "Failed to load dashboard data. Please try again.",
+    },
+    preset: {
+      title: "Save filter view",
+      inputLabel: "View name",
+      inputPlaceholder: "For example: My urgent work",
+      confirm: "Save",
+      cancel: "Cancel",
+      validation: "Please enter a view name",
+    },
+    sla: {
+      overdue: "Overdue by {{hours}}h",
+      atRisk: "At risk in {{hours}}h",
+      remaining: "{{hours}}h left",
+    },
+    kpiDetail: {
+      statusNewTitle: "Pending",
+      statusNewDescription: "Tickets created and still waiting to be started.",
+      statusProgressTitle: "In Progress",
+      statusProgressDescription: "Tickets currently being worked on by the team.",
+      statusClosedTitle: "Closed",
+      statusClosedDescription: "All tickets that have already been closed.",
+      statusTotalTitle: "Total tickets",
+      statusTotalDescription: "All tickets currently in the system.",
+      openTitle: "Opened in the last 7 days",
+      openDescription: "Tickets opened during the last 7 days and not yet closed.",
+      riskTitle: "SLA at risk",
+      riskDescription: "Open tickets that are at risk of missing SLA.",
+      overdueTitle: "SLA overdue",
+      overdueDescription: "Tickets that already exceeded SLA and need follow-up.",
+      closedTitle: "Closed in the last 7 days",
+      closedDescription: "Tickets successfully closed during the last 7 days.",
+      modalLabel: "KPI Detail",
+      closeAria: "Close KPI detail",
+      totalLabel: "Total",
+      totalHelper: "Items matching this KPI",
+      popupLabel: "Shown in popup",
+      popupHelper: "Up to 12 latest items",
+      usageLabel: "How to use",
+      usageAction: "Click an item to open ticket details",
+      usageHelper: "Useful for drilling down from the summary metrics",
+      updatedAt: "Updated {{value}}",
+      emptyTitle: "No items in this KPI",
+      emptyDescription: "As soon as matching tickets arrive, this popup updates automatically.",
+      footerHint: "The KPI cards above can be opened to inspect matching tickets immediately.",
+      openHistory: "Open ticket history",
+    },
+    operational: {
+      notSpecifiedRoom: "No room",
+      otherStatus: "Other",
+      openTickets: "Open tickets",
+      todayMeetings: "Meetings today",
+      accessPending: "Access pending",
+      pendingNotes: "Open notes",
+      noQueue: "No queue yet",
+      uncategorized: "Uncategorized",
+      openLabel: "Open workload",
+      openHelper: "{{newCount}} new / {{progressCount}} in progress",
+      progressLabel: "In Progress",
+      progressHelper: "Track tickets currently being worked on",
+      slaLabel: "Risk or overdue SLA",
+      slaHelper: "{{count}} tickets already overdue",
+      meetingLabel: "Rooms in use now",
+      meetingHelper: "{{count}} bookings today across {{totalRooms}} rooms",
+      notebookLabel: "Notebook follow-up",
+      notebookHelper: "Borrow-return requests and pending notebook actions",
+      accessLabel: "Access pending",
+      accessHelper: "Workflow requests that are still open",
+      title: "Operational Dashboard",
+      subtitle: "A compact live snapshot of queue, 7-day trend, and cross-module workload in one block.",
+      slaWatch: "SLA watch {{count}}",
+      queueStatus: "Queue Status",
+      queueOpenItems: "{{count}} open items",
+      sevenDayMotion: "7-Day Motion",
+      createdVsClosed: "Created vs closed",
+      workloadMix: "Workload Mix",
+      followUpItems: "{{count}} items to follow up",
+      noExtraWorkload: "No extra workload right now",
+      modalLabel: "Dashboard Overview",
+      realtime: "Real-time",
+      modalDescription: "A live snapshot of current operations in one place without changing the main dashboard layout.",
+      onTimeSla: "SLA on-time {{percent}}%",
+      riskOverdue: "{{risk}} at risk / {{overdue}} overdue",
+      overlapCount: "Found {{count}} overlapping booking slots",
+      trendLabel: "Ticket trend, last 7 days",
+      trendTitle: "Created vs closed",
+      rolling7Days: "rolling 7 days",
+      lineCreated: "Created",
+      lineClosed: "Closed",
+      dateLabel: "Date {{label}}",
+      statusOverviewLabel: "Ticket status overview",
+      statusOverviewTitle: "Current status distribution",
+      liveQueue: "live queue",
+      mixLabel: "Operational mix",
+      mixTitle: "Current workload mix",
+      liveLoad: "Live load",
+      watchlistLabel: "Watchlist now",
+      watchlistTitle: "Points to watch",
+      liveFeed: "live feed",
+      roomsInUseNow: "Rooms in use",
+      nextMeetingQueue: "Next meeting queue",
+      activeMeetingFallback: "Meeting room in use",
+      noMeetingInUse: "No meeting rooms are in use right now",
+      topOpenCategories: "Top open categories",
+      noOpenTickets: "There are no open tickets right now",
+      urgentTickets: "Urgent tickets",
+      noUrgentTickets: "No urgent tickets need attention",
+      footerHint: "Open the current overview directly from the nav without hunting through sections.",
+      openHistory: "Open ticket history",
+    },
+    meeting: {
+      hiddenSubtitle: "Real-time meeting room status for the whole organization today",
+      openBooking: "Go to meeting room booking",
+      todayCount: "Today: {{count}} items",
+      tomorrowCount: "Tomorrow: {{count}} items",
+      upcomingCount: "Upcoming: {{count}} items",
+      nextBooking: "Next booking: {{value}}",
+      nextShort: "Next: {{value}}",
+      overlapCount: "Found {{count}} overlapping booking slots",
+      todayBookings: "Today's bookings",
+      roomStatusToday: "Today's room status",
+      upcomingBookings: "Upcoming bookings",
+      latestActivity: "Recent activity",
+      modalTitle: "Meeting room status and recent activity",
+      modalSubtitle: "Track free rooms, the next queue, and the latest bookings in a popup",
+      footerHint: "Open the latest meeting room status directly from the nav without scrolling.",
+      noUpcomingQueue: "No upcoming meeting room queue",
+      closeAria: "Close meeting room status",
+      booked: "Booked",
+      available: "Available",
+    },
+    recentActivity: {
+      filteredCount: "Showing {{visible}} of {{filtered}} filtered items",
+      shortcuts: "Shortcuts: / Search, n New ticket",
+      smartFilterBar: "Smart Filter Bar",
+      searchPlaceholder: "Search ticket no / title / description...",
+      searchAria: "Search tickets",
+      clearSearch: "Clear",
+      filterStatusAria: "Filter by status",
+      filterCategoryAria: "Filter by category",
+      filterPriorityAria: "Filter by priority",
+      filterSlaAria: "Filter by SLA",
+      savedViewAria: "Select saved view",
+      deleteSavedViewAria: "Delete selected view",
+      listAria: "Latest ticket list",
+      firstTicketCta: "Create first ticket",
+      modalTitle: "Latest tickets",
+      modalSubtitle: "Open it from the nav and search or filter key statuses immediately.",
+      totalCount: "Total {{count}} items",
+      popupCount: "Shown in popup {{count}} items",
+      noResultsDescription: "Try adjusting the search or clearing the current filters.",
+      footerHint: "Recent activity has been moved to the nav and can be used directly in a popup.",
+      closeAria: "Close recent activity",
+      openHistory: "Open full history",
+    },
+    ticket: {
+      priorityInboxTitle: "Priority Inbox",
+      noTitle: "Untitled",
+      noCategory: "Uncategorized",
+      openCaseChat: "Open case chat",
+      priorityInboxSubtitle: "Work that should be handled first, sorted by SLA risk and urgency.",
+      defaultView: "Open default view",
+      overdueView: "View overdue SLA",
+      noPriorityInbox: "No items in Priority Inbox",
+      normalQueue: "The current queue is in a normal range.",
+    },
+  },
+  ko: {
+    ticketStatusLabels: {
+      NEW: "대기 중",
+      IN_PROGRESS: "진행 중",
+      CLOSED: "완료",
+    },
+    notifications: {
+      assignedTitle: "IT가 케이스를 접수했습니다",
+      assignedMessage: "{{ticketNo}}이(가) {{assignee}}에게 배정되었습니다",
+      startedTitle: "IT가 작업을 시작했습니다",
+      startedMessage: "{{ticketNo}}이(가) 처리 중입니다{{assigneeText}}",
+      startedBy: " / 담당자 {{assignee}}",
+      closedTitle: "작업이 완료되었습니다",
+      closedMessageWithNote: "{{ticketNo}} 종료: {{note}}",
+      closedMessage: "{{ticketNo}}이(가) 종료되었습니다",
+      updatedTitle: "티켓 상태가 변경되었습니다",
+      updatedMessage: "{{ticketNo}} 상태가 {{status}}(으)로 변경되었습니다",
+    },
+    common: {
+      loading: "불러오는 중...",
+      recently: "방금 전",
+      notSpecified: "미지정",
+      noEmail: "이메일 없음",
+      noPhone: "전화번호 없음",
+      noLocation: "위치 없음",
+      noName: "이름 없음",
+      employee: "직원",
+      bookingTitle: "예약됨",
+      noBookedBy: "예약자 없음",
+      noSystem: "시스템 없음",
+      noDescription: "설명 없음",
+      noNextBooking: "다음 예약 없음",
+      noMeetingToday: "오늘은 회의실이 비어 있습니다",
+      partialLoadError: "대시보드 일부 데이터를 불러오지 못했습니다",
+      retryLoad: "다시 시도",
+      comparePrevious7Days: "이전 7일 대비",
+      currentStatus: "현재 상태",
+      sync: "동기화",
+      fullView: "전체 보기",
+      items: "건",
+      amount: "수량",
+      loadingDashboard: "대시보드 데이터를 준비하는 중...",
+      quickActionsTitle: "빠른 작업",
+      quickActionsSubtitle: "가장 자주 사용하는 작업으로 가는 주요 바로가기입니다.",
+      role: "역할",
+      active: "사용 중",
+      moreMenu: "추가 메뉴 표시",
+      profileShow: "프로필 상세 표시",
+      profileHide: "프로필 상세 숨기기",
+      department: "부서",
+      position: "직책",
+      close: "닫기",
+      profileInfo: "직원 가입 시 사용된 정보",
+      companyName: "TDK Industrial Co., Ltd.",
+      companyLogoAlt: "TDK Industrial 로고",
+      profileAlt: "프로필",
+      userFallback: "사용자",
+      live: "실시간",
+      closeNotification: "알림 닫기",
+    },
+    timeline: {
+      createdLabel: "티켓 생성",
+      createdDetail: "요청이 접수되었고 SLA 측정이 시작되었습니다.",
+      progressLabel: "진행 중",
+      assignedDetail: "담당자: {{name}}",
+      waitingDetail: "기술자 배정을 기다리는 중",
+      closedLabel: "완료",
+      closedDetail: "이 티켓은 이미 완료되었습니다.",
+      monitoringLabel: "SLA 모니터링",
+      statusDetail: "현재 상태: {{status}}",
+    },
+    metrics: {
+      statusNewLabel: "대기 중",
+      pendingShare: "미처리 작업의 {{percent}}%",
+      statusProgressLabel: "진행 중",
+      statusClosedLabel: "완료",
+      totalLabel: "전체 티켓",
+      totalShare: "전체 티켓의 {{percent}}%",
+      realtimeStatus: "실시간 최신 상태 업데이트",
+      open7dLabel: "최근 7일 신규",
+      riskLabel: "SLA 위험",
+      overdueLabel: "SLA 초과",
+      closed7dLabel: "최근 7일 완료",
+    },
+    profile: {
+      employeeId: "사번",
+      email: "이메일",
+      phone: "전화번호",
+      location: "위치",
+    },
+    errors: {
+      meetingRoomLoad: "회의실 상태를 불러오지 못했습니다",
+      accessRequestLoad: "권한 요청 상태를 불러오지 못했습니다",
+      dashboardLoad: "대시보드 데이터를 불러오지 못했습니다. 다시 시도하세요.",
+    },
+    preset: {
+      title: "필터 보기 저장",
+      inputLabel: "보기 이름",
+      inputPlaceholder: "예: 내 긴급 업무",
+      confirm: "저장",
+      cancel: "취소",
+      validation: "보기 이름을 입력하세요",
+    },
+    sla: {
+      overdue: "{{hours}}시간 초과",
+      atRisk: "{{hours}}시간 후 위험",
+      remaining: "{{hours}}시간 남음",
+    },
+    kpiDetail: {
+      statusNewTitle: "대기 중",
+      statusNewDescription: "생성되었지만 아직 시작되지 않은 티켓입니다.",
+      statusProgressTitle: "진행 중",
+      statusProgressDescription: "팀이 현재 처리 중인 티켓입니다.",
+      statusClosedTitle: "완료",
+      statusClosedDescription: "이미 완료된 모든 티켓입니다.",
+      statusTotalTitle: "전체 티켓",
+      statusTotalDescription: "현재 시스템에 있는 모든 티켓입니다.",
+      openTitle: "최근 7일 신규",
+      openDescription: "최근 7일 동안 생성되었고 아직 닫히지 않은 티켓입니다.",
+      riskTitle: "SLA 위험",
+      riskDescription: "아직 닫히지 않았고 SLA 위험이 있는 티켓입니다.",
+      overdueTitle: "SLA 초과",
+      overdueDescription: "이미 SLA를 넘겨 빠른 추적이 필요한 티켓입니다.",
+      closedTitle: "최근 7일 완료",
+      closedDescription: "최근 7일 동안 완료된 티켓입니다.",
+      modalLabel: "KPI 상세",
+      closeAria: "KPI 상세 닫기",
+      totalLabel: "전체 수",
+      totalHelper: "이 KPI에 해당하는 항목",
+      popupLabel: "팝업 표시 수",
+      popupHelper: "최대 최근 12건",
+      usageLabel: "사용 방법",
+      usageAction: "항목을 누르면 티켓 상세를 엽니다",
+      usageHelper: "요약 지표에서 바로 drill-down 하기 좋습니다",
+      updatedAt: "{{value}} 업데이트",
+      emptyTitle: "이 KPI에는 아직 항목이 없습니다",
+      emptyDescription: "조건에 맞는 티켓이 들어오면 이 팝업의 수치와 목록이 바로 갱신됩니다.",
+      footerHint: "위 KPI 카드는 눌러서 바로 관련 티켓 목록을 확인할 수 있습니다.",
+      openHistory: "티켓 이력 열기",
+    },
+    operational: {
+      notSpecifiedRoom: "회의실 없음",
+      otherStatus: "기타 상태",
+      openTickets: "열린 티켓",
+      todayMeetings: "오늘 회의",
+      accessPending: "권한 승인 대기",
+      pendingNotes: "미완료 노트",
+      noQueue: "대기 항목 없음",
+      uncategorized: "미분류",
+      openLabel: "열린 작업",
+      openHelper: "신규 {{newCount}} / 진행 중 {{progressCount}}",
+      progressLabel: "진행 중",
+      progressHelper: "현재 진행 중인 작업을 추적합니다",
+      slaLabel: "SLA 위험 또는 초과",
+      slaHelper: "이미 SLA를 넘긴 작업 {{count}}건",
+      meetingLabel: "현재 사용 중인 회의실",
+      meetingHelper: "총 {{totalRooms}}개 회의실, 오늘 {{count}}건",
+      notebookLabel: "노트북 추적 필요",
+      notebookHelper: "대여/반납 요청과 처리 대기 항목",
+      accessLabel: "권한 승인 대기",
+      accessHelper: "아직 닫히지 않은 워크플로우 요청",
+      title: "운영 대시보드",
+      subtitle: "현재 큐, 7일 추세, 모듈 간 workload를 한 블록에서 보는 라이브 요약입니다.",
+      slaWatch: "SLA 모니터링 {{count}}",
+      queueStatus: "대기열 현황",
+      queueOpenItems: "추적 필요 {{count}}건",
+      sevenDayMotion: "최근 7일 추세",
+      createdVsClosed: "생성 대비 종료",
+      workloadMix: "업무 비중",
+      followUpItems: "추적 필요 {{count}}건",
+      noExtraWorkload: "추가 workload 없음",
+      modalLabel: "대시보드 개요",
+      realtime: "실시간",
+      modalDescription: "기존 대시보드 레이아웃을 바꾸지 않고 현재 상태를 한 화면에서 보여줍니다.",
+      onTimeSla: "SLA 준수 {{percent}}%",
+      riskOverdue: "{{risk}}건 위험 / {{overdue}}건 SLA 초과",
+      overlapCount: "중복 예약 {{count}}건 발견",
+      trendLabel: "최근 7일 티켓 추세",
+      trendTitle: "신규 접수 vs 완료",
+      rolling7Days: "최근 7일",
+      lineCreated: "신규",
+      lineClosed: "완료",
+      dateLabel: "날짜 {{label}}",
+      statusOverviewLabel: "티켓 상태 개요",
+      statusOverviewTitle: "현재 상태 분포",
+      liveQueue: "실시간 대기열",
+      mixLabel: "현재 업무 구성",
+      mixTitle: "현재 발생 중인 업무 비중",
+      liveLoad: "실시간 부하",
+      watchlistLabel: "현재 주시 항목",
+      watchlistTitle: "지켜봐야 할 포인트",
+      liveFeed: "실시간 피드",
+      roomsInUseNow: "현재 사용 중인 회의실",
+      nextMeetingQueue: "다음 회의 일정",
+      activeMeetingFallback: "회의실 사용 중",
+      noMeetingInUse: "현재 사용 중인 회의실이 없습니다",
+      topOpenCategories: "미처리 카테고리 상위",
+      noOpenTickets: "현재 미처리 열린 작업이 없습니다",
+      urgentTickets: "긴급 티켓",
+      noUrgentTickets: "주의가 필요한 긴급 티켓이 없습니다",
+      footerHint: "기존 페이지를 스크롤하지 않아도 nav에서 현재 개요를 바로 열 수 있습니다.",
+      openHistory: "티켓 이력 열기",
+    },
+    meeting: {
+      hiddenSubtitle: "오늘 회의실 상태를 전사 기준으로 실시간 확인합니다.",
+      openBooking: "회의실 예약으로 이동",
+      todayCount: "오늘: {{count}}건",
+      tomorrowCount: "내일: {{count}}건",
+      upcomingCount: "예정: {{count}}건",
+      nextBooking: "다음 예약: {{value}}",
+      nextShort: "다음: {{value}}",
+      overlapCount: "중복 예약 {{count}}건 발견",
+      todayBookings: "오늘 예약",
+      roomStatusToday: "오늘 회의실 상태",
+      upcomingBookings: "다음 예약 목록",
+      latestActivity: "최근 활동",
+      modalTitle: "회의실 상태와 최근 활동",
+      modalSubtitle: "빈 회의실, 다음 일정, 최근 예약을 팝업에서 확인합니다.",
+      footerHint: "nav에서 최신 회의실 상태를 바로 열 수 있습니다.",
+      noUpcomingQueue: "다음 회의실 예약이 없습니다",
+      closeAria: "회의실 상태 닫기",
+      booked: "예약됨",
+      available: "사용 가능",
+    },
+    recentActivity: {
+      filteredCount: "필터 통과 {{filtered}}건 중 {{visible}}건 표시",
+      shortcuts: "단축키: / 검색, n 티켓 생성",
+      smartFilterBar: "스마트 필터 바",
+      searchPlaceholder: "티켓 번호 / 제목 / 설명 검색...",
+      searchAria: "티켓 검색",
+      clearSearch: "지우기",
+      filterStatusAria: "상태로 필터",
+      filterCategoryAria: "카테고리로 필터",
+      filterPriorityAria: "긴급도로 필터",
+      filterSlaAria: "SLA로 필터",
+      savedViewAria: "저장된 보기 선택",
+      deleteSavedViewAria: "선택한 보기 삭제",
+      listAria: "최신 티켓 목록",
+      firstTicketCta: "첫 티켓 생성",
+      modalTitle: "최신 티켓 목록",
+      modalSubtitle: "nav에서 바로 열고 주요 상태로 검색하거나 필터링할 수 있습니다.",
+      totalCount: "전체 {{count}}건",
+      popupCount: "팝업 표시 {{count}}건",
+      noResultsDescription: "검색어를 바꾸거나 현재 필터를 초기화해 보세요",
+      footerHint: "최근 활동은 nav에서 바로 열고 팝업으로 사용할 수 있도록 이동했습니다.",
+      closeAria: "최근 활동 닫기",
+      openHistory: "전체 이력 열기",
+    },
+    ticket: {
+      priorityInboxTitle: "우선 처리함",
+      noTitle: "제목 없음",
+      noCategory: "미분류",
+      openCaseChat: "케이스 채팅 열기",
+      priorityInboxSubtitle: "SLA 위험과 긴급도를 기준으로 먼저 처리해야 할 작업입니다.",
+      defaultView: "기본 보기 열기",
+      overdueView: "SLA 초과 보기",
+      noPriorityInbox: "우선 처리함에 항목이 없습니다",
+      normalQueue: "현재 큐는 정상 범위입니다.",
+    },
+  },
+};
+
 function getDashboardTranslationValue(language, key) {
   return String(key || "")
     .split(".")
     .reduce(
       (current, segment) => (current && typeof current === "object" ? current[segment] : undefined),
       DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en,
+    );
+}
+
+function getNestedValue(source, key) {
+  return String(key || "")
+    .split(".")
+    .reduce(
+      (current, segment) => (current && typeof current === "object" ? current[segment] : undefined),
+      source,
     );
 }
 
@@ -413,23 +1225,22 @@ function interpolateDashboardTranslation(template, variables = {}) {
   });
 }
 
-const TICKET_STATUS_LABELS = {
-  NEW: "รอดำเนินการ",
-  IN_PROGRESS: "กำลังซ่อม",
-  CLOSED: "สำเร็จ",
-};
-
-function buildTicketStatusNotification(previousTicket, nextTicket) {
+function buildTicketStatusNotification(previousTicket, nextTicket, rt) {
   const previousStatus = String(previousTicket?.status || "");
   const nextStatus = String(nextTicket?.status || "");
   const previousAssignee = String(previousTicket?.assigned_name || "");
   const nextAssignee = String(nextTicket?.assigned_name || "");
   const ticketNo = nextTicket?.ticket_no || `T${String(nextTicket?.id || "").slice(-6).toUpperCase()}`;
+  const statusLabels = {
+    NEW: rt("ticketStatusLabels.NEW"),
+    IN_PROGRESS: rt("ticketStatusLabels.IN_PROGRESS"),
+    CLOSED: rt("ticketStatusLabels.CLOSED"),
+  };
 
   if (nextAssignee && previousAssignee !== nextAssignee && previousStatus === nextStatus) {
     return {
-      title: "IT รับเคสแล้ว",
-      message: `${ticketNo} มอบหมายให้ ${nextAssignee}`,
+      title: rt("notifications.assignedTitle"),
+      message: rt("notifications.assignedMessage", { ticketNo, assignee: nextAssignee }),
       tone: "indigo",
     };
   }
@@ -438,8 +1249,11 @@ function buildTicketStatusNotification(previousTicket, nextTicket) {
 
   if (nextStatus === "IN_PROGRESS") {
     return {
-      title: "IT เริ่มดำเนินการแล้ว",
-      message: `${ticketNo} อยู่ระหว่างซ่อม${nextAssignee ? ` โดย ${nextAssignee}` : ""}`,
+      title: rt("notifications.startedTitle"),
+      message: rt("notifications.startedMessage", {
+        ticketNo,
+        assigneeText: nextAssignee ? rt("notifications.startedBy", { assignee: nextAssignee }) : "",
+      }),
       tone: "amber",
     };
   }
@@ -447,15 +1261,17 @@ function buildTicketStatusNotification(previousTicket, nextTicket) {
   if (nextStatus === "CLOSED") {
     const solutionNote = String(nextTicket?.solution_note || "").trim();
     return {
-      title: "งานเสร็จเรียบร้อยแล้ว",
-      message: solutionNote ? `${ticketNo} ปิดงานแล้ว: ${solutionNote.slice(0, 80)}` : `${ticketNo} ปิดงานเรียบร้อยแล้ว`,
+      title: rt("notifications.closedTitle"),
+      message: solutionNote
+        ? rt("notifications.closedMessageWithNote", { ticketNo, note: solutionNote.slice(0, 80) })
+        : rt("notifications.closedMessage", { ticketNo }),
       tone: "emerald",
     };
   }
 
   return {
-    title: "Ticket อัปเดตสถานะ",
-    message: `${ticketNo} เปลี่ยนเป็น ${TICKET_STATUS_LABELS[nextStatus] || nextStatus}`,
+    title: rt("notifications.updatedTitle"),
+    message: rt("notifications.updatedMessage", { ticketNo, status: statusLabels[nextStatus] || nextStatus }),
     tone: "rose",
   };
 }
@@ -568,10 +1384,19 @@ function StableChartContainer({ className, children }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { language, t } = useI18n();
+  const dateLocale = useMemo(() => DATE_FNS_LOCALES[language] || DATE_FNS_LOCALES.en, [language]);
   const dt = useCallback(
     (key, variables) => {
       const primary = getDashboardTranslationValue(language, key);
       const fallback = getDashboardTranslationValue("en", key);
+      return interpolateDashboardTranslation(primary ?? fallback ?? key, variables);
+    },
+    [language],
+  );
+  const rt = useCallback(
+    (key, variables) => {
+      const primary = getNestedValue(DASHBOARD_RUNTIME_TEXT[language], key);
+      const fallback = getNestedValue(DASHBOARD_RUNTIME_TEXT.en, key);
       return interpolateDashboardTranslation(primary ?? fallback ?? key, variables);
     },
     [language],
@@ -587,6 +1412,7 @@ export default function Dashboard() {
   // State Management
   const [profile, setProfile] = useState(null);
   const [tickets, setTickets] = useState([]);
+  const [borrowRequests, setBorrowRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
@@ -685,25 +1511,25 @@ export default function Dashboard() {
         },
         (payload) => {
           console.log('ðŸŽ¯ Realtime update received:', payload);
+          const affectedId = payload.new?.id || payload.old?.id;
+          const nextRow = payload.new || payload.old;
+          const nextIsBorrowRequest = payload.eventType !== "DELETE" && isPickUpEquipmentRequest(nextRow);
 
-          setTickets(currentTickets => {
-            const newTickets = [...currentTickets];
-            const existingIndex = newTickets.findIndex(t => t.id === (payload.new?.id || payload.old?.id));
+          const updateRows = (currentRows, shouldKeepRow) => {
+            const remainingRows = currentRows.filter((row) => row.id !== affectedId);
+            if (payload.eventType === "DELETE" || !shouldKeepRow) return remainingRows;
+            return [payload.new, ...remainingRows].sort(
+              (left, right) => new Date(right?.created_at || right?.updated_at || 0).getTime() - new Date(left?.created_at || left?.updated_at || 0).getTime(),
+            );
+          };
 
-            if (payload.eventType === 'INSERT') {
-              newTickets.unshift(payload.new);
-            } else if (payload.eventType === 'UPDATE') {
-              if (existingIndex >= 0) newTickets[existingIndex] = payload.new;
-            } else if (payload.eventType === 'DELETE') {
-              if (existingIndex >= 0) newTickets.splice(existingIndex, 1);
-            }
-            return newTickets;
-          });
+          setTickets((currentTickets) => updateRows(currentTickets, !nextIsBorrowRequest));
+          setBorrowRequests((currentRows) => updateRows(currentRows, nextIsBorrowRequest));
 
           setLastUpdated(new Date());
 
           if (payload.eventType === "UPDATE") {
-            const nextNotification = buildTicketStatusNotification(payload.old, payload.new);
+            const nextNotification = buildTicketStatusNotification(payload.old, payload.new, rt);
             if (nextNotification) {
               showUpdateNotification(nextNotification.title, nextNotification.message, nextNotification.tone);
             }
@@ -716,7 +1542,7 @@ export default function Dashboard() {
 
     // à¹€à¸à¹‡à¸šà¹„à¸§à¹‰à¹ƒà¸™ Ref (à¹„à¸¡à¹ˆà¸—à¸³à¹ƒà¸«à¹‰à¹€à¸à¸´à¸” Re-render)
     channelRef.current = channel;
-  }, []); // Dependency à¹€à¸›à¹‡à¸™à¸§à¹ˆà¸²à¸‡à¹€à¸›à¸¥à¹ˆà¸²à¹€à¸žà¸·à¹ˆà¸­à¹„à¸¡à¹ˆà¹ƒà¸«à¹‰à¹€à¸à¸´à¸”à¸à¸²à¸£à¸ªà¸£à¹‰à¸²à¸‡ function à¹ƒà¸«à¸¡à¹ˆà¸§à¸™à¸¥à¸¹à¸›
+  }, [rt]); // Dependency à¹€à¸›à¹‡à¸™à¸§à¹ˆà¸²à¸‡à¹€à¸›à¸¥à¹ˆà¸²à¹€à¸žà¸·à¹ˆà¸­à¹„à¸¡à¹ˆà¹ƒà¸«à¹‰à¹€à¸à¸´à¸”à¸à¸²à¸£à¸ªà¸£à¹‰à¸²à¸‡ function à¹ƒà¸«à¸¡à¹ˆà¸§à¸™à¸¥à¸¹à¸›
 
   const fetchMeetingRoomBookings = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setMeetingRoomLoading(true);
@@ -757,14 +1583,14 @@ export default function Dashboard() {
       setMeetingRoomError("");
     } catch (error) {
       console.error("Meeting room load error:", error);
-      setMeetingRoomError("ไม่สามารถโหลดสถานะห้องประชุมได้");
+      setMeetingRoomError(rt("errors.meetingRoomLoad"));
       setUpcomingMeetingBookings([]);
       setTodayMeetingBookings([]);
       setTomorrowMeetingBookings([]);
     } finally {
       if (!silent) setMeetingRoomLoading(false);
     }
-  }, []);
+  }, [rt]);
 
   const setupMeetingRoomRealtime = useCallback(() => {
     if (meetingRoomChannelRef.current) {
@@ -836,7 +1662,7 @@ export default function Dashboard() {
       setAccessRequestError("");
     } catch (error) {
       console.error("Access request summary load error:", error);
-      setAccessRequestError("ไม่สามารถโหลดสถานะคำขอสิทธิ์ระบบได้");
+      setAccessRequestError(rt("errors.accessRequestLoad"));
       setAccessRequestSummary({
         pending: 0,
         approved: 0,
@@ -848,7 +1674,7 @@ export default function Dashboard() {
     } finally {
       if (!silent) setAccessRequestLoading(false);
     }
-  }, []);
+  }, [rt]);
 
   const setupAccessRequestRealtime = useCallback((userId, role) => {
     if (!userId) return;
@@ -966,7 +1792,9 @@ export default function Dashboard() {
 
       if (ticketsRes.data) {
         const ticketsData = ticketsRes.data || [];
-        setTickets(ticketsData);
+        const { repairTickets, serviceRequests } = splitTicketBuckets(ticketsData);
+        setTickets(repairTickets);
+        setBorrowRequests(serviceRequests);
 
         // Setup realtime after initial load
         setTimeout(() => {
@@ -974,7 +1802,7 @@ export default function Dashboard() {
         }, 100);
 
         // Calculate SLA stats
-        calculateSlaStats(ticketsData);
+        calculateSlaStats(repairTickets);
       }
 
       const [workNotesRes, notebookLogsRes] = await Promise.all([
@@ -1014,11 +1842,11 @@ export default function Dashboard() {
 
     } catch (error) {
       console.error("Dashboard Error:", error);
-      setDashboardError("ไม่สามารถโหลดข้อมูล Dashboard ได้ กรุณาลองใหม่อีกครั้ง");
+      setDashboardError(rt("errors.dashboardLoad"));
     } finally {
       setLoading(false);
     }
-  }, [fetchAccessRequestSummary, navigate, setupAccessRequestRealtime, setupRealtimeSubscription]);
+  }, [fetchAccessRequestSummary, navigate, rt, setupAccessRequestRealtime, setupRealtimeSubscription]);
 
   useEffect(() => {
     initDashboard();
@@ -1260,8 +2088,8 @@ export default function Dashboard() {
           type: "booked",
           startMinutes: bookingStart,
           endMinutes: bookingEnd,
-          title: booking.title || "มีการจอง",
-          bookedBy: booking.booked_by || "ไม่ระบุผู้จอง",
+          title: booking.title || rt("common.bookingTitle"),
+          bookedBy: booking.booked_by || rt("common.noBookedBy"),
           id: booking.id,
         });
 
@@ -1448,16 +2276,16 @@ export default function Dashboard() {
 
   // Get time since last update
   const getTimeSinceUpdate = () => {
-    if (!lastUpdated) return 'กำลังโหลด...';
+    if (!lastUpdated) return rt("common.loading");
 
     try {
       return formatDistanceToNow(lastUpdated, {
         addSuffix: true,
-        locale: th,
+        locale: dateLocale,
         includeSeconds: true
       });
     } catch {
-      return 'ไม่นานมานี้';
+      return rt("common.recently");
     }
   };
 
@@ -1479,22 +2307,22 @@ export default function Dashboard() {
 
   // Format date safely
   const formatDate = (dateString) => {
-    if (!dateString) return 'ไม่ระบุ';
+    if (!dateString) return rt("common.notSpecified");
     try {
       const date = new Date(dateString);
-      return format(date, 'dd MMM yyyy', { locale: th });
+      return format(date, 'dd MMM yyyy', { locale: dateLocale });
     } catch {
-      return 'ไม่ระบุ';
+      return rt("common.notSpecified");
     }
   };
 
   const formatDateTime = (dateString) => {
-    if (!dateString) return "ไม่ระบุ";
+    if (!dateString) return rt("common.notSpecified");
     try {
       const date = new Date(dateString);
-      return format(date, "dd MMM yyyy HH:mm", { locale: th });
+      return format(date, "dd MMM yyyy HH:mm", { locale: dateLocale });
     } catch {
-      return "ไม่ระบุ";
+      return rt("common.notSpecified");
     }
   };
 
@@ -1533,8 +2361,8 @@ export default function Dashboard() {
     const events = [
       {
         id: "created",
-        label: "สร้างใบแจ้งซ่อม",
-        detail: "ระบบรับเรื่องเรียบร้อยและเริ่มนับ SLA",
+        label: rt("timeline.createdLabel"),
+        detail: rt("timeline.createdDetail"),
         date: ticket.created_at,
       },
     ];
@@ -1542,8 +2370,8 @@ export default function Dashboard() {
     if (ticket.assigned_name || ticket.status === "IN_PROGRESS") {
       events.push({
         id: "assigned",
-        label: "อยู่ระหว่างดำเนินการ",
-        detail: ticket.assigned_name ? `ผู้รับผิดชอบ: ${ticket.assigned_name}` : "กำลังรอช่างเข้าดำเนินการ",
+        label: rt("timeline.progressLabel"),
+        detail: ticket.assigned_name ? rt("timeline.assignedDetail", { name: ticket.assigned_name }) : rt("timeline.waitingDetail"),
         date: ticket.updated_at || ticket.created_at,
       });
     }
@@ -1551,15 +2379,15 @@ export default function Dashboard() {
     if (ticket.status === "CLOSED" || ticket.closed_at) {
       events.push({
         id: "closed",
-        label: "ปิดงานสำเร็จ",
-        detail: ticket.solution_note || "งานนี้ถูกปิดเรียบร้อยแล้ว",
+        label: rt("timeline.closedLabel"),
+        detail: ticket.solution_note || rt("timeline.closedDetail"),
         date: ticket.closed_at || ticket.updated_at || ticket.created_at,
       });
     } else {
       events.push({
         id: "monitoring",
-        label: "ติดตาม SLA",
-        detail: `สถานะปัจจุบัน: ${getStatusConfig(ticket.status).label}`,
+        label: rt("timeline.monitoringLabel"),
+        detail: rt("timeline.statusDetail", { status: getStatusConfig(ticket.status).label }),
         date: ticket.updated_at || ticket.created_at,
       });
     }
@@ -1612,46 +2440,46 @@ export default function Dashboard() {
         {
           key: "status-new",
           mode: "status",
-          label: "รอดำเนินการ",
+          label: rt("metrics.statusNewLabel"),
           value: newCount,
           icon: Clock,
           iconWrap: "bg-amber-50",
           iconColor: "text-amber-600",
           valueColor: "text-amber-700",
-          helperText: `${toPercent(newCount, pendingCount)}% ของงานค้าง`,
+          helperText: rt("metrics.pendingShare", { percent: toPercent(newCount, pendingCount) }),
         },
         {
           key: "status-progress",
           mode: "status",
-          label: "กำลังซ่อม",
+          label: rt("metrics.statusProgressLabel"),
           value: inProgressCount,
           icon: Wrench,
           iconWrap: "bg-blue-50",
           iconColor: "text-blue-600",
           valueColor: "text-blue-700",
-          helperText: `${toPercent(inProgressCount, pendingCount)}% ของงานค้าง`,
+          helperText: rt("metrics.pendingShare", { percent: toPercent(inProgressCount, pendingCount) }),
         },
         {
           key: "status-closed",
           mode: "status",
-          label: "ปิดงานแล้ว",
+          label: rt("metrics.statusClosedLabel"),
           value: closedCount,
           icon: CheckCircle2,
           iconWrap: "bg-emerald-50",
           iconColor: "text-emerald-600",
           valueColor: "text-emerald-700",
-          helperText: `${toPercent(closedCount, Math.max(totalCount, 1))}% ของงานทั้งหมด`,
+          helperText: rt("metrics.totalShare", { percent: toPercent(closedCount, Math.max(totalCount, 1)) }),
         },
         {
           key: "status-total",
           mode: "status",
-          label: "งานที่แจ้งทั้งหมด",
+          label: rt("metrics.totalLabel"),
           value: totalCount,
           icon: BarChart3,
           iconWrap: "bg-indigo-50",
           iconColor: "text-indigo-600",
           valueColor: "text-indigo-700",
-          helperText: "อัปเดตสถานะล่าสุดแบบเรียลไทม์",
+          helperText: rt("metrics.realtimeStatus"),
         },
       ];
     }
@@ -1659,7 +2487,7 @@ export default function Dashboard() {
     return [
       {
         key: "open",
-        label: "งานเปิดใหม่ (7 วัน)",
+        label: rt("metrics.open7dLabel"),
         value: openCurrent,
         icon: Clock,
         iconWrap: "bg-amber-50",
@@ -1669,7 +2497,7 @@ export default function Dashboard() {
       },
       {
         key: "risk",
-        label: "งานเสี่ยง SLA",
+        label: rt("metrics.riskLabel"),
         value: riskCurrent,
         icon: Timer,
         iconWrap: "bg-orange-50",
@@ -1679,7 +2507,7 @@ export default function Dashboard() {
       },
       {
         key: "overdue",
-        label: "งานเกิน SLA",
+        label: rt("metrics.overdueLabel"),
         value: overdueCurrent,
         icon: AlertCircle,
         iconWrap: "bg-rose-50",
@@ -1689,7 +2517,7 @@ export default function Dashboard() {
       },
       {
         key: "closed",
-        label: "งานปิดแล้ว (7 วัน)",
+        label: rt("metrics.closed7dLabel"),
         value: closedCurrent,
         icon: CheckCircle2,
         iconWrap: "bg-emerald-50",
@@ -1698,11 +2526,20 @@ export default function Dashboard() {
         trend: trendMeta(closedCurrent, closedPrevious),
       },
     ];
-  }, [tickets, profile?.role]);
+  }, [profile?.role, rt, tickets]);
 
   const openTicketCount = useMemo(
     () => tickets.filter((ticket) => ticket.status !== "CLOSED").length,
     [tickets],
+  );
+
+  const hasRecentActivityFlowPending = openTicketCount > 0;
+  const recentActivityBadgeCount =
+    openTicketCount > 0 ? Math.min(openTicketCount, 99) : Math.min(filteredTickets.length, 99);
+
+  const borrowOpenCount = useMemo(
+    () => borrowRequests.filter((request) => String(request?.status || "").toUpperCase() !== "CLOSED").length,
+    [borrowRequests],
   );
 
   const operationalSnapshot = useMemo(() => {
@@ -1753,25 +2590,25 @@ export default function Dashboard() {
     });
 
     return {
-      activeRoomCount: new Set(activeBookings.map((booking) => String(booking.room_name || "ไม่ระบุห้อง"))).size,
+      activeRoomCount: new Set(activeBookings.map((booking) => String(booking.room_name || rt("operational.notSpecifiedRoom"))).size),
       totalRooms: todayRoomStatusCards.length,
       activeBookings,
     };
-  }, [normalizedTodayMeetingBookings, todayRoomStatusCards]);
+  }, [normalizedTodayMeetingBookings, rt, todayRoomStatusCards]);
 
   const operationalStatusChartData = useMemo(() => {
     const rows = [
-      { key: "NEW", label: "รอดำเนินการ", value: operationalSnapshot.new, fill: "#f59e0b" },
-      { key: "IN_PROGRESS", label: "กำลังซ่อม", value: operationalSnapshot.inProgress, fill: "#2563eb" },
-      { key: "CLOSED", label: "ปิดงาน", value: operationalSnapshot.closed, fill: "#10b981" },
+      { key: "NEW", label: rt("metrics.statusNewLabel"), value: operationalSnapshot.new, fill: "#f59e0b" },
+      { key: "IN_PROGRESS", label: rt("metrics.statusProgressLabel"), value: operationalSnapshot.inProgress, fill: "#2563eb" },
+      { key: "CLOSED", label: rt("metrics.statusClosedLabel"), value: operationalSnapshot.closed, fill: "#10b981" },
     ];
 
     if (operationalSnapshot.otherOpen > 0) {
-      rows.push({ key: "OTHER", label: "สถานะอื่น", value: operationalSnapshot.otherOpen, fill: "#64748b" });
+      rows.push({ key: "OTHER", label: rt("operational.otherStatus"), value: operationalSnapshot.otherOpen, fill: "#64748b" });
     }
 
     return rows;
-  }, [operationalSnapshot]);
+  }, [operationalSnapshot, rt]);
 
   const operationalTrendData = useMemo(() => {
     const days = 7;
@@ -1784,7 +2621,7 @@ export default function Dashboard() {
 
       return {
         key: format(date, "yyyy-MM-dd"),
-        label: format(date, "dd MMM", { locale: th }),
+        label: format(date, "dd MMM", { locale: dateLocale }),
         created: 0,
         closed: 0,
       };
@@ -1805,24 +2642,25 @@ export default function Dashboard() {
     });
 
     return rows;
-  }, [tickets]);
+  }, [dateLocale, tickets]);
 
   const operationalLoadData = useMemo(() => {
     const rows = [
-      { name: "Ticket ค้าง", value: operationalSnapshot.open, fill: "#2563eb" },
-      { name: "ประชุมวันนี้", value: todayMeetingBookings.length, fill: "#14b8a6" },
+      { name: rt("operational.openTickets"), value: operationalSnapshot.open, fill: "#2563eb" },
+      { name: rt("operational.todayMeetings"), value: todayMeetingBookings.length, fill: "#14b8a6" },
       { name: "Notebook", value: notebookAttentionCount, fill: "#8b5cf6" },
-      { name: "สิทธิ์รออนุมัติ", value: accessRequestSummary.pending, fill: "#f97316" },
-      { name: "โน้ตค้าง", value: workNotesPendingCount, fill: "#0ea5e9" },
+      { name: rt("operational.accessPending"), value: accessRequestSummary.pending, fill: "#f97316" },
+      { name: rt("operational.pendingNotes"), value: workNotesPendingCount, fill: "#0ea5e9" },
     ].filter((row) => row.value > 0);
 
     if (rows.length > 0) return rows;
 
-    return [{ name: "ยังไม่มีคิว", value: 1, fill: "#cbd5e1", isPlaceholder: true }];
+    return [{ name: rt("operational.noQueue"), value: 1, fill: "#cbd5e1", isPlaceholder: true }];
   }, [
     accessRequestSummary.pending,
     notebookAttentionCount,
     operationalSnapshot.open,
+    rt,
     todayMeetingBookings.length,
     workNotesPendingCount,
   ]);
@@ -1838,7 +2676,7 @@ export default function Dashboard() {
     tickets
       .filter((ticket) => ticket.status !== "CLOSED")
       .forEach((ticket) => {
-        const category = String(ticket.category || "ไม่ระบุหมวดหมู่").trim() || "ไม่ระบุหมวดหมู่";
+        const category = String(ticket.category || rt("operational.uncategorized")).trim() || rt("operational.uncategorized");
         bucket.set(category, (bucket.get(category) || 0) + 1);
       });
 
@@ -1846,15 +2684,15 @@ export default function Dashboard() {
       .map(([label, value]) => ({ label, value }))
       .sort((left, right) => right.value - left.value)
       .slice(0, 4);
-  }, [tickets]);
+  }, [rt, tickets]);
 
   const operationalOverviewStats = useMemo(
     () => [
       {
         key: "open",
-        label: "งานค้างเปิด",
+        label: rt("operational.openLabel"),
         value: operationalSnapshot.open,
-        helper: `${operationalSnapshot.new} ใหม่ / ${operationalSnapshot.inProgress} กำลังซ่อม`,
+        helper: rt("operational.openHelper", { newCount: operationalSnapshot.new, progressCount: operationalSnapshot.inProgress }),
         icon: BarChart3,
         iconWrap: "bg-indigo-50",
         iconColor: "text-indigo-600",
@@ -1862,9 +2700,9 @@ export default function Dashboard() {
       },
       {
         key: "progress",
-        label: "กำลังซ่อม",
+        label: rt("operational.progressLabel"),
         value: operationalSnapshot.inProgress,
-        helper: "ติดตามงานที่กำลังดำเนินการอยู่",
+        helper: rt("operational.progressHelper"),
         icon: Wrench,
         iconWrap: "bg-blue-50",
         iconColor: "text-blue-600",
@@ -1872,9 +2710,9 @@ export default function Dashboard() {
       },
       {
         key: "sla",
-        label: "เสี่ยงหรือเกิน SLA",
+        label: rt("operational.slaLabel"),
         value: operationalSnapshot.risk + operationalSnapshot.overdue,
-        helper: `${operationalSnapshot.overdue} งานเกิน SLA แล้ว`,
+        helper: rt("operational.slaHelper", { count: operationalSnapshot.overdue }),
         icon: Timer,
         iconWrap: "bg-amber-50",
         iconColor: "text-amber-600",
@@ -1882,9 +2720,9 @@ export default function Dashboard() {
       },
       {
         key: "meeting-now",
-        label: "ห้องใช้งานตอนนี้",
+        label: rt("operational.meetingLabel"),
         value: meetingRealtimeSummary.activeRoomCount,
-        helper: `จาก ${meetingRealtimeSummary.totalRooms} ห้อง, วันนี้ ${todayMeetingBookings.length} รายการ`,
+        helper: rt("operational.meetingHelper", { totalRooms: meetingRealtimeSummary.totalRooms, count: todayMeetingBookings.length }),
         icon: Calendar,
         iconWrap: "bg-cyan-50",
         iconColor: "text-cyan-600",
@@ -1892,9 +2730,9 @@ export default function Dashboard() {
       },
       {
         key: "notebook",
-        label: "Notebook ต้องติดตาม",
+        label: rt("operational.notebookLabel"),
         value: notebookAttentionCount,
-        helper: "คำขอยืม-คืนและรายการที่รอจัดการ",
+        helper: rt("operational.notebookHelper"),
         icon: Laptop,
         iconWrap: "bg-violet-50",
         iconColor: "text-violet-600",
@@ -1902,9 +2740,9 @@ export default function Dashboard() {
       },
       {
         key: "access",
-        label: "สิทธิ์รออนุมัติ",
+        label: rt("operational.accessLabel"),
         value: accessRequestSummary.pending,
-        helper: "คำขอ workflow ที่ยังไม่ปิดงาน",
+        helper: rt("operational.accessHelper"),
         icon: ShieldCheck,
         iconWrap: "bg-emerald-50",
         iconColor: "text-emerald-600",
@@ -1921,6 +2759,7 @@ export default function Dashboard() {
       operationalSnapshot.open,
       operationalSnapshot.overdue,
       operationalSnapshot.risk,
+      rt,
       todayMeetingBookings.length,
     ],
   );
@@ -1968,7 +2807,7 @@ export default function Dashboard() {
         accent: "emerald",
         cta: dt("quickActions.pickup.cta"),
         onClick: () => navigate("/pick-up-equipment"),
-        badgeCount: accessRequestSummary.pending,
+        badgeCount: borrowOpenCount,
         roles: ["user", "it_support", "executive", "admin"],
       },
       {
@@ -2074,7 +2913,7 @@ export default function Dashboard() {
     ];
 
     return items.filter((item) => item.roles.includes(role));
-  }, [accessRequestSummary.pending, activeFilter, dt, navigate, notebookAttentionCount, openTicketCount, profile?.role, tickets, upcomingMeetingCount, workNotesPendingCount]);
+  }, [activeFilter, borrowOpenCount, dt, navigate, notebookAttentionCount, openTicketCount, profile?.role, tickets, upcomingMeetingCount, workNotesPendingCount]);
 
   const primaryQuickActionIds = useMemo(
     () => new Set(["create-ticket", "pick-up", "notebook-center", "work-notes", "meeting-room-booking", "history"]),
@@ -2173,10 +3012,10 @@ export default function Dashboard() {
   const STAT_HELPER_LABEL_CLASS = `text-xs font-bold uppercase tracking-wide ${TEXT_SUBTLE_CLASS}`;
   const STAT_HELPER_TEXT_CLASS = `text-[11px] font-semibold leading-relaxed ${TEXT_MUTED_CLASS}`;
   const profileDetailItems = [
-    { key: "employee-code", label: "Employee ID", value: profile?.employee_code || "ไม่ระบุ", icon: Hash },
-    { key: "email", label: "Email", value: profile?.email || "ไม่ระบุอีเมล", icon: Mail },
-    { key: "phone", label: "Phone", value: profile?.phone || "ไม่ระบุเบอร์โทรศัพท์", icon: Phone },
-    { key: "location", label: "Location", value: profile?.location || "ไม่ระบุสถานที่", icon: MapPin },
+    { key: "employee-code", label: rt("profile.employeeId"), value: profile?.employee_code || rt("common.notSpecified"), icon: Hash },
+    { key: "email", label: rt("profile.email"), value: profile?.email || rt("common.noEmail"), icon: Mail },
+    { key: "phone", label: rt("profile.phone"), value: profile?.phone || rt("common.noPhone"), icon: Phone },
+    { key: "location", label: rt("profile.location"), value: profile?.location || rt("common.noLocation"), icon: MapPin },
   ];
 
   // ============================================
@@ -2249,16 +3088,16 @@ export default function Dashboard() {
 
   const saveCurrentPreset = async () => {
     const { value: presetName, isConfirmed } = await Swal.fire({
-      title: "บันทึกมุมมองตัวกรอง",
+      title: rt("preset.title"),
       input: "text",
-      inputLabel: "ชื่อมุมมอง",
-      inputPlaceholder: "เช่น งานด่วนของฉัน",
-      confirmButtonText: "บันทึก",
-      cancelButtonText: "ยกเลิก",
+      inputLabel: rt("preset.inputLabel"),
+      inputPlaceholder: rt("preset.inputPlaceholder"),
+      confirmButtonText: rt("preset.confirm"),
+      cancelButtonText: rt("preset.cancel"),
       showCancelButton: true,
       confirmButtonColor: "#4f46e5",
       inputValidator: (value) => {
-        if (!value || !value.trim()) return "กรุณาระบุชื่อมุมมอง";
+        if (!value || !value.trim()) return rt("preset.validation");
         return undefined;
       },
     });
@@ -2360,7 +3199,7 @@ export default function Dashboard() {
       return (
         <div className="flex items-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-md">
           <Timer size={10} />
-          <span>เลยกำหนด {slaInfo.hours.toFixed(1)} ชม.</span>
+          <span>{rt("sla.overdue", { hours: slaInfo.hours.toFixed(1) })}</span>
         </div>
       );
     }
@@ -2369,7 +3208,7 @@ export default function Dashboard() {
       return (
         <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-md">
           <Timer size={10} />
-          <span>เสี่ยงหลุดใน {slaInfo.hours.toFixed(1)} ชม.</span>
+          <span>{rt("sla.atRisk", { hours: slaInfo.hours.toFixed(1) })}</span>
         </div>
       );
     }
@@ -2377,7 +3216,7 @@ export default function Dashboard() {
     return (
       <div className="flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-md">
         <Timer size={10} />
-        <span>เหลือ {slaInfo.hours.toFixed(1)} ชม.</span>
+        <span>{rt("sla.remaining", { hours: slaInfo.hours.toFixed(1) })}</span>
       </div>
     );
   };
@@ -2408,43 +3247,43 @@ export default function Dashboard() {
 
     switch (selectedKpiMetricKey) {
       case "status-new":
-        title = "รอดำเนินการ";
-        description = "Ticket ที่สร้างแล้วและยังรอเริ่มดำเนินการ";
+        title = rt("kpiDetail.statusNewTitle");
+        description = rt("kpiDetail.statusNewDescription");
         items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() === "NEW");
         break;
       case "status-progress":
-        title = "กำลังซ่อม";
-        description = "Ticket ที่ทีมกำลังดำเนินการอยู่ในตอนนี้";
+        title = rt("kpiDetail.statusProgressTitle");
+        description = rt("kpiDetail.statusProgressDescription");
         items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() === "IN_PROGRESS");
         break;
       case "status-closed":
-        title = "ปิดงานแล้ว";
-        description = "Ticket ที่ปิดเรียบร้อยแล้วทั้งหมด";
+        title = rt("kpiDetail.statusClosedTitle");
+        description = rt("kpiDetail.statusClosedDescription");
         items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() === "CLOSED");
         break;
       case "status-total":
-        title = "งานที่แจ้งทั้งหมด";
-        description = "Ticket ทั้งหมดที่อยู่ในระบบ ณ ตอนนี้";
+        title = rt("kpiDetail.statusTotalTitle");
+        description = rt("kpiDetail.statusTotalDescription");
         items = tickets;
         break;
       case "open":
-        title = "งานเปิดใหม่ 7 วันล่าสุด";
-        description = "งานที่เปิดเข้ามาในรอบ 7 วันและยังไม่ปิด";
+        title = rt("kpiDetail.openTitle");
+        description = rt("kpiDetail.openDescription");
         items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() !== "CLOSED" && isWithinRollingWindow(ticket.created_at));
         break;
       case "risk":
-        title = "งานเสี่ยง SLA";
-        description = "งานที่ยังไม่ปิดและมีความเสี่ยงหลุด SLA";
+        title = rt("kpiDetail.riskTitle");
+        description = rt("kpiDetail.riskDescription");
         items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() !== "CLOSED" && getSlaState(ticket) === "RISK");
         break;
       case "overdue":
-        title = "งานเกิน SLA";
-        description = "งานที่เกิน SLA แล้วและควรเร่งติดตาม";
+        title = rt("kpiDetail.overdueTitle");
+        description = rt("kpiDetail.overdueDescription");
         items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() !== "CLOSED" && getSlaState(ticket) === "OVERDUE");
         break;
       case "closed":
-        title = "งานปิดแล้ว 7 วันล่าสุด";
-        description = "งานที่ปิดสำเร็จในรอบ 7 วันที่ผ่านมา";
+        title = rt("kpiDetail.closedTitle");
+        description = rt("kpiDetail.closedDescription");
         items = tickets.filter((ticket) => String(ticket.status || "").toUpperCase() === "CLOSED" && isWithinRollingWindow(ticket.closed_at));
         break;
       default:
@@ -2458,7 +3297,7 @@ export default function Dashboard() {
       total: items.length,
       items: sortByRecent(items).slice(0, 12),
     };
-  }, [selectedKpiMetricKey, tickets]);
+  }, [rt, selectedKpiMetricKey, tickets]);
 
   const renderStatsCards = () => {
     return (
@@ -2492,7 +3331,7 @@ export default function Dashboard() {
               </div>
               {isTrendCard ? (
                 <div className={`mt-2 flex items-center justify-between rounded-xl border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
-                  <p className={STAT_HELPER_LABEL_CLASS}>เทียบ 7 วันก่อน</p>
+                  <p className={STAT_HELPER_LABEL_CLASS}>{rt("common.comparePrevious7Days")}</p>
                   <p className={`text-xs font-black tabular-nums sm:text-sm ${trendColor}`}>
                     {card.trend.diff > 0 ? "+" : ""}
                     {card.trend.diff}
@@ -2500,7 +3339,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className={`mt-2 rounded-xl border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
-                  <p className={STAT_HELPER_LABEL_CLASS}>สถานะปัจจุบัน</p>
+                  <p className={STAT_HELPER_LABEL_CLASS}>{rt("common.currentStatus")}</p>
                   <p className={`mt-1 ${STAT_HELPER_TEXT_CLASS}`}>{card.helperText}</p>
                 </div>
               )}
@@ -2520,30 +3359,30 @@ export default function Dashboard() {
     return (
       <section className={`overflow-hidden rounded-[2rem] border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <BarChart3 size={16} className="text-emerald-500" />
-              <h3 className={QUICK_ACTIONS_HEADING_CLASS}>Operational Dashboard</h3>
-              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/30 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                live
-              </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <BarChart3 size={16} className="text-emerald-500" />
+                <h3 className={QUICK_ACTIONS_HEADING_CLASS}>{rt("operational.title")}</h3>
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/30 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                  {rt("common.active")}
+                </span>
+              </div>
+              <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("operational.subtitle")}</p>
             </div>
-            <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>ภาพรวมหน้างานแบบมินิ ดูคิวปัจจุบัน เทรนด์ 7 วัน และ workload ข้ามโมดูลในบล็อกเดียว</p>
-          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-white text-slate-700"}`}>
-              Sync: {lastUpdated ? formatDateTime(lastUpdated) : "กำลังโหลด"}
+              {rt("common.sync")}: {lastUpdated ? formatDateTime(lastUpdated) : rt("common.loading")}
             </span>
             <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-amber-700/60 bg-amber-900/30 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-              SLA watch {operationalSnapshot.risk + operationalSnapshot.overdue}
+              {rt("operational.slaWatch", { count: operationalSnapshot.risk + operationalSnapshot.overdue })}
             </span>
             <button
               type="button"
               onClick={() => setIsOperationalOverviewModalOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#2b59b0] to-indigo-600 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/20"
             >
-              ดูภาพเต็ม
+              {rt("common.fullView")}
               <ChevronRight size={14} />
             </button>
           </div>
@@ -2557,11 +3396,11 @@ export default function Dashboard() {
           >
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Queue Status</p>
-                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>งานค้าง {operationalSnapshot.open} รายการ</p>
+                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.queueStatus")}</p>
+                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{rt("operational.queueOpenItems", { count: operationalSnapshot.open })}</p>
               </div>
               <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isDarkTheme ? "bg-slate-700 text-slate-200" : "bg-white text-slate-600"}`}>
-                now
+                {rt("common.currentStatus")}
               </span>
             </div>
             <StableChartContainer className="h-28 min-w-0">
@@ -2571,7 +3410,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} รายการ`, "จำนวน"]} />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} ${rt("common.items")}`, rt("common.amount")]} />
                     <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                       {operationalStatusChartData.map((entry) => (
                         <Cell key={`mini-status-${entry.key}`} fill={entry.fill} />
@@ -2590,11 +3429,11 @@ export default function Dashboard() {
           >
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>7-Day Motion</p>
-                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>เปิดใหม่เทียบกับปิดงาน</p>
+                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.sevenDayMotion")}</p>
+                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{rt("operational.createdVsClosed")}</p>
               </div>
               <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isDarkTheme ? "bg-slate-700 text-slate-200" : "bg-white text-slate-600"}`}>
-                7 days
+                {rt("common.comparePrevious7Days")}
               </span>
             </div>
             <StableChartContainer className="h-28 min-w-0">
@@ -2604,7 +3443,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name === "created" ? "เปิดใหม่" : "ปิดงาน"]} />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} ${rt("common.items")}`, name === "created" ? rt("metrics.open7dLabel") : rt("metrics.closed7dLabel")]} />
                     <Line type="monotone" dataKey="created" stroke="#2563eb" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
                     <Line type="monotone" dataKey="closed" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
                   </LineChart>
@@ -2620,11 +3459,11 @@ export default function Dashboard() {
           >
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Workload Mix</p>
-                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{operationalLoadTotal} รายการที่ต้องตาม</p>
+                <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.workloadMix")}</p>
+                <p className={`mt-1 text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{rt("operational.followUpItems", { count: operationalLoadTotal })}</p>
               </div>
               <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isDarkTheme ? "bg-slate-700 text-slate-200" : "bg-white text-slate-600"}`}>
-                multi-source
+                {rt("common.currentStatus")}
               </span>
             </div>
             <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3">
@@ -2632,7 +3471,7 @@ export default function Dashboard() {
                 {chartsReady ? (
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                     <PieChart>
-                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name]} />
+                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} ${rt("common.items")}`, name]} />
                       <Pie data={operationalLoadData} dataKey="value" nameKey="name" innerRadius={28} outerRadius={42} paddingAngle={3} stroke="transparent">
                         {operationalLoadData.map((entry, index) => (
                           <Cell key={`mini-load-${entry.name}-${index}`} fill={entry.fill} />
@@ -2661,10 +3500,10 @@ export default function Dashboard() {
                     </div>
                   ))
                 ) : (
-                  <p className={`text-xs ${TEXT_MUTED_CLASS}`}>ยังไม่มี workload เพิ่มเติม</p>
-                )}
+                    <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("operational.noExtraWorkload")}</p>
+                  )}
+                </div>
               </div>
-            </div>
           </button>
         </div>
       </section>
@@ -2712,11 +3551,11 @@ export default function Dashboard() {
                     {slaIndicator}
                   </div>
 
-                  <h4 className={`truncate font-bold ${TEXT_PRIMARY_CLASS}`}>{ticket.title || "ไม่มีหัวข้อ"}</h4>
+                  <h4 className={`truncate font-bold ${TEXT_PRIMARY_CLASS}`}>{ticket.title || rt("ticket.noTitle")}</h4>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1 text-xs ${TEXT_MUTED_CLASS}`}>
                       {getCategoryIcon(ticket.category)}
-                      {ticket.category || "ไม่ระบุหมวดหมู่"}
+                      {ticket.category || rt("ticket.noCategory")}
                     </span>
                     <span className={`hidden text-xs sm:inline ${TEXT_SUBTLE_CLASS}`}>•</span>
                     <span className={`text-xs ${TEXT_MUTED_CLASS}`}>{formatDate(ticket.created_at)}</span>
@@ -2740,8 +3579,8 @@ export default function Dashboard() {
               ? "border-indigo-500/40 bg-indigo-900/30 text-indigo-300"
               : "border-indigo-200 bg-indigo-50 text-indigo-600"
               }`}
-            title="เปิดแชทเคส"
-            aria-label="เปิดแชทเคส"
+            title={rt("ticket.openCaseChat")}
+            aria-label={rt("ticket.openCaseChat")}
           >
             <MessageSquare size={14} />
           </button>
@@ -2773,7 +3612,7 @@ export default function Dashboard() {
               <div className={`h-[360px] rounded-3xl shadow-sm ${isDarkTheme ? "bg-slate-800/80" : "bg-white/90 ring-1 ring-blue-100"}`} />
             </div>
           </div>
-          <p className={`mt-6 text-center text-sm font-medium ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>กำลังเตรียมข้อมูล Dashboard...</p>
+          <p className={`mt-6 text-center text-sm font-medium ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>{rt("common.loadingDashboard")}</p>
         </div>
       </div>
     );
@@ -2796,20 +3635,10 @@ export default function Dashboard() {
       >
         {dt("statusBar.skipToContent")}
       </a>
-      {/* Status Bar - Real-time Indicator */}
+      {/* Status Bar */}
       <div className={`shrink-0 border-b px-3 py-1.5 backdrop-blur-xl sm:px-4 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-1.5 text-xs sm:text-sm lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className={`font-semibold ${isDarkTheme ? "text-slate-300" : "text-slate-700"}`}>{dt("statusBar.systemReady")}</span>
-            <span className={`hidden sm:inline ${isDarkTheme ? "text-slate-500" : "text-slate-500"}`}>{dt("statusBar.dataSource")}</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`hidden sm:inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
-              <Calendar size={12} />
-              {t("common.syncing")}: {lastUpdated ? formatDateTime(lastUpdated) : dt("statusBar.loading")}
-            </span>
+        <div className="mx-auto flex max-w-[1440px] justify-end text-xs sm:text-sm">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
               <RefreshCw size={12} />
               {getTimeSinceUpdate()}
@@ -2842,12 +3671,12 @@ export default function Dashboard() {
 
       {/* Navigation */}
       <nav className={`sticky top-0 z-40 shrink-0 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-2 sm:min-h-[64px] sm:px-6 lg:flex-nowrap lg:px-8">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-2.5 sm:min-h-[72px] sm:px-6 lg:flex-nowrap lg:px-8">
           <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border p-1.5 shadow-sm lg:flex-none ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
             <div className="relative">
               <img
                 src={tdkLogo}
-                alt="TDK Industrial logo"
+                alt={rt("common.companyLogoAlt")}
                 className="h-10 w-10 rounded-xl bg-white object-contain p-1 shadow-lg shadow-blue-200 animate-float"
               />
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white animate-pulse"></div>
@@ -2863,39 +3692,81 @@ export default function Dashboard() {
                 TDK INDUSTRIAL
               </h1>
               <p className={`hidden sm:block text-[10px] font-bold uppercase tracking-widest mt-1 ${TEXT_SUBTLE_CLASS}`}>
-                บริษัท ที.ดี.เค.อินดัสเตรียล จำกัด
+                {rt("common.companyName")}
               </p>
             </div>
           </div>
 
-          <div className="flex min-w-0 basis-full items-center gap-2 sm:gap-3 lg:ml-auto lg:basis-auto lg:flex-1">
-            <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex min-w-max items-center gap-2 sm:gap-3 pr-1">
-                <div className={`flex items-center gap-2 rounded-2xl border p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+          <div className="flex min-w-0 basis-full flex-col gap-2.5 lg:ml-auto lg:basis-auto lg:flex-1 xl:flex-row xl:items-start xl:gap-3 2xl:items-center">
+            <div className="min-w-0 flex-1">
+              <div className={`rounded-2xl border p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
                   <button
                     type="button"
                     onClick={() => setIsMeetingRoomStatusModalOpen(true)}
-                    className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                    title={dt("nav.meetingRoomStatus")}
+                    className={`inline-flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
                   >
-                    <Calendar size={16} />
-                    <span className="hidden 2xl:inline">{dt("nav.meetingRoomStatus")}</span>
-                    <span className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
-                      {todayMeetingBookings.length}
+                    <span className="inline-flex min-w-0 items-center gap-2">
+                      <Calendar size={16} />
+                      <span className="truncate" title={dt("nav.meetingRoomStatus")}>{dt("nav.meetingRoomStatus")}</span>
                     </span>
+                    <span className={`inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>{todayMeetingBookings.length}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsRecentActivityModalOpen(true)}
-                    className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                    title={dt("nav.recentActivity")}
+                    className={`inline-flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${
+                      hasRecentActivityFlowPending
+                        ? isDarkTheme
+                          ? "border-amber-400/60 bg-amber-500/10 text-amber-100 shadow-[0_10px_24px_-16px_rgba(245,158,11,0.85)] hover:bg-amber-500/15 focus-visible:ring-amber-400"
+                          : "border-amber-300 bg-amber-50/90 text-slate-700 shadow-[0_10px_24px_-16px_rgba(245,158,11,0.45)] hover:bg-amber-100/90 focus-visible:ring-amber-300"
+                        : isDarkTheme
+                          ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400"
+                          : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"
+                    }`}
                   >
-                    <Clock size={16} />
-                    <span className="hidden 2xl:inline">{dt("nav.recentActivity")}</span>
-                    <span className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-amber-900/40 text-amber-300" : "bg-amber-50 text-amber-700"}`}>
-                      {Math.min(filteredTickets.length, 99)}
+                    <span className="inline-flex min-w-0 items-center gap-2">
+                      <Clock size={16} />
+                      <span className="truncate" title={dt("nav.recentActivity")}>{dt("nav.recentActivity")}</span>
+                    </span>
+                    <span className="relative inline-flex shrink-0 items-center justify-center">
+                      {hasRecentActivityFlowPending && (
+                        <>
+                          <span className={`absolute inset-0 rounded-full motion-safe:animate-ping ${isDarkTheme ? "bg-amber-400/35" : "bg-amber-400/45"}`} />
+                          <span className={`absolute -inset-1 rounded-full border motion-safe:animate-pulse ${isDarkTheme ? "border-amber-300/65" : "border-amber-400/70"}`} />
+                        </>
+                      )}
+                      <span
+                        className={`relative inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                          hasRecentActivityFlowPending
+                            ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 motion-safe:animate-pulse"
+                            : isDarkTheme
+                              ? "bg-amber-900/40 text-amber-300"
+                              : "bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        {recentActivityBadgeCount > 99 ? "99+" : recentActivityBadgeCount}
+                      </span>
                     </span>
                   </button>
-                  <label className={`inline-flex min-w-[180px] items-center gap-2 rounded-xl border px-2.5 sm:px-3 py-2 text-sm font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200" : "border-blue-200 bg-white/90 text-slate-700"}`}>
-                    <SlidersHorizontal size={16} />
+                  <button
+                    type="button"
+                    onClick={() => navigate("/my-borrow-requests")}
+                    title={dt("nav.borrowRequests")}
+                    className={`inline-flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                  >
+                    <span className="inline-flex min-w-0 items-center gap-2">
+                      <Package size={16} />
+                      <span className="truncate" title={dt("nav.borrowRequests")}>{dt("nav.borrowRequests")}</span>
+                    </span>
+                    <span className={`inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>
+                      {borrowOpenCount > 99 ? "99+" : borrowOpenCount}
+                    </span>
+                  </button>
+                  <label className={`inline-flex w-full min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200" : "border-blue-200 bg-white/90 text-slate-700"}`}>
+                    <SlidersHorizontal size={16} className="shrink-0" />
                     <select
                       value={navMoreSelection}
                       onChange={handleNavMoreSelection}
@@ -2914,17 +3785,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleTheme}
-                aria-label={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
-                title={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
-              >
-                {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
-              </button>
-              <div className={`hidden xl:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+            <div className="flex flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
+              <div className={`hidden lg:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
                 <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
                   <Hash size={12} />
                   ID: {profile?.employee_code || dt("nav.notSpecified")}
@@ -2936,24 +3798,30 @@ export default function Dashboard() {
               </div>
               <button
                 onClick={() => navigate("/create-ticket")}
-                className="inline-flex sm:hidden items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-white shadow-sm"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 sm:px-4 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 active:translate-y-0"
                 aria-label={dt("nav.newTicket")}
               >
                 <Plus size={18} />
+                <span className="hidden sm:inline">{dt("nav.newTicket")}</span>
               </button>
-              <button
-                onClick={() => navigate("/create-ticket")}
-                className="hidden lg:flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-white font-bold transition-all transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 active:translate-y-0"
-              >
-                <Plus size={18} />
-                <span>{dt("nav.newTicket")}</span>
-              </button>
+              <div className={`flex items-center gap-1 rounded-2xl border p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  aria-label={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
+                  title={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-xl transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                >
+                  {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
+                </button>
+                <LanguageSwitcher mode="nav" isDarkTheme={isDarkTheme} />
+              </div>
               <button
                 onClick={() => setIsLogoutConfirmOpen(true)}
-                className={`flex shrink-0 items-center gap-2 rounded-xl px-2.5 sm:px-3 lg:px-4 py-2 text-sm font-bold text-rose-600 transition-all ${isDarkTheme ? "hover:bg-rose-900/30" : "hover:bg-rose-50"}`}
+                className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-2.5 sm:px-3 lg:px-4 text-sm font-bold text-rose-600 transition-all ${isDarkTheme ? "hover:bg-rose-900/30" : "hover:bg-rose-50"}`}
               >
                 <LogOut size={18} />
-                <span className="hidden md:inline">{t("common.signOut")}</span>
+                <span className="hidden xl:inline">{t("common.signOut")}</span>
               </button>
             </div>
           </div>
@@ -2971,7 +3839,7 @@ export default function Dashboard() {
         {dashboardError && (
           <div className={`mb-4 flex shrink-0 flex-col gap-3 rounded-2xl border p-3 md:flex-row md:items-center md:justify-between ${isDarkTheme ? "border-rose-700/60 bg-rose-900/30" : "border-rose-200 bg-rose-50/80"}`} role="alert">
             <div>
-              <p className={`text-sm font-black ${isDarkTheme ? "text-rose-300" : "text-rose-700"}`}>มีปัญหาในการโหลดข้อมูลบางส่วน</p>
+              <p className={`text-sm font-black ${isDarkTheme ? "text-rose-300" : "text-rose-700"}`}>{rt("common.partialLoadError")}</p>
               <p className={`text-xs font-medium ${isDarkTheme ? "text-rose-200" : "text-rose-600"}`}>{dashboardError}</p>
             </div>
             <button
@@ -2979,7 +3847,7 @@ export default function Dashboard() {
               className={`inline-flex items-center gap-2 self-start rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${isDarkTheme ? "border-rose-600 bg-slate-800 text-rose-300 hover:bg-slate-700" : "border-rose-300 bg-white text-rose-700 hover:bg-rose-100"}`}
             >
               <RefreshCw size={14} />
-              ลองโหลดอีกครั้ง
+              {rt("common.retryLoad")}
             </button>
           </div>
         )}
@@ -3006,7 +3874,7 @@ export default function Dashboard() {
                         <img
                           src={profile.id_card_url}
                           className="w-full h-full object-cover rounded-2xl transform group-hover/profile:scale-105 transition-transform duration-500"
-                          alt="Profile"
+                          alt={rt("common.profileAlt")}
                         />
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/profile:opacity-100 bg-black/40 transition-all duration-300 rounded-2xl">
                           <ExternalLink size={20} className="text-white transform group-hover/profile:scale-110 transition-transform" />
@@ -3021,9 +3889,9 @@ export default function Dashboard() {
                 </div>
 
                 <div className="mb-4 text-center sm:mb-5">
-                  <h2 className={`text-lg sm:text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{profile?.full_name || "ไม่พบชื่อ"}</h2>
+                  <h2 className={`text-lg sm:text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{profile?.full_name || rt("common.noName")}</h2>
                   <p className={`mt-1 text-xs font-bold uppercase tracking-widest ${isDarkTheme ? "text-indigo-300" : "text-[#2b59b0]"}`}>
-                    {profile?.position || "พนักงาน"}
+                    {profile?.position || rt("common.employee")}
                   </p>
                 </div>
 
@@ -3033,8 +3901,8 @@ export default function Dashboard() {
                       <Building2 size={15} className="text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>Department</p>
-                      <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.department || "ไม่ระบุ"}</p>
+                      <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>{rt("common.department")}</p>
+                      <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.department || rt("common.notSpecified")}</p>
                     </div>
                   </div>
 
@@ -3043,8 +3911,8 @@ export default function Dashboard() {
                       <Briefcase size={15} className="text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>Position</p>
-                      <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.position || "พนักงาน"}</p>
+                      <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>{rt("common.position")}</p>
+                      <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.position || rt("common.employee")}</p>
                     </div>
                   </div>
 
@@ -3053,8 +3921,8 @@ export default function Dashboard() {
                       type="button"
                       onClick={() => setShowProfileDetails((prev) => !prev)}
                       aria-expanded={showProfileDetails}
-                      aria-label={showProfileDetails ? "ซ่อนรายละเอียดโปรไฟล์" : "แสดงรายละเอียดโปรไฟล์"}
-                      title={showProfileDetails ? "ซ่อนรายละเอียดโปรไฟล์" : "แสดงรายละเอียดโปรไฟล์"}
+                      aria-label={showProfileDetails ? rt("common.profileHide") : rt("common.profileShow")}
+                      title={showProfileDetails ? rt("common.profileHide") : rt("common.profileShow")}
                       className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-all duration-300 focus:outline-none focus-visible:ring-2 ${isDarkTheme
                         ? "border-slate-600 bg-slate-900/70 text-slate-100 hover:bg-slate-800 focus-visible:ring-indigo-400"
                         : "border-slate-200 bg-white text-[#2b59b0] hover:bg-[#F8FBFF] focus-visible:ring-blue-300"
@@ -3075,11 +3943,11 @@ export default function Dashboard() {
             <section ref={quickActionsSectionRef} className={`order-1 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className={QUICK_ACTIONS_HEADING_CLASS}>Quick Actions</h3>
-                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>ทางลัดหลักของระบบสำหรับงานที่ใช้บ่อยที่สุด</p>
+                  <h3 className={QUICK_ACTIONS_HEADING_CLASS}>{rt("common.quickActionsTitle")}</h3>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("common.quickActionsSubtitle")}</p>
                 </div>
                 <span className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${isDarkTheme ? "border-indigo-500/40 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-600"}`}>
-                  role: {profile?.role || "user"}
+                  {rt("common.role")}: {roleLabel}
                 </span>
               </div>
 
@@ -3153,7 +4021,7 @@ export default function Dashboard() {
                       <h4 className={QUICK_ACTIONS_TITLE_CLASS}>{action.label}</h4>
                       <p className={`mt-2 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
                       <div className={`mt-4 flex items-center gap-1 text-[11px] font-bold ${accent.text}`}>
-                        <span>เปิดใช้งาน</span>
+                        <span>{rt("common.active")}</span>
                         <ChevronRight size={12} className="transform transition-transform group-hover:translate-x-1" />
                       </div>
                     </button>
@@ -3167,8 +4035,8 @@ export default function Dashboard() {
                     <button
                       type="button"
                       onClick={() => setShowMoreQuickActions((value) => !value)}
-                      aria-label="แสดงเมนูเพิ่มเติม"
-                      title="แสดงเมนูเพิ่มเติม"
+                      aria-label={rt("common.moreMenu")}
+                      title={rt("common.moreMenu")}
                       className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] ${isDarkTheme ? "border-slate-700 bg-slate-900/80 text-slate-100 hover:bg-slate-900" : "border-blue-100 bg-white text-slate-700 hover:bg-blue-50"}`}
                     >
                       {showMoreQuickActions ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
@@ -3276,37 +4144,39 @@ export default function Dashboard() {
                 <div>
                   <div className="mb-1 flex items-center gap-2">
                     <Calendar size={16} className="text-indigo-600" />
-                    <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>Meeting Room Status</h3>
+                    <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.meetingRoomStatus")}</h3>
                   </div>
-                  <p className={`text-xs ${TEXT_MUTED_CLASS}`}>สถานะห้องประชุมของวันนี้แบบเรียลไทม์สำหรับพนักงานทั้งองค์กร</p>
+                  <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("meeting.hiddenSubtitle")}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => navigate("/meeting-room-booking")}
                   className={SECONDARY_BUTTON_CLASS}
                 >
-                  ไปหน้าจองห้องประชุม
+                  {rt("meeting.openBooking")}
                 </button>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                  Today: {todayMeetingBookings.length} รายการ
+                  {rt("meeting.todayCount", { count: todayMeetingBookings.length })}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                  Tomorrow: {tomorrowMeetingBookings.length} รายการ
+                  {rt("meeting.tomorrowCount", { count: tomorrowMeetingBookings.length })}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                  Upcoming: {normalizedUpcomingMeetingBookings.length} รายการ
+                  {rt("meeting.upcomingCount", { count: normalizedUpcomingMeetingBookings.length })}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}>
-                  Next booking: {nextMeetingBooking
-                    ? `${nextMeetingBooking.room_name} ${format(nextMeetingBooking.startsAt, "dd MMM HH:mm", { locale: th })}`
-                    : "ไม่มีคิวถัดไป"}
+                  {rt("meeting.nextBooking", {
+                    value: nextMeetingBooking
+                      ? `${nextMeetingBooking.room_name} ${format(nextMeetingBooking.startsAt, "dd MMM HH:mm", { locale: dateLocale })}`
+                      : rt("common.noNextBooking"),
+                  })}
                 </span>
                 {todayMeetingOverlapCount > 0 && (
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-rose-700/60 bg-rose-900/40 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-                    พบเวลาจองซ้ำ {todayMeetingOverlapCount} จุด
+                    {rt("meeting.overlapCount", { count: todayMeetingOverlapCount })}
                   </span>
                 )}
               </div>
@@ -3326,7 +4196,7 @@ export default function Dashboard() {
                       <div className="mb-2 flex items-center gap-2">
                         <Calendar size={14} className={isDarkTheme ? "text-indigo-300" : "text-indigo-600"} />
                         <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>
-                          รายการจองวันนี้
+                          {rt("meeting.todayBookings")}
                         </p>
                       </div>
                       <div className="space-y-2">
@@ -3338,22 +4208,22 @@ export default function Dashboard() {
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>
-                                  {booking.title || "มีการจอง"}
+                                  {booking.title || rt("common.bookingTitle")}
                                 </p>
                                 <div className={`mt-1 flex flex-wrap items-center gap-2 text-[11px] ${TEXT_MUTED_CLASS}`}>
                                   <span className="inline-flex items-center gap-1">
                                     <DoorOpen size={12} />
-                                    {booking.room_name || "ไม่ระบุห้อง"}
+                                    {booking.room_name || rt("operational.notSpecifiedRoom")}
                                   </span>
                                   <span className="inline-flex items-center gap-1">
                                     <User size={12} />
-                                    {booking.booked_by || "ไม่ระบุผู้จอง"}
+                                    {booking.booked_by || rt("common.noBookedBy")}
                                   </span>
                                 </div>
                               </div>
                               <div className="shrink-0 text-right">
                                 <p className={`text-[11px] font-semibold ${TEXT_SUBTLE_CLASS}`}>
-                                  {format(booking.startsAt, "dd MMM yyyy", { locale: th })}
+                                  {format(booking.startsAt, "dd MMM yyyy", { locale: dateLocale })}
                                 </p>
                                 <p className={`text-xs font-black ${TEXT_SECONDARY_CLASS}`}>
                                   {booking.startClock} - {booking.endClock}
@@ -3369,7 +4239,7 @@ export default function Dashboard() {
                       <div className="mb-3 flex items-center gap-2">
                         <Clock size={14} className={isDarkTheme ? "text-slate-300" : "text-slate-600"} />
                         <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>
-                          สถานะห้องประชุมวันนี้
+                          {rt("meeting.roomStatusToday")}
                         </p>
                       </div>
                       <div className="grid grid-cols-1 gap-3 pr-1 xl:grid-cols-2">
@@ -3384,7 +4254,7 @@ export default function Dashboard() {
                                 ? (isDarkTheme ? "bg-rose-900/40 text-rose-300" : "bg-rose-50 text-rose-700")
                                 : (isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700")
                                 }`}>
-                                {roomCard.bookedCount > 0 ? "Booked" : "Available"}
+                                {roomCard.bookedCount > 0 ? rt("meeting.booked") : rt("meeting.available")}
                               </span>
                             </div>
 
@@ -3401,7 +4271,7 @@ export default function Dashboard() {
                                     <span className="font-bold">
                                       {minutesToClock(slot.startMinutes)} - {minutesToClock(slot.endMinutes)}
                                     </span>
-                                    <span className="font-black">{slot.type === "booked" ? "Booked" : "Available"}</span>
+                                    <span className="font-black">{slot.type === "booked" ? rt("meeting.booked") : rt("meeting.available")}</span>
                                   </div>
                                   {slot.type === "booked" && (
                                     <p className={`mt-1 ${isDarkTheme ? "text-rose-100" : "text-rose-600"}`}>
@@ -3421,7 +4291,7 @@ export default function Dashboard() {
                     <div className="mb-2 flex items-center gap-2">
                       <Calendar size={14} className={isDarkTheme ? "text-indigo-300" : "text-indigo-600"} />
                       <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>
-                        รายการจองถัดไป
+                        {rt("meeting.upcomingBookings")}
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -3433,22 +4303,22 @@ export default function Dashboard() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>
-                                {booking.title || "มีการจอง"}
+                                {booking.title || rt("common.bookingTitle")}
                               </p>
                               <div className={`mt-1 flex flex-wrap items-center gap-2 text-[11px] ${TEXT_MUTED_CLASS}`}>
                                 <span className="inline-flex items-center gap-1">
                                   <DoorOpen size={12} />
-                                  {booking.room_name || "ไม่ระบุห้อง"}
+                                  {booking.room_name || rt("operational.notSpecifiedRoom")}
                                 </span>
                                 <span className="inline-flex items-center gap-1">
                                   <User size={12} />
-                                  {booking.booked_by || "ไม่ระบุผู้จอง"}
+                                  {booking.booked_by || rt("common.noBookedBy")}
                                 </span>
                               </div>
                             </div>
                             <div className="shrink-0 text-right">
                               <p className={`text-[11px] font-semibold ${TEXT_SUBTLE_CLASS}`}>
-                                {format(booking.startsAt, "dd MMM yyyy", { locale: th })}
+                                {format(booking.startsAt, "dd MMM yyyy", { locale: dateLocale })}
                               </p>
                               <p className={`text-xs font-black ${TEXT_SECONDARY_CLASS}`}>
                                 {booking.startClock} - {booking.endClock}
@@ -3461,7 +4331,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className={`mt-5 rounded-2xl border border-dashed p-6 text-center ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/20 text-emerald-200" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                    วันนี้ห้องประชุมว่าง
+                    {rt("common.noMeetingToday")}
                   </div>
                 )}
               </div>
@@ -3527,8 +4397,8 @@ export default function Dashboard() {
                           return (
                             <div key={item.id} className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/70" : "border-slate-200 bg-white"}`}>
                               <div className="min-w-0">
-                                <p className={`truncate text-xs font-semibold ${TEXT_SECONDARY_CLASS}`}>{item.system_name || "ไม่ระบุระบบ"}</p>
-                                <p className={`text-[10px] ${TEXT_MUTED_CLASS}`}>{formatDate(item.created_at, "dd MMM HH:mm", { locale: th })}</p>
+                                <p className={`truncate text-xs font-semibold ${TEXT_SECONDARY_CLASS}`}>{item.system_name || rt("common.noSystem")}</p>
+                                <p className={`text-[10px] ${TEXT_MUTED_CLASS}`}>{formatDateTime(item.created_at)}</p>
                               </div>
                               <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClass}`}>
                                 {item.status || ACCESS_REQUEST_STATUS.PENDING}
@@ -3549,8 +4419,8 @@ export default function Dashboard() {
                 <section className={`order-2 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 lg:order-2 ${SURFACE_SECTION_CLASS}`}>
                   <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>Priority Inbox</h3>
-                      <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>งานที่ควรจัดการก่อน เรียงตามความเสี่ยง SLA และความเร่งด่วน</p>
+                      <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>{rt("ticket.priorityInboxTitle")}</h3>
+                      <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("ticket.priorityInboxSubtitle")}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -3558,7 +4428,7 @@ export default function Dashboard() {
                         onClick={() => applyRoleView(roleViews[0])}
                         className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${isDarkTheme ? "border-indigo-500/40 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}
                       >
-                        เปิดมุมมองมาตรฐาน
+                        {rt("ticket.defaultView")}
                       </button>
                       <button
                         type="button"
@@ -3573,7 +4443,7 @@ export default function Dashboard() {
                         }}
                         className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${isDarkTheme ? "border-rose-700 bg-rose-900/40 text-rose-300" : "border-rose-200 bg-rose-50 text-rose-700"}`}
                       >
-                        ดูงานหลุด SLA
+                        {rt("ticket.overdueView")}
                       </button>
                     </div>
                   </div>
@@ -3608,7 +4478,7 @@ export default function Dashboard() {
                                   {status.label}
                                 </span>
                               </div>
-                              <p className={`truncate text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{ticket.title || "ไม่มีหัวข้อ"}</p>
+                              <p className={`truncate text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{ticket.title || rt("ticket.noTitle")}</p>
                               <div className={`mt-2 flex items-center gap-2 text-xs ${TEXT_MUTED_CLASS}`}>
                                 <span className={`rounded-md px-2 py-0.5 text-white ${priority.color}`}>{priority.label}</span>
                                 {renderSLAIndicator(ticket)}
@@ -3619,8 +4489,8 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className={`rounded-2xl border border-dashed p-6 text-center ${isDarkTheme ? "border-slate-700 bg-slate-800/70" : "border-blue-100 bg-blue-50/70"}`}>
-                        <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ไม่มีงานค้างใน Priority Inbox</p>
-                        <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>ตอนนี้คิวงานอยู่ในเกณฑ์ปกติ</p>
+                        <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{rt("ticket.noPriorityInbox")}</p>
+                        <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("ticket.normalQueue")}</p>
                       </div>
                     )}
                   </div>
@@ -3633,15 +4503,18 @@ export default function Dashboard() {
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                     <div>
                       <div className="mb-1 flex items-center gap-2">
-                        <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>กิจกรรมล่าสุด</h3>
+                        <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.recentActivity")}</h3>
                         <div className="h-2 w-2 rounded-full bg-indigo-600 animate-pulse"></div>
                       </div>
                       <p className={`text-xs ${TEXT_MUTED_CLASS}`}>
-                        แสดง {visibleTickets.length} จาก {filteredTickets.length} รายการที่ผ่านตัวกรอง
+                        {rt("recentActivity.filteredCount", {
+                          visible: visibleTickets.length,
+                          filtered: filteredTickets.length,
+                        })}
                       </p>
                     </div>
                     <p className={`text-[11px] font-semibold ${TEXT_MUTED_CLASS}`}>
-                      คีย์ลัด: <span className={`font-black ${TEXT_SECONDARY_CLASS}`}>/</span> ค้นหา, <span className={`font-black ${TEXT_SECONDARY_CLASS}`}>n</span> สร้าง Ticket
+                      {rt("recentActivity.shortcuts")}
                     </p>
                   </div>
                 </div>
@@ -3649,7 +4522,7 @@ export default function Dashboard() {
                 <div className={`mb-4 shrink-0 rounded-2xl border p-3 ${SURFACE_PANEL_CLASS}`}>
                   <div className="mb-3 flex items-center gap-2">
                     <SlidersHorizontal size={15} className="text-indigo-600" />
-                    <p className={`text-xs font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>Smart Filter Bar</p>
+                    <p className={`text-xs font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>{rt("recentActivity.smartFilterBar")}</p>
                   </div>
 
                   <div className="mb-3 flex flex-wrap gap-2">
@@ -3681,8 +4554,8 @@ export default function Dashboard() {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="ค้นหาเลขที่งาน / หัวข้อ / รายละเอียด..."
-                        aria-label="ค้นหา Ticket"
+                        placeholder={rt("recentActivity.searchPlaceholder")}
+                        aria-label={rt("recentActivity.searchAria")}
                         className={SEARCH_CONTROL_CLASS}
                       />
                       {searchQuery.trim() && (
@@ -3691,18 +4564,18 @@ export default function Dashboard() {
                           onClick={() => setSearchQuery("")}
                           className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-600 text-slate-200" : "bg-slate-100 text-slate-600"}`}
                         >
-                          ล้าง
+                          {rt("recentActivity.clearSearch")}
                         </button>
                       )}
                     </div>
 
                     <div>
-                      <select
-                        value={activeFilter}
-                        onChange={(e) => setActiveFilter(e.target.value)}
-                        aria-label="กรองตามสถานะ"
-                        className={FORM_CONTROL_CLASS}
-                      >
+                        <select
+                          value={activeFilter}
+                          onChange={(e) => setActiveFilter(e.target.value)}
+                          aria-label={rt("recentActivity.filterStatusAria")}
+                          className={FORM_CONTROL_CLASS}
+                        >
                         {localizedFilterOptions.map((filter) => (
                           <option key={filter.id} value={filter.id}>{filter.label}</option>
                         ))}
@@ -3710,12 +4583,12 @@ export default function Dashboard() {
                     </div>
 
                     <div>
-                      <select
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                        aria-label="กรองตามหมวดหมู่"
-                        className={FORM_CONTROL_CLASS}
-                      >
+                        <select
+                          value={categoryFilter}
+                          onChange={(e) => setCategoryFilter(e.target.value)}
+                          aria-label={rt("recentActivity.filterCategoryAria")}
+                          className={FORM_CONTROL_CLASS}
+                        >
                         {categoryOptions.map((category) => (
                           <option key={category} value={category}>
                             {category === "ALL" ? dt("activity.allCategories") : category}
@@ -3726,12 +4599,12 @@ export default function Dashboard() {
 
                     {!isUserSearchMode && (
                       <div>
-                        <select
-                          value={priorityFilter}
-                          onChange={(e) => setPriorityFilter(e.target.value)}
-                          aria-label="กรองตามความเร่งด่วน"
-                          className={FORM_CONTROL_CLASS}
-                        >
+                          <select
+                            value={priorityFilter}
+                            onChange={(e) => setPriorityFilter(e.target.value)}
+                            aria-label={rt("recentActivity.filterPriorityAria")}
+                            className={FORM_CONTROL_CLASS}
+                          >
                           {localizedPriorityFilterOptions.map((option) => (
                             <option key={option.id} value={option.id}>{option.label}</option>
                           ))}
@@ -3741,12 +4614,12 @@ export default function Dashboard() {
 
                     {!isUserSearchMode && (
                       <div>
-                        <select
-                          value={slaFilter}
-                          onChange={(e) => setSlaFilter(e.target.value)}
-                          aria-label="กรองตาม SLA"
-                          className={FORM_CONTROL_CLASS}
-                        >
+                          <select
+                            value={slaFilter}
+                            onChange={(e) => setSlaFilter(e.target.value)}
+                            aria-label={rt("recentActivity.filterSlaAria")}
+                            className={FORM_CONTROL_CLASS}
+                          >
                           {localizedSlaFilterOptions.map((option) => (
                             <option key={option.id} value={option.id}>{option.label}</option>
                           ))}
@@ -3765,7 +4638,7 @@ export default function Dashboard() {
                         <select
                           value={selectedPresetId}
                           onChange={(e) => setSelectedPresetId(e.target.value)}
-                          aria-label="เลือกมุมมองที่บันทึกไว้"
+                          aria-label={rt("recentActivity.savedViewAria")}
                           className={`w-full sm:min-w-[220px] sm:flex-1 ${FORM_CONTROL_CLASS}`}
                         >
                           <option value="">{dt("activity.selectSavedView")}</option>
@@ -3786,7 +4659,7 @@ export default function Dashboard() {
                           onClick={deleteSelectedPreset}
                           disabled={!selectedPresetId}
                           className={`rounded-xl border px-3 py-2 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 disabled:opacity-40 ${isDarkTheme ? "border-rose-700 bg-rose-900/40 text-rose-300 hover:bg-rose-900/60 focus-visible:ring-rose-400" : "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus-visible:ring-rose-200"}`}
-                          aria-label="ลบมุมมองที่เลือก"
+                          aria-label={rt("recentActivity.deleteSavedViewAria")}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -3826,7 +4699,7 @@ export default function Dashboard() {
                           : dt("activity.selectTicket")}
                       </p>
 
-                      <div className="space-y-3" role="listbox" aria-label="รายการ Ticket ล่าสุด">
+                      <div className="space-y-3" role="listbox" aria-label={rt("recentActivity.listAria")}>
                         {visibleTickets.map(renderTicketItem)}
                       </div>
 
@@ -3925,7 +4798,7 @@ export default function Dashboard() {
                           className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/25"
                         >
                           <Plus size={16} />
-                          สร้างใบแจ้งซ่อมแรก
+                          {rt("recentActivity.firstTicketCta")}
                         </button>
                       </div>
                     </div>
@@ -3967,7 +4840,7 @@ export default function Dashboard() {
       <CentralChatDock
         currentUser={{
           id: profile?.id,
-          name: profile?.full_name || profile?.employee_code || profile?.email || "User",
+          name: profile?.full_name || profile?.employee_code || profile?.email || rt("common.userFallback"),
           role: profile?.role || "user",
           avatar: profile?.avatar_url || profile?.id_card_url || "",
         }}
@@ -3980,7 +4853,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-[103] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
           <button
             type="button"
-            aria-label="ปิดรายละเอียด KPI"
+            aria-label={rt("kpiDetail.closeAria")}
             onClick={() => setSelectedKpiMetricKey("")}
             className="absolute inset-0"
           />
@@ -3990,7 +4863,7 @@ export default function Dashboard() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <BarChart3 size={16} className="text-indigo-500" />
-                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>KPI Detail</p>
+                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>{rt("kpiDetail.modalLabel")}</p>
                   </div>
                   <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{selectedKpiMetric.title}</h3>
                   <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>{selectedKpiMetric.description}</p>
@@ -4008,19 +4881,19 @@ export default function Dashboard() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <article className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
-                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>จำนวนทั้งหมด</p>
+                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("kpiDetail.totalLabel")}</p>
                   <p className={`mt-2 text-3xl font-black ${TEXT_PRIMARY_CLASS}`}>{selectedKpiMetric.total}</p>
-                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>รายการที่ตรงกับ KPI นี้</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("kpiDetail.totalHelper")}</p>
                 </article>
                 <article className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
-                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>แสดงใน popup</p>
+                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("kpiDetail.popupLabel")}</p>
                   <p className={`mt-2 text-3xl font-black ${TEXT_PRIMARY_CLASS}`}>{selectedKpiMetric.items.length}</p>
-                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>สูงสุด 12 รายการล่าสุด</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("kpiDetail.popupHelper")}</p>
                 </article>
                 <article className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
-                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>วิธีใช้งาน</p>
-                  <p className={`mt-2 text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>กดที่รายการเพื่อเปิดรายละเอียด ticket</p>
-                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>เหมาะสำหรับ drill-down จากตัวเลขสรุปทันที</p>
+                  <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("kpiDetail.usageLabel")}</p>
+                  <p className={`mt-2 text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{rt("kpiDetail.usageAction")}</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("kpiDetail.usageHelper")}</p>
                 </article>
               </div>
 
@@ -4050,13 +4923,13 @@ export default function Dashboard() {
                                 {statusConfig.label}
                               </span>
                             </div>
-                            <h4 className={`truncate text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{ticket.title || "ไม่มีหัวข้อ"}</h4>
+                            <h4 className={`truncate text-sm font-black ${TEXT_PRIMARY_CLASS}`}>{ticket.title || rt("ticket.noTitle")}</h4>
                             <div className={`mt-1 flex flex-wrap items-center gap-2 text-xs ${TEXT_MUTED_CLASS}`}>
-                              <span>{ticket.category || "ไม่ระบุหมวดหมู่"}</span>
+                              <span>{ticket.category || rt("ticket.noCategory")}</span>
                               <span className={TEXT_SUBTLE_CLASS}>•</span>
                               <span>{formatDate(ticket.created_at)}</span>
                               <span className={TEXT_SUBTLE_CLASS}>•</span>
-                              <span>อัปเดต {formatDateTime(ticket.updated_at || ticket.created_at)}</span>
+                              <span>{rt("kpiDetail.updatedAt", { value: formatDateTime(ticket.updated_at || ticket.created_at) })}</span>
                             </div>
                           </div>
                           <ChevronRight size={16} className={`shrink-0 ${isDarkTheme ? "text-slate-500" : "text-slate-400"}`} />
@@ -4067,19 +4940,19 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className={`rounded-2xl border border-dashed p-8 text-center ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50/70"}`}>
-                  <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ยังไม่มีรายการใน KPI นี้</p>
-                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>เมื่อมี ticket เข้ามาตรงเงื่อนไข ตัวเลขและรายการใน popup นี้จะอัปเดตตามทันที</p>
+                  <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{rt("kpiDetail.emptyTitle")}</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("kpiDetail.emptyDescription")}</p>
                 </div>
               )}
             </div>
 
             <div className={`shrink-0 border-t px-4 py-4 sm:px-6 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>KPI cards ด้านบนสามารถกดเพื่อเปิด popup ดูรายการย่อยได้ทันที</p>
+                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("kpiDetail.footerHint")}</p>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <button type="button" onClick={() => setSelectedKpiMetricKey("")} className={SECONDARY_BUTTON_CLASS}>ปิด</button>
+                  <button type="button" onClick={() => setSelectedKpiMetricKey("")} className={SECONDARY_BUTTON_CLASS}>{rt("common.close")}</button>
                   <button type="button" onClick={handleViewAllClick} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
-                    เปิดประวัติ Ticket
+                    {rt("kpiDetail.openHistory")}
                   </button>
                 </div>
               </div>
@@ -4126,7 +4999,7 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => dismissDashboardNotification(notification.id)}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
-                    aria-label="ปิดการแจ้งเตือน"
+                    aria-label={rt("common.closeNotification")}
                   >
                     <X size={14} />
                   </button>
@@ -4141,7 +5014,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-[102] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
           <button
             type="button"
-            aria-label="ปิด Operational Dashboard"
+            aria-label={rt("common.close")}
             onClick={() => setIsOperationalOverviewModalOpen(false)}
             className="absolute inset-0"
           />
@@ -4151,14 +5024,14 @@ export default function Dashboard() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <BarChart3 size={16} className="text-emerald-500" />
-                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>Dashboard Overview</p>
+                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.modalLabel")}</p>
                     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/30 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
                       <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                      Real-time
+                      {rt("operational.realtime")}
                     </span>
                   </div>
-                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>Operational Dashboard</h3>
-                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>สรุปข้อมูลปัจจุบันแบบสดในหน้าเดียว โดยไม่ต้องเปลี่ยน layout หลักของ dashboard เดิม</p>
+                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{rt("operational.title")}</h3>
+                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>{rt("operational.modalDescription")}</p>
                 </div>
                 <button
                   type="button"
@@ -4173,17 +5046,20 @@ export default function Dashboard() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <div className="mb-4 flex flex-wrap gap-2">
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                  Sync: {lastUpdated ? formatDateTime(lastUpdated) : "กำลังโหลด"}
+                  {rt("common.sync")}: {lastUpdated ? formatDateTime(lastUpdated) : rt("common.loading")}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}>
-                  SLA on-time {slaStats.percentage}%
+                  {rt("operational.onTimeSla", { percent: slaStats.percentage })}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-amber-700/60 bg-amber-900/30 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-                  เสี่ยง {operationalSnapshot.risk} / เกิน SLA {operationalSnapshot.overdue}
+                  {rt("operational.riskOverdue", {
+                    risk: operationalSnapshot.risk,
+                    overdue: operationalSnapshot.overdue,
+                  })}
                 </span>
                 {todayMeetingOverlapCount > 0 && (
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-rose-700/60 bg-rose-900/30 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-                    พบเวลาจองซ้ำ {todayMeetingOverlapCount} จุด
+                    {rt("operational.overlapCount", { count: todayMeetingOverlapCount })}
                   </span>
                 )}
               </div>
@@ -4214,10 +5090,10 @@ export default function Dashboard() {
                   <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Ticket Trend 7 วันล่าสุด</p>
-                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>เปิดใหม่ vs ปิดงาน</h4>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.trendLabel")}</p>
+                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>{rt("operational.trendTitle")}</h4>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>rolling 7 days</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>{rt("operational.rolling7Days")}</span>
                     </div>
                     <StableChartContainer className="h-[280px] min-w-0">
                       {chartsReady ? (
@@ -4226,9 +5102,13 @@ export default function Dashboard() {
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
                             <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
                             <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name === "created" ? "เปิดใหม่" : "ปิดงาน"]} labelFormatter={(label) => `วันที่ ${label}`} />
-                            <Line type="monotone" dataKey="created" name="created" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                            <Line type="monotone" dataKey="closed" name="closed" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                            <Tooltip
+                              contentStyle={CHART_TOOLTIP_STYLE}
+                              formatter={(value, name) => [`${value} ${rt("common.items")}`, name]}
+                              labelFormatter={(label) => rt("operational.dateLabel", { label })}
+                            />
+                            <Line type="monotone" dataKey="created" name={rt("operational.lineCreated")} stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                            <Line type="monotone" dataKey="closed" name={rt("operational.lineClosed")} stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                           </LineChart>
                         </ResponsiveContainer>
                       ) : null}
@@ -4238,10 +5118,10 @@ export default function Dashboard() {
                   <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Ticket Status Overview</p>
-                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>สัดส่วนสถานะงานปัจจุบัน</h4>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.statusOverviewLabel")}</p>
+                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>{rt("operational.statusOverviewTitle")}</h4>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>live queue</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>{rt("operational.liveQueue")}</span>
                     </div>
                     <StableChartContainer className="h-[240px] min-w-0">
                       {chartsReady ? (
@@ -4250,7 +5130,7 @@ export default function Dashboard() {
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
                             <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
                             <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_AXIS_COLOR }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} รายการ`, "จำนวน"]} />
+                            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value) => [`${value} ${rt("common.items")}`, rt("common.amount")]} />
                             <Bar dataKey="value" radius={[10, 10, 0, 0]}>
                               {operationalStatusChartData.map((entry) => (
                                 <Cell key={`status-cell-${entry.key}`} fill={entry.fill} />
@@ -4267,17 +5147,17 @@ export default function Dashboard() {
                   <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Operational Mix</p>
-                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>สัดส่วนงานที่กำลังเกิดขึ้น</h4>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.mixLabel")}</p>
+                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>{rt("operational.mixTitle")}</h4>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>{operationalLoadTotal} รายการ</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>{operationalLoadTotal} {rt("common.items")}</span>
                     </div>
 
                     <StableChartContainer className="relative h-[250px] min-w-0">
                       {chartsReady ? (
                         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                           <PieChart>
-                            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} รายการ`, name]} />
+                            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [`${value} ${rt("common.items")}`, name]} />
                             <Pie data={operationalLoadData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={4} stroke="transparent">
                               {operationalLoadData.map((entry, index) => (
                                 <Cell key={`operational-load-${entry.name}-${index}`} fill={entry.fill} />
@@ -4288,7 +5168,7 @@ export default function Dashboard() {
                       ) : null}
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                         <div className="text-center">
-                          <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Live Load</p>
+                          <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.liveLoad")}</p>
                           <p className={`mt-1 text-3xl font-black ${TEXT_PRIMARY_CLASS}`}>{operationalLoadTotal}</p>
                         </div>
                       </div>
@@ -4310,33 +5190,33 @@ export default function Dashboard() {
                   <section className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Watchlist ตอนนี้</p>
-                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>จุดที่ควรจับตา</h4>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.watchlistLabel")}</p>
+                        <h4 className={`mt-1 text-base font-black ${TEXT_PRIMARY_CLASS}`}>{rt("operational.watchlistTitle")}</h4>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>live feed</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-white text-slate-600"}`}>{rt("operational.liveFeed")}</span>
                     </div>
 
                     <div className="space-y-3">
                       <div className={`rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"}`}>
-                        <p className={`text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{meetingRealtimeSummary.activeBookings.length > 0 ? "ห้องที่กำลังใช้งาน" : "คิวประชุมถัดไป"}</p>
+                        <p className={`text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{meetingRealtimeSummary.activeBookings.length > 0 ? rt("operational.roomsInUseNow") : rt("operational.nextMeetingQueue")}</p>
                         {meetingRealtimeSummary.activeBookings.length > 0 ? (
                           <div className="mt-2 space-y-2">
                             {meetingRealtimeSummary.activeBookings.slice(0, 2).map((booking) => (
                               <div key={`live-meeting-${booking.id}`} className={`rounded-lg border px-3 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/80"}`}>
-                                <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.room_name || "ไม่ระบุห้อง"}</p>
-                                <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{booking.title || "มีการใช้งานห้องประชุม"} • {booking.startClock} - {booking.endClock}</p>
+                                <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.room_name || rt("operational.notSpecifiedRoom")}</p>
+                                <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{booking.title || rt("operational.activeMeetingFallback")} • {booking.startClock} - {booking.endClock}</p>
                               </div>
                             ))}
                           </div>
                         ) : nextMeetingBooking ? (
-                          <p className={`mt-2 text-sm ${TEXT_MUTED_CLASS}`}>{nextMeetingBooking.room_name || "ไม่ระบุห้อง"} • {format(nextMeetingBooking.startsAt, "dd MMM HH:mm", { locale: th })}</p>
+                          <p className={`mt-2 text-sm ${TEXT_MUTED_CLASS}`}>{nextMeetingBooking.room_name || rt("operational.notSpecifiedRoom")} • {format(nextMeetingBooking.startsAt, "dd MMM HH:mm", { locale: dateLocale })}</p>
                         ) : (
-                          <p className={`mt-2 text-sm ${TEXT_MUTED_CLASS}`}>ไม่มีการใช้ห้องประชุมในตอนนี้</p>
+                          <p className={`mt-2 text-sm ${TEXT_MUTED_CLASS}`}>{rt("operational.noMeetingInUse")}</p>
                         )}
                       </div>
 
                       <div className={`rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"}`}>
-                        <p className={`mb-2 text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>หมวดงานค้างสูงสุด</p>
+                        <p className={`mb-2 text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.topOpenCategories")}</p>
                         {operationalCategoryList.length > 0 ? (
                           <div className="space-y-2">
                             {operationalCategoryList.slice(0, 3).map((item) => (
@@ -4347,12 +5227,12 @@ export default function Dashboard() {
                             ))}
                           </div>
                         ) : (
-                          <p className={`text-sm ${TEXT_MUTED_CLASS}`}>ตอนนี้ยังไม่มีงานค้างเปิด</p>
+                          <p className={`text-sm ${TEXT_MUTED_CLASS}`}>{rt("operational.noOpenTickets")}</p>
                         )}
                       </div>
 
                       <div className={`rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"}`}>
-                        <p className={`mb-2 text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>Ticket เร่งด่วน</p>
+                        <p className={`mb-2 text-xs font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("operational.urgentTickets")}</p>
                         {priorityInbox.length > 0 ? (
                           <div className="space-y-2">
                             {priorityInbox.slice(0, 2).map((ticket) => (
@@ -4366,13 +5246,13 @@ export default function Dashboard() {
                                 }}
                                 className={`w-full rounded-lg border px-3 py-2 text-left transition ${isDarkTheme ? "border-slate-700 bg-slate-800/80 hover:bg-slate-800" : "border-slate-100 bg-slate-50/80 hover:bg-white"}`}
                               >
-                                <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{ticket.title || "ไม่มีหัวข้อ"}</p>
+                                <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{ticket.title || rt("ticket.noTitle")}</p>
                                 <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{ticket.ticket_no || `T${ticket.id?.slice(-6).toUpperCase()}`}</p>
                               </button>
                             ))}
                           </div>
                         ) : (
-                          <p className={`text-sm ${TEXT_MUTED_CLASS}`}>ไม่มี ticket เร่งด่วนที่ต้องจับตา</p>
+                          <p className={`text-sm ${TEXT_MUTED_CLASS}`}>{rt("operational.noUrgentTickets")}</p>
                         )}
                       </div>
                     </div>
@@ -4383,11 +5263,11 @@ export default function Dashboard() {
 
             <div className={`shrink-0 border-t px-4 py-4 sm:px-6 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>เปิดดูภาพรวมปัจจุบันจาก nav ได้ทันที โดยไม่ต้องเลื่อนหาหลาย section ในหน้าเดิม</p>
+                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("operational.footerHint")}</p>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <button type="button" onClick={() => setIsOperationalOverviewModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>ปิด</button>
+                  <button type="button" onClick={() => setIsOperationalOverviewModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>{rt("common.close")}</button>
                   <button type="button" onClick={handleViewAllClick} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
-                    เปิดประวัติ Ticket
+                    {rt("operational.openHistory")}
                   </button>
                 </div>
               </div>
@@ -4400,7 +5280,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
           <button
             type="button"
-            aria-label="ปิด Meeting Room Status"
+            aria-label={rt("meeting.closeAria")}
             onClick={() => setIsMeetingRoomStatusModalOpen(false)}
             className="absolute inset-0"
           />
@@ -4410,10 +5290,10 @@ export default function Dashboard() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <Calendar size={16} className="text-indigo-500" />
-                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>Meeting Room Status</p>
+                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.meetingRoomStatus")}</p>
                   </div>
-                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>สถานะห้องประชุมและกิจกรรมล่าสุด</h3>
-                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>ติดตามห้องว่าง คิวถัดไป และรายการจองล่าสุดแบบ popup</p>
+                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{rt("meeting.modalTitle")}</h3>
+                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>{rt("meeting.modalSubtitle")}</p>
                 </div>
                 <button
                   type="button"
@@ -4428,20 +5308,24 @@ export default function Dashboard() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <div className="mb-4 flex flex-wrap gap-2">
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                  Today: {todayMeetingBookings.length} รายการ
+                  {rt("meeting.todayCount", { count: todayMeetingBookings.length })}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                  Tomorrow: {tomorrowMeetingBookings.length} รายการ
+                  {rt("meeting.tomorrowCount", { count: tomorrowMeetingBookings.length })}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                  Upcoming: {normalizedUpcomingMeetingBookings.length} รายการ
+                  {rt("meeting.upcomingCount", { count: normalizedUpcomingMeetingBookings.length })}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}>
-                  Next: {nextMeetingBooking ? `${nextMeetingBooking.room_name} ${format(nextMeetingBooking.startsAt, "dd MMM HH:mm", { locale: th })}` : "ไม่มีคิวถัดไป"}
+                  {rt("meeting.nextShort", {
+                    value: nextMeetingBooking
+                      ? `${nextMeetingBooking.room_name} ${format(nextMeetingBooking.startsAt, "dd MMM HH:mm", { locale: dateLocale })}`
+                      : rt("common.noNextBooking"),
+                  })}
                 </span>
                 {todayMeetingOverlapCount > 0 && (
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-rose-700/60 bg-rose-900/40 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-                    พบเวลาจองซ้ำ {todayMeetingOverlapCount} จุด
+                    {rt("meeting.overlapCount", { count: todayMeetingOverlapCount })}
                   </span>
                 )}
               </div>
@@ -4460,7 +5344,7 @@ export default function Dashboard() {
                     <div className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
                       <div className="mb-2 flex items-center gap-2">
                         <Calendar size={14} className="text-indigo-600" />
-                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>รายการจองวันนี้</p>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("meeting.todayBookings")}</p>
                       </div>
                       {normalizedTodayMeetingBookings.length > 0 ? (
                         <div className="space-y-2">
@@ -4468,20 +5352,20 @@ export default function Dashboard() {
                             <article key={`meeting-modal-${booking.id}`} className={`rounded-xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/70" : "border-slate-200 bg-white"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.title || "มีการจอง"}</p>
+                                  <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.title || rt("common.bookingTitle")}</p>
                                   <div className={`mt-1 flex flex-wrap items-center gap-2 text-[11px] ${TEXT_MUTED_CLASS}`}>
                                     <span className="inline-flex items-center gap-1">
                                       <DoorOpen size={12} />
-                                      {booking.room_name || "ไม่ระบุห้อง"}
+                                      {booking.room_name || rt("operational.notSpecifiedRoom")}
                                     </span>
                                     <span className="inline-flex items-center gap-1">
                                       <User size={12} />
-                                      {booking.booked_by || "ไม่ระบุผู้จอง"}
+                                      {booking.booked_by || rt("common.noBookedBy")}
                                     </span>
                                   </div>
                                 </div>
                                 <div className="shrink-0 text-right">
-                                  <p className={`text-[11px] font-semibold ${TEXT_SUBTLE_CLASS}`}>{format(booking.startsAt, "dd MMM yyyy", { locale: th })}</p>
+                                  <p className={`text-[11px] font-semibold ${TEXT_SUBTLE_CLASS}`}>{format(booking.startsAt, "dd MMM yyyy", { locale: dateLocale })}</p>
                                   <p className={`text-xs font-black ${TEXT_SECONDARY_CLASS}`}>{booking.startClock} - {booking.endClock}</p>
                                 </div>
                               </div>
@@ -4490,7 +5374,7 @@ export default function Dashboard() {
                         </div>
                       ) : (
                         <div className={`rounded-xl border border-dashed p-5 text-center ${isDarkTheme ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
-                          <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>วันนี้ยังไม่มีการจองห้องประชุม</p>
+                          <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{rt("common.noMeetingToday")}</p>
                         </div>
                       )}
                     </div>
@@ -4498,7 +5382,7 @@ export default function Dashboard() {
                     <div className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
                       <div className="mb-3 flex items-center gap-2">
                         <Clock size={14} className={isDarkTheme ? "text-slate-300" : "text-slate-600"} />
-                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>สถานะห้องประชุมวันนี้</p>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("meeting.roomStatusToday")}</p>
                       </div>
                       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                         {todayRoomStatusCards.map((roomCard) => (
@@ -4512,7 +5396,7 @@ export default function Dashboard() {
                                 ? (isDarkTheme ? "bg-rose-900/40 text-rose-300" : "bg-rose-50 text-rose-700")
                                 : (isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700")
                                 }`}>
-                                {roomCard.bookedCount > 0 ? "Booked" : "Available"}
+                                {roomCard.bookedCount > 0 ? rt("meeting.booked") : rt("meeting.available")}
                               </span>
                             </div>
                             <div className="space-y-2">
@@ -4528,10 +5412,10 @@ export default function Dashboard() {
                                     <span className="font-bold">
                                       {minutesToClock(slot.startMinutes)} - {minutesToClock(slot.endMinutes)}
                                     </span>
-                                    <span>{slot.type === "booked" ? "Booked" : "Available"}</span>
+                                    <span>{slot.type === "booked" ? rt("meeting.booked") : rt("meeting.available")}</span>
                                   </div>
                                   {slot.type === "booked" && (
-                                    <p className="mt-1 line-clamp-2">{slot.title || "มีการจอง"}</p>
+                                    <p className="mt-1 line-clamp-2">{slot.title || rt("common.bookingTitle")}</p>
                                   )}
                                 </div>
                               ))}
@@ -4546,26 +5430,26 @@ export default function Dashboard() {
                     <div className={`rounded-2xl border p-4 ${SURFACE_PANEL_CLASS}`}>
                       <div className="mb-3 flex items-center gap-2">
                         <Clock size={14} className="text-indigo-600" />
-                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>กิจกรรมล่าสุด</p>
+                        <p className={`text-[11px] font-black uppercase tracking-[0.12em] ${TEXT_SUBTLE_CLASS}`}>{rt("meeting.latestActivity")}</p>
                       </div>
                       {upcomingMeetingPreview.length > 0 ? (
                         <div className="space-y-2">
                           {upcomingMeetingPreview.map((booking) => (
                             <article key={`meeting-upcoming-${booking.id}`} className={`rounded-xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white"}`}>
-                              <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.title || "มีการจอง"}</p>
+                              <p className={`truncate text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{booking.title || rt("common.bookingTitle")}</p>
                               <div className={`mt-1 flex flex-wrap items-center gap-2 text-[11px] ${TEXT_MUTED_CLASS}`}>
                                 <span className="inline-flex items-center gap-1">
                                   <DoorOpen size={12} />
-                                  {booking.room_name || "ไม่ระบุห้อง"}
+                                  {booking.room_name || rt("operational.notSpecifiedRoom")}
                                 </span>
-                                <span>{format(booking.startsAt, "dd MMM HH:mm", { locale: th })}</span>
+                                <span>{format(booking.startsAt, "dd MMM HH:mm", { locale: dateLocale })}</span>
                               </div>
                             </article>
                           ))}
                         </div>
                       ) : (
                         <div className={`rounded-xl border border-dashed p-5 text-center ${isDarkTheme ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
-                          <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ไม่มีคิวห้องประชุมถัดไป</p>
+                          <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{rt("meeting.noUpcomingQueue")}</p>
                         </div>
                       )}
                     </div>
@@ -4576,11 +5460,11 @@ export default function Dashboard() {
 
             <div className={`shrink-0 border-t px-4 py-4 sm:px-6 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>เปิดดูสถานะห้องประชุมล่าสุดจาก nav ได้ทันทีโดยไม่ต้องเลื่อนหน้า</p>
+                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("meeting.footerHint")}</p>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <button type="button" onClick={() => setIsMeetingRoomStatusModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>ปิด</button>
+                  <button type="button" onClick={() => setIsMeetingRoomStatusModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>{rt("common.close")}</button>
                   <button type="button" onClick={() => navigate("/meeting-room-booking")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
-                    ไปหน้าจองห้องประชุม
+                    {rt("meeting.openBooking")}
                   </button>
                 </div>
               </div>
@@ -4593,7 +5477,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-[101] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
           <button
             type="button"
-            aria-label="ปิดกิจกรรมล่าสุด"
+            aria-label={rt("recentActivity.closeAria")}
             onClick={() => setIsRecentActivityModalOpen(false)}
             className="absolute inset-0"
           />
@@ -4603,10 +5487,10 @@ export default function Dashboard() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <Clock size={16} className="text-amber-500" />
-                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>กิจกรรมล่าสุด</p>
+                    <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.recentActivity")}</p>
                   </div>
-                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>รายการ Ticket ล่าสุด</h3>
-                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>เปิดจาก nav ได้ทันที พร้อมค้นหาและกรองสถานะสำคัญ</p>
+                  <h3 className={`mt-1 text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{rt("recentActivity.modalTitle")}</h3>
+                  <p className={`mt-1 text-sm ${TEXT_MUTED_CLASS}`}>{rt("recentActivity.modalSubtitle")}</p>
                 </div>
                 <button
                   type="button"
@@ -4622,10 +5506,10 @@ export default function Dashboard() {
               <div className={`mb-4 rounded-2xl border p-3 ${SURFACE_PANEL_CLASS}`}>
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                    ทั้งหมด {filteredTickets.length} รายการ
+                    {rt("recentActivity.totalCount", { count: filteredTickets.length })}
                   </span>
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"}`}>
-                    แสดงใน popup {Math.min(filteredTickets.length, 12)} รายการ
+                    {rt("recentActivity.popupCount", { count: Math.min(filteredTickets.length, 12) })}
                   </span>
                 </div>
 
@@ -4637,26 +5521,26 @@ export default function Dashboard() {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="ค้นหาเลขที่งาน / หัวข้อ / รายละเอียด..."
-                      aria-label="ค้นหา Ticket"
+                      placeholder={rt("recentActivity.searchPlaceholder")}
+                      aria-label={rt("recentActivity.searchAria")}
                       className={SEARCH_CONTROL_CLASS}
                     />
                   </div>
 
-                  <select value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)} aria-label="กรองตามสถานะ" className={FORM_CONTROL_CLASS}>
+                  <select value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)} aria-label={rt("recentActivity.filterStatusAria")} className={FORM_CONTROL_CLASS}>
                     {localizedFilterOptions.map((filter) => (
                       <option key={filter.id} value={filter.id}>{filter.label}</option>
                     ))}
                   </select>
 
-                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="กรองตามหมวดหมู่" className={FORM_CONTROL_CLASS}>
+                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label={rt("recentActivity.filterCategoryAria")} className={FORM_CONTROL_CLASS}>
                     {categoryOptions.map((category) => (
-                      <option key={category} value={category}>{category === "ALL" ? "ทุกหมวดหมู่" : category}</option>
+                      <option key={category} value={category}>{category === "ALL" ? dt("activity.allCategories") : category}</option>
                     ))}
                   </select>
 
                   {!isUserSearchMode && (
-                    <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} aria-label="กรองตามความเร่งด่วน" className={FORM_CONTROL_CLASS}>
+                    <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} aria-label={rt("recentActivity.filterPriorityAria")} className={FORM_CONTROL_CLASS}>
                       {localizedPriorityFilterOptions.map((option) => (
                         <option key={option.id} value={option.id}>{option.label}</option>
                       ))}
@@ -4664,7 +5548,7 @@ export default function Dashboard() {
                   )}
 
                   {!isUserSearchMode && (
-                    <select value={slaFilter} onChange={(e) => setSlaFilter(e.target.value)} aria-label="กรองตาม SLA" className={FORM_CONTROL_CLASS}>
+                    <select value={slaFilter} onChange={(e) => setSlaFilter(e.target.value)} aria-label={rt("recentActivity.filterSlaAria")} className={FORM_CONTROL_CLASS}>
                       {localizedSlaFilterOptions.map((option) => (
                         <option key={option.id} value={option.id}>{option.label}</option>
                       ))}
@@ -4675,11 +5559,11 @@ export default function Dashboard() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {hasActiveSmartFilters && (
                     <button type="button" onClick={clearSmartFilters} className={SECONDARY_BUTTON_CLASS}>
-                      ล้างตัวกรอง
+                      {dt("activity.clearFilters")}
                     </button>
                   )}
                   <button type="button" onClick={handleViewAllClick} className={SECONDARY_BUTTON_CLASS}>
-                    ดูประวัติทั้งหมด
+                    {rt("recentActivity.openHistory")}
                   </button>
                 </div>
               </div>
@@ -4705,15 +5589,15 @@ export default function Dashboard() {
                               {activeTicketPriority.label}
                             </span>
                           </div>
-                          <h4 className={`text-base font-black ${TEXT_PRIMARY_CLASS}`}>{activeTicket.title || "ไม่มีหัวข้อ"}</h4>
-                          <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{activeTicket.category || "ไม่ระบุหมวดหมู่"} • {formatDate(activeTicket.created_at)}</p>
+                          <h4 className={`text-base font-black ${TEXT_PRIMARY_CLASS}`}>{activeTicket.title || rt("ticket.noTitle")}</h4>
+                          <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{activeTicket.category || rt("ticket.noCategory")} • {formatDate(activeTicket.created_at)}</p>
                           <p className={`mt-3 rounded-xl border p-3 text-xs leading-relaxed ${isDarkTheme ? "border-slate-700 bg-slate-900/80 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}>
-                            {activeTicket.description || "ไม่มีรายละเอียด"}
+                            {activeTicket.description || rt("common.noDescription")}
                           </p>
                         </div>
 
                         <div className={`mb-4 rounded-xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white"}`}>
-                          <p className={`mb-2 text-[11px] font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>Activity Timeline</p>
+                          <p className={`mb-2 text-[11px] font-black uppercase tracking-wider ${TEXT_MUTED_CLASS}`}>{dt("activity.timeline")}</p>
                           <div className="space-y-3">
                             {activeTimeline.map((event, index) => (
                               <div key={`activity-modal-${event.id}`} className="relative pl-5">
@@ -4734,32 +5618,32 @@ export default function Dashboard() {
                           onClick={() => setSelectedTicket(activeTicket)}
                           className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-bold text-white transition-all hover:shadow-lg hover:shadow-indigo-500/25"
                         >
-                          เปิดรายละเอียดเต็ม
+                          {dt("activity.fullDetails")}
                         </button>
                       </div>
                     ) : (
                       <div className={`rounded-xl border border-dashed p-5 text-center ${isDarkTheme ? "border-slate-700" : "border-slate-300"}`}>
-                        <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ยังไม่มีรายการที่เลือก</p>
-                        <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>เลือก Ticket จากรายการด้านซ้ายเพื่อดูรายละเอียด</p>
+                        <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{dt("activity.noSelectedTicket")}</p>
+                        <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{dt("activity.selectTicketAbove")}</p>
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
                 <div className={`rounded-2xl border border-dashed p-8 text-center ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50/70"}`}>
-                  <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>ไม่พบรายการแจ้งซ่อม</p>
-                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>ลองปรับคำค้นหาหรือล้างตัวกรองปัจจุบัน</p>
+                  <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{dt("activity.noTicketsFound")}</p>
+                  <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("recentActivity.noResultsDescription")}</p>
                 </div>
               )}
             </div>
 
             <div className={`shrink-0 border-t px-4 py-4 sm:px-6 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>กิจกรรมล่าสุดถูกย้ายมาเปิดผ่าน nav และใช้งานใน popup ได้ทันที</p>
+                <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("recentActivity.footerHint")}</p>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <button type="button" onClick={() => setIsRecentActivityModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>ปิด</button>
+                  <button type="button" onClick={() => setIsRecentActivityModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>{rt("common.close")}</button>
                   <button type="button" onClick={handleViewAllClick} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
-                    เปิดประวัติทั้งหมด
+                    {rt("recentActivity.openHistory")}
                   </button>
                 </div>
               </div>
@@ -4778,7 +5662,7 @@ export default function Dashboard() {
         formatDate={formatDate}
         currentUser={{
           id: profile?.id,
-          name: profile?.full_name || profile?.employee_code || profile?.email || "User",
+          name: profile?.full_name || profile?.employee_code || profile?.email || rt("common.userFallback"),
           role: profile?.role || "user",
           avatar: profile?.avatar_url || profile?.id_card_url || "",
         }}
@@ -4789,7 +5673,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">
           <button
             type="button"
-            aria-label="ปิดรายละเอียดโปรไฟล์"
+            aria-label={rt("common.close")}
             onClick={() => setShowProfileDetails(false)}
             className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
           />
@@ -4804,14 +5688,14 @@ export default function Dashboard() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">Full Profile</p>
-                  <h3 id="full-profile-title" className="mt-1 text-base font-black">{profile?.full_name || "ไม่พบชื่อ"}</h3>
-                  <p className="mt-1 text-xs text-white/80">ข้อมูลที่ใช้ตอนสมัครสมาชิกพนักงาน</p>
+                  <h3 id="full-profile-title" className="mt-1 text-base font-black">{profile?.full_name || rt("common.noName")}</h3>
+                  <p className="mt-1 text-xs text-white/80">{rt("common.profileInfo")}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowProfileDetails(false)}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
-                  aria-label="ปิด popup โปรไฟล์"
+                  aria-label={rt("common.close")}
                 >
                   <X size={14} />
                 </button>

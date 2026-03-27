@@ -2,6 +2,7 @@ import React from "react";
 import { DASHBOARD_PAGE_IDS } from "../constants/dashboardPages";
 import DashboardPage from "./DashboardPage";
 import TicketsPage from "./TicketsPage";
+import ServiceRequestsPage from "./ServiceRequestsPage";
 import ActivePage from "./ActivePage";
 import HistoryPage from "./HistoryPage";
 import CalendarPage from "./CalendarPage";
@@ -17,6 +18,8 @@ const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
       return <DashboardPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.TICKETS:
       return <TicketsPage {...workspaceProps} />;
+    case DASHBOARD_PAGE_IDS.SERVICE_REQUESTS:
+      return <ServiceRequestsPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.ACTIVE:
       return <ActivePage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.HISTORY:
@@ -32,7 +35,14 @@ const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
     case DASHBOARD_PAGE_IDS.REPORTS:
       return <ReportsPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.SETTINGS:
-      return <SettingsPage theme={workspaceProps.theme} uiTheme={workspaceProps.uiTheme} />;
+      return (
+        <SettingsPage
+          theme={workspaceProps.theme}
+          uiTheme={workspaceProps.uiTheme}
+          currentUser={workspaceProps.currentUser}
+          onCurrentUserUpdate={workspaceProps.onCurrentUserUpdate}
+        />
+      );
     default:
       return <DashboardPage {...workspaceProps} />;
   }

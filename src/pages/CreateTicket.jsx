@@ -26,6 +26,8 @@ import {
   Wifi,
   X,
   AlertTriangle,
+  Paperclip,
+  Phone,
   FlipHorizontal,
   ShieldCheck,
   CircleDashed,
@@ -41,9 +43,12 @@ import {
   Image as ImageIcon,
   Zap,
   Shield,
-  Clock,
-  Award
+  Clock
 } from "lucide-react";
+
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+const IMAGE_FILE_ACCEPT = "image/*";
+const GENERIC_FILE_ACCEPT = "image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt";
 
 const CATEGORIES = [
   {
@@ -188,6 +193,26 @@ function formatThaiDateTime(date) {
   return { date: `${day} ${month} ${year}`, time: `${hours}:${minutes}` };
 }
 
+function formatAttachmentSize(size) {
+  const bytes = Number(size || 0);
+  if (!bytes) return "-";
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+function isImageFile(file) {
+  const mimeType = String(file?.type || "").toLowerCase();
+  if (mimeType.startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)$/i.test(String(file?.name || ""));
+}
+
+function inferClipboardFileName(file) {
+  if (file?.name) return file.name;
+  const extension = String(file?.type || "").split("/")[1] || "png";
+  return `clipboard_${Date.now()}.${extension}`;
+}
+
 const sectionAnim = {
   initial: { y: 15, opacity: 0 },
   animate: { y: 0, opacity: 1 },
@@ -237,9 +262,20 @@ const CREATE_TICKET_TRANSLATIONS = {
     closeCamera: "ปิดกล้อง",
     openCamera: "เปิดกล้อง",
     openCameraHint: "ถ่ายภาพหน้างานทันที",
+    addAttachment: "เพิ่มหลักฐาน",
+    attachmentMenuHint: "เลือกจากกล้อง รูปภาพ หรือไฟล์",
+    attachFromCamera: "ใช้กล้อง",
+    attachFromGallery: "เลือกรูปภาพ",
+    attachFromFile: "แนบไฟล์",
     uploadFile: "อัปโหลดไฟล์",
-    uploadFileHint: "JPG / PNG ไม่เกิน 5MB",
+    uploadFileHint: "รองรับรูปภาพ, PDF, Office และ TXT ไม่เกิน 5MB",
     attachmentFile: "ไฟล์แนบ",
+    galleryFile: "รูปภาพจากเครื่อง",
+    documentFile: "เอกสารหรือไฟล์",
+    pasteCaptureTitle: "วางภาพหน้าจอหรือไฟล์จากคลิปบอร์ด",
+    pasteCaptureHint: "คลิกช่องนี้ แล้วกด Win + Shift + S จากนั้น Ctrl + V เพื่อวางหลักฐานได้ทันที",
+    pasteCaptureEmpty: "พร้อมรับภาพจากหน้าจอ, รูปภาพ หรือไฟล์ที่คัดลอกมา",
+    removeAttachment: "ลบไฟล์แนบ",
     readyToUse: "พร้อมใช้งาน",
     urgencyTitle: "ระดับความเร่งด่วน",
     urgencySubtitle: "เลือกตามผลกระทบ",
@@ -259,12 +295,19 @@ const CREATE_TICKET_TRANSLATIONS = {
     submit: "ยืนยันการแจ้งซ่อม",
     tipTitle: "เคล็ดลับการแจ้งซ่อม",
     tipBody: "ระบุขั้นตอนที่ทำก่อนเกิดปัญหา เวลาที่เริ่มเกิดปัญหา และแนบภาพหน้าจอหรือภาพหน้างาน เพื่อให้ทีมงานแก้ไขปัญหาได้รวดเร็วขึ้น",
+    quickHelpTitle: "Quick Help",
+    quickHelpBody: "หากงานเร่งหรือมีข้อสงสัยเรื่องการแจ้งซ่อม สามารถติดต่อทีม IT ได้โดยตรง",
+    quickHelpPhone: "โทร",
+    quickHelpEmail: "อีเมล",
+    quickHelpLine: "OA",
     errors: {
       fileTooLarge: "ไฟล์แนบต้องมีขนาดไม่เกิน 5MB",
       cameraUnavailable: "กล้องไม่พร้อมใช้งาน",
       captureFailed: "ไม่สามารถถ่ายรูปได้",
       saveImageFailed: "ไม่สามารถบันทึกรูปได้",
       imageAttached: "แนบรูปภาพเรียบร้อย",
+      fileAttached: "แนบไฟล์เรียบร้อย",
+      imagePasted: "วางภาพจากคลิปบอร์ดเรียบร้อย",
       formInvalid: "กรุณาเลือกหมวดหมู่และระบุรายละเอียดปัญหา",
       userNotFound: "ไม่พบผู้ใช้งาน",
       submitSuccess: "ส่งคำขอเรียบร้อยแล้ว",
@@ -313,9 +356,20 @@ const CREATE_TICKET_TRANSLATIONS = {
     closeCamera: "Close Camera",
     openCamera: "Open Camera",
     openCameraHint: "Capture an on-site photo instantly",
+    addAttachment: "Add evidence",
+    attachmentMenuHint: "Choose camera, photo library, or file",
+    attachFromCamera: "Use camera",
+    attachFromGallery: "Choose image",
+    attachFromFile: "Attach file",
     uploadFile: "Upload File",
-    uploadFileHint: "JPG / PNG up to 5MB",
+    uploadFileHint: "Supports images, PDF, Office files, and TXT up to 5MB",
     attachmentFile: "Attachment",
+    galleryFile: "Image from device",
+    documentFile: "Document or file",
+    pasteCaptureTitle: "Paste a screenshot or file from the clipboard",
+    pasteCaptureHint: "Click this area, then press Win + Shift + S and Ctrl + V to drop evidence instantly",
+    pasteCaptureEmpty: "Ready for screenshots, copied images, or copied files",
+    removeAttachment: "Remove attachment",
     readyToUse: "Ready",
     urgencyTitle: "Urgency Level",
     urgencySubtitle: "Choose based on impact",
@@ -335,12 +389,19 @@ const CREATE_TICKET_TRANSLATIONS = {
     submit: "Submit Ticket",
     tipTitle: "Reporting Tip",
     tipBody: "Describe what happened before the issue started, when it started, and attach screenshots or on-site photos so the team can resolve it faster.",
+    quickHelpTitle: "Quick Help",
+    quickHelpBody: "If the issue is urgent or you need help submitting the ticket, contact the IT team directly.",
+    quickHelpPhone: "Phone",
+    quickHelpEmail: "Email",
+    quickHelpLine: "OA",
     errors: {
       fileTooLarge: "Attachments must be 5MB or smaller.",
       cameraUnavailable: "Camera is not available.",
       captureFailed: "Unable to capture the photo.",
       saveImageFailed: "Unable to save the photo.",
       imageAttached: "Image attached successfully.",
+      fileAttached: "File attached successfully.",
+      imagePasted: "Clipboard image attached successfully.",
       formInvalid: "Please choose a category and describe the issue.",
       userNotFound: "User not found.",
       submitSuccess: "Request submitted successfully.",
@@ -389,9 +450,20 @@ const CREATE_TICKET_TRANSLATIONS = {
     closeCamera: "카메라 닫기",
     openCamera: "카메라 열기",
     openCameraHint: "현장 사진을 바로 촬영",
+    addAttachment: "증빙 추가",
+    attachmentMenuHint: "카메라, 이미지, 파일 중에서 선택",
+    attachFromCamera: "카메라 사용",
+    attachFromGallery: "이미지 선택",
+    attachFromFile: "파일 첨부",
     uploadFile: "파일 업로드",
-    uploadFileHint: "JPG / PNG 5MB 이하",
+    uploadFileHint: "이미지, PDF, Office 파일, TXT를 5MB 이하로 첨부할 수 있습니다",
     attachmentFile: "첨부 파일",
+    galleryFile: "기기 이미지",
+    documentFile: "문서 또는 파일",
+    pasteCaptureTitle: "클립보드에서 스크린샷 또는 파일 붙여넣기",
+    pasteCaptureHint: "이 영역을 클릭한 다음 Win + Shift + S 후 Ctrl + V를 눌러 증빙을 바로 붙여넣으세요",
+    pasteCaptureEmpty: "스크린샷, 복사한 이미지, 복사한 파일을 받을 준비가 되었습니다",
+    removeAttachment: "첨부 삭제",
     readyToUse: "사용 가능",
     urgencyTitle: "긴급도",
     urgencySubtitle: "영향도 기준으로 선택",
@@ -411,12 +483,19 @@ const CREATE_TICKET_TRANSLATIONS = {
     submit: "티켓 제출",
     tipTitle: "신고 팁",
     tipBody: "문제가 시작되기 전 상황, 시작 시점, 스크린샷이나 현장 사진을 함께 남기면 IT 팀이 더 빨리 처리할 수 있습니다.",
+    quickHelpTitle: "Quick Help",
+    quickHelpBody: "긴급한 문제이거나 접수 도움이 필요하면 IT 팀에 바로 연락하세요.",
+    quickHelpPhone: "전화",
+    quickHelpEmail: "이메일",
+    quickHelpLine: "OA",
     errors: {
       fileTooLarge: "첨부 파일은 5MB 이하여야 합니다.",
       cameraUnavailable: "카메라를 사용할 수 없습니다.",
       captureFailed: "사진을 촬영할 수 없습니다.",
       saveImageFailed: "사진을 저장할 수 없습니다.",
       imageAttached: "사진이 첨부되었습니다.",
+      fileAttached: "파일이 첨부되었습니다.",
+      imagePasted: "클립보드 이미지가 첨부되었습니다.",
       formInvalid: "분류를 선택하고 문제 내용을 입력해 주세요.",
       userNotFound: "사용자를 찾을 수 없습니다.",
       submitSuccess: "요청이 제출되었습니다.",
@@ -504,6 +583,9 @@ function formatLocalizedDateTime(date, language) {
 const CreateTicket = () => {
   const navigate = useNavigate();
   const webcamRef = useRef(null);
+  const attachmentMenuRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const { language, tt } = useScopedI18n(CREATE_TICKET_TRANSLATIONS);
 
   const [loading, setLoading] = useState(false);
@@ -515,6 +597,7 @@ const CreateTicket = () => {
   const [facingMode, setFacingMode] = useState("user");
   const [tempImage, setTempImage] = useState(null);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -531,6 +614,8 @@ const CreateTicket = () => {
 
   const [preview, setPreview] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
+  const hasAttachment = Boolean(form.attachment);
+  const attachmentIsImage = isImageFile(form.attachment);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -576,24 +661,67 @@ const CreateTicket = () => {
     };
   }, [preview]);
 
-  const handleFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    if (!attachmentMenuOpen) return undefined;
 
-    if (file.size > 5 * 1024 * 1024) {
+    const handlePointerDown = (event) => {
+      if (attachmentMenuRef.current && !attachmentMenuRef.current.contains(event.target)) {
+        setAttachmentMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setAttachmentMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [attachmentMenuOpen]);
+
+  const assignAttachment = useCallback((file, options = {}) => {
+    if (!file) return false;
+
+    if (file.size > MAX_ATTACHMENT_SIZE) {
       toast.error(tt("errors.fileTooLarge"));
-      return;
+      return false;
     }
 
-    if (preview && preview.startsWith("blob:")) {
-      URL.revokeObjectURL(preview);
-    }
+    const nextPreview = options.previewUrl ?? (isImageFile(file) ? URL.createObjectURL(file) : null);
 
-    const url = URL.createObjectURL(file);
-    setForm((p) => ({ ...p, attachment: file }));
-    setPreview(url);
+    setPreview((currentPreview) => {
+      if (currentPreview && currentPreview !== nextPreview && currentPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(currentPreview);
+      }
+      return nextPreview;
+    });
+
+    setForm((previousForm) => ({ ...previousForm, attachment: file }));
+    setTempImage(null);
+    setIsReviewing(false);
     setIsCameraActive(false);
-  };
+    setAttachmentMenuOpen(false);
+
+    if (options.toastKey) {
+      toast.success(tt(options.toastKey));
+    }
+
+    return true;
+  }, [tt]);
+
+  const handleFile = useCallback((event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    assignAttachment(file, {
+      toastKey: isImageFile(file) ? "errors.imageAttached" : "errors.fileAttached",
+    });
+  }, [assignAttachment]);
 
   const clearAttachment = () => {
     if (preview && preview.startsWith("blob:")) {
@@ -602,6 +730,7 @@ const CreateTicket = () => {
     setPreview(null);
     setTempImage(null);
     setIsReviewing(false);
+    setAttachmentMenuOpen(false);
     setForm((p) => ({ ...p, attachment: null }));
   };
 
@@ -631,14 +760,34 @@ const CreateTicket = () => {
         const file = new File([blob], `camera_${Date.now()}.jpg`, {
           type: "image/jpeg",
         });
-        setForm((p) => ({ ...p, attachment: file }));
-        setPreview(tempImage);
-        setIsReviewing(false);
-        setIsCameraActive(false);
-        toast.success(tt("errors.imageAttached"));
+        assignAttachment(file, {
+          previewUrl: tempImage,
+          toastKey: "errors.imageAttached",
+        });
       })
       .catch(() => toast.error(tt("errors.saveImageFailed")));
   };
+
+  const handleAttachmentPaste = useCallback((event) => {
+    const clipboardItems = Array.from(event.clipboardData?.items || []);
+    const clipboardFileItem = clipboardItems.find((item) => item.kind === "file");
+    const clipboardFile = clipboardFileItem?.getAsFile?.() || event.clipboardData?.files?.[0];
+
+    if (!clipboardFile) return;
+
+    event.preventDefault();
+
+    const normalizedFile =
+      clipboardFile.name
+        ? clipboardFile
+        : new File([clipboardFile], inferClipboardFileName(clipboardFile), {
+            type: clipboardFile.type || "application/octet-stream",
+          });
+
+    assignAttachment(normalizedFile, {
+      toastKey: isImageFile(normalizedFile) ? "errors.imagePasted" : "errors.fileAttached",
+    });
+  }, [assignAttachment]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -847,16 +996,16 @@ const CreateTicket = () => {
         {/* Left Column - Main Form */}
         <div className="lg:col-span-8 space-y-6">
           <form id="create-ticket-form" onSubmit={handleSubmit} className="space-y-6">
-            {/* Premium Profile Card */}
+            {/* Profile Card */}
             <motion.section
               {...sectionAnim}
               transition={{ duration: 0.4, delay: 0.05 }}
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+              className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_12px_32px_-22px_rgba(15,23,42,0.3)] sm:p-8"
             >
               <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
                 <div className="relative">
-                  <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 p-0.5 shadow-xl shadow-indigo-200/50 sm:h-24 sm:w-24">
-                    <div className="h-full w-full rounded-2xl bg-white overflow-hidden border-2 border-white/50">
+                  <div className="h-20 w-20 rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-md shadow-slate-200/70 sm:h-24 sm:w-24">
+                    <div className="h-full w-full overflow-hidden rounded-[14px] border border-white bg-white">
                       {form.profilePic ? (
                         <img
                           src={form.profilePic}
@@ -868,23 +1017,17 @@ const CreateTicket = () => {
                           }}
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-purple-100">
-                          <User size={36} className="text-indigo-600" />
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+                          <User size={36} className="text-slate-500" />
                         </div>
                       )}
                     </div>
                   </div>
                   <div className="absolute -bottom-2 -right-2">
                     <div className="relative">
-                      <div className="h-6 w-6 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 border-2 border-white flex items-center justify-center shadow-lg">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-emerald-500 shadow-md">
                         <CheckCircle2 size={12} className="text-white" />
                       </div>
-                      <div className="absolute -inset-1 animate-ping rounded-full bg-emerald-500/30" />
-                    </div>
-                  </div>
-                  <div className="absolute -top-2 -left-2">
-                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 border-2 border-white flex items-center justify-center shadow-lg">
-                      <Crown size={10} className="text-white" />
                     </div>
                   </div>
                 </div>
@@ -892,14 +1035,14 @@ const CreateTicket = () => {
                 <div className="flex-1">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#2b59b0]">
                         {tt("profileLabel")}
                       </p>
                       <h2 className="text-xl font-black text-slate-800 sm:text-2xl">
                         {form.employeeName || tt("employeeFallback")}
                       </h2>
                     </div>
-                    <span className="w-fit rounded-full bg-gradient-to-r from-indigo-50 to-purple-50 px-3 py-1.5 text-xs font-bold text-indigo-700 border border-indigo-200 shadow-sm">
+                    <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">
                       <Hash size={12} className="inline mr-1" />
                       {form.employeeId || "EMP-001"}
                     </span>
@@ -914,11 +1057,6 @@ const CreateTicket = () => {
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <Building size={16} className="text-indigo-500" />
                       <span className="font-medium">{form.department || tt("defaultDepartment")}</span>
-                    </div>
-                    <div className="w-px h-4 bg-slate-200" />
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Award size={16} className="text-amber-500" />
-                      <span className="font-medium">{tt("employeeLevel")}</span>
                     </div>
                   </div>
                 </div>
@@ -1116,7 +1254,22 @@ const CreateTicket = () => {
               className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
             >
               <div className="relative">
-                <div className="mb-6 flex items-center justify-between">
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  hidden
+                  accept={IMAGE_FILE_ACCEPT}
+                  onChange={handleFile}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  hidden
+                  accept={GENERIC_FILE_ACCEPT}
+                  onChange={handleFile}
+                />
+
+                <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-cyan-600 to-teal-600" />
@@ -1127,15 +1280,70 @@ const CreateTicket = () => {
                       <p className="text-xs text-slate-500 mt-0.5">{tt("attachmentsSubtitle")}</p>
                     </div>
                   </div>
-                  <div className={`
-                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                    ${preview
-                      ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-lg shadow-cyan-200/50'
-                      : 'bg-slate-100 text-slate-600 border border-slate-200'
-                    }
-                  `}>
-                    <Camera size={14} />
-                    {preview ? tt("attached") : tt("optional")}
+                  <div className="flex items-center gap-2">
+                    <div className={`
+                      flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                      ${hasAttachment
+                        ? "bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-lg shadow-cyan-200/50"
+                        : "bg-slate-100 text-slate-600 border border-slate-200"
+                      }
+                    `}>
+                      <Camera size={14} />
+                      {hasAttachment ? tt("attached") : tt("optional")}
+                    </div>
+
+                    <div ref={attachmentMenuRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setAttachmentMenuOpen((open) => !open)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-[#2b59b0]/30 hover:text-[#244a95]"
+                      >
+                        <Paperclip size={14} />
+                        <span className="hidden sm:inline">{tt("addAttachment")}</span>
+                      </button>
+
+                      <AnimatePresence>
+                        {attachmentMenuOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                            className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl"
+                          >
+                            <p className="px-3 pb-2 pt-1 text-[11px] font-semibold text-slate-500">
+                              {tt("attachmentMenuHint")}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAttachmentMenuOpen(false);
+                                setIsCameraActive(true);
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-indigo-50 hover:text-[#244a95]"
+                            >
+                              <Camera size={16} className="text-indigo-600" />
+                              {tt("attachFromCamera")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => imageInputRef.current?.click()}
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                            >
+                              <ImageIcon size={16} className="text-emerald-600" />
+                              {tt("attachFromGallery")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-amber-50 hover:text-amber-700"
+                            >
+                              <FileText size={16} className="text-amber-600" />
+                              {tt("attachFromFile")}
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 </div>
 
@@ -1216,47 +1424,94 @@ const CreateTicket = () => {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <motion.button
-                      whileHover={{ y: -2, scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="button"
-                      onClick={() => setIsCameraActive(true)}
-                      className="group rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50/80 to-white p-6 text-center transition-all hover:border-indigo-400 hover:bg-gradient-to-br hover:from-indigo-50/50 hover:to-white"
-                    >
-                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 group-hover:scale-110 transition-transform">
-                        <Camera size={24} className="text-indigo-600" />
-                      </div>
-                      <p className="text-sm font-bold text-slate-700 mb-1">{tt("openCamera")}</p>
-                      <p className="text-xs text-slate-500">{tt("openCameraHint")}</p>
-                    </motion.button>
+                  <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50/60 p-4 shadow-inner sm:p-5">
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-700">
+                        <Camera size={13} />
+                        {tt("attachFromCamera")}
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                        <ImageIcon size={13} />
+                        {tt("galleryFile")}
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                        <FileText size={13} />
+                        {tt("documentFile")}
+                      </span>
+                    </div>
 
-                    <label className="group cursor-pointer rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50/80 to-white p-6 text-center transition-all hover:border-emerald-400 hover:bg-gradient-to-br hover:from-emerald-50/50 hover:to-white">
-                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 group-hover:scale-110 transition-transform">
-                        <Upload size={24} className="text-emerald-600" />
+                    <div
+                      tabIndex={0}
+                      onPaste={handleAttachmentPaste}
+                      onFocus={() => setFocusedField("attachmentPaste")}
+                      onBlur={() => setFocusedField((current) => (current === "attachmentPaste" ? null : current))}
+                      className={`
+                        group rounded-2xl border-2 border-dashed bg-white/90 p-5 outline-none transition-all
+                        ${focusedField === "attachmentPaste"
+                          ? "border-[#2b59b0] shadow-lg shadow-[#2b59b0]/10"
+                          : "border-slate-200 hover:border-[#2b59b0]/40"
+                        }
+                      `}
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2b59b0]/10 to-cyan-100 text-[#2b59b0]">
+                          <Upload size={24} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-slate-800">{tt("pasteCaptureTitle")}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">{tt("pasteCaptureHint")}</p>
+                          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                            {tt("pasteCaptureEmpty")}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm font-bold text-slate-700 mb-1">{tt("uploadFile")}</p>
-                      <p className="text-xs text-slate-500">{tt("uploadFileHint")}</p>
-                      <input type="file" hidden accept="image/*" onChange={handleFile} />
-                    </label>
+                    </div>
+
+                    <p className="mt-3 text-[11px] leading-5 text-slate-500">
+                      {tt("uploadFileHint")}
+                    </p>
                   </div>
                 )}
 
-                {preview && (
+                {hasAttachment && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="mt-5 overflow-hidden rounded-2xl border-2 border-slate-200/80 bg-white shadow-lg"
                   >
-                    <img src={preview} alt="attachment preview" className="aspect-video w-full object-cover" />
+                    {attachmentIsImage && preview ? (
+                      <img src={preview} alt="attachment preview" className="aspect-video w-full object-cover" />
+                    ) : (
+                      <div className="flex items-center gap-3 bg-gradient-to-r from-slate-50 to-white px-4 py-5">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                          <FileText size={22} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-800">
+                            {form.attachment?.name || tt("attachmentFile")}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {formatAttachmentSize(form.attachment?.size)} • {tt("readyToUse")}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
-                          <ImageIcon size={16} className="text-indigo-600" />
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${attachmentIsImage ? "bg-gradient-to-br from-indigo-100 to-purple-100" : "bg-gradient-to-br from-amber-100 to-orange-100"}`}>
+                          {attachmentIsImage ? (
+                            <ImageIcon size={16} className="text-indigo-600" />
+                          ) : (
+                            <FileText size={16} className="text-amber-600" />
+                          )}
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-700">{tt("attachmentFile")}</p>
-                          <p className="text-[9px] text-slate-500">{tt("readyToUse")}</p>
+                          <p className="max-w-[13rem] truncate text-xs font-bold text-slate-700">
+                            {form.attachment?.name || tt("attachmentFile")}
+                          </p>
+                          <p className="text-[9px] text-slate-500">
+                            {formatAttachmentSize(form.attachment?.size)} • {tt("readyToUse")}
+                          </p>
                         </div>
                       </div>
                       <motion.button
@@ -1264,6 +1519,7 @@ const CreateTicket = () => {
                         whileTap={{ scale: 0.95 }}
                         type="button"
                         onClick={clearAttachment}
+                        aria-label={tt("removeAttachment")}
                         className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
                       >
                         <X size={16} />
@@ -1455,14 +1711,22 @@ const CreateTicket = () => {
 
                 <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">{tt("attachmentSummary")}</p>
-                  {preview ? (
+                  {hasAttachment ? (
                     <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-100 to-teal-100 flex items-center justify-center">
-                        <ImageIcon size={16} className="text-cyan-600" />
+                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${attachmentIsImage ? "bg-gradient-to-br from-cyan-100 to-teal-100" : "bg-gradient-to-br from-amber-100 to-orange-100"}`}>
+                        {attachmentIsImage ? (
+                          <ImageIcon size={16} className="text-cyan-600" />
+                        ) : (
+                          <FileText size={16} className="text-amber-600" />
+                        )}
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-800">{tt("hasAttachment")}</p>
-                        <p className="text-[8px] text-slate-500">{tt("readyToSubmit")}</p>
+                        <p className="max-w-[12rem] truncate text-xs font-bold text-slate-800">
+                          {form.attachment?.name || tt("hasAttachment")}
+                        </p>
+                        <p className="text-[8px] text-slate-500">
+                          {formatAttachmentSize(form.attachment?.size)} • {tt("readyToSubmit")}
+                        </p>
                       </div>
                     </div>
                   ) : (
@@ -1542,11 +1806,57 @@ const CreateTicket = () => {
             </div>
           </motion.section>
 
-          {/* Help Tip */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur-sm"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b59b0]/10 to-cyan-100 text-[#244a95]">
+                <Phone size={16} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-800">{tt("quickHelpTitle")}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">{tt("quickHelpBody")}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <a
+                href="tel:038394337"
+                className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition hover:border-[#2b59b0]/25 hover:bg-[#2b59b0]/5"
+              >
+                <span className="flex items-center gap-2 font-semibold">
+                  <Phone size={14} className="text-[#2b59b0]" />
+                  {tt("quickHelpPhone")}
+                </span>
+                <span className="font-bold text-slate-800">038 394 337</span>
+              </a>
+              <a
+                href="mailto:it@tdk.co.th"
+                className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition hover:border-[#2b59b0]/25 hover:bg-[#2b59b0]/5"
+              >
+                <span className="flex items-center gap-2 font-semibold">
+                  <Mail size={14} className="text-[#2b59b0]" />
+                  {tt("quickHelpEmail")}
+                </span>
+                <span className="truncate font-bold text-slate-800">it@tdk.co.th</span>
+              </a>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+                <span className="flex items-center gap-2 font-semibold">
+                  <Hash size={14} className="text-[#2b59b0]" />
+                  {tt("quickHelpLine")}
+                </span>
+                <span className="font-bold text-slate-800">TF Team</span>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
             className="rounded-2xl border border-slate-200 bg-white/80 p-4 backdrop-blur-sm shadow-sm"
           >
             <div className="flex items-start gap-3">

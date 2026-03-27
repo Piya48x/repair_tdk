@@ -640,6 +640,7 @@ export default function CentralChatDock({
   currentUser = null,
   openSignal = 0,
   className = "bottom-4 left-4 sm:bottom-6 sm:left-6",
+  launcherMode = "pill",
   onOpenChange,
 }) {
   const { language, tt } = useScopedI18n(CENTRAL_CHAT_DOCK_TRANSLATIONS);
@@ -2180,17 +2181,23 @@ export default function CentralChatDock({
   if (!currentUserId) return null;
 
   if (!isOpen) {
+    const compactLauncher = launcherMode === "icon";
+
     return (
       <div className={`fixed ${className} z-[90] pointer-events-none`} style={dockInlineStyle}>
         <button
           type="button"
           onClick={handleLauncherClick}
           onPointerDown={(event) => handleDockPointerDown(event, { allowInteractiveTarget: true })}
-          className={`pointer-events-auto inline-flex items-center gap-3 rounded-full border border-[#12b981]/20 bg-white px-4 py-3 text-left shadow-[0_24px_60px_-28px_rgba(43,89,176,0.45)] transition hover:-translate-y-1 hover:border-[#12b981]/35 ${
+          className={`pointer-events-auto inline-flex items-center gap-3 border border-[#12b981]/20 bg-white text-left shadow-[0_24px_60px_-28px_rgba(43,89,176,0.45)] transition hover:-translate-y-1 hover:border-[#12b981]/35 ${
             isDraggingDock ? "cursor-grabbing" : "cursor-grab"
-          } ${isMobileViewport ? "h-14 w-14 justify-center px-0" : ""}`}
+          } ${
+            isMobileViewport || compactLauncher
+              ? "h-14 w-14 justify-center rounded-[1.25rem] px-0"
+              : "rounded-full px-4 py-3"
+          }`}
           aria-label={tt("openChat")}
-          title={tt("dragToMove")}
+          title={compactLauncher || isMobileViewport ? tt("openChat") : tt("dragToMove")}
         >
           <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 via-[#2b59b0] to-[#244a95] text-white shadow-[0_14px_26px_-14px_rgba(16,185,129,0.55)]">
             <span className="absolute inset-0 rounded-full bg-emerald-400/25 opacity-70 blur-[2px] animate-pulse" aria-hidden="true" />
@@ -2201,7 +2208,7 @@ export default function CentralChatDock({
               </span>
             )}
           </span>
-          {!isMobileViewport && (
+          {!isMobileViewport && !compactLauncher && (
             <span className="min-w-0">
             <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
               {tt("centralChat")}

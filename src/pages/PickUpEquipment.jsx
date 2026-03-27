@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { insertTicketWithSchemaFallback } from '../lib/ticketSchemaCompat';
@@ -9,7 +9,7 @@ import {
   Server, FileText, Upload, X, CheckCircle,
   Loader2, ChevronRight, LayoutGrid, Search,
   Download, Laptop, MapPin, User, Building,
-  Phone, Mail, Calendar, Briefcase
+  Phone, Mail, Calendar, Briefcase, ListChecks
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { generateITRequestPDF } from '../utils/pdfGenerator';
@@ -96,7 +96,9 @@ const PICK_UP_EQUIPMENT_TRANSLATIONS = {
     unknownPhone: 'ไม่ระบุ',
     employeeFallback: 'พนักงาน',
     greeting: 'สวัสดี, {{name}} 👋',
-    intro: 'ระบบรับแจ้งปัญหาและคำร้องขอบริการด้านไอที พร้อมระบบติดตาม GPS และการออกเอกสาร PDF อัตโนมัติ',
+    intro: 'ระบบรับแจ้งปัญหาและคำร้องขอบริการด้านไอที พร้อมระบบติดตาม GPS และปุ่มออกเอกสาร PDF เมื่อต้องการ',
+    myRequests: 'การเบิกของคุณ',
+    myRequestsHint: 'ดูรายการและสถานะการเบิกทั้งหมด',
     servicesCount: '{{count}} บริการ',
     gpsReady: '✓ พร้อมระบบติดตาม GPS Real-time',
     requesterInfo: 'ข้อมูลผู้ขอใช้บริการ',
@@ -129,18 +131,21 @@ const PICK_UP_EQUIPMENT_TRANSLATIONS = {
     uploadHint: 'รองรับ JPG, PNG, PDF (Max 5MB)',
     selectedFiles: 'ไฟล์ที่เลือก ({{count}})',
     uploading: 'กำลังอัพโหลด...',
-    pdfTitle: 'การออกเอกสาร PDF อัตโนมัติ',
-    pdfBody: 'เมื่อกดยืนยัน ระบบจะสร้างเอกสารคำร้องขอบริการในรูปแบบ PDF พร้อมข้อมูลครบถ้วนและลายเซ็นดิจิทัล',
+    pdfTitle: 'ส่งออกเอกสาร PDF แบบกดเอง',
+    pdfBody: 'ระบบจะไม่ดาวน์โหลด PDF อัตโนมัติแล้ว หากต้องการเอกสารให้กดปุ่ม Export PDF ก่อนส่งคำขอ',
     footerNoteLabel: 'หมายเหตุ:',
     footerNoteBody: 'กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนส่ง',
     cancel: 'ยกเลิก',
     processing: 'กำลังดำเนินการ...',
-    confirmAndPdf: 'ยืนยันและออก PDF',
+    confirmRequest: 'ยืนยันคำขอ',
+    exportPdf: 'Export PDF',
+    exportingPdf: 'กำลังสร้าง PDF...',
     sessionExpired: 'เซสชันของคุณหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง',
     saveSuccessTitle: '✅ บันทึกข้อมูลสำเร็จ!',
     saveSuccessBody: 'คำร้องของคุณถูกส่งแล้ว',
     fileCount: 'ไฟล์แนบ: {{count}} ไฟล์',
     pdfDownloaded: 'ไฟล์ PDF ได้ถูกดาวน์โหลดแล้ว',
+    pdfReady: 'ไฟล์ PDF ถูกดาวน์โหลดแล้ว',
     redirectDashboard: 'ระบบจะนำท่านไปยังหน้า Dashboard',
     errorPrefix: '❌ เกิดข้อผิดพลาด:',
     fileTooLarge: 'ไฟล์ {{name}} ใหญ่เกิน 5MB',
@@ -154,7 +159,9 @@ const PICK_UP_EQUIPMENT_TRANSLATIONS = {
     unknownPhone: 'Not provided',
     employeeFallback: 'Employee',
     greeting: 'Hello, {{name}} 👋',
-    intro: 'Submit IT issues and service requests with GPS tracking support and automatic PDF generation.',
+    intro: 'Submit IT issues and service requests with GPS tracking support and manual PDF export when needed.',
+    myRequests: 'Your Requests',
+    myRequestsHint: 'View all equipment request records and statuses',
     servicesCount: '{{count}} services',
     gpsReady: '✓ Real-time GPS tracking included',
     requesterInfo: 'Requester Information',
@@ -187,18 +194,21 @@ const PICK_UP_EQUIPMENT_TRANSLATIONS = {
     uploadHint: 'Supports JPG, PNG, PDF (Max 5MB)',
     selectedFiles: 'Selected files ({{count}})',
     uploading: 'Uploading...',
-    pdfTitle: 'Automatic PDF Generation',
-    pdfBody: 'When you confirm, the system will generate a PDF request document with full details and a digital signature.',
+    pdfTitle: 'Manual PDF Export',
+    pdfBody: 'The system no longer downloads a PDF automatically. Use Export PDF if you need the request document before submitting.',
     footerNoteLabel: 'Note:',
     footerNoteBody: 'Please review your information carefully before submitting.',
     cancel: 'Cancel',
     processing: 'Processing...',
-    confirmAndPdf: 'Confirm and Export PDF',
+    confirmRequest: 'Submit Request',
+    exportPdf: 'Export PDF',
+    exportingPdf: 'Generating PDF...',
     sessionExpired: 'Your session has expired. Please sign in again.',
     saveSuccessTitle: '✅ Saved successfully!',
     saveSuccessBody: 'Your request has been submitted.',
     fileCount: 'Attachments: {{count}} files',
     pdfDownloaded: 'The PDF has been downloaded.',
+    pdfReady: 'The PDF has been downloaded.',
     redirectDashboard: 'The system will take you back to the Dashboard.',
     errorPrefix: '❌ Error:',
     fileTooLarge: 'File {{name}} is larger than 5MB',
@@ -212,7 +222,9 @@ const PICK_UP_EQUIPMENT_TRANSLATIONS = {
     unknownPhone: '미입력',
     employeeFallback: '직원',
     greeting: '안녕하세요, {{name}} 👋',
-    intro: 'GPS 추적 지원과 자동 PDF 생성이 포함된 IT 문제 및 서비스 요청 시스템입니다.',
+    intro: 'GPS 추적 지원과 필요할 때 직접 PDF를 내보낼 수 있는 IT 문제 및 서비스 요청 시스템입니다.',
+    myRequests: '내 장비 요청',
+    myRequestsHint: '요청 목록과 상태를 확인하세요',
     servicesCount: '{{count}}개 서비스',
     gpsReady: '✓ 실시간 GPS 추적 지원',
     requesterInfo: '요청자 정보',
@@ -245,18 +257,21 @@ const PICK_UP_EQUIPMENT_TRANSLATIONS = {
     uploadHint: 'JPG, PNG, PDF 지원 (최대 5MB)',
     selectedFiles: '선택한 파일 ({{count}})',
     uploading: '업로드 중...',
-    pdfTitle: '자동 PDF 생성',
-    pdfBody: '확인 버튼을 누르면 전체 정보와 디지털 서명이 포함된 PDF 요청 문서가 생성됩니다.',
+    pdfTitle: '수동 PDF 내보내기',
+    pdfBody: '이제 PDF는 자동 다운로드되지 않습니다. 문서가 필요하면 제출 전에 Export PDF 버튼을 눌러 주세요.',
     footerNoteLabel: '안내:',
     footerNoteBody: '제출 전에 입력한 정보를 다시 확인해 주세요.',
     cancel: '취소',
     processing: '처리 중...',
-    confirmAndPdf: '확인 후 PDF 생성',
+    confirmRequest: '요청 제출',
+    exportPdf: 'PDF 내보내기',
+    exportingPdf: 'PDF 생성 중...',
     sessionExpired: '세션이 만료되었습니다. 다시 로그인해 주세요.',
     saveSuccessTitle: '✅ 저장되었습니다!',
     saveSuccessBody: '요청이 제출되었습니다.',
     fileCount: '첨부 파일: {{count}}개',
     pdfDownloaded: 'PDF가 다운로드되었습니다.',
+    pdfReady: 'PDF가 다운로드되었습니다.',
     redirectDashboard: '시스템이 대시보드로 이동합니다.',
     errorPrefix: '❌ 오류:',
     fileTooLarge: '파일 {{name}} 이(가) 5MB를 초과합니다',
@@ -373,8 +388,10 @@ const PickUpEquipment = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const requestFormRef = useRef(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -620,9 +637,6 @@ const PickUpEquipment = () => {
         }
       }
 
-      // Generate PDF
-      await generateITRequestPDF(formData, selectedRequest, currentUser);
-
       setIsSubmitting(false);
       handleCloseForm();
 
@@ -632,7 +646,7 @@ const PickUpEquipment = () => {
 
       // Success notification
       const fileInfo = selectedFiles.length > 0 ? `\n${tt('fileCount', { count: selectedFiles.length })}` : '';
-      alert(`${tt('saveSuccessTitle')}\n\n${tt('saveSuccessBody')}\n${tt('pdfDownloaded')}${fileInfo}\n\n${tt('redirectDashboard')}`);
+      alert(`${tt('saveSuccessTitle')}\n\n${tt('saveSuccessBody')}${fileInfo}\n\n${tt('redirectDashboard')}`);
 
       // Redirect to dashboard
       navigate('/dashboard');
@@ -641,6 +655,21 @@ const PickUpEquipment = () => {
       console.error('Error submitting request:', error);
       setIsSubmitting(false);
       alert(`${tt('errorPrefix')} ${error.message}`);
+    }
+  };
+
+  const handleManualPdfExport = async () => {
+    if (!requestFormRef.current?.reportValidity()) return;
+
+    try {
+      setIsExportingPdf(true);
+      await generateITRequestPDF(formData, selectedRequest, currentUser);
+      alert(tt('pdfReady'));
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert(`${tt('errorPrefix')} ${error.message}`);
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -743,6 +772,22 @@ const PickUpEquipment = () => {
             {tt('intro')}
           </p>
 
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={() => navigate('/my-borrow-requests')}
+              className="inline-flex items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-3 text-left text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm">
+                <ListChecks className="w-5 h-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-bold">{tt('myRequests')}</span>
+                <span className="block text-xs text-emerald-600">{tt('myRequestsHint')}</span>
+              </span>
+            </button>
+          </div>
+
           {/* User Quick Info */}
           <div className="mt-6 flex flex-wrap gap-3">
             <div className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur rounded-xl border border-slate-200 shadow-sm">
@@ -842,7 +887,7 @@ const PickUpEquipment = () => {
 
             {/* Scrollable Form Body */}
             <div className="p-8 overflow-y-auto custom-scrollbar bg-white">
-              <form id="requestForm" onSubmit={handleSubmit} className="space-y-6">
+              <form id="requestForm" ref={requestFormRef} onSubmit={handleSubmit} className="space-y-6">
 
                 {/* User Info Display (Read-only) */}
                 <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 p-6 rounded-2xl border border-slate-200">
@@ -1108,6 +1153,14 @@ const PickUpEquipment = () => {
               <div className="flex gap-3">
                 <button
                   type="button"
+                  onClick={() => void handleManualPdfExport()}
+                  disabled={isSubmitting || isExportingPdf || isUploading}
+                  className="px-6 py-3 rounded-xl text-sm font-semibold text-blue-700 hover:bg-blue-100 border-2 border-blue-200 bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isExportingPdf ? tt('exportingPdf') : tt('exportPdf')}
+                </button>
+                <button
+                  type="button"
                   onClick={handleCloseForm}
                   disabled={isSubmitting}
                   className="px-6 py-3 rounded-xl text-sm font-semibold text-slate-600 hover:bg-white hover:shadow-md border-2 border-slate-200 hover:border-slate-300 transition-all disabled:opacity-50"
@@ -1127,7 +1180,7 @@ const PickUpEquipment = () => {
                   ) : (
                     <>
                       <CheckCircle className="w-5 h-5" />
-                      {tt('confirmAndPdf')}
+                      {tt('confirmRequest')}
                     </>
                   )}
                 </button>
