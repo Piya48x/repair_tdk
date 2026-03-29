@@ -10,6 +10,7 @@ export const ROLES = {
 export const REPORT_ROUTE_PERMISSIONS = {
   it: [ROLES.IT_MANAGER, ROLES.ADMIN],
   executive: [ROLES.EXECUTIVE, ROLES.ADMIN],
+  notebookApprovals: [ROLES.EXECUTIVE, ROLES.ADMIN],
   index: [ROLES.IT_MANAGER, ROLES.EXECUTIVE, ROLES.ADMIN],
 };
 
@@ -19,7 +20,16 @@ export const ROLE_HOME_ROUTES = {
   [ROLES.ADMIN]: "/admin-dashboard",
   [ROLES.AUDITOR]: "/audit-view",
   [ROLES.IT_MANAGER]: "/reports/it",
-  [ROLES.EXECUTIVE]: "/reports/executive",
+  [ROLES.EXECUTIVE]: "/reports",
+};
+
+export const ROLE_WORKSPACE_ROUTES = {
+  [ROLES.USER]: "/dashboard",
+  [ROLES.IT_SUPPORT]: "/admin-dashboard",
+  [ROLES.ADMIN]: "/admin-dashboard",
+  [ROLES.AUDITOR]: "/audit-view",
+  [ROLES.IT_MANAGER]: "/dashboard",
+  [ROLES.EXECUTIVE]: "/dashboard",
 };
 
 export const normalizeRole = (role) => String(role || "").trim().toLowerCase();
@@ -33,4 +43,9 @@ export const canAccessRoute = (role, allowedRoles = []) => {
 export const resolveHomeRoute = (role) => {
   const normalizedRole = normalizeRole(role);
   return ROLE_HOME_ROUTES[normalizedRole] || "/dashboard";
+};
+
+export const resolveWorkspaceRoute = (role) => {
+  const normalizedRole = normalizeRole(role);
+  return ROLE_WORKSPACE_ROUTES[normalizedRole] || "/dashboard";
 };

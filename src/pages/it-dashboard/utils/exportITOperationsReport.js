@@ -5,6 +5,10 @@ import {
   formatDurationLabel,
   formatHoursLabel,
 } from "../pages/it-work-evidence/shared";
+import {
+  getTicketStatusLabel,
+  stripTicketStatusDetailFromParts,
+} from "../../../lib/ticketRepairStatus";
 
 const BRAND = {
   blue: "2B59B0",
@@ -676,7 +680,7 @@ async function buildRepairTicketsSheet(workbook, rows) {
     const row = worksheet.addRow({
       no: index + 1,
       ticketId: ticket.ticket_no || `IT-${String(ticket.id || "").padStart(5, "0")}`,
-      status: String(ticket.status || "-"),
+      status: getTicketStatusLabel(ticket),
       priority: String(ticket.priority || "-"),
       title: ticket.title || ticket.category || "-",
       reporter: ticket.reporter_name || "-",
@@ -689,7 +693,7 @@ async function buildRepairTicketsSheet(workbook, rows) {
       duration: durationMinutes > 0 ? formatDurationLabel(durationMinutes) : "-",
       before: "",
       after: "",
-      solution: ticket.solution_note || ticket.parts_used || "-",
+      solution: ticket.solution_note || stripTicketStatusDetailFromParts(ticket.parts_used) || "-",
     });
 
     styleDetailRow(row, index);
@@ -778,7 +782,7 @@ async function buildServiceRequestsSheet(workbook, rows) {
       no: index + 1,
       requestId: getTicketReference(ticket),
       requestType: getServiceRequestLabel(ticket),
-      status: String(ticket.status || "-"),
+      status: getTicketStatusLabel(ticket),
       priority: String(ticket.priority || "-"),
       title: ticket.title || ticket.category || "-",
       reporter: ticket.reporter_name || "-",

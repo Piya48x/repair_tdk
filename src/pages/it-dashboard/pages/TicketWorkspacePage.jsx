@@ -111,6 +111,8 @@ const TicketWorkspacePage = ({
   historyTickets,
   currentUser,
   handleAcceptJob,
+  handleOpenCaseChat,
+  handleUpdateRepairStatus,
   handleCloseJob,
   handleDeleteTicket,
   handleViewDetails,
@@ -305,6 +307,8 @@ const TicketWorkspacePage = ({
           historyTickets={historyTickets}
           currentUser={currentUser}
           handleAcceptJob={handleAcceptJob}
+          handleOpenCaseChat={handleOpenCaseChat}
+          handleUpdateRepairStatus={handleUpdateRepairStatus}
           handleCloseJob={handleCloseJob}
           handleDeleteTicket={handleDeleteTicket}
           handleViewDetails={handleViewDetails}

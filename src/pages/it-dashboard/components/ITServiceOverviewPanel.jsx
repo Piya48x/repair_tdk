@@ -23,6 +23,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { stripTicketStatusDetailFromParts } from "../../../lib/ticketRepairStatus";
 
 const PERIOD_OPTIONS = [
   { id: "all", label: "ทั้งหมด" },
@@ -154,7 +155,7 @@ const classifyTicketType = (ticket) => {
 };
 
 const parseParts = (parts) =>
-  (parts || "")
+  stripTicketStatusDetailFromParts(parts || "")
     .split(/[,;|/\n]+/)
     .map((item) => item.trim())
     .filter(Boolean);
@@ -176,7 +177,7 @@ const detectAssetGroup = (label = "") => {
 };
 
 const estimateTicketValue = (ticket) => {
-  const pool = `${ticket?.parts_used || ""} ${ticket?.title || ""} ${ticket?.category || ""}`;
+  const pool = `${stripTicketStatusDetailFromParts(ticket?.parts_used || "")} ${ticket?.title || ""} ${ticket?.category || ""}`;
   const lower = pool.toLowerCase();
   let best = 0;
 

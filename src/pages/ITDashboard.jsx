@@ -117,6 +117,13 @@ import {
   getPriorityText,
 } from "./it-dashboard/utils/ticketUtils";
 import {
+  TICKET_REPAIR_STATUS_OPTIONS,
+  embedTicketStatusDetailInParts,
+  getTicketStatusDetailMeta,
+  getTicketStatusLabel,
+  getTicketStatusLifecycle,
+} from "../lib/ticketRepairStatus";
+import {
   isPickUpEquipmentRequest,
   splitTicketBuckets,
 } from "../lib/serviceRequestUtils";
@@ -229,6 +236,8 @@ const ITDashboard = () => {
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
   const [detailTicket, setDetailTicket] = useState(null);
   const [isWalkInTicketOpen, setIsWalkInTicketOpen] = useState(false);
+  const [chatOpenSignal, setChatOpenSignal] = useState(0);
+  const [chatOpenTarget, setChatOpenTarget] = useState("support");
 
   // Export/report related state
 
@@ -938,6 +947,173 @@ const ITDashboard = () => {
     });
   };
 
+  const handleUpdateRepairStatus = async (ticket) => {
+    const isDark = theme === "dark";
+    const safeTicketNo = escapeHtml(
+      ticket?.ticket_no || `IT-${String(ticket?.id || "").padStart(5, "0")}`,
+    );
+    const currentDetailKey = getTicketStatusDetailMeta(ticket)?.key || "WORKING";
+    const currentNote = String(ticket?.solution_note || "").trim();
+    const fieldClass = isDark
+      ? "w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/30"
+      : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/20";
+    const helperClass = isDark ? "text-slate-400" : "text-slate-500";
+    const labelClass = isDark ? "text-slate-200" : "text-slate-700";
+    const sectionClass = isDark
+      ? "rounded-2xl border border-slate-700 bg-slate-800/70 p-4"
+      : "rounded-2xl border border-slate-200 bg-slate-50 p-4";
+    const cancelButtonClass = isDark
+      ? "inline-flex items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
+      : "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300";
+    const optionMarkup = (options) =>
+      options
+        .map(
+          (option) => `
+            <option value="${option.key}" ${currentDetailKey === option.key ? "selected" : ""}>
+              ${escapeHtml(option.label)}
+            </option>
+          `,
+        )
+        .join("");
+    const activeOptions = TICKET_REPAIR_STATUS_OPTIONS.filter((item) => item.lifecycle === "active");
+    const closedOptions = TICKET_REPAIR_STATUS_OPTIONS.filter((item) => item.lifecycle === "closed");
+
+    const { value: formValues } = await Swal.fire({
+      title: `<span class="${isDark ? "text-slate-100" : "text-slate-900"}">บันทึกสถานะงาน</span>`,
+      html: `
+        <div class="space-y-4 text-left">
+          <div class="${sectionClass}">
+            <p class="text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}">Ticket ${safeTicketNo}</p>
+            <p class="mt-1 text-[11px] ${helperClass}">ใช้สำหรับงานที่ยังทำไม่จบ, ต้องรอ, หรือปิดแบบไม่สามารถซ่อมต่อได้</p>
+          </div>
+
+          <div class="${sectionClass}">
+            <label class="mb-1.5 block text-xs font-semibold ${labelClass}">สถานะงาน</label>
+            <select id="swal-progress-status" class="${fieldClass}">
+              <optgroup label="กลับมาทำต่อ / ระหว่างดำเนินการ">
+                ${optionMarkup(activeOptions)}
+              </optgroup>
+              <optgroup label="ปิดงานแบบไม่สำเร็จ">
+                ${optionMarkup(closedOptions)}
+              </optgroup>
+            </select>
+            <p id="swal-progress-helper" class="mt-2 text-[11px] ${helperClass}"></p>
+          </div>
+
+          <div class="${sectionClass}">
+            <label class="mb-1.5 block text-xs font-semibold ${labelClass}">บันทึก / เหตุผล</label>
+            <textarea
+              id="swal-progress-note"
+              class="${fieldClass}"
+              rows="4"
+              placeholder="เช่น รอพัดลม CPU จาก supplier / อยู่ระหว่างขออนุมัติซื้ออะไหล่ / ตรวจสอบแล้วเมนบอร์ดเสียและไม่มีอะไหล่รองรับ"
+            >${escapeHtml(currentNote)}</textarea>
+            <p class="mt-2 text-[11px] ${helperClass}">บันทึกสาเหตุให้ชัด เพื่อให้ผู้แจ้งและทีมรู้ว่าทำไมงานยังไม่จบ</p>
+          </div>
+        </div>
+      `,
+      background: isDark ? "#0f172a" : "#ffffff",
+      color: isDark ? "#fff" : "#1f2937",
+      showCancelButton: true,
+      confirmButtonText: "บันทึกสถานะ",
+      cancelButtonText: "ยกเลิก",
+      focusConfirm: false,
+      showLoaderOnConfirm: true,
+      buttonsStyling: false,
+      customClass: {
+        popup: isDark
+          ? "w-full max-w-xl rounded-3xl border border-slate-700 bg-slate-900 shadow-2xl"
+          : "w-full max-w-xl rounded-3xl border border-slate-200 bg-white shadow-2xl",
+        title: "font-semibold",
+        htmlContainer: "!px-5 !pt-2 !pb-0 sm:!px-6",
+        actions: "!mt-4 !w-full !justify-end !gap-2 !px-5 !pb-5 sm:!px-6",
+        confirmButton:
+          "inline-flex items-center justify-center rounded-xl bg-[#2b59b0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#244a95] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/30",
+        cancelButton: cancelButtonClass,
+      },
+      didOpen: () => {
+        const selectEl = document.getElementById("swal-progress-status");
+        const helperEl = document.getElementById("swal-progress-helper");
+        const updateHelper = () => {
+          const selectedKey = selectEl?.value || "WORKING";
+          const selectedOption = TICKET_REPAIR_STATUS_OPTIONS.find((item) => item.key === selectedKey);
+          if (helperEl) {
+            helperEl.textContent = selectedOption?.helper || "";
+          }
+        };
+
+        updateHelper();
+        selectEl?.addEventListener("change", updateHelper);
+      },
+      preConfirm: () => {
+        const detailKey = document.getElementById("swal-progress-status")?.value || "WORKING";
+        const note = document.getElementById("swal-progress-note")?.value || "";
+
+        if (note.trim().length < 6) {
+          Swal.showValidationMessage('<span class="text-rose-400">กรุณาระบุบันทึกอย่างน้อย 6 ตัวอักษร</span>');
+          return false;
+        }
+
+        return {
+          detailKey,
+          note: note.trim(),
+        };
+      },
+    });
+
+    if (!formValues) return;
+
+    try {
+      const nextStatus = getTicketStatusLifecycle(formValues.detailKey, ticket?.status || "IN_PROGRESS");
+      const nextParts = embedTicketStatusDetailInParts(ticket?.parts_used || "", formValues.detailKey);
+      const updatePayload = {
+        status: nextStatus,
+        solution_note: formValues.note,
+        parts_used: nextParts || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (nextStatus === "CLOSED") {
+        updatePayload.closed_at = new Date().toISOString();
+        updatePayload.closed_by = currentUser?.id;
+        updatePayload.closed_by_name = currentUser?.name;
+      } else if (!ticket?.started_at) {
+        updatePayload.started_at = new Date().toISOString();
+      }
+
+      const { error } = await supabase
+        .from("tickets")
+        .update(updatePayload)
+        .eq("id", ticket.id);
+
+      if (error) throw error;
+
+      const nextTicketSnapshot = {
+        ...ticket,
+        status: nextStatus,
+        parts_used: nextParts,
+      };
+
+      await fireThemedSwal({
+        icon: "success",
+        title: "บันทึกสถานะสำเร็จ",
+        text: `อัปเดตเป็น "${getTicketStatusLabel(nextTicketSnapshot)}" เรียบร้อยแล้ว`,
+        timer: 2200,
+        showConfirmButton: false,
+      }, "success");
+
+      setActiveTab(nextStatus === "CLOSED" ? "HISTORY" : "ACTIVE");
+      fetchTickets();
+    } catch (error) {
+      console.error("Error updating repair status:", error);
+      fireThemedSwal({
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถบันทึกสถานะงานได้ กรุณาลองใหม่อีกครั้ง",
+      }, "danger");
+    }
+  };
+
   // Close job
   const handleCloseJob = async (ticket) => {
     const isDark = theme === "dark";
@@ -1490,7 +1666,55 @@ const ITDashboard = () => {
     }
   };
 
-  const getModalStatusConfig = (status) => {
+  const getModalStatusConfig = (ticketOrStatus) => {
+    const status = typeof ticketOrStatus === "object" ? ticketOrStatus?.status : ticketOrStatus;
+    const detailMeta = typeof ticketOrStatus === "object" ? getTicketStatusDetailMeta(ticketOrStatus) : null;
+
+    if (detailMeta?.tone === "rose") {
+      return {
+        label: detailMeta.label,
+        bg: "bg-rose-50",
+        color: "text-rose-700",
+        border: "border-rose-200",
+      };
+    }
+
+    if (detailMeta?.tone === "sky") {
+      return {
+        label: detailMeta.label,
+        bg: "bg-sky-50",
+        color: "text-sky-700",
+        border: "border-sky-200",
+      };
+    }
+
+    if (detailMeta?.tone === "violet") {
+      return {
+        label: detailMeta.label,
+        bg: "bg-violet-50",
+        color: "text-violet-700",
+        border: "border-violet-200",
+      };
+    }
+
+    if (detailMeta?.tone === "slate") {
+      return {
+        label: detailMeta.label,
+        bg: "bg-slate-100",
+        color: "text-slate-700",
+        border: "border-slate-200",
+      };
+    }
+
+    if (detailMeta?.tone === "amber") {
+      return {
+        label: detailMeta.label,
+        bg: "bg-amber-50",
+        color: "text-amber-700",
+        border: "border-amber-200",
+      };
+    }
+
     switch (status) {
       case "NEW":
         return {
@@ -1515,7 +1739,7 @@ const ITDashboard = () => {
         };
       default:
         return {
-          label: getStatusText(status),
+          label: getTicketStatusLabel(ticketOrStatus),
           bg: "bg-slate-50",
           color: "text-slate-700",
           border: "border-slate-200",
@@ -1564,6 +1788,41 @@ const ITDashboard = () => {
   // View ticket details
   const handleViewDetails = (ticket) => {
     setDetailTicket(ticket);
+  };
+
+  const resolveTicketChatTargetId = (ticket) => {
+    const candidateIds = [
+      ticket?.creator_id,
+      ticket?.created_by,
+      ticket?.requester_id,
+      ticket?.user_id,
+      ticket?.reporter_user_id,
+      ticket?.reporter_id,
+    ];
+
+    return candidateIds
+      .map((value) => normalizeText(value))
+      .find((value) => isUuidLike(value) && value !== currentUser?.id) || "";
+  };
+
+  const handleOpenCaseChat = async (ticket) => {
+    const reporterUserId = resolveTicketChatTargetId(ticket);
+
+    if (!reporterUserId) {
+      await fireThemedSwal(
+        {
+          icon: "info",
+          title: "ยังเปิดแชทไม่ได้",
+          text: "เคสนี้ยังไม่มีบัญชีผู้แจ้งที่เชื่อมกับแชทกลาง",
+        },
+        "primary",
+      );
+      return;
+    }
+
+    setDetailTicket(null);
+    setChatOpenTarget(`user:${reporterUserId}`);
+    setChatOpenSignal((previous) => previous + 1);
   };
 
   const handleCreateWalkInTicket = async (payload) => {
@@ -1858,6 +2117,8 @@ const ITDashboard = () => {
             historyTickets={historyTickets}
             currentUser={currentUser}
             handleAcceptJob={handleAcceptJob}
+            handleOpenCaseChat={handleOpenCaseChat}
+            handleUpdateRepairStatus={handleUpdateRepairStatus}
             handleCloseJob={handleCloseJob}
             handleDeleteTicket={handleDeleteTicket}
             handleViewDetails={handleViewDetails}
@@ -1885,6 +2146,8 @@ const ITDashboard = () => {
 
         <CentralChatDock
           currentUser={currentUser}
+          openSignal={chatOpenSignal}
+          openSignalTarget={chatOpenTarget}
           className="bottom-4 left-4 sm:bottom-6 sm:left-6"
         />
 

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
   ChevronLeft,
+  ClipboardCheck,
   ClipboardList,
   Home,
   LayoutDashboard,
@@ -15,99 +16,95 @@ import { supabase } from "../../lib/supabaseClient";
 import {
   canAccessRoute,
   REPORT_ROUTE_PERMISSIONS,
-  resolveHomeRoute,
+  resolveWorkspaceRoute,
 } from "../../lib/roleAccess";
+import useNotebookApprovalRealtime from "../../hooks/useNotebookApprovalRealtime";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
 import CentralChatDock from "../CentralChatDock.jsx";
 import LanguageSwitcher from "../LanguageSwitcher.jsx";
 
 const REPORTS_TOPBAR_TRANSLATIONS = {
   th: {
-    badge: "Report Navigation",
-    subtitle: "สลับมุมมองรายงาน, เปลี่ยนภาษา, และกลับหน้าใช้งานหลักได้จากแถบเดียว",
     dashboard: "แดชบอร์ดหลัก",
     reportHub: "Reports Hub",
     itManager: "รายงาน IT Manager",
-    executive: "ภาพรวมผู้บริหาร",
+    executive: "Executive Overview",
+    notebookApprovals: "อนุมัติยืม Notebook",
     assetsOverview: "Asset Overview",
     assetsManagement: "จัดการสินทรัพย์",
     signOut: "ออกจากระบบ",
     signingOut: "กำลังออกจากระบบ...",
     signedOut: "ออกจากระบบแล้ว",
     signOutError: "ไม่สามารถออกจากระบบได้",
-    roleLabel: "บทบาท",
     backFallback: "ย้อนกลับ",
-    role: {
-      admin: "Admin",
-      executive: "Executive",
-      it_manager: "IT Manager",
-      it_support: "IT Support",
-      auditor: "Auditor",
-      user: "User",
-    },
   },
   en: {
-    badge: "Report Navigation",
-    subtitle: "Switch reports, change language, and return to the main workspace from one place.",
     dashboard: "Main Dashboard",
     reportHub: "Reports Hub",
     itManager: "IT Manager Report",
     executive: "Executive Overview",
+    notebookApprovals: "Notebook Approvals",
     assetsOverview: "Assets Overview",
     assetsManagement: "Assets Management",
     signOut: "Sign out",
     signingOut: "Signing out...",
     signedOut: "Signed out",
     signOutError: "Unable to sign out",
-    roleLabel: "Role",
     backFallback: "Back",
-    role: {
-      admin: "Admin",
-      executive: "Executive",
-      it_manager: "IT Manager",
-      it_support: "IT Support",
-      auditor: "Auditor",
-      user: "User",
-    },
   },
   ko: {
-    badge: "리포트 내비게이션",
-    subtitle: "하나의 바에서 보고서 전환, 언어 변경, 메인 화면 복귀를 처리합니다.",
     dashboard: "메인 대시보드",
     reportHub: "리포트 허브",
     itManager: "IT 매니저 리포트",
     executive: "임원 개요",
+    notebookApprovals: "노트북 승인",
     assetsOverview: "자산 개요",
     assetsManagement: "자산 관리",
     signOut: "로그아웃",
     signingOut: "로그아웃 중...",
     signedOut: "로그아웃되었습니다",
     signOutError: "로그아웃할 수 없습니다",
-    roleLabel: "권한",
     backFallback: "뒤로",
-    role: {
-      admin: "관리자",
-      executive: "임원",
-      it_manager: "IT 매니저",
-      it_support: "IT 지원",
-      auditor: "감사",
-      user: "사용자",
-    },
   },
 };
 
-function NavigationPill({ active, icon: Icon, label, to }) {
+function getUserInitials(name) {
+  const normalized = String(name || "").trim();
+  if (!normalized) return "U";
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+  }
+  return normalized.slice(0, 2).toUpperCase();
+}
+
+function isRenderableAvatar(src) {
+  return /^(blob:|data:|https?:\/\/)/i.test(String(src || "").trim());
+}
+
+function NavigationPill({ active, badgeCount = 0, icon: Icon, label, to }) {
   return (
     <Link
       to={to}
-      className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
+      className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
         active
-          ? "border-slate-900 bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+          ? "border-slate-900 bg-slate-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.18)]"
           : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
       }`}
     >
       <Icon size={16} />
       <span className="whitespace-nowrap">{label}</span>
+      {badgeCount > 0 ? (
+        <span
+          className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+            active
+              ? "bg-white/20 text-white"
+              : "bg-rose-500 text-white shadow-[0_10px_20px_-12px_rgba(244,63,94,0.8)]"
+          }`}
+        >
+          {badgeCount > 99 ? "99+" : badgeCount}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -117,8 +114,9 @@ export default function ReportsTopbar({
   backLabel,
   showHub = true,
   currentUser: currentUserProp = null,
-  messengerClassName = "bottom-4 right-4 sm:bottom-6 sm:right-6",
-  messengerLauncherMode = "icon",
+  notebookApprovalBadgeCount: notebookApprovalBadgeCountProp = null,
+  messengerClassName = "bottom-4 left-4 sm:bottom-6 sm:left-6",
+  messengerLauncherMode = "pill",
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -127,14 +125,17 @@ export default function ReportsTopbar({
   const { tt } = useScopedI18n(REPORTS_TOPBAR_TRANSLATIONS);
 
   useEffect(() => {
-    if (currentUserProp) {
-      setCurrentUser(currentUserProp);
-      return;
-    }
-
     let isMounted = true;
 
     const loadCurrentUser = async () => {
+      const hasResolvedIdentity = Boolean(
+        currentUserProp?.id && (currentUserProp?.name || currentUserProp?.role),
+      );
+      if (hasResolvedIdentity) {
+        setCurrentUser(currentUserProp);
+        return;
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -150,10 +151,20 @@ export default function ReportsTopbar({
       if (!isMounted) return;
 
       setCurrentUser({
-        id: session.user.id,
-        name: profile?.full_name || profile?.employee_code || session.user.email || "User",
-        role: profile?.role || session.user.user_metadata?.role || "user",
-        avatar: profile?.avatar_url || profile?.id_card_url || session.user.user_metadata?.avatar_url || "",
+        id: currentUserProp?.id || session.user.id,
+        name:
+          currentUserProp?.name ||
+          profile?.full_name ||
+          profile?.employee_code ||
+          session.user.email ||
+          "User",
+        role: currentUserProp?.role || profile?.role || session.user.user_metadata?.role || "user",
+        avatar:
+          currentUserProp?.avatar ||
+          profile?.avatar_url ||
+          profile?.id_card_url ||
+          session.user.user_metadata?.avatar_url ||
+          "",
       });
     };
 
@@ -166,11 +177,23 @@ export default function ReportsTopbar({
 
   const messengerCurrentUser = useMemo(() => currentUser, [currentUser]);
   const currentRole = String(currentUser?.role || "").trim().toLowerCase();
-  const homeRoute = resolveHomeRoute(currentRole || "user");
-  const roleLabel = tt(`role.${currentRole || "user"}`);
+  const homeRoute = resolveWorkspaceRoute(currentRole || "user");
+  const showHubPill = showHub && backTo !== "/reports";
+  const canSeeNotebookApprovals =
+    canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.notebookApprovals) ||
+    location.pathname === "/reports/executive/notebook-approvals";
+  const {
+    pendingCount: fetchedNotebookApprovalBadgeCount,
+  } = useNotebookApprovalRealtime({
+    enabled: notebookApprovalBadgeCountProp == null && canSeeNotebookApprovals,
+  });
+  const notebookApprovalBadgeCount =
+    notebookApprovalBadgeCountProp == null
+      ? fetchedNotebookApprovalBadgeCount
+      : notebookApprovalBadgeCountProp;
 
   const navItems = [
-    showHub
+    showHubPill
       ? {
           key: "hub",
           to: "/reports",
@@ -198,6 +221,16 @@ export default function ReportsTopbar({
         location.pathname === "/reports/executive",
     },
     {
+      key: "notebook-approvals",
+      to: "/reports/executive/notebook-approvals",
+      label: tt("notebookApprovals"),
+      icon: ClipboardCheck,
+      badgeCount: notebookApprovalBadgeCount,
+      visible:
+        canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.notebookApprovals) ||
+        location.pathname === "/reports/executive/notebook-approvals",
+    },
+    {
       key: "assets-overview",
       to: "/reports/executive/assets-overview",
       label: tt("assetsOverview"),
@@ -215,7 +248,9 @@ export default function ReportsTopbar({
         ["it_support", "it_manager", "admin"].includes(currentRole) ||
         location.pathname === "/reports/executive/assets-management",
     },
-  ].filter(Boolean).filter((item) => item.visible);
+  ]
+    .filter(Boolean)
+    .filter((item) => item.visible);
 
   const isActiveRoute = (route) => {
     if (route === "/reports") return location.pathname === "/reports";
@@ -239,45 +274,49 @@ export default function ReportsTopbar({
 
   return (
     <>
-      <div className="relative z-20 mb-5 overflow-visible rounded-[2rem] border border-slate-200 bg-white/95 p-3 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur sm:p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {backTo ? (
-                <Link
-                  to={backTo}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  <ChevronLeft size={16} />
-                  {backLabel || tt("backFallback")}
-                </Link>
-              ) : null}
+      <div className="relative z-20 mb-5 overflow-visible rounded-[2rem] border border-slate-200/80 bg-white/90 p-3 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {backTo ? (
               <Link
-                to={homeRoute}
+                to={backTo}
                 className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                <Home size={16} />
-                {tt("dashboard")}
+                <ChevronLeft size={16} />
+                {backLabel || tt("backFallback")}
               </Link>
-            </div>
-
-            <div className="mt-3 min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                {tt("badge")}
-              </p>
-              <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                {tt("subtitle")}
-              </p>
-            </div>
+            ) : null}
+            <Link
+              to={homeRoute}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <Home size={16} />
+              {tt("dashboard")}
+            </Link>
           </div>
 
-          <div className="relative z-30 flex flex-wrap items-center gap-2 xl:max-w-[46rem] xl:justify-end">
-            {currentRole ? (
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
-                <span className="text-slate-400">{tt("roleLabel")}</span>
-                <span className="rounded-full bg-white px-2 py-1 text-slate-700">
-                  {roleLabel}
-                </span>
+          <div className="relative z-30 flex flex-wrap items-center gap-2 lg:justify-end">
+            {currentUser?.name ? (
+              <div
+                className="inline-flex max-w-[220px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2"
+                title={currentUser.name}
+              >
+                {isRenderableAvatar(currentUser?.avatar) ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="h-9 w-9 rounded-full border border-slate-200 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-[#2b59b0] text-xs font-black text-white">
+                    {getUserInitials(currentUser.name)}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-800">
+                    {currentUser.name}
+                  </p>
+                </div>
               </div>
             ) : null}
 
@@ -297,12 +336,13 @@ export default function ReportsTopbar({
           </div>
         </div>
 
-        <div className="mt-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <nav className="flex min-w-max items-center gap-2">
+        <div className="mt-3 border-t border-slate-200/80 pt-3">
+          <nav className="flex flex-wrap items-center gap-2">
             {navItems.map((item) => (
               <NavigationPill
                 key={item.key}
                 active={isActiveRoute(item.to)}
+                badgeCount={item.badgeCount}
                 icon={item.icon}
                 label={item.label}
                 to={item.to}

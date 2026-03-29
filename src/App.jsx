@@ -21,6 +21,7 @@ import ITManagerReportPage from "./pages/reports/ITManagerReportPage.jsx";
 import ExecutiveReportPage from "./pages/reports/ExecutiveReportPage.jsx";
 import ExecutiveAssetOverviewPage from "./pages/reports/ExecutiveAssetOverviewPage.jsx";
 import ExecutiveAssetsManagementPage from "./pages/reports/ExecutiveAssetsManagementPage.jsx";
+import ExecutiveNotebookApprovalsPage from "./pages/reports/ExecutiveNotebookApprovalsPage.jsx";
 import { REPORT_ROUTE_PERMISSIONS } from "./lib/roleAccess";
 import { Toaster } from "react-hot-toast";
 import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
@@ -92,6 +93,11 @@ function AppInner() {
       <Route path="/reports/executive" element={
         <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.executive}>
           <ExecutiveReportPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports/executive/notebook-approvals" element={
+        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.notebookApprovals}>
+          <ExecutiveNotebookApprovalsPage />
         </ProtectedRoute>
       } />
       <Route path="/reports/executive/assets-overview" element={

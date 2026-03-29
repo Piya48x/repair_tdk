@@ -641,6 +641,7 @@ export default function CentralChatDock({
   openSignal = 0,
   className = "bottom-4 left-4 sm:bottom-6 sm:left-6",
   launcherMode = "pill",
+  openSignalTarget = "support",
   onOpenChange,
 }) {
   const { language, tt } = useScopedI18n(CENTRAL_CHAT_DOCK_TRANSLATIONS);
@@ -737,6 +738,16 @@ export default function CentralChatDock({
   const [dockPosition, setDockPosition] = useState(null);
   const [isDraggingDock, setIsDraggingDock] = useState(false);
   const [presenceTick, setPresenceTick] = useState(() => Date.now());
+  const resolveOpenSignalMemberId = useCallback((target) => {
+    const normalizedTarget = String(target || "").trim();
+    if (normalizedTarget.startsWith("user:")) {
+      return normalizedTarget.slice(5).trim();
+    }
+    if (normalizedTarget.startsWith("member:")) {
+      return normalizedTarget.slice(7).trim();
+    }
+    return "";
+  }, []);
   const dockInlineStyle = useMemo(() => {
     if (isMobileViewport) {
       if (!isOpen) {
@@ -1962,10 +1973,21 @@ export default function CentralChatDock({
 
   useEffect(() => {
     if (!pendingSupportOpenRef.current) return;
+    if (openSignalTarget === "list") {
+      pendingSupportOpenRef.current = false;
+      setMobileThreadVisible(false);
+      return;
+    }
+    const directMemberId = resolveOpenSignalMemberId(openSignalTarget);
+    if (directMemberId) {
+      pendingSupportOpenRef.current = false;
+      selectMember(directMemberId);
+      return;
+    }
     if (!directoryMembers.length) return;
     pendingSupportOpenRef.current = false;
     chooseDefaultSupportMember();
-  }, [chooseDefaultSupportMember, directoryMembers]);
+  }, [chooseDefaultSupportMember, directoryMembers, openSignalTarget, resolveOpenSignalMemberId, selectMember]);
 
   useEffect(() => {
     if (!stickerPickerOpen) return undefined;

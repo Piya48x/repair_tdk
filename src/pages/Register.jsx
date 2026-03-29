@@ -6,6 +6,7 @@ const WORK_LOCATION_OPTIONS = ["MIANOFFICE", "DS", "DV", "PL", "MK", "SQ", "D1",
 
 const REGISTER_TRANSLATIONS = {
   th: {
+    imageRequired: "กรุณาแนบรูปภาพก่อนลงทะเบียน",
     uploadFailed: "อัปโหลดรูปบัตรไม่สำเร็จ: {{message}}",
     acceptPolicyError: "กรุณายินยอมนโยบายก่อนลงทะเบียน",
     passwordMismatch: "รหัสผ่านไม่ตรงกัน",
@@ -29,11 +30,13 @@ const REGISTER_TRANSLATIONS = {
     hide: "ซ่อน",
     confirmPassword: "ยืนยันรหัสผ่าน",
     document: "เอกสารยืนยันตัวตน",
-    policy: "ข้าพเจ้ายินยอมให้บริษัทใช้ข้อมูลส่วนบุคคลนี้ เพื่อการแจ้งซ่อม การติดต่อ และเพื่อความรวดเร็วในการดำเนินการด้าน IT ภายในองค์กรเท่านั้น",
+    policy:
+      "ข้าพเจ้ายินยอมให้บริษัทใช้ข้อมูลส่วนบุคคลนี้ เพื่อการแจ้งซ่อม การติดต่อ และเพื่อความรวดเร็วในการดำเนินการด้าน IT ภายในองค์กรเท่านั้น",
     submitting: "กำลังดำเนินการ...",
     submit: "ลงทะเบียนเข้าใช้งาน",
   },
   en: {
+    imageRequired: "Please attach an image before registering.",
     uploadFailed: "ID card upload failed: {{message}}",
     acceptPolicyError: "Please accept the policy before registering.",
     passwordMismatch: "Passwords do not match.",
@@ -57,11 +60,13 @@ const REGISTER_TRANSLATIONS = {
     hide: "Hide",
     confirmPassword: "Confirm password",
     document: "Identity document",
-    policy: "I consent to the company using this personal information for repair requests, communication, and faster internal IT operations only.",
+    policy:
+      "I consent to the company using this personal information for repair requests, communication, and faster internal IT operations only.",
     submitting: "Processing...",
     submit: "Register account",
   },
   ko: {
+    imageRequired: "등록 전에 이미지를 첨부해 주세요.",
     uploadFailed: "신분증 이미지 업로드 실패: {{message}}",
     acceptPolicyError: "등록 전에 정책에 동의해 주세요.",
     passwordMismatch: "비밀번호가 일치하지 않습니다.",
@@ -85,7 +90,8 @@ const REGISTER_TRANSLATIONS = {
     hide: "숨기기",
     confirmPassword: "비밀번호 확인",
     document: "신원 확인 서류",
-    policy: "수리 요청, 연락, 그리고 내부 IT 업무의 신속한 처리를 위해 회사가 이 개인정보를 사용하는 것에 동의합니다.",
+    policy:
+      "수리 요청, 연락, 그리고 내부 IT 업무의 신속한 처리를 위해 회사가 이 개인정보를 사용하는 것에 동의합니다.",
     submitting: "처리 중...",
     submit: "계정 등록",
   },
@@ -119,19 +125,14 @@ export default function Register({ onRegister, loading }) {
       const fileExt = idCardFile.name.split(".").pop();
       const fileName = `${employeeCode.toUpperCase()}_id_${Date.now()}.${fileExt}`;
 
-      const { error } = await supabase.storage
-        .from("id-cards")
-        .upload(fileName, idCardFile, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+      const { error } = await supabase.storage.from("id-cards").upload(fileName, idCardFile, {
+        cacheControl: "3600",
+        upsert: false,
+      });
 
       if (error) throw error;
 
-      const { data } = supabase.storage
-        .from("id-cards")
-        .getPublicUrl(fileName);
-
+      const { data } = supabase.storage.from("id-cards").getPublicUrl(fileName);
       return data.publicUrl;
     } catch (err) {
       alert(tt("uploadFailed", { message: err.message }));
@@ -143,6 +144,11 @@ export default function Register({ onRegister, loading }) {
 
   const handleSubmitRegister = async (event) => {
     event.preventDefault();
+
+    if (!idCardFile) {
+      alert(tt("imageRequired"));
+      return;
+    }
 
     if (!acceptPolicy) {
       alert(tt("acceptPolicyError"));
@@ -165,7 +171,7 @@ export default function Register({ onRegister, loading }) {
     }
 
     const idCardUrl = await handleUploadIdCard();
-    if (idCardFile && !idCardUrl) return;
+    if (!idCardUrl) return;
 
     onRegister({
       fullName,
@@ -186,13 +192,13 @@ export default function Register({ onRegister, loading }) {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">{tt("title")}</h2>
-        <p className="text-slate-500 mt-2">{tt("subtitle")}</p>
+        <h2 className="text-3xl font-black tracking-tight text-slate-900">{tt("title")}</h2>
+        <p className="mt-2 text-slate-500">{tt("subtitle")}</p>
       </div>
 
       <form onSubmit={handleSubmitRegister} className="space-y-6">
         <div className="space-y-4">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">{tt("employeeInfo")}</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">{tt("employeeInfo")}</h3>
 
           <input
             type="text"
@@ -200,7 +206,7 @@ export default function Register({ onRegister, loading }) {
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
             required
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
           />
 
           <input
@@ -210,17 +216,17 @@ export default function Register({ onRegister, loading }) {
             onChange={(event) => setEmail(event.target.value.toLowerCase().trim())}
             required
             autoComplete="email"
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <input
               type="text"
               placeholder={tt("firstNameEn")}
               value={firstNameEn}
               onChange={(event) => setFirstNameEn(event.target.value.replace(/[^a-zA-Z]/g, ""))}
               required
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="text"
@@ -228,7 +234,7 @@ export default function Register({ onRegister, loading }) {
               value={lastNameEn}
               onChange={(event) => setLastNameEn(event.target.value.replace(/[^a-zA-Z]/g, ""))}
               required
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -238,30 +244,31 @@ export default function Register({ onRegister, loading }) {
             value={employeeCode}
             onChange={(event) => setEmployeeCode(event.target.value.toUpperCase())}
             required
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 font-bold uppercase focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500"
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <input
               type="text"
               placeholder={tt("department")}
               value={department}
               onChange={(event) => setDepartment(event.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="text"
               placeholder={tt("position")}
               value={position}
               onChange={(event) => setPosition(event.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
           <select
             value={location}
             onChange={(event) => setLocation(event.target.value)}
             required
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="" disabled>
               {tt("location")}
@@ -275,7 +282,7 @@ export default function Register({ onRegister, loading }) {
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">{tt("security")}</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">{tt("security")}</h3>
 
           <input
             type="tel"
@@ -283,7 +290,7 @@ export default function Register({ onRegister, loading }) {
             value={phone}
             onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))}
             required
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
           />
 
           <div className="relative">
@@ -295,7 +302,7 @@ export default function Register({ onRegister, loading }) {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="button"
@@ -314,36 +321,37 @@ export default function Register({ onRegister, loading }) {
             required
             minLength={8}
             autoComplete="new-password"
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">{tt("document")}</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">{tt("document")}</h3>
           <input
             type="file"
             accept="image/*"
-            onChange={(event) => setIdCardFile(event.target.files[0])}
+            required
+            onChange={(event) => setIdCardFile(event.target.files?.[0] || null)}
             className="w-full text-sm"
           />
         </div>
 
-        <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <input
             type="checkbox"
             checked={acceptPolicy}
             onChange={(event) => setAcceptPolicy(event.target.checked)}
-            className="mt-1 w-5 h-5 text-blue-600"
+            className="mt-1 h-5 w-5 text-blue-600"
           />
-          <p className="text-sm text-slate-600 leading-relaxed">{tt("policy")}</p>
+          <p className="text-sm leading-relaxed text-slate-600">{tt("policy")}</p>
         </div>
 
         <button
           type="submit"
           disabled={loading || uploadingImage}
-          className={`w-full py-4 rounded-2xl font-black text-white transition-all ${
+          className={`w-full rounded-2xl py-4 font-black text-white transition-all ${
             loading || uploadingImage
-              ? "bg-slate-400 cursor-not-allowed"
+              ? "cursor-not-allowed bg-slate-400"
               : "bg-blue-600 hover:bg-blue-700 active:scale-[0.98]"
           }`}
         >

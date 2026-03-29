@@ -13,6 +13,10 @@ import {
 import Swal from "sweetalert2";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import {
+    getTicketStatusLabel,
+    stripTicketStatusDetailFromParts,
+} from "../../../lib/ticketRepairStatus";
 
 export const getStatusColor = (status, theme) => {
     switch (status) {
@@ -49,16 +53,7 @@ export const getStatusBgColor = (status, theme) => {
 };
 
 export const getStatusText = (status) => {
-    switch (status) {
-        case "NEW":
-            return "ใหม่";
-        case "IN_PROGRESS":
-            return "กำลังดำเนินการ";
-        case "CLOSED":
-            return "ปิดงานแล้ว";
-        default:
-            return status;
-    }
+    return getTicketStatusLabel(status);
 };
 
 export const getPriorityColor = (priority, theme) => {
@@ -247,7 +242,7 @@ export const handleExportExcelWithImages = async (
             const row = worksheet.addRow({
                 no: i + 1,
                 ticketId: ticket.ticket_no || `IT-${ticket.id.toString().padStart(5, "0")}`,
-                status: getStatusText(ticket.status),
+                status: getStatusText(ticket),
                 priority: getPriorityText(ticket.priority),
                 title: ticket.title || "-",
                 reporterName: ticket.reporter_name || "-",
@@ -266,7 +261,7 @@ export const handleExportExcelWithImages = async (
                 startDate: startedDate ? startedDate.toLocaleDateString("th-TH") : "-",
                 startTime: startedDate ? startedDate.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "-",
                 solution: ticket.solution_note || "-",
-                parts: ticket.parts_used || "-",
+                parts: stripTicketStatusDetailFromParts(ticket.parts_used) || "-",
                 closedDate: closedDate ? closedDate.toLocaleDateString("th-TH") : "-",
                 closedTime: closedDate ? closedDate.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "-",
                 closedBy: ticket.closed_by_name || "-",
@@ -378,7 +373,7 @@ export const handleExportExcelWithImages = async (
 
         const statusStats = {};
         ticketsToExport.forEach((ticket) => {
-            const status = getStatusText(ticket.status);
+            const status = getStatusText(ticket);
             statusStats[status] = (statusStats[status] || 0) + 1;
         });
 

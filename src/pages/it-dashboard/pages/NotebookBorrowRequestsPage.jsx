@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock3,
+  Download,
   Laptop,
   Loader2,
   MapPin,
@@ -11,6 +12,8 @@ import {
   ShieldCheck,
   Image as ImageIcon,
 } from "lucide-react";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 import toast from "react-hot-toast";
 import { supabase } from "../../../lib/supabaseClient";
 import {
@@ -30,6 +33,7 @@ const NOTEBOOK_PROOF_BUCKET = "notebook-borrow-proof";
 const NOTEBOOK_PROOF_PUBLIC_BASE = SUPABASE_URL
   ? `${SUPABASE_URL}/storage/v1/object/public/${NOTEBOOK_PROOF_BUCKET}`
   : "";
+const NOTEBOOK_QUEUE_REFRESH_INTERVAL_MS = 15000;
 
 const LOG_STATUS_META = {
   [NOTEBOOK_LOG_STATUS.PENDING]: {
@@ -68,6 +72,27 @@ const formatDuration = (startValue, endValue) => {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "-";
   return formatNotebookDuration(start, end);
 };
+
+const formatExportDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const toNotebookRequestNo = (row) => `NB-${String(row?.log_id || "").padStart(5, "0") || "00000"}`;
+
+const getLogStatusLabel = (status) =>
+  LOG_STATUS_META[String(status || "").trim().toLowerCase()]?.label || normalizeText(status) || "-";
+
+const getNotebookStatusLabel = (status) =>
+  NOTEBOOK_STATUS_META[String(status || "").trim().toLowerCase()]?.label || normalizeText(status) || "-";
 
 const resolveBorrowerAvatarUrl = (row, profile, displayName) =>
   normalizeText(
@@ -276,7 +301,120 @@ async function resolveNotebookProofFromStorage(row, kind) {
   return data?.publicUrl || "";
 }
 
-const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
+async function fetchImageAsPngBase64(url, maxSize = 440) {
+  if (!url || typeof document === "undefined") return null;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Cannot fetch image: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(blob);
+    const image = new Image();
+
+    image.onload = () => {
+      const longestSide = Math.max(image.width, image.height) || 1;
+      const scale = Math.min(1, maxSize / longestSide);
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Canvas context unavailable"));
+        return;
+      }
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      URL.revokeObjectURL(objectUrl);
+      resolve({
+        base64: canvas.toDataURL("image/png"),
+        width,
+        height,
+      });
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Image load failed"));
+    };
+
+    image.src = objectUrl;
+  });
+}
+
+function columnWidthToPixels(width = 8.43) {
+  if (width <= 1) return Math.round(width * 12);
+  return Math.round(width * 7 + 5);
+}
+
+function rowHeightToPixels(height = 15) {
+  return Math.round((height * 96) / 72);
+}
+
+function getImagePlacement({ worksheet, rowNumber, columnNumber, imageWidth, imageHeight, padding = 6 }) {
+  const columnWidth = columnWidthToPixels(worksheet.getColumn(columnNumber).width || 8.43);
+  const rowHeight = rowHeightToPixels(worksheet.getRow(rowNumber).height || worksheet.properties.defaultRowHeight || 15);
+  const availableWidth = Math.max(columnWidth - (padding * 2), 24);
+  const availableHeight = Math.max(rowHeight - (padding * 2), 24);
+  const scale = Math.min(availableWidth / imageWidth, availableHeight / imageHeight, 1);
+  const drawWidth = Math.max(1, Math.round(imageWidth * scale));
+  const drawHeight = Math.max(1, Math.round(imageHeight * scale));
+  const offsetX = Math.max(0, Math.round((columnWidth - drawWidth) / 2));
+  const offsetY = Math.max(0, Math.round((rowHeight - drawHeight) / 2));
+
+  return {
+    tl: {
+      col: (columnNumber - 1) + (offsetX / Math.max(columnWidth, 1)),
+      row: (rowNumber - 1) + (offsetY / Math.max(rowHeight, 1)),
+    },
+    ext: {
+      width: drawWidth,
+      height: drawHeight,
+    },
+  };
+}
+
+async function addImageToWorksheet({ workbook, worksheet, rowNumber, columnNumber, imageUrl }) {
+  if (!imageUrl) return false;
+
+  try {
+    const imageData = await fetchImageAsPngBase64(imageUrl);
+    if (!imageData?.base64) return false;
+
+    const imageId = workbook.addImage({
+      base64: imageData.base64,
+      extension: "png",
+    });
+    const placement = getImagePlacement({
+      worksheet,
+      rowNumber,
+      columnNumber,
+      imageWidth: imageData.width,
+      imageHeight: imageData.height,
+    });
+
+    worksheet.addImage(imageId, {
+      tl: placement.tl,
+      ext: placement.ext,
+      editAs: "oneCell",
+    });
+
+    return true;
+  } catch (error) {
+    console.warn("Unable to embed notebook proof image", imageUrl, error);
+    return false;
+  }
+}
+
+const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = false }) => {
   const channelRef = useRef(null);
   const proofLookupAttemptedRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
@@ -286,6 +424,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingId, setUpdatingId] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [proofUrlOverrides, setProofUrlOverrides] = useState({});
 
   const loadQueue = useCallback(async ({ silent = false } = {}) => {
@@ -339,7 +478,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
       if (isNotebookSchemaError(error)) {
         setErrorMessage("ยังไม่ได้ติดตั้ง schema notebook borrowing");
       } else if (isNotebookPermissionDenied(error)) {
-        setErrorMessage("สิทธิ์ไม่พอหรือ role ยังไม่ผ่าน notebook RLS (ต้องเป็น it_support/admin/it_manager และรัน SQL ล่าสุด)");
+        setErrorMessage("สิทธิ์ไม่พอหรือ role ยังไม่ผ่าน notebook approvals RLS (ต้องเป็น executive / it_support / admin / it_manager และรัน SQL ล่าสุด)");
       } else {
         setErrorMessage("ไม่สามารถโหลดรายการยืม-คืนโน้ตบุ๊กได้");
       }
@@ -351,7 +490,14 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
   }, []);
 
   useEffect(() => {
-    loadQueue();
+    let isMounted = true;
+
+    const refreshQueue = () => {
+      if (!isMounted) return;
+      void loadQueue({ silent: true });
+    };
+
+    void loadQueue();
 
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
@@ -360,14 +506,37 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
     channelRef.current = supabase
       .channel("admin-notebook-borrow-queue")
       .on("postgres_changes", { event: "*", schema: "public", table: "borrow_logs" }, () => {
-        loadQueue({ silent: true });
+        refreshQueue();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "notebooks" }, () => {
-        loadQueue({ silent: true });
+        refreshQueue();
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          refreshQueue();
+        }
+      });
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshQueue();
+      }
+    }, NOTEBOOK_QUEUE_REFRESH_INTERVAL_MS);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshQueue();
+      }
+    };
+
+    window.addEventListener("focus", refreshQueue);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshQueue);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
@@ -481,6 +650,232 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
     });
   }, [queue, searchQuery, statusFilter]);
 
+  const statusFilterLabel = useMemo(() => {
+    if (statusFilter === "ALL") return "ทุกสถานะ";
+    return getLogStatusLabel(statusFilter);
+  }, [statusFilter]);
+
+  const handleExportExcel = useCallback(async () => {
+    if (filteredQueue.length === 0 || exporting) return;
+
+    setExporting(true);
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = currentUser?.name || "Notebook Approval Desk";
+      workbook.lastModifiedBy = currentUser?.name || "Notebook Approval Desk";
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      const worksheet = workbook.addWorksheet("Notebook Approvals", {
+        views: [{ state: "frozen", ySplit: 4 }],
+      });
+
+      const columns = [
+        { header: "Request No.", key: "requestNo", width: 14 },
+        { header: "Approval Status", key: "status", width: 18 },
+        { header: "Asset Code", key: "assetCode", width: 16 },
+        { header: "Notebook Model", key: "model", width: 28 },
+        { header: "Borrower", key: "borrower", width: 24 },
+        { header: "Role", key: "role", width: 16 },
+        { header: "Requested At", key: "requestedAt", width: 22 },
+        { header: "Borrow Time", key: "borrowTime", width: 22 },
+        { header: "Return Time", key: "returnTime", width: 22 },
+        { header: "Duration", key: "duration", width: 16 },
+        { header: "Notebook Status", key: "notebookStatus", width: 18 },
+        { header: "Location", key: "location", width: 22 },
+        { header: "Reason", key: "reason", width: 34 },
+        { header: "Approved By", key: "approvedBy", width: 22 },
+        { header: "Confirmed By", key: "confirmedBy", width: 22 },
+        { header: "Before Proof", key: "beforeProof", width: 24 },
+        { header: "Return Proof", key: "returnProof", width: 24 },
+      ];
+
+      worksheet.columns = columns.map((column) => ({
+        key: column.key,
+        width: column.width,
+      }));
+
+      worksheet.mergeCells(1, 1, 1, columns.length);
+      worksheet.mergeCells(2, 1, 2, columns.length);
+      worksheet.mergeCells(3, 1, 3, columns.length);
+
+      const titleCell = worksheet.getCell("A1");
+      titleCell.value = "Executive Notebook Approvals";
+      titleCell.font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } };
+      titleCell.alignment = { vertical: "middle", horizontal: "left" };
+      titleCell.fill = {
+        type: "gradient",
+        gradient: "angle",
+        degree: 0,
+        stops: [
+          { position: 0, color: { argb: "0F172A" } },
+          { position: 0.55, color: { argb: "1D4ED8" } },
+          { position: 1, color: { argb: "06B6D4" } },
+        ],
+      };
+
+      const subtitleCell = worksheet.getCell("A2");
+      subtitleCell.value = `Generated ${formatExportDateTime(new Date())} | Status ${statusFilterLabel} | Rows ${filteredQueue.length}`;
+      subtitleCell.font = { size: 11, color: { argb: "0F172A" } };
+      subtitleCell.alignment = { vertical: "middle", horizontal: "left" };
+      subtitleCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "E2E8F0" },
+      };
+
+      const filterSummaryCell = worksheet.getCell("A3");
+      filterSummaryCell.value = `Search ${normalizeText(searchQuery) || "-"} | Exported by ${currentUser?.name || "Approval Desk"}`;
+      filterSummaryCell.font = { size: 10, color: { argb: "475569" }, italic: true };
+      filterSummaryCell.alignment = { vertical: "middle", horizontal: "left" };
+      filterSummaryCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "F8FAFC" },
+      };
+
+      worksheet.getRow(1).height = 28;
+      worksheet.getRow(2).height = 20;
+      worksheet.getRow(3).height = 18;
+
+      const headerRow = worksheet.getRow(4);
+      headerRow.values = columns.map((column) => column.header);
+      headerRow.height = 22;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "0F766E" },
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+        cell.border = {
+          top: { style: "thin", color: { argb: "0B5E57" } },
+          left: { style: "thin", color: { argb: "0B5E57" } },
+          bottom: { style: "thin", color: { argb: "0B5E57" } },
+          right: { style: "thin", color: { argb: "0B5E57" } },
+        };
+      });
+
+      worksheet.autoFilter = {
+        from: { row: 4, column: 1 },
+        to: { row: 4, column: columns.length },
+      };
+
+      const beforeProofColumnNumber = columns.findIndex((column) => column.key === "beforeProof") + 1;
+      const returnProofColumnNumber = columns.findIndex((column) => column.key === "returnProof") + 1;
+
+      for (const [index, row] of filteredQueue.entries()) {
+        const beforeKey = `before:${row.log_id}`;
+        const returnKey = `return:${row.log_id}`;
+        const beforeImageUrl = proofUrlOverrides[beforeKey] || resolveNotebookProofUrl(row.image_url);
+        const returnImageUrl = proofUrlOverrides[returnKey] || resolveNotebookProofUrl(row.return_image_url);
+        const borrowerProfile = borrowerProfiles[String(row?.user_id || "").trim()] || null;
+        const borrowerName =
+          decodePossibleMojibake(row.user_name) ||
+          decodePossibleMojibake(borrowerProfile?.full_name) ||
+          "-";
+
+        const excelRow = worksheet.addRow({
+          requestNo: toNotebookRequestNo(row),
+          status: getLogStatusLabel(row.status),
+          assetCode: row.asset_code || "-",
+          model: row.model || "-",
+          borrower: borrowerName,
+          role: decodePossibleMojibake(row.user_role) || "-",
+          requestedAt: formatExportDateTime(row.requested_at),
+          borrowTime: formatExportDateTime(row.borrow_time || row.requested_at),
+          returnTime: formatExportDateTime(row.return_time),
+          duration: formatDuration(row.borrow_time, row.return_time),
+          notebookStatus: getNotebookStatusLabel(row.notebook_status),
+          location: decodePossibleMojibake(row.location) || "-",
+          reason: decodePossibleMojibake(row.reason) || "-",
+          approvedBy: decodePossibleMojibake(row.approved_by_name) || "-",
+          confirmedBy: decodePossibleMojibake(row.confirmed_by_name) || "-",
+          beforeProof: beforeImageUrl ? "" : "-",
+          returnProof: returnImageUrl ? "" : "-",
+        });
+
+        const hasProofImage = Boolean(beforeImageUrl || returnImageUrl);
+        excelRow.height = hasProofImage ? 96 : 36;
+        excelRow.eachCell((cell) => {
+          cell.alignment = { vertical: hasProofImage ? "middle" : "top", horizontal: "left", wrapText: true };
+          cell.border = {
+            top: { style: "thin", color: { argb: "E2E8F0" } },
+            left: { style: "thin", color: { argb: "E2E8F0" } },
+            bottom: { style: "thin", color: { argb: "E2E8F0" } },
+            right: { style: "thin", color: { argb: "E2E8F0" } },
+          };
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: index % 2 === 0 ? "FFFFFF" : "F8FAFC" },
+          };
+        });
+
+        const beforeCell = excelRow.getCell("beforeProof");
+        beforeCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+
+        const returnCell = excelRow.getCell("returnProof");
+        returnCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+
+        const [embeddedBefore, embeddedReturn] = await Promise.all([
+          beforeImageUrl
+            ? addImageToWorksheet({
+              workbook,
+              worksheet,
+              rowNumber: excelRow.number,
+              columnNumber: beforeProofColumnNumber,
+              imageUrl: beforeImageUrl,
+            })
+            : Promise.resolve(false),
+          returnImageUrl
+            ? addImageToWorksheet({
+              workbook,
+              worksheet,
+              rowNumber: excelRow.number,
+              columnNumber: returnProofColumnNumber,
+              imageUrl: returnImageUrl,
+            })
+            : Promise.resolve(false),
+        ]);
+
+        if (beforeImageUrl && !embeddedBefore) {
+          beforeCell.value = { text: "Open proof", hyperlink: beforeImageUrl, tooltip: beforeImageUrl };
+          beforeCell.font = { color: { argb: "2563EB" }, underline: true };
+        }
+
+        if (returnImageUrl && !embeddedReturn) {
+          returnCell.value = { text: "Open proof", hyperlink: returnImageUrl, tooltip: returnImageUrl };
+          returnCell.font = { color: { argb: "2563EB" }, underline: true };
+        }
+      }
+
+      const fileStamp = new Date().toISOString().slice(0, 10);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      saveAs(blob, `executive-notebook-approvals-${fileStamp}.xlsx`);
+      toast.success("Export Excel เรียบร้อย");
+    } catch (error) {
+      console.error("Export notebook approvals error:", error);
+      toast.error("Export Excel ไม่สำเร็จ");
+    } finally {
+      setExporting(false);
+    }
+  }, [
+    borrowerProfiles,
+    currentUser?.name,
+    exporting,
+    filteredQueue,
+    proofUrlOverrides,
+    searchQuery,
+    statusFilterLabel,
+  ]);
+
   const handleApprove = useCallback(
     async (logId) => {
       if (!logId) return;
@@ -523,9 +918,11 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
     [loadQueue],
   );
 
+  const isDarkTheme = theme === "dark";
+
   return (
     <>
-      <section className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      {!embedded ? <section className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
             อนุมัติยืม-คืนโน้ตบุ๊ก
@@ -539,36 +936,76 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
           <Laptop size={14} />
           {currentUser?.name || "IT Desk"}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
+      <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <article className={`relative overflow-hidden rounded-[1.4rem] border p-4 shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] ${uiTheme.surfaceCard}`}>
+          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-slate-900 via-[#2b59b0] to-cyan-500" />
           <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ทั้งหมด</p>
           <p className="mt-1.5 text-2xl font-black text-[#2b59b0]">{summary.total}</p>
         </article>
-        <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
+        <article className={`relative overflow-hidden rounded-[1.4rem] border p-4 shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] ${uiTheme.surfaceCard}`}>
+          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500" />
           <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>รออนุมัติ</p>
           <p className="mt-1.5 text-2xl font-black text-amber-500">{summary.pending}</p>
         </article>
-        <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
+        <article className={`relative overflow-hidden rounded-[1.4rem] border p-4 shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] ${uiTheme.surfaceCard}`}>
+          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#2b59b0] via-sky-500 to-cyan-400" />
           <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>กำลังยืม</p>
           <p className="mt-1.5 text-2xl font-black text-blue-500">{summary.active}</p>
         </article>
-        <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
+        <article className={`relative overflow-hidden rounded-[1.4rem] border p-4 shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] ${uiTheme.surfaceCard}`}>
+          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-400" />
           <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>คืนแล้ว</p>
           <p className="mt-1.5 text-2xl font-black text-emerald-500">{summary.returned}</p>
         </article>
       </section>
 
-      <section className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <section className={`rounded-[1.6rem] border p-4 shadow-[0_20px_45px_-28px_rgba(15,23,42,0.22)] ${uiTheme.surfaceCard}`}>
+        <div className={`mb-4 flex flex-col gap-4 border-b pb-4 ${isDarkTheme ? "border-slate-700/80" : "border-slate-200/70"} xl:flex-row xl:items-center xl:justify-between`}>
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#2b59b0]/15 bg-[#2b59b0]/8 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#2b59b0]">
+              <Laptop size={13} />
+              Notebook approvals
+            </div>
+            <h3 className={`mt-3 text-lg font-black ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>
+              Approval Queue
+            </h3>
+            <p className={`mt-1 text-sm ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>
+              Current view {filteredQueue.length} items | {statusFilterLabel}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {currentUser?.name ? (
+              <div
+                className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold ${
+                  isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700"
+                }`}
+              >
+                <ShieldCheck size={14} className="text-[#2b59b0]" />
+                {currentUser.name}
+              </div>
+            ) : null}
+            <div
+              className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold ${
+                isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"
+              }`}
+            >
+              <Clock3 size={14} className="text-amber-500" />
+              Pending {summary.pending}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr),220px,auto,auto] xl:items-center">
           <div className="relative min-w-0 flex-1">
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="ค้นหาจาก asset code, model, ผู้ยืม, เหตุผล, สถานที่"
-              className={`w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm ${uiTheme.searchInputMobile}`}
+              className={`w-full rounded-2xl border py-2.5 pl-9 pr-3 text-sm ${uiTheme.searchInputMobile}`}
             />
           </div>
 
@@ -576,7 +1013,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className={`rounded-lg border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`}
+              className={`rounded-2xl border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`}
             >
               <option value="ALL">ทุกสถานะ</option>
               <option value={NOTEBOOK_LOG_STATUS.PENDING}>รออนุมัติ</option>
@@ -586,8 +1023,18 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser }) => {
 
             <button
               type="button"
+              onClick={() => void handleExportExcel()}
+              disabled={filteredQueue.length === 0 || exporting}
+              className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#06b6d4_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_18px_32px_-20px_rgba(29,78,216,0.65)] transition hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              Export Excel
+            </button>
+
+            <button
+              type="button"
               onClick={() => loadQueue()}
-              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold ${uiTheme.statusButton}`}
+              className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-semibold ${uiTheme.statusButton}`}
             >
               <RefreshCw size={14} />
               รีเฟรช

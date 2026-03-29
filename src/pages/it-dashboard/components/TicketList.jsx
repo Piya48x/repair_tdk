@@ -8,12 +8,12 @@ import {
   MessageSquare,
   Trash2,
   User,
-  Navigation,
   Camera,
   CheckCircle,
   Clock3,
   Building2,
   MapPin,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -25,6 +25,7 @@ import {
   formatTicketId,
 } from "../utils/ticketUtils";
 import { getITDashboardTheme } from "../theme/itDashboardTheme";
+import { getTicketStatusDetailMeta } from "../../../lib/ticketRepairStatus";
 
 const TEXT = {
   noItems: "\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e07\u0e32\u0e19",
@@ -35,7 +36,7 @@ const TEXT = {
   acceptThisJob: "\u0e23\u0e31\u0e1a\u0e07\u0e32\u0e19\u0e19\u0e35\u0e49",
   viewDetail: "\u0e14\u0e39\u0e23\u0e32\u0e22\u0e25\u0e30\u0e40\u0e2d\u0e35\u0e22\u0e14",
   caseChat: "\u0e41\u0e0a\u0e17\u0e40\u0e04\u0e2a",
-  navigate: "\u0e19\u0e33\u0e17\u0e32\u0e07",
+  recordProgress: "\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e2a\u0e16\u0e32\u0e19\u0e30",
   closeJob: "\u0e1b\u0e34\u0e14\u0e07\u0e32\u0e19",
   deleteHistory: "\u0e25\u0e1a\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34",
   repairDuration: "\u0e23\u0e30\u0e22\u0e30\u0e40\u0e27\u0e25\u0e32\u0e0b\u0e48\u0e2d\u0e21:",
@@ -105,6 +106,33 @@ const STATUS_STYLES = {
   },
 };
 
+const DETAIL_STATUS_STYLES = {
+  amber: {
+    light: "border-amber-200 bg-amber-50 text-amber-700",
+    dark: "border-amber-500/30 bg-amber-900/20 text-amber-300",
+  },
+  sky: {
+    light: "border-sky-200 bg-sky-50 text-sky-700",
+    dark: "border-sky-500/30 bg-sky-900/20 text-sky-300",
+  },
+  violet: {
+    light: "border-violet-200 bg-violet-50 text-violet-700",
+    dark: "border-violet-500/30 bg-violet-900/20 text-violet-300",
+  },
+  slate: {
+    light: "border-slate-200 bg-slate-100 text-slate-700",
+    dark: "border-slate-600 bg-slate-800 text-slate-300",
+  },
+  rose: {
+    light: "border-rose-200 bg-rose-50 text-rose-700",
+    dark: "border-rose-500/30 bg-rose-900/20 text-rose-300",
+  },
+  emerald: {
+    light: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    dark: "border-emerald-500/30 bg-emerald-900/20 text-emerald-300",
+  },
+};
+
 const TAB_COPY = {
   INCOMING: {
     label: "\u0e07\u0e32\u0e19\u0e0b\u0e48\u0e2d\u0e21",
@@ -146,10 +174,11 @@ const TicketList = ({
   historyTickets,
   currentUser,
   handleAcceptJob,
+  handleOpenCaseChat,
+  handleUpdateRepairStatus,
   handleCloseJob,
   handleDeleteTicket,
   handleViewDetails,
-  handleOpenNavigation,
 }) => {
   const uiTheme = getITDashboardTheme(theme);
   const isDark = theme === "dark";
@@ -185,14 +214,17 @@ const TicketList = ({
   const roseOutlineButtonClass = isDark
     ? "border-rose-500/40 text-rose-400 hover:bg-rose-900/20"
     : "border-rose-200 text-rose-600 hover:bg-rose-50";
+  const openCaseChat = handleOpenCaseChat || handleViewDetails;
 
   const getPriorityBadgeClass = (priority) => {
     const meta = PRIORITY_STYLES[priority] || PRIORITY_STYLES.default;
     return isDark ? meta.dark : meta.light;
   };
 
-  const getStatusBadgeClass = (status) => {
-    const meta = STATUS_STYLES[status] || STATUS_STYLES.default;
+  const getStatusBadgeClass = (ticket) => {
+    const detailMeta = getTicketStatusDetailMeta(ticket);
+    const detailStyles = detailMeta?.tone ? DETAIL_STATUS_STYLES[detailMeta.tone] : null;
+    const meta = detailStyles || STATUS_STYLES[ticket?.status] || STATUS_STYLES.default;
     return isDark ? meta.dark : meta.light;
   };
 
@@ -284,7 +316,7 @@ const TicketList = ({
       return (
         <div className="flex items-center justify-end gap-1">
           <button
-            onClick={() => handleViewDetails(ticket)}
+            onClick={() => openCaseChat(ticket)}
             className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
             title={TEXT.caseChat}
           >
@@ -312,19 +344,18 @@ const TicketList = ({
       return (
         <div className="flex items-center justify-end gap-1">
           <button
-            onClick={() => handleViewDetails(ticket)}
+            onClick={() => openCaseChat(ticket)}
             className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
             title={TEXT.caseChat}
           >
             <MessageSquare size={15} />
           </button>
           <button
-            onClick={() => handleOpenNavigation(ticket.location)}
-            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${neutralButtonClass}`}
-            disabled={!ticket.location}
+            onClick={() => handleUpdateRepairStatus(ticket)}
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${neutralButtonClass}`}
           >
-            <Navigation size={13} />
-            {TEXT.navigate}
+            <FileText size={13} />
+            {TEXT.recordProgress}
           </button>
           <button
             onClick={() => handleCloseJob(ticket)}
@@ -341,7 +372,7 @@ const TicketList = ({
       return (
         <div className="flex items-center justify-end gap-1">
           <button
-            onClick={() => handleViewDetails(ticket)}
+            onClick={() => openCaseChat(ticket)}
             className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
             title={TEXT.caseChat}
           >
@@ -368,7 +399,7 @@ const TicketList = ({
     return (
       <div className="flex items-center justify-end gap-1">
         <button
-          onClick={() => handleViewDetails(ticket)}
+          onClick={() => openCaseChat(ticket)}
           className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
           title={TEXT.caseChat}
         >
@@ -405,7 +436,7 @@ const TicketList = ({
 
         <tbody className={isDark ? "divide-y divide-slate-800" : "divide-y divide-slate-200"}>
           {filteredTickets.map((ticket) => {
-            const statusClass = getStatusBadgeClass(ticket.status);
+            const statusClass = getStatusBadgeClass(ticket);
             const referenceDate = isHistoryTab
               ? ticket.closed_at
               : ticket.updated_at || ticket.created_at;
@@ -461,7 +492,7 @@ const TicketList = ({
                   <span
                     className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass}`}
                   >
-                    {getStatusText(ticket.status)}
+                    {getStatusText(ticket)}
                   </span>
                 </td>
 
@@ -518,7 +549,7 @@ const TicketList = ({
       return (
         <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => handleViewDetails(ticket)}
+            onClick={() => openCaseChat(ticket)}
             className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
           >
             <MessageSquare size={15} />
@@ -539,19 +570,18 @@ const TicketList = ({
       return (
         <div className="grid grid-cols-3 gap-2">
           <button
-            onClick={() => handleViewDetails(ticket)}
+            onClick={() => openCaseChat(ticket)}
             className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
           >
             <MessageSquare size={15} />
             {TEXT.caseChat}
           </button>
           <button
-            onClick={() => handleOpenNavigation(ticket.location)}
-            className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${neutralButtonClass}`}
-            disabled={!ticket.location}
+            onClick={() => handleUpdateRepairStatus(ticket)}
+            className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
           >
-            <Navigation size={15} />
-            {TEXT.navigate}
+            <FileText size={15} />
+            {TEXT.recordProgress}
           </button>
           <button
             onClick={() => handleCloseJob(ticket)}
@@ -575,7 +605,7 @@ const TicketList = ({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => handleViewDetails(ticket)}
+              onClick={() => openCaseChat(ticket)}
               className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
             >
               <MessageSquare size={15} />
@@ -608,7 +638,7 @@ const TicketList = ({
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
       {filteredTickets.map((ticket) => {
         const priorityMeta = PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.default;
-        const statusClass = getStatusBadgeClass(ticket.status);
+        const statusClass = getStatusBadgeClass(ticket);
 
         return (
           <article
@@ -718,7 +748,7 @@ const TicketList = ({
 
             <div className="mt-3 flex items-center justify-between">
               <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass}`}>
-                {getStatusText(ticket.status)}
+                {getStatusText(ticket)}
               </span>
               <div className={`inline-flex items-center gap-1 text-xs ${textMuted}`}>
                 <Clock3 size={13} />

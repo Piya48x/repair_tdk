@@ -728,7 +728,7 @@ export default function ITWorkReportPanel({
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.95fr)]">
-        <article className={`${cardClass} p-5 sm:p-6`}>
+        <article className={`${cardClass} min-w-0 p-5 sm:p-6`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className={`text-xs font-bold uppercase tracking-[0.18em] ${mutedTextClass}`}>Trend overview</p>
@@ -762,7 +762,7 @@ export default function ITWorkReportPanel({
           ) : (
             <>
               <div className="mt-5 h-[300px] min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <AreaChart data={periodChartRows} margin={{ top: 8, right: 16, left: -12, bottom: 0 }}>
                     <defs>
                       <linearGradient id="report-period-gradient" x1="0" x2="0" y1="0" y2="1">
@@ -812,8 +812,8 @@ export default function ITWorkReportPanel({
           )}
         </article>
 
-        <div className="space-y-6">
-          <article className={`${cardClass} p-5 sm:p-6`}>
+        <div className="min-w-0 space-y-6">
+          <article className={`${cardClass} min-w-0 p-5 sm:p-6`}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className={`text-xs font-bold uppercase tracking-[0.18em] ${mutedTextClass}`}>Workload mix</p>
@@ -831,7 +831,7 @@ export default function ITWorkReportPanel({
             ) : (
               <>
                 <div className="mt-4 h-[220px] min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                     <BarChart data={workTypeChartData} margin={{ top: 8, right: 4, left: -18, bottom: 0 }}>
                       <CartesianGrid stroke={isDarkTheme ? "#23314a" : "#e2e8f0"} strokeDasharray="4 4" />
                       <XAxis dataKey="label" tick={{ fill: isDarkTheme ? "#94a3b8" : "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />

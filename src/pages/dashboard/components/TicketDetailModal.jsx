@@ -130,7 +130,7 @@ export default function TicketDetailModal({
 
   if (!ticket) return null;
 
-  const statusConfig = getStatusConfig(ticket.status);
+  const statusConfig = getStatusConfig(ticket);
   const priorityConfig = getPriorityConfig(ticket.priority);
   const reporterName = ticket.reporter_name || tt("reporter");
   const reporterEmpId =
@@ -140,6 +140,22 @@ export default function TicketDetailModal({
     ticket.reporter_avatar_url || buildAvatarFallback(reporterName, "2b59b0");
   const technicianAvatar =
     ticket.assigned_avatar_url || buildAvatarFallback(ticket.assigned_name || "IT", "059669");
+  const ticketLocation =
+    ticket.location ||
+    ticket.reporter_location ||
+    ticket.work_location ||
+    currentUser?.location ||
+    "-";
+  const isResolvedTicket = String(ticket.status || "").toUpperCase() === "CLOSED" || Boolean(ticket.closed_at);
+  const noteSectionClass = isResolvedTicket
+    ? "rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+    : "rounded-2xl border border-amber-200 bg-amber-50 p-4";
+  const noteHeadingClass = isResolvedTicket
+    ? "mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-emerald-700"
+    : "mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-amber-700";
+  const noteBodyClass = isResolvedTicket
+    ? "text-sm leading-relaxed text-emerald-800"
+    : "text-sm leading-relaxed text-amber-900";
 
   return (
     <div
@@ -204,7 +220,7 @@ export default function TicketDetailModal({
                   </div>
                   <div className="flex items-center justify-between gap-3 text-sm">
                     <span className="text-slate-500">{tt("location")}</span>
-                    <span className="font-semibold text-slate-800">{ticket.location || "-"}</span>
+                    <span className="font-semibold text-slate-800">{ticketLocation}</span>
                   </div>
                 </div>
               </div>
@@ -258,12 +274,12 @@ export default function TicketDetailModal({
             </section>
 
             {ticket.solution_note && (
-              <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <h3 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-emerald-700">
+              <section className={noteSectionClass}>
+                <h3 className={noteHeadingClass}>
                   <CheckCircle2 size={14} />
                   {tt("resolutionNote")}
                 </h3>
-                <p className="text-sm leading-relaxed text-emerald-800">{ticket.solution_note}</p>
+                <p className={noteBodyClass}>{ticket.solution_note}</p>
               </section>
             )}
 

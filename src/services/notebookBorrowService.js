@@ -405,6 +405,13 @@ export async function loadNotebookRequestQueue() {
   };
 }
 
+export function countPendingNotebookApprovals(rows) {
+  if (!Array.isArray(rows)) return 0;
+  return rows.filter(
+    (row) => normalizeText(row?.status).toLowerCase() === NOTEBOOK_LOG_STATUS.PENDING,
+  ).length;
+}
+
 export async function requestNotebookBorrow({
   notebookId,
   reason,

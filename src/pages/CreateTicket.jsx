@@ -23,6 +23,7 @@ import {
   Server,
   Upload,
   User,
+  MapPin,
   Wifi,
   X,
   AlertTriangle,
@@ -213,6 +214,34 @@ function inferClipboardFileName(file) {
   return `clipboard_${Date.now()}.${extension}`;
 }
 
+function resolveProfileLocation(source = {}) {
+  return (
+    source.location ||
+    source.work_location ||
+    source.workLocation ||
+    source.work_site ||
+    source.site ||
+    source["work location / site"] ||
+    ""
+  );
+}
+
+function buildProfileSnapshot(profile = {}, metadata = {}, authUser = null) {
+  return {
+    ...metadata,
+    ...profile,
+    email: profile.email || authUser?.email || metadata.email || "",
+    employee_code: profile.employee_code || metadata.employee_code || metadata.employee_id || "",
+    full_name: profile.full_name || metadata.full_name || "",
+    phone: profile.phone || metadata.phone || metadata.mobile_phone || "",
+    department: profile.department || metadata.department || "",
+    position: profile.position || metadata.position || "",
+    avatar_url: profile.avatar_url || metadata.avatar_url || null,
+    id_card_url: profile.id_card_url || metadata.id_card_url || null,
+    location: resolveProfileLocation(profile) || resolveProfileLocation(metadata),
+  };
+}
+
 const sectionAnim = {
   initial: { y: 15, opacity: 0 },
   animate: { y: 0, opacity: 1 },
@@ -233,6 +262,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     standard: "Standard",
     enterpriseEdition: "Enterprise Edition",
     supportLabel: "24/7 Support",
+    workLocation: "สถานที่",
     employeeFallback: "พนักงาน",
     defaultDepartment: "ฝ่ายเทคโนโลยีสารสนเทศ",
     defaultPosition: "เจ้าหน้าที่ระบบ",
@@ -327,6 +357,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     standard: "Standard",
     enterpriseEdition: "Enterprise Edition",
     supportLabel: "24/7 Support",
+    workLocation: "Location",
     employeeFallback: "Employee",
     defaultDepartment: "Information Technology",
     defaultPosition: "System Officer",
@@ -421,6 +452,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     standard: "표준",
     enterpriseEdition: "엔터프라이즈 에디션",
     supportLabel: "24/7 지원",
+    workLocation: "위치",
     employeeFallback: "직원",
     defaultDepartment: "정보기술부서",
     defaultPosition: "시스템 담당자",
@@ -628,14 +660,21 @@ const CreateTicket = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser();
+        const user = authUser || session.user;
+
         const { data: profile } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", session.user.id)
+          .eq("id", user.id)
           .maybeSingle();
 
-        const profileData = profile || session.user.user_metadata || {};
+        const metadata = user.user_metadata || {};
+        const profileData = buildProfileSnapshot(profile || {}, metadata, user);
         const avatarUrl = profileData.avatar_url || profileData.id_card_url || null;
+        const resolvedLocation = resolveProfileLocation(profileData);
 
         setForm((p) => ({
           ...p,
@@ -643,7 +682,7 @@ const CreateTicket = () => {
           employeeName: profileData.full_name || tt("employeeFallback"),
           department: profileData.department || tt("defaultDepartment"),
           position: profileData.position || tt("defaultPosition"),
-          location: profileData.location || "-",
+          location: resolvedLocation,
           profilePic: avatarUrl,
         }));
       } catch (err) {
@@ -804,6 +843,17 @@ const CreateTicket = () => {
       if (!user) throw new Error(tt("errors.userNotFound"));
 
       let fileUrl = null;
+      let resolvedTicketLocation = String(form.location || "").trim();
+      if (!resolvedTicketLocation) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        const profileSnapshot = buildProfileSnapshot(profile || {}, user.user_metadata || {}, user);
+        resolvedTicketLocation = resolveProfileLocation(profileSnapshot);
+      }
       if (form.attachment) {
         try {
           const ext = form.attachment.name.split('.').pop();
@@ -833,7 +883,7 @@ const CreateTicket = () => {
         reporter_avatar_url: form.profilePic || null,
         reporter_email: user.email || "",
         department: form.department,
-        location: form.location || null,
+        location: resolvedTicketLocation || null,
         category: form.category,
         title: form.issue.substring(0, 60),
         description: form.issue,
@@ -1057,6 +1107,13 @@ const CreateTicket = () => {
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <Building size={16} className="text-indigo-500" />
                       <span className="font-medium">{form.department || tt("defaultDepartment")}</span>
+                    </div>
+                    <div className="w-px h-4 bg-slate-200" />
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <MapPin size={16} className="text-indigo-500" />
+                      <span className="font-medium">
+                        {tt("workLocation")}: {String(form.location || "").trim() || "-"}
+                      </span>
                     </div>
                   </div>
                 </div>

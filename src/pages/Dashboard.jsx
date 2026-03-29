@@ -51,6 +51,10 @@ import CentralChatDock from "../components/CentralChatDock";
 import LanguageSwitcher from "../components/LanguageSwitcher.jsx";
 import { loadMyNotebookBorrowLogs, NOTEBOOK_LOG_STATUS } from "../services/notebookBorrowService";
 import { isPickUpEquipmentRequest, splitTicketBuckets } from "../lib/serviceRequestUtils";
+import {
+  getTicketStatusDetailMeta,
+  getTicketStatusLabel,
+} from "../lib/ticketRepairStatus";
 import tdkLogo from "../../src/assets/2.png";
 
 const MEETING_ROOMS = ["Room A", "Room B", "Room C", "Room D"];
@@ -1271,7 +1275,7 @@ function buildTicketStatusNotification(previousTicket, nextTicket, rt) {
 
   return {
     title: rt("notifications.updatedTitle"),
-    message: rt("notifications.updatedMessage", { ticketNo, status: statusLabels[nextStatus] || nextStatus }),
+    message: rt("notifications.updatedMessage", { ticketNo, status: getTicketStatusLabel(nextTicket || nextStatus) }),
     tone: "rose",
   };
 }
@@ -1476,6 +1480,22 @@ export default function Dashboard() {
   const notificationTimeoutsRef = useRef(new Map());
   const quickActionsSectionRef = useRef(null);
 
+  const hydrateTicketLocation = useCallback(
+    (ticket, fallbackLocation = "") => {
+      if (!ticket) return ticket;
+      return {
+        ...ticket,
+        location:
+          String(ticket?.location || "").trim() ||
+          String(ticket?.reporter_location || "").trim() ||
+          String(ticket?.work_location || "").trim() ||
+          String(fallbackLocation || "").trim() ||
+          "",
+      };
+    },
+    [],
+  );
+
   useEffect(() => {
     if (typeof window === "undefined") {
       setChartsReady(true);
@@ -1499,6 +1519,8 @@ export default function Dashboard() {
       supabase.removeChannel(channelRef.current);
     }
 
+    const fallbackLocation = String(profile?.location || "").trim();
+
     const channel = supabase
       .channel(`tickets-user-${userId}`)
       .on(
@@ -1514,11 +1536,15 @@ export default function Dashboard() {
           const affectedId = payload.new?.id || payload.old?.id;
           const nextRow = payload.new || payload.old;
           const nextIsBorrowRequest = payload.eventType !== "DELETE" && isPickUpEquipmentRequest(nextRow);
+          const hydratedNewRow =
+            payload.eventType === "DELETE"
+              ? null
+              : hydrateTicketLocation(payload.new, fallbackLocation);
 
           const updateRows = (currentRows, shouldKeepRow) => {
             const remainingRows = currentRows.filter((row) => row.id !== affectedId);
             if (payload.eventType === "DELETE" || !shouldKeepRow) return remainingRows;
-            return [payload.new, ...remainingRows].sort(
+            return [hydratedNewRow, ...remainingRows].sort(
               (left, right) => new Date(right?.created_at || right?.updated_at || 0).getTime() - new Date(left?.created_at || left?.updated_at || 0).getTime(),
             );
           };
@@ -1542,7 +1568,7 @@ export default function Dashboard() {
 
     // à¹€à¸à¹‡à¸šà¹„à¸§à¹‰à¹ƒà¸™ Ref (à¹„à¸¡à¹ˆà¸—à¸³à¹ƒà¸«à¹‰à¹€à¸à¸´à¸” Re-render)
     channelRef.current = channel;
-  }, [rt]); // Dependency à¹€à¸›à¹‡à¸™à¸§à¹ˆà¸²à¸‡à¹€à¸›à¸¥à¹ˆà¸²à¹€à¸žà¸·à¹ˆà¸­à¹„à¸¡à¹ˆà¹ƒà¸«à¹‰à¹€à¸à¸´à¸”à¸à¸²à¸£à¸ªà¸£à¹‰à¸²à¸‡ function à¹ƒà¸«à¸¡à¹ˆà¸§à¸™à¸¥à¸¹à¸›
+  }, [hydrateTicketLocation, profile?.location, rt]); // Dependency à¹€à¸›à¹‡à¸™à¸§à¹ˆà¸²à¸‡à¹€à¸›à¸¥à¹ˆà¸²à¹€à¸žà¸·à¹ˆà¸­à¹„à¸¡à¹ˆà¹ƒà¸«à¹‰à¹€à¸à¸´à¸”à¸à¸²à¸£à¸ªà¸£à¹‰à¸²à¸‡ function à¹ƒà¸«à¸¡à¹ˆà¸§à¸™à¸¥à¸¹à¸›
 
   const fetchMeetingRoomBookings = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setMeetingRoomLoading(true);
@@ -1793,8 +1819,11 @@ export default function Dashboard() {
       if (ticketsRes.data) {
         const ticketsData = ticketsRes.data || [];
         const { repairTickets, serviceRequests } = splitTicketBuckets(ticketsData);
-        setTickets(repairTickets);
-        setBorrowRequests(serviceRequests);
+        const fallbackLocation = String(mergedProfile.location || "").trim();
+        const hydratedRepairTickets = repairTickets.map((ticket) => hydrateTicketLocation(ticket, fallbackLocation));
+        const hydratedServiceRequests = serviceRequests.map((ticket) => hydrateTicketLocation(ticket, fallbackLocation));
+        setTickets(hydratedRepairTickets);
+        setBorrowRequests(hydratedServiceRequests);
 
         // Setup realtime after initial load
         setTimeout(() => {
@@ -1802,7 +1831,7 @@ export default function Dashboard() {
         }, 100);
 
         // Calculate SLA stats
-        calculateSlaStats(repairTickets);
+        calculateSlaStats(hydratedRepairTickets);
       }
 
       const [workNotesRes, notebookLogsRes] = await Promise.all([
@@ -1846,7 +1875,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [fetchAccessRequestSummary, navigate, rt, setupAccessRequestRealtime, setupRealtimeSubscription]);
+  }, [fetchAccessRequestSummary, hydrateTicketLocation, navigate, rt, setupAccessRequestRealtime, setupRealtimeSubscription]);
 
   useEffect(() => {
     initDashboard();
@@ -2327,7 +2356,55 @@ export default function Dashboard() {
   };
 
   // Get status config (using static map)
-  const getStatusConfig = (status) => {
+  const getStatusConfig = (ticketOrStatus) => {
+    const status = typeof ticketOrStatus === "object" ? ticketOrStatus?.status : ticketOrStatus;
+    const detailMeta = typeof ticketOrStatus === "object" ? getTicketStatusDetailMeta(ticketOrStatus) : null;
+
+    if (detailMeta) {
+      const toneMap = {
+        amber: {
+          color: "text-amber-700",
+          bg: "bg-amber-50",
+          border: "border-amber-200",
+          badgeGradient: "from-amber-500 to-orange-500",
+        },
+        sky: {
+          color: "text-sky-700",
+          bg: "bg-sky-50",
+          border: "border-sky-200",
+          badgeGradient: "from-sky-500 to-cyan-500",
+        },
+        violet: {
+          color: "text-violet-700",
+          bg: "bg-violet-50",
+          border: "border-violet-200",
+          badgeGradient: "from-violet-500 to-fuchsia-500",
+        },
+        slate: {
+          color: "text-slate-700",
+          bg: "bg-slate-100",
+          border: "border-slate-200",
+          badgeGradient: "from-slate-500 to-slate-600",
+        },
+        rose: {
+          color: "text-rose-700",
+          bg: "bg-rose-50",
+          border: "border-rose-200",
+          badgeGradient: "from-rose-500 to-pink-500",
+        },
+      };
+      const toneConfig = toneMap[detailMeta.tone] || toneMap.slate;
+      return {
+        label: detailMeta.label,
+        color: toneConfig.color,
+        bg: toneConfig.bg,
+        border: toneConfig.border,
+        icon: AlertCircle,
+        gradient: "from-white to-white",
+        badgeGradient: toneConfig.badgeGradient,
+      };
+    }
+
     return localizedStatusConfig[status] || {
       label: dt("activity.noCategory"),
       color: 'text-slate-600',
@@ -2387,7 +2464,7 @@ export default function Dashboard() {
       events.push({
         id: "monitoring",
         label: rt("timeline.monitoringLabel"),
-        detail: rt("timeline.statusDetail", { status: getStatusConfig(ticket.status).label }),
+        detail: rt("timeline.statusDetail", { status: getStatusConfig(ticket).label }),
         date: ticket.updated_at || ticket.created_at,
       });
     }
@@ -3511,11 +3588,12 @@ export default function Dashboard() {
   };
 
   const renderTicketItem = (ticket) => {
-    const statusConfig = getStatusConfig(ticket.status);
+    const statusConfig = getStatusConfig(ticket);
     const priorityConfig = getPriorityConfig(ticket.priority);
     const StatusIcon = statusConfig.icon;
     const slaIndicator = renderSLAIndicator(ticket);
     const isActive = activeTicket?.id === ticket.id;
+    const ticketLocation = String(ticket?.location || "").trim() || rt("common.noLocation");
 
     return (
       <div
@@ -3559,6 +3637,10 @@ export default function Dashboard() {
                     </span>
                     <span className={`hidden text-xs sm:inline ${TEXT_SUBTLE_CLASS}`}>•</span>
                     <span className={`text-xs ${TEXT_MUTED_CLASS}`}>{formatDate(ticket.created_at)}</span>
+                  </div>
+                  <div className={`mt-2 inline-flex max-w-full items-center gap-1 text-xs ${TEXT_MUTED_CLASS}`}>
+                    <MapPin size={12} className="shrink-0" />
+                    <span className="truncate">{ticketLocation}</span>
                   </div>
                 </div>
               </div>
@@ -3619,7 +3701,7 @@ export default function Dashboard() {
   }
 
   const activeTimeline = buildTimelineEvents(activeTicket);
-  const activeTicketStatus = activeTicket ? getStatusConfig(activeTicket.status) : null;
+  const activeTicketStatus = activeTicket ? getStatusConfig(activeTicket) : null;
   const activeTicketPriority = activeTicket ? getPriorityConfig(activeTicket.priority) : null;
 
   return (
@@ -4452,7 +4534,7 @@ export default function Dashboard() {
                     {priorityInbox.length > 0 ? (
                       <div className="grid grid-cols-1 gap-3 pr-1 xl:grid-cols-2">
                         {priorityInbox.map((ticket) => {
-                          const status = getStatusConfig(ticket.status);
+                          const status = getStatusConfig(ticket);
                           const priority = getPriorityConfig(ticket.priority);
                           return (
                             <button
@@ -4731,7 +4813,16 @@ export default function Dashboard() {
                                   </span>
                                 </div>
                                 <h4 className={`text-base font-black ${TEXT_PRIMARY_CLASS}`}>{activeTicket.title || dt("activity.noTitle")}</h4>
-                                <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{activeTicket.category || dt("activity.noCategory")} • {formatDate(activeTicket.created_at)}</p>
+                                <div className={`mt-1 flex flex-wrap items-center gap-2 text-xs ${TEXT_MUTED_CLASS}`}>
+                                  <span>{activeTicket.category || dt("activity.noCategory")}</span>
+                                  <span className={TEXT_SUBTLE_CLASS}>•</span>
+                                  <span>{formatDate(activeTicket.created_at)}</span>
+                                  <span className={TEXT_SUBTLE_CLASS}>•</span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <MapPin size={12} />
+                                    {String(activeTicket.location || "").trim() || rt("common.noLocation")}
+                                  </span>
+                                </div>
                                 <p className={`mt-3 rounded-xl border p-3 text-xs leading-relaxed ${isDarkTheme ? "border-slate-700 bg-slate-900/80 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}>
                                   {activeTicket.description || dt("activity.noDescription")}
                                 </p>
@@ -4900,7 +4991,7 @@ export default function Dashboard() {
               {selectedKpiMetric.items.length > 0 ? (
                 <div className="space-y-3">
                   {selectedKpiMetric.items.map((ticket) => {
-                    const statusConfig = getStatusConfig(ticket.status);
+                    const statusConfig = getStatusConfig(ticket);
                     const priorityConfig = getPriorityConfig(ticket.priority);
 
                     return (
@@ -5590,7 +5681,16 @@ export default function Dashboard() {
                             </span>
                           </div>
                           <h4 className={`text-base font-black ${TEXT_PRIMARY_CLASS}`}>{activeTicket.title || rt("ticket.noTitle")}</h4>
-                          <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{activeTicket.category || rt("ticket.noCategory")} • {formatDate(activeTicket.created_at)}</p>
+                          <div className={`mt-1 flex flex-wrap items-center gap-2 text-xs ${TEXT_MUTED_CLASS}`}>
+                            <span>{activeTicket.category || rt("ticket.noCategory")}</span>
+                            <span className={TEXT_SUBTLE_CLASS}>•</span>
+                            <span>{formatDate(activeTicket.created_at)}</span>
+                            <span className={TEXT_SUBTLE_CLASS}>•</span>
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin size={12} />
+                              {String(activeTicket.location || "").trim() || rt("common.noLocation")}
+                            </span>
+                          </div>
                           <p className={`mt-3 rounded-xl border p-3 text-xs leading-relaxed ${isDarkTheme ? "border-slate-700 bg-slate-900/80 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}>
                             {activeTicket.description || rt("common.noDescription")}
                           </p>
