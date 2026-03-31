@@ -50,9 +50,15 @@ export default function ProtectedRoute({ children, allowedRoles }) {
         if (user) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("role")
+            .select("role, is_active")
             .eq("id", user.id)
             .maybeSingle();
+
+          if (profile?.is_active === false) {
+            await supabase.auth.signOut();
+            if (isMounted) setIsAllowed(false);
+            return;
+          }
 
           if (profile && canAccessRoute(profile.role, allowedRoles)) {
             if (isMounted) setIsAllowed(true);

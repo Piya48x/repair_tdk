@@ -137,6 +137,8 @@ const heroBarVariants = {
   },
 };
 
+const INACTIVE_ACCOUNT_MESSAGE = "This account has been paused. Please contact an administrator.";
+
 export default function AuthPage() {
   const { tt } = useScopedI18n(AUTH_PAGE_TRANSLATIONS);
   const [mode, setMode] = useState("login");
@@ -214,9 +216,14 @@ export default function AuthPage() {
       if (session) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, is_active")
           .eq("id", session.user.id)
           .single();
+
+        if (profile?.is_active === false) {
+          await supabase.auth.signOut();
+          return;
+        }
 
         if (profile) {
           navigate(resolveHomeRoute(profile.role), { replace: true });
@@ -251,11 +258,15 @@ export default function AuthPage() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, is_active")
         .eq("id", authData.user.id)
         .single();
 
       if (profileError) throw profileError;
+      if (profile?.is_active === false) {
+        await supabase.auth.signOut();
+        throw new Error(INACTIVE_ACCOUNT_MESSAGE);
+      }
 
       navigate(resolveHomeRoute(profile.role), { replace: true });
     } catch (err) {
@@ -327,6 +338,7 @@ export default function AuthPage() {
           position: regData.position,
           id_card_url: regData.idCardUrl,
           role: "user",
+          is_active: true,
         });
         if (upsertError) {
           console.error("Profile Upsert Error (Check RLS):", upsertError);

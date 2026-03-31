@@ -142,8 +142,12 @@ function AppChrome() {
     location.pathname === "/notebook-center" ||
     location.pathname === "/admin-dashboard" ||
     location.pathname.startsWith("/reports");
+  const isAuthSurface =
+    location.pathname === "/" ||
+    location.pathname === "/forgot-password" ||
+    location.pathname === "/reset-password";
 
-  return hideFloatingLanguageSwitcher ? null : <LanguageSwitcher />;
+  return hideFloatingLanguageSwitcher ? null : <LanguageSwitcher mode={isAuthSurface ? "auth" : "floating"} />;
 }
 
 export default function App() {

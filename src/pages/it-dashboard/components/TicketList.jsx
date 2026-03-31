@@ -246,6 +246,28 @@ const TicketList = ({
   const isWalkInTicket = (ticket) =>
     String(ticket?.channel || ticket?.service_type || "").toLowerCase() === "walk-in";
 
+  const canOpenCardDetails = (ticket) => ticket?.status === "CLOSED";
+
+  const handleCardActionClick = (event, action) => {
+    event.stopPropagation();
+    action();
+  };
+
+  const handleCardKeyDown = (event, ticket) => {
+    if (!canOpenCardDetails(ticket)) {
+      return;
+    }
+
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleViewDetails(ticket);
+    }
+  };
+
   const isHistoryTab = activeTab === "HISTORY";
   const activeTabMeta = TAB_COPY[activeTab] || TAB_COPY.INCOMING;
   const tabTotalCount =
@@ -603,17 +625,24 @@ const TicketList = ({
               {calculateDuration(ticket.started_at, ticket.closed_at)}
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => openCaseChat(ticket)}
-              className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
+              onClick={(event) => handleCardActionClick(event, () => openCaseChat(ticket))}
+              className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
             >
               <MessageSquare size={15} />
               {TEXT.caseChat}
             </button>
             <button
-              onClick={() => handleDeleteTicket(ticket)}
-              className={`inline-flex items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${roseOutlineButtonClass}`}
+              onClick={(event) => handleCardActionClick(event, () => handleViewDetails(ticket))}
+              className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
+            >
+              <Eye size={15} />
+              {TEXT.viewDetail}
+            </button>
+            <button
+              onClick={(event) => handleCardActionClick(event, () => handleDeleteTicket(ticket))}
+              className={`inline-flex shrink-0 items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${roseOutlineButtonClass}`}
               title={TEXT.deleteHistory}
             >
               <Trash2 size={15} />
@@ -639,11 +668,21 @@ const TicketList = ({
       {filteredTickets.map((ticket) => {
         const priorityMeta = PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.default;
         const statusClass = getStatusBadgeClass(ticket);
+        const isCardInteractive = canOpenCardDetails(ticket);
 
         return (
           <article
             key={ticket.id}
-            className={`flex h-full flex-col rounded-2xl p-5 shadow-sm transition hover:shadow-md ${listWrapClass}`}
+            role={isCardInteractive ? "button" : undefined}
+            tabIndex={isCardInteractive ? 0 : undefined}
+            aria-label={isCardInteractive ? `${TEXT.viewDetail}: ${ticket.title}` : undefined}
+            onClick={isCardInteractive ? () => handleViewDetails(ticket) : undefined}
+            onKeyDown={isCardInteractive ? (event) => handleCardKeyDown(event, ticket) : undefined}
+            className={`flex h-full flex-col rounded-2xl border p-5 shadow-sm transition ${
+              isCardInteractive
+                ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2b59b0]/40"
+                : "hover:shadow-md"
+            } ${listWrapClass}`}
           >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
