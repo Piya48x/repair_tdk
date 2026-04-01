@@ -122,6 +122,7 @@ import {
   getTicketStatusDetailMeta,
   getTicketStatusLabel,
   getTicketStatusLifecycle,
+  stripTicketStatusDetailFromParts,
 } from "../lib/ticketRepairStatus";
 import {
   isPickUpEquipmentRequest,
@@ -977,6 +978,17 @@ const ITDashboard = () => {
         .join("");
     const activeOptions = TICKET_REPAIR_STATUS_OPTIONS.filter((item) => item.lifecycle === "active");
     const closedOptions = TICKET_REPAIR_STATUS_OPTIONS.filter((item) => item.lifecycle === "closed");
+    const resolvedClosedOption = {
+      key: "RESOLVED_CLOSED",
+      label: "ซ่อมเสร็จแล้ว",
+      helper: "ล้างสถานะปิดแบบซ่อมไม่สำเร็จ และบันทึกเป็นปิดงานซ่อมเสร็จแล้ว",
+    };
+    const closeModeOptions = ticket?.status === "CLOSED"
+      ? [resolvedClosedOption, ...closedOptions]
+      : closedOptions;
+    const closedOptionGroupLabel = ticket?.status === "CLOSED"
+      ? "อัปเดตสถานะปิดงาน"
+      : "ปิดงานแบบไม่สำเร็จ";
 
     const { value: formValues } = await Swal.fire({
       title: `<span class="${isDark ? "text-slate-100" : "text-slate-900"}">บันทึกสถานะงาน</span>`,
@@ -993,8 +1005,8 @@ const ITDashboard = () => {
               <optgroup label="กลับมาทำต่อ / ระหว่างดำเนินการ">
                 ${optionMarkup(activeOptions)}
               </optgroup>
-              <optgroup label="ปิดงานแบบไม่สำเร็จ">
-                ${optionMarkup(closedOptions)}
+              <optgroup label="${closedOptionGroupLabel}">
+                ${optionMarkup(closeModeOptions)}
               </optgroup>
             </select>
             <p id="swal-progress-helper" class="mt-2 text-[11px] ${helperClass}"></p>
@@ -1034,9 +1046,10 @@ const ITDashboard = () => {
       didOpen: () => {
         const selectEl = document.getElementById("swal-progress-status");
         const helperEl = document.getElementById("swal-progress-helper");
+        const helperSource = [...activeOptions, ...closeModeOptions];
         const updateHelper = () => {
           const selectedKey = selectEl?.value || "WORKING";
-          const selectedOption = TICKET_REPAIR_STATUS_OPTIONS.find((item) => item.key === selectedKey);
+          const selectedOption = helperSource.find((item) => item.key === selectedKey);
           if (helperEl) {
             helperEl.textContent = selectedOption?.helper || "";
           }
@@ -1064,8 +1077,14 @@ const ITDashboard = () => {
     if (!formValues) return;
 
     try {
-      const nextStatus = getTicketStatusLifecycle(formValues.detailKey, ticket?.status || "IN_PROGRESS");
-      const nextParts = embedTicketStatusDetailInParts(ticket?.parts_used || "", formValues.detailKey);
+      const isResolvedClosed = formValues.detailKey === "RESOLVED_CLOSED";
+      const fallbackStatus = ticket?.status === "CLOSED" ? "IN_PROGRESS" : (ticket?.status || "IN_PROGRESS");
+      const nextStatus = isResolvedClosed
+        ? "CLOSED"
+        : getTicketStatusLifecycle(formValues.detailKey, fallbackStatus);
+      const nextParts = isResolvedClosed
+        ? stripTicketStatusDetailFromParts(ticket?.parts_used || "")
+        : embedTicketStatusDetailInParts(ticket?.parts_used || "", formValues.detailKey);
       const updatePayload = {
         status: nextStatus,
         solution_note: formValues.note,
@@ -1097,7 +1116,9 @@ const ITDashboard = () => {
       await fireThemedSwal({
         icon: "success",
         title: "บันทึกสถานะสำเร็จ",
-        text: `อัปเดตเป็น "${getTicketStatusLabel(nextTicketSnapshot)}" เรียบร้อยแล้ว`,
+        text: isResolvedClosed
+          ? 'อัปเดตเป็น "ซ่อมเสร็จแล้ว" เรียบร้อยแล้ว'
+          : `อัปเดตเป็น "${getTicketStatusLabel(nextTicketSnapshot)}" เรียบร้อยแล้ว`,
         timer: 2200,
         showConfirmButton: false,
       }, "success");

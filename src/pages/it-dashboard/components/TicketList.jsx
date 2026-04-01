@@ -37,6 +37,7 @@ const TEXT = {
   viewDetail: "\u0e14\u0e39\u0e23\u0e32\u0e22\u0e25\u0e30\u0e40\u0e2d\u0e35\u0e22\u0e14",
   caseChat: "\u0e41\u0e0a\u0e17\u0e40\u0e04\u0e2a",
   recordProgress: "\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e2a\u0e16\u0e32\u0e19\u0e30",
+  updateStatus: "\u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e15\u0e2a\u0e16\u0e32\u0e19\u0e30",
   closeJob: "\u0e1b\u0e34\u0e14\u0e07\u0e32\u0e19",
   deleteHistory: "\u0e25\u0e1a\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34",
   repairDuration: "\u0e23\u0e30\u0e22\u0e30\u0e40\u0e27\u0e25\u0e32\u0e0b\u0e48\u0e2d\u0e21:",
@@ -247,6 +248,8 @@ const TicketList = ({
     String(ticket?.channel || ticket?.service_type || "").toLowerCase() === "walk-in";
 
   const canOpenCardDetails = (ticket) => ticket?.status === "CLOSED";
+  const canUpdateClosedTicketStatus = (ticket) =>
+    ticket?.status === "CLOSED" && getTicketStatusDetailMeta(ticket)?.lifecycle === "closed";
 
   const handleCardActionClick = (event, action) => {
     event.stopPropagation();
@@ -393,6 +396,15 @@ const TicketList = ({
     if (ticket.status === "CLOSED") {
       return (
         <div className="flex items-center justify-end gap-1">
+          {canUpdateClosedTicketStatus(ticket) && (
+            <button
+              onClick={() => handleUpdateRepairStatus(ticket)}
+              className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+              title={TEXT.updateStatus}
+            >
+              <FileText size={15} />
+            </button>
+          )}
           <button
             onClick={() => openCaseChat(ticket)}
             className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
@@ -625,6 +637,15 @@ const TicketList = ({
               {calculateDuration(ticket.started_at, ticket.closed_at)}
             </span>
           </div>
+          {canUpdateClosedTicketStatus(ticket) && (
+            <button
+              onClick={(event) => handleCardActionClick(event, () => handleUpdateRepairStatus(ticket))}
+              className={`inline-flex w-full items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
+            >
+              <FileText size={15} />
+              {TEXT.updateStatus}
+            </button>
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={(event) => handleCardActionClick(event, () => openCaseChat(ticket))}
