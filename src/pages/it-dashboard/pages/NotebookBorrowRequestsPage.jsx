@@ -414,7 +414,7 @@ async function addImageToWorksheet({ workbook, worksheet, rowNumber, columnNumbe
   }
 }
 
-const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = false }) => {
+const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = false, isMobile = false }) => {
   const channelRef = useRef(null);
   const proofLookupAttemptedRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
@@ -922,125 +922,187 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
 
   return (
     <>
-      {!embedded ? <section className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-            อนุมัติยืม-คืนโน้ตบุ๊ก
-          </h2>
-          <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-            แยกจากระบบแจ้งซ่อม ใช้ตรวจสอบคำขอยืมและการคืน notebook แบบศูนย์กลาง
-          </p>
-        </div>
+      {!embedded ? (
+        <section className={isMobile ? "mb-4" : "mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"}>
+          <div>
+            <h2 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
+              อนุมัติยืม-คืนโน้ตบุ๊ก
+            </h2>
+            <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
+              แยกจากระบบแจ้งซ่อม ใช้ตรวจสอบคำขอยืมและการคืน notebook แบบศูนย์กลาง
+            </p>
+          </div>
 
-        <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${uiTheme.statusBadge}`}>
-          <Laptop size={14} />
-          {currentUser?.name || "IT Desk"}
-        </div>
-      </section> : null}
+          {!isMobile && (
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${uiTheme.statusBadge}`}>
+              <Laptop size={14} />
+              {currentUser?.name || "IT Desk"}
+            </div>
+          )}
+        </section>
+      ) : null}
 
-      <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <article className={`relative overflow-hidden rounded-[1.4rem] border p-4 shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] ${uiTheme.surfaceCard}`}>
-          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-slate-900 via-[#2b59b0] to-cyan-500" />
+      <section className={`mb-4 grid gap-3 ${isMobile ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"}`}>
+        <article className={`${isMobile ? "rounded-lg" : "relative overflow-hidden rounded-lg shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] sm:rounded-[1.4rem]"} border p-4 ${uiTheme.surfaceCard}`}>
+          {!isMobile && <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-slate-900 via-[#2b59b0] to-cyan-500" />}
           <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ทั้งหมด</p>
           <p className="mt-1.5 text-2xl font-black text-[#2b59b0]">{summary.total}</p>
         </article>
-        <article className={`relative overflow-hidden rounded-[1.4rem] border p-4 shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] ${uiTheme.surfaceCard}`}>
-          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500" />
+        <article className={`${isMobile ? "rounded-lg" : "relative overflow-hidden rounded-lg shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] sm:rounded-[1.4rem]"} border p-4 ${uiTheme.surfaceCard}`}>
+          {!isMobile && <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500" />}
           <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>รออนุมัติ</p>
           <p className="mt-1.5 text-2xl font-black text-amber-500">{summary.pending}</p>
         </article>
-        <article className={`relative overflow-hidden rounded-[1.4rem] border p-4 shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] ${uiTheme.surfaceCard}`}>
-          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#2b59b0] via-sky-500 to-cyan-400" />
+        <article className={`${isMobile ? "rounded-lg" : "relative overflow-hidden rounded-lg shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] sm:rounded-[1.4rem]"} border p-4 ${uiTheme.surfaceCard}`}>
+          {!isMobile && <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#2b59b0] via-sky-500 to-cyan-400" />}
           <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>กำลังยืม</p>
           <p className="mt-1.5 text-2xl font-black text-blue-500">{summary.active}</p>
         </article>
-        <article className={`relative overflow-hidden rounded-[1.4rem] border p-4 shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] ${uiTheme.surfaceCard}`}>
-          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-400" />
+        <article className={`${isMobile ? "rounded-lg" : "relative overflow-hidden rounded-lg shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] sm:rounded-[1.4rem]"} border p-4 ${uiTheme.surfaceCard}`}>
+          {!isMobile && <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-400" />}
           <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>คืนแล้ว</p>
           <p className="mt-1.5 text-2xl font-black text-emerald-500">{summary.returned}</p>
         </article>
       </section>
 
-      <section className={`rounded-[1.6rem] border p-4 shadow-[0_20px_45px_-28px_rgba(15,23,42,0.22)] ${uiTheme.surfaceCard}`}>
-        <div className={`mb-4 flex flex-col gap-4 border-b pb-4 ${isDarkTheme ? "border-slate-700/80" : "border-slate-200/70"} xl:flex-row xl:items-center xl:justify-between`}>
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#2b59b0]/15 bg-[#2b59b0]/8 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#2b59b0]">
-              <Laptop size={13} />
-              Notebook approvals
+      <section className={`rounded-lg border p-4 ${isMobile ? "" : "shadow-[0_20px_45px_-28px_rgba(15,23,42,0.22)] sm:rounded-[1.6rem]"} ${uiTheme.surfaceCard}`}>
+        {isMobile ? (
+          <div className="space-y-3">
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="ค้นหาจาก asset code, model, ผู้ยืม, เหตุผล"
+                className={`w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm ${uiTheme.searchInputMobile}`}
+              />
             </div>
-            <h3 className={`mt-3 text-lg font-black ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>
-              Approval Queue
-            </h3>
-            <p className={`mt-1 text-sm ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>
-              Current view {filteredQueue.length} items | {statusFilterLabel}
-            </p>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {currentUser?.name ? (
-              <div
-                className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold ${
-                  isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700"
-                }`}
-              >
-                <ShieldCheck size={14} className="text-[#2b59b0]" />
-                {currentUser.name}
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className={`w-full appearance-none rounded-lg border py-2.5 pl-3 pr-8 text-sm ${uiTheme.searchInputMobile}`}
+                >
+                  <option value="ALL">ทุกสถานะ</option>
+                  <option value={NOTEBOOK_LOG_STATUS.PENDING}>รออนุมัติ</option>
+                  <option value={NOTEBOOK_LOG_STATUS.APPROVED}>กำลังยืม</option>
+                  <option value={NOTEBOOK_LOG_STATUS.RETURNED}>คืนเรียบร้อย</option>
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
               </div>
-            ) : null}
-            <div
-              className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold ${
-                isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"
-              }`}
-            >
-              <Clock3 size={14} className="text-amber-500" />
-              Pending {summary.pending}
+
+              <span className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold ${uiTheme.statusBadge}`}>
+                <Laptop size={12} />
+                {filteredQueue.length.toLocaleString("th-TH")} รายการ
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => loadQueue()}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold ${uiTheme.statusButton}`}
+              >
+                <RefreshCw size={14} />
+                รีเฟรช
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleExportExcel()}
+                disabled={filteredQueue.length === 0 || exporting}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-3 py-2.5 text-sm font-semibold text-[#2b59b0] disabled:opacity-50"
+              >
+                {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                Export
+              </button>
             </div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className={`mb-4 flex flex-col gap-4 border-b pb-4 ${isDarkTheme ? "border-slate-700/80" : "border-slate-200/70"} xl:flex-row xl:items-center xl:justify-between`}>
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#2b59b0]/15 bg-[#2b59b0]/8 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#2b59b0]">
+                  <Laptop size={13} />
+                  Notebook approvals
+                </div>
+                <h3 className={`mt-3 text-lg font-black ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>
+                  Approval Queue
+                </h3>
+                <p className={`mt-1 text-sm ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>
+                  Current view {filteredQueue.length} items | {statusFilterLabel}
+                </p>
+              </div>
 
-        <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr),220px,auto,auto] xl:items-center">
-          <div className="relative min-w-0 flex-1">
-            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="ค้นหาจาก asset code, model, ผู้ยืม, เหตุผล, สถานที่"
-              className={`w-full rounded-2xl border py-2.5 pl-9 pr-3 text-sm ${uiTheme.searchInputMobile}`}
-            />
-          </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {currentUser?.name ? (
+                  <div
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold sm:rounded-2xl ${
+                      isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <ShieldCheck size={14} className="text-[#2b59b0]" />
+                    {currentUser.name}
+                  </div>
+                ) : null}
+                <div
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold sm:rounded-2xl ${
+                    isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"
+                  }`}
+                >
+                  <Clock3 size={14} className="text-amber-500" />
+                  Pending {summary.pending}
+                </div>
+              </div>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className={`rounded-2xl border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`}
-            >
-              <option value="ALL">ทุกสถานะ</option>
-              <option value={NOTEBOOK_LOG_STATUS.PENDING}>รออนุมัติ</option>
-              <option value={NOTEBOOK_LOG_STATUS.APPROVED}>กำลังยืม</option>
-              <option value={NOTEBOOK_LOG_STATUS.RETURNED}>คืนเรียบร้อย</option>
-            </select>
+            <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr),220px,auto,auto] xl:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="ค้นหาจาก asset code, model, ผู้ยืม, เหตุผล, สถานที่"
+                  className={`w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm sm:rounded-2xl ${uiTheme.searchInputMobile}`}
+                />
+              </div>
 
-            <button
-              type="button"
-              onClick={() => void handleExportExcel()}
-              disabled={filteredQueue.length === 0 || exporting}
-              className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#06b6d4_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_18px_32px_-20px_rgba(29,78,216,0.65)] transition hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-              Export Excel
-            </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className={`rounded-lg border px-3 py-2.5 text-sm sm:rounded-2xl ${uiTheme.searchInputMobile}`}
+                >
+                  <option value="ALL">ทุกสถานะ</option>
+                  <option value={NOTEBOOK_LOG_STATUS.PENDING}>รออนุมัติ</option>
+                  <option value={NOTEBOOK_LOG_STATUS.APPROVED}>กำลังยืม</option>
+                  <option value={NOTEBOOK_LOG_STATUS.RETURNED}>คืนเรียบร้อย</option>
+                </select>
 
-            <button
-              type="button"
-              onClick={() => loadQueue()}
-              className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-semibold ${uiTheme.statusButton}`}
-            >
-              <RefreshCw size={14} />
-              รีเฟรช
-            </button>
-          </div>
-        </div>
+                <button
+                  type="button"
+                  onClick={() => void handleExportExcel()}
+                  disabled={filteredQueue.length === 0 || exporting}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#06b6d4_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_18px_32px_-20px_rgba(29,78,216,0.65)] transition hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl"
+                >
+                  {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                  Export Excel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => loadQueue()}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold sm:rounded-2xl ${uiTheme.statusButton}`}
+                >
+                  <RefreshCw size={14} />
+                  รีเฟรช
+                </button>
+              </div>
+            </div>
+          </>
+        )}
 
         {errorMessage && (
           <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
@@ -1081,6 +1143,180 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                 decodePossibleMojibake(borrowerProfile?.full_name) ||
                 "-";
               const borrowerAvatarUrl = resolveBorrowerAvatarUrl(row, borrowerProfile, borrowerName);
+
+              if (isMobile) {
+                const borrowerRole = row.user_role ? decodePossibleMojibake(row.user_role) : "-";
+                const reasonText = decodePossibleMojibake(row.reason) || "-";
+                const locationText = decodePossibleMojibake(row.location) || "-";
+                const approverName = row.approved_by_name || row.confirmed_by_name || "-";
+                const requestNo = toNotebookRequestNo(row);
+                const notebookStatusLabel = getNotebookStatusLabel(row.notebook_status);
+                const showProofs = Boolean(beforeImageUrl || returnImageUrl);
+                const mobileChipClass = theme === "dark"
+                  ? "border-slate-600 bg-[#162136] text-slate-200"
+                  : "border-slate-200 bg-slate-50 text-slate-600";
+                const mobileDetailCardClass = theme === "dark"
+                  ? "border-slate-700 bg-slate-900/80"
+                  : "border-slate-200 bg-slate-50";
+                const mobileProofShellClass = theme === "dark"
+                  ? "border-slate-700 bg-slate-950"
+                  : "border-slate-200 bg-white";
+
+                return (
+                  <article
+                    key={row.log_id}
+                    className={`rounded-xl border p-4 ${theme === "dark" ? "border-slate-700 bg-[#0f172a]" : "border-slate-200 bg-white"}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${logMeta.cls}`}>
+                        <ShieldCheck size={12} />
+                        {logMeta.label}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${notebookMeta.cls}`}>
+                        <Laptop size={12} />
+                        {notebookStatusLabel}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold ${mobileChipClass}`}>
+                        {requestNo}
+                      </span>
+                    </div>
+
+                    <h3 className={`mt-3 text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
+                      {row.model || "-"}
+                    </h3>
+
+                    <div className="mt-3 flex items-center gap-3">
+                      <BorrowerAvatar src={borrowerAvatarUrl} name={borrowerName} theme={theme} />
+                      <div className="min-w-0">
+                        <p className={`truncate text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-800"}`}>
+                          {borrowerName}
+                        </p>
+                        <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
+                          {borrowerRole}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className={`mt-3 flex flex-wrap items-center gap-2 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                      <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${mobileChipClass}`}>
+                        Asset: {row.asset_code || "-"}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${mobileChipClass}`}>
+                        <Clock3 size={12} />
+                        {formatNotebookTime(row.requested_at)}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${mobileChipClass}`}>
+                        ระยะเวลา: {durationText}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${mobileChipClass}`}>
+                        ยืม {row.borrow_count || 0} ครั้ง
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className={`rounded-lg border p-3 ${mobileDetailCardClass}`}>
+                        <p className={`text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ยืมเมื่อ</p>
+                        <p className={`mt-1 text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-800"}`}>
+                          {formatNotebookTime(row.borrow_time || row.requested_at)}
+                        </p>
+                      </div>
+                      <div className={`rounded-lg border p-3 ${mobileDetailCardClass}`}>
+                        <p className={`text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>คืนเมื่อ</p>
+                        <p className={`mt-1 text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-800"}`}>
+                          {formatNotebookTime(row.return_time)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className={`mt-4 rounded-xl border p-3 ${mobileDetailCardClass}`}>
+                      <p className={`text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>เหตุผล</p>
+                      <p className={`mt-2 whitespace-pre-line text-sm ${theme === "dark" ? "text-slate-200" : "text-slate-700"}`}>
+                        {reasonText}
+                      </p>
+                      <div className={`mt-3 flex flex-wrap items-center gap-2 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${mobileChipClass}`}>
+                          <MapPin size={12} />
+                          {locationText}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${mobileChipClass}`}>
+                          <ShieldCheck size={12} />
+                          {approverName}
+                        </span>
+                      </div>
+                    </div>
+
+                    {showProofs && (
+                      <div className={`mt-4 grid gap-2 ${beforeImageUrl && returnImageUrl ? "grid-cols-2" : "grid-cols-1"}`}>
+                        {beforeImageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => window.open(beforeImageUrl, "_blank", "noopener,noreferrer")}
+                            className={`overflow-hidden rounded-xl border text-left ${mobileProofShellClass}`}
+                            title="Open before-borrow image"
+                          >
+                            <img
+                              src={beforeImageUrl}
+                              alt={`${row.asset_code || "notebook"}-before-borrow`}
+                              className="h-24 w-full object-cover"
+                              onError={() => handleProofImageError(row, "before")}
+                            />
+                            <div className={`border-t px-3 py-2 text-[11px] font-semibold ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+                              ก่อนยืม
+                            </div>
+                          </button>
+                        )}
+
+                        {returnImageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => window.open(returnImageUrl, "_blank", "noopener,noreferrer")}
+                            className={`overflow-hidden rounded-xl border text-left ${mobileProofShellClass}`}
+                            title="Open return image"
+                          >
+                            <img
+                              src={returnImageUrl}
+                              alt={`${row.asset_code || "notebook"}-return`}
+                              className="h-24 w-full object-cover"
+                              onError={() => handleProofImageError(row, "return")}
+                            />
+                            <div className={`border-t px-3 py-2 text-[11px] font-semibold ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+                              ตอนคืน
+                            </div>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {(canApprove || canConfirm) && (
+                      <div className="mt-4 grid grid-cols-1 gap-2">
+                        {canApprove && (
+                          <button
+                            type="button"
+                            onClick={() => handleApprove(row.log_id)}
+                            disabled={updatingId === String(row.log_id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                          >
+                            {updatingId === String(row.log_id) ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                            อนุมัติ
+                          </button>
+                        )}
+
+                        {canConfirm && (
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmReturn(row.log_id)}
+                            disabled={updatingId === String(row.log_id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 disabled:opacity-60"
+                          >
+                            {updatingId === String(row.log_id) ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                            ยืนยันคืน
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              }
 
               return (
                 <article

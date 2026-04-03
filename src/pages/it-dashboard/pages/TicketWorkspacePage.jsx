@@ -139,6 +139,164 @@ const TicketWorkspacePage = ({
 
   const locale = LOCALE_BY_LANGUAGE[language] || LOCALE_BY_LANGUAGE.en;
 
+  if (isMobile) {
+    return (
+      <>
+        <section className="mb-4">
+          <h2 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
+            {title}
+          </h2>
+          <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
+            {subtitle}
+          </p>
+        </section>
+
+        <section className="mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            {statCards.map((stat) => (
+              <article key={stat.key} className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
+                <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{stat.title}</p>
+                <p className={`mt-1.5 text-2xl font-black ${stat.valueClass}`}>{stat.value}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={`mb-4 rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
+          <div className="space-y-3">
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder={tt("searchPlaceholder")}
+                value={searchQuery}
+                onChange={(event) => onSearchQueryChange(event.target.value)}
+                className={`w-full rounded-lg border py-2.5 pl-9 pr-9 text-sm ${uiTheme.searchInputMobile}`}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => onSearchQueryChange("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-red-600"
+                  aria-label={tt("clearSearch")}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <select
+                  value={activeTab}
+                  onChange={(event) => onTabChange(event.target.value)}
+                  className={`w-full appearance-none rounded-lg border py-2.5 pl-3 pr-8 text-sm ${uiTheme.searchInputMobile}`}
+                >
+                  {tabItems.map((tab) => (
+                    <option key={tab.id} value={tab.id}>
+                      {tab.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
+
+              <span className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold ${uiTheme.statusBadge}`}>
+                {sortedTickets.length.toLocaleString(locale)} รายการ
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(event) => onSortByChange(event.target.value)}
+                  className={`w-full appearance-none rounded-lg border py-2.5 pl-3 pr-8 text-sm ${uiTheme.searchInputMobile}`}
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
+
+              <button
+                onClick={onOpenDateFilter}
+                className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold ${
+                  activeFilterCount > 0 ? uiTheme.quickRangeBtnActive : uiTheme.dateFilterButtonIdle
+                }`}
+              >
+                <Filter size={14} />
+                {tt("filters")} {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={onCreateTicket}
+                className="inline-flex items-center justify-center gap-1 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#244a95]"
+              >
+                <Plus size={14} />
+                {tt("createTicket")}
+              </button>
+
+              <button
+                onClick={onOpenWalkInTicket}
+                className="inline-flex items-center justify-center gap-1 rounded-lg border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-3 py-2.5 text-sm font-semibold text-[#2b59b0] transition hover:bg-[#2b59b0]/15"
+              >
+                <Plus size={14} />
+                {tt("walkIn")}
+              </button>
+            </div>
+
+            <div className="-mx-1 overflow-x-auto px-1 pb-1">
+              <div className="flex w-max min-w-full items-center gap-2">
+                {quickFilters.map((chip) => (
+                  <button
+                    key={chip.id}
+                    onClick={() => onQuickFilterChange(chip.id)}
+                    className={`shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                      quickFilter === chip.id ? uiTheme.quickRangeBtnActive : uiTheme.quickRangeBtn
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <TicketList
+            loading={loading}
+            tickets={tickets}
+            filteredTickets={sortedTickets}
+            theme={theme}
+            isMobile={isMobile}
+            activeTab={activeTab}
+            searchQuery={searchQuery}
+            setSearchQuery={onSearchQueryChange}
+            dateRange={dateRange}
+            setDateRange={setDateRange}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            historyTickets={historyTickets}
+            currentUser={currentUser}
+            handleAcceptJob={handleAcceptJob}
+            handleOpenCaseChat={handleOpenCaseChat}
+            handleUpdateRepairStatus={handleUpdateRepairStatus}
+            handleCloseJob={handleCloseJob}
+            handleDeleteTicket={handleDeleteTicket}
+            handleViewDetails={handleViewDetails}
+            handleOpenNavigation={handleOpenNavigation}
+          />
+        </section>
+      </>
+    );
+  }
+
   return (
     <>
       <section className="mb-4">

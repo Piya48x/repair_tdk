@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  LayoutDashboard,
   Package,
   Ticket,
   Activity,
@@ -92,7 +91,6 @@ const ITDashboardSidebar = ({
   const uiTheme = getITDashboardTheme(theme);
 
   const navItems = [
-    { id: "DASHBOARD", label: tt("nav.dashboard"), icon: LayoutDashboard },
     { id: "TICKETS", label: tt("nav.tickets"), icon: Ticket },
     { id: "SERVICE_REQUESTS", label: "คำขอเบิกของ", icon: Package },
     { id: "ACCESS_REQUESTS", label: tt("nav.accessRequests"), icon: KeyRound },

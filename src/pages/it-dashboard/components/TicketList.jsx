@@ -581,7 +581,7 @@ const TicketList = ({
   const renderCardActions = (ticket) => {
     if (ticket.status === "NEW") {
       return (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <button
             onClick={() => openCaseChat(ticket)}
             className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
@@ -602,7 +602,7 @@ const TicketList = ({
 
     if (ticket.status === "IN_PROGRESS" && ticket.assigned_to === currentUser?.id) {
       return (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <button
             onClick={() => openCaseChat(ticket)}
             className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
@@ -646,17 +646,17 @@ const TicketList = ({
               {TEXT.updateStatus}
             </button>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
               onClick={(event) => handleCardActionClick(event, () => openCaseChat(ticket))}
-              className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
+              className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors sm:flex-1 ${neutralButtonClass}`}
             >
               <MessageSquare size={15} />
               {TEXT.caseChat}
             </button>
             <button
               onClick={(event) => handleCardActionClick(event, () => handleViewDetails(ticket))}
-              className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
+              className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors sm:flex-1 ${neutralButtonClass}`}
             >
               <Eye size={15} />
               {TEXT.viewDetail}
@@ -835,8 +835,62 @@ const TicketList = ({
 
   return (
     <div className={`w-full px-0 py-2 ${isMobile ? "pb-28" : "pb-12"}`}>
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
+      {!isMobile && (
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className={`inline-flex w-fit items-center gap-1 rounded-lg border p-1 ${uiTheme.historySwitchWrap}`}
+            >
+              <button
+                onClick={() => setViewMode("card")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  viewMode === "card" ? uiTheme.historySwitchActive : uiTheme.historySwitchIdle
+                }`}
+              >
+                <LayoutGrid size={14} />
+                {TEXT.card}
+              </button>
+              <button
+                onClick={() => setViewMode("table")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  viewMode === "table" ? uiTheme.historySwitchActive : uiTheme.historySwitchIdle
+                }`}
+              >
+                <List size={14} />
+                {TEXT.table}
+              </button>
+            </div>
+            <div
+              className={`hidden rounded-md border px-3 py-1.5 text-xs font-semibold md:block ${softSurface} ${textSecondary}`}
+            >
+              {activeTabMeta.label} | {activeTabMeta.helper}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${softSurface} ${textSecondary}`}
+            >
+              {TEXT.showing} {filteredTickets.length.toLocaleString("th-TH")} {TEXT.from}{" "}
+              {tabTotalCount.toLocaleString("th-TH")} {TEXT.items}
+            </div>
+            {isHistoryTab && (
+              <button
+                onClick={() =>
+                  handleExportExcelWithImages(filteredTickets, theme, currentUser, dateRange)
+                }
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+              >
+                <DownloadCloud size={14} />
+                {TEXT.exportExcel}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isMobile && (
+        <div className="mb-3 flex flex-col gap-2">
           <div
             className={`inline-flex w-fit items-center gap-1 rounded-lg border p-1 ${uiTheme.historySwitchWrap}`}
           >
@@ -859,33 +913,20 @@ const TicketList = ({
               {TEXT.table}
             </button>
           </div>
-          <div
-            className={`hidden rounded-md border px-3 py-1.5 text-xs font-semibold md:block ${softSurface} ${textSecondary}`}
-          >
-            {activeTabMeta.label} | {activeTabMeta.helper}
-          </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div
-            className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${softSurface} ${textSecondary}`}
-          >
-            {TEXT.showing} {filteredTickets.length.toLocaleString("th-TH")} {TEXT.from}{" "}
-            {tabTotalCount.toLocaleString("th-TH")} {TEXT.items}
-          </div>
           {isHistoryTab && (
             <button
               onClick={() =>
                 handleExportExcelWithImages(filteredTickets, theme, currentUser, dateRange)
               }
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
             >
               <DownloadCloud size={14} />
               {TEXT.exportExcel}
             </button>
           )}
         </div>
-      </div>
+      )}
 
       {viewMode === "table" ? renderTicketTable() : renderCardGrid()}
     </div>

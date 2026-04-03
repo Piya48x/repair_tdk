@@ -634,7 +634,9 @@ export default function ExecutiveAssetsManagementPage() {
 
   const filteredAssets = useMemo(() => {
     const query = normalizeText(searchQuery).toLowerCase();
-    let scopedAssets = showArchivedAssets
+    const includeArchivedByStatus = ["retired", "lost"].includes(assetStatusFilter);
+    const shouldIncludeArchived = showArchivedAssets || includeArchivedByStatus || Boolean(query);
+    let scopedAssets = shouldIncludeArchived
       ? assets
       : assets.filter((item) => !["retired", "lost"].includes(normalizeStatus(item?.status)));
     if (assetCategoryFilter !== "all") {
@@ -664,6 +666,10 @@ export default function ExecutiveAssetsManagementPage() {
       return source.includes(query);
     });
   }, [assets, searchQuery, showArchivedAssets, assetCategoryFilter, assetStatusFilter]);
+
+  const autoIncludedArchivedAssets = !showArchivedAssets && (
+    Boolean(normalizeText(searchQuery)) || ["retired", "lost"].includes(assetStatusFilter)
+  );
 
   const filteredLicenses = useMemo(() => {
     const query = normalizeText(licenseSearchQuery).toLowerCase();
@@ -1701,6 +1707,12 @@ export default function ExecutiveAssetsManagementPage() {
                 ล้างตัวกรอง
               </button>
             </div>
+
+            {autoIncludedArchivedAssets ? (
+              <p className="mt-2 text-xs font-medium text-amber-700">
+                Search/status filter now includes archived retired and lost assets automatically.
+              </p>
+            ) : null}
 
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
