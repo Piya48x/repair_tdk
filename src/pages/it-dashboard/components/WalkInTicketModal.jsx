@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
+import { motion, useDragControls } from "framer-motion";
 import Webcam from "react-webcam";
 import {
   Building2,
   Camera,
-  Clock3,
   FileImage,
   FlipHorizontal,
   ImagePlus,
@@ -49,6 +49,7 @@ const FIELD_CLASS_BASE =
 const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "light" }) => {
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const dragControls = useDragControls();
 
   const [form, setForm] = useState(buildInitialForm);
   const [errors, setErrors] = useState({});
@@ -58,6 +59,10 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const [facingMode, setFacingMode] = useState("environment");
   const [tempImage, setTempImage] = useState(null);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [isMobileSheet, setIsMobileSheet] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 639px)").matches;
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,6 +102,22 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     };
   }, [preview]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const media = window.matchMedia("(max-width: 639px)");
+    const syncMobileSheet = () => setIsMobileSheet(media.matches);
+
+    syncMobileSheet();
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", syncMobileSheet);
+      return () => media.removeEventListener("change", syncMobileSheet);
+    }
+
+    media.addListener(syncMobileSheet);
+    return () => media.removeListener(syncMobileSheet);
+  }, []);
+
   if (!isOpen) return null;
 
   const isDark = theme === "dark";
@@ -109,9 +130,6 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const inputClass = isDark
     ? `${FIELD_CLASS_BASE} border-slate-600 bg-[#162136] text-slate-100 placeholder-slate-400 focus:border-[#2b59b0] focus:ring-[#2b59b0]/30`
     : `${FIELD_CLASS_BASE} border-slate-300 bg-white text-slate-900 placeholder-slate-400 focus:border-[#2b59b0] focus:ring-[#2b59b0]/20`;
-  const readonlyClass = isDark
-    ? `${FIELD_CLASS_BASE} cursor-not-allowed border-slate-600 bg-slate-800 text-slate-200`
-    : `${FIELD_CLASS_BASE} cursor-not-allowed border-slate-300 bg-slate-50 text-slate-700`;
   const chipClass = isDark
     ? "inline-flex items-center rounded-full border border-[#2b59b0]/35 bg-[#2b59b0]/15 px-2.5 py-1 text-[11px] font-semibold text-[#c8d9ff] sm:px-3 sm:text-xs"
     : "inline-flex items-center rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2.5 py-1 text-[11px] font-semibold text-[#2b59b0] sm:px-3 sm:text-xs";
@@ -120,6 +138,15 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const secondaryButtonClass = isDark
     ? "inline-flex w-full items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 sm:w-auto"
     : "inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto";
+  const metaTileClass = isDark
+    ? "rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-2.5"
+    : "rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5";
+  const metaLabelClass = isDark
+    ? "text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500"
+    : "text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400";
+  const metaValueClass = isDark
+    ? "mt-1 text-xs font-semibold text-slate-100"
+    : "mt-1 text-xs font-semibold text-slate-700";
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -258,17 +285,46 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const selectedAttachmentName = form.attachment?.name || "";
 
   return (
-    <div
+    <motion.div
       className={`fixed inset-0 z-[9999] flex items-end justify-center p-0 ${overlayClass} animate-fade-in sm:items-center sm:p-4`}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="walk-in-ticket-title"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
     >
-      <div
-        className={`flex h-[100dvh] max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-none border ${shellClass} animate-scale-in sm:h-auto sm:max-h-[92vh] sm:rounded-3xl`}
+      <motion.div
+        className={`flex w-full max-w-4xl flex-col overflow-hidden border ${shellClass} ${isMobileSheet ? "mt-auto h-[92dvh] max-h-[92dvh] rounded-t-[28px] border-x-0 border-b-0" : "h-[100dvh] max-h-[100dvh] rounded-none sm:h-auto sm:max-h-[92vh] sm:rounded-3xl"}`}
         onClick={(event) => event.stopPropagation()}
+        initial={isMobileSheet ? { y: 72 } : { y: 20, opacity: 0.98, scale: 0.985 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
+        transition={{ type: "spring", damping: 30, stiffness: 320 }}
+        drag={isMobileSheet ? "y" : false}
+        dragControls={dragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.14}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 120 || info.velocity.y > 700) {
+            onClose?.();
+          }
+        }}
       >
+        {isMobileSheet && (
+          <div className="flex justify-center border-b border-inherit px-3 pt-2">
+            <button
+              type="button"
+              className="flex w-full cursor-grab touch-none justify-center py-1 active:cursor-grabbing"
+              onPointerDown={(event) => dragControls.start(event)}
+              aria-label="ลากลงเพื่อปิด"
+            >
+              <span className={`h-1.5 w-14 rounded-full ${isDark ? "bg-slate-600" : "bg-slate-300"}`} />
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2.5 border-b border-inherit px-3 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6 sm:py-4">
           <div className="min-w-0">
             <div className="mb-2 flex flex-wrap gap-2">
@@ -300,6 +356,21 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               {errors.form}
             </div>
           )}
+
+          <div className="mb-3 grid grid-cols-3 gap-2 sm:mb-4">
+            <div className={metaTileClass}>
+              <p className={metaLabelClass}>Status</p>
+              <p className={metaValueClass}>Open</p>
+            </div>
+            <div className={metaTileClass}>
+              <p className={metaLabelClass}>Channel</p>
+              <p className={metaValueClass}>Walk-in</p>
+            </div>
+            <div className={metaTileClass}>
+              <p className={metaLabelClass}>Started</p>
+              <p className={metaValueClass}>{String(form.start_time || "").replace("T", " ") || "-"}</p>
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="col-span-2">
@@ -392,31 +463,6 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                 <option value="medium">medium - ปานกลาง</option>
                 <option value="high">high - สูง</option>
               </select>
-            </div>
-
-            <div className="col-span-2 sm:col-span-1">
-              <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>status</label>
-              <input value={form.status} readOnly className={readonlyClass} />
-            </div>
-
-            <div>
-              <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>channel</label>
-              <input value={form.channel} readOnly className={readonlyClass} />
-            </div>
-
-            <div>
-              <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
-                start_time
-              </label>
-              <div className="relative">
-                <Clock3 size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="datetime-local"
-                  value={form.start_time}
-                  readOnly
-                  className={`${readonlyClass} pl-10`}
-                />
-              </div>
             </div>
 
             <div className="col-span-2 sm:col-span-1">
@@ -580,7 +626,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             {currentUser?.employeeId ? ` • ${currentUser.employeeId}` : ""}
           </div>
 
-          <div className={`sticky bottom-0 -mx-3 mt-4 flex flex-col-reverse gap-2 border-t px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:mt-6 sm:flex-row sm:justify-end sm:gap-3 sm:border-0 sm:px-0 sm:py-0 ${isDark ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/95"}`}>
+          <div className={`sticky bottom-0 -mx-3 mt-4 flex flex-col-reverse gap-2 border-t px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:mt-6 sm:flex-row sm:justify-end sm:gap-3 sm:border-0 sm:px-0 sm:py-0 ${isDark ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/95"}`} style={{ paddingBottom: isMobileSheet ? "calc(0.75rem + env(safe-area-inset-bottom))" : undefined }}>
             <button type="button" onClick={onClose} className={secondaryButtonClass}>
               ยกเลิก
             </button>
@@ -590,8 +636,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
