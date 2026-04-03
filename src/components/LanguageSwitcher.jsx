@@ -136,7 +136,7 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
     () => ({
       control: (base, state) => ({
         ...base,
-        minHeight: isCompact ? 42 : isAuthMode ? 58 : 46,
+        minHeight: isCompact ? 40 : isAuthMode ? 58 : 46,
         borderRadius: isCompact ? 16 : 9999,
         borderColor: state.isFocused
           ? (isDarkTheme ? "#818cf8" : "#93c5fd")
@@ -160,10 +160,10 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
               ? "0 24px 48px -28px rgba(15, 23, 42, 0.45)"
               : "0 16px 34px -24px rgba(15, 23, 42, 0.5)"),
         backdropFilter: isCompact ? "blur(12px)" : isAuthMode ? "blur(18px)" : "blur(18px)",
-        paddingLeft: isCompact ? 4 : isAuthMode ? 5 : 4,
-        paddingRight: isCompact ? 4 : isAuthMode ? 7 : 4,
-        minWidth: isCompact ? 72 : isAuthMode ? 86 : undefined,
-        width: isCompact ? 72 : isAuthMode ? 86 : undefined,
+        paddingLeft: isCompact ? 3 : isAuthMode ? 5 : 4,
+        paddingRight: isCompact ? 3 : isAuthMode ? 7 : 4,
+        minWidth: isCompact ? 68 : isAuthMode ? 86 : undefined,
+        width: isCompact ? 68 : isAuthMode ? 86 : undefined,
         transition: "all 160ms ease",
         cursor: "pointer",
         ":hover": {
@@ -176,7 +176,7 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
       }),
       valueContainer: (base) => ({
         ...base,
-        paddingLeft: isCompact ? 10 : isAuthMode ? 0 : 8,
+        paddingLeft: isCompact ? 8 : isAuthMode ? 0 : 8,
         paddingRight: isCompact ? 4 : isAuthMode ? 0 : 6,
         justifyContent: isAuthMode ? "center" : base.justifyContent,
       }),
@@ -201,7 +201,7 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
             ? "#2b59b0"
             : (isDarkTheme ? "#94a3b8" : "#64748b"),
         paddingLeft: isCompact ? 0 : isAuthMode ? 2 : 6,
-        paddingRight: isCompact ? 8 : isAuthMode ? 10 : 8,
+        paddingRight: isCompact ? 6 : isAuthMode ? 10 : 8,
         ":hover": {
           color: isDarkTheme ? "#e2e8f0" : "#244a95",
         },
@@ -215,11 +215,11 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
         boxShadow: isAuthMode
           ? "0 28px 48px -30px rgba(15, 23, 42, 0.45)"
           : "0 18px 40px -26px rgba(15, 23, 42, 0.5)",
-        minWidth: isCompact ? 176 : isAuthMode ? 224 : undefined,
-        width: isCompact ? 176 : isAuthMode ? 224 : undefined,
+        minWidth: isCompact ? 168 : isAuthMode ? 224 : undefined,
+        width: isCompact ? 168 : isAuthMode ? 224 : undefined,
         marginTop: isCompact ? 8 : isAuthMode ? 10 : base.marginTop,
-        right: isAuthMode ? 0 : base.right,
-        left: isAuthMode ? "auto" : base.left,
+        right: isCompact || isAuthMode ? 0 : base.right,
+        left: isCompact || isAuthMode ? "auto" : base.left,
         zIndex: 200,
       }),
       menuList: (base) => ({
@@ -256,7 +256,7 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
     ? "pointer-events-auto w-[164px] sm:w-[180px]"
     : isAuthMode
       ? "pointer-events-auto w-[86px]"
-    : "w-[72px] shrink-0";
+    : "relative w-[68px] shrink-0 sm:w-[72px]";
 
   return (
     <div className={outerClassName}>
@@ -273,8 +273,8 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
           isCompact={isCompact}
           isDarkTheme={isDarkTheme}
           menuPlacement="auto"
-          menuPortalTarget={isAuthMode ? undefined : menuPortalTarget}
-          menuPosition={isAuthMode ? "absolute" : "fixed"}
+          menuPortalTarget={isAuthMode || isCompact ? undefined : menuPortalTarget}
+          menuPosition={isAuthMode || isCompact ? "absolute" : "fixed"}
           menuShouldScrollIntoView={false}
           mode={mode}
           options={selectOptions}

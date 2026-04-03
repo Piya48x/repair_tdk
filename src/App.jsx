@@ -140,6 +140,7 @@ function AppChrome() {
     location.pathname === "/dashboard" ||
     location.pathname === "/my-borrow-requests" ||
     location.pathname === "/notebook-center" ||
+    location.pathname === "/create-ticket" ||
     location.pathname === "/admin-dashboard" ||
     location.pathname.startsWith("/reports");
   const isAuthSurface =

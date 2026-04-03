@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { insertTicketWithSchemaFallback } from "../lib/ticketSchemaCompat";
 import { useScopedI18n } from "../i18n/useScopedI18n";
+import LanguageSwitcher from "../components/LanguageSwitcher.jsx";
 import { motion, AnimatePresence } from "framer-motion";
 import Webcam from "react-webcam";
 import { toast, Toaster } from "react-hot-toast";
@@ -990,8 +991,8 @@ const CreateTicket = () => {
 
       {/* Premium Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-4">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <motion.button
               whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
               whileTap={{ scale: 0.95 }}
@@ -1001,8 +1002,8 @@ const CreateTicket = () => {
             >
               <ArrowLeft size={18} />
             </motion.button>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-lg font-black text-slate-900 sm:text-xl">
                   IT Service Desk
                 </h1>
@@ -1010,13 +1011,13 @@ const CreateTicket = () => {
                   {tt("standard")}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
                 {tt("headerSubtitle")}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex w-full flex-wrap items-center justify-between gap-3 sm:justify-end lg:w-auto">
             <motion.div
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
@@ -1031,12 +1032,18 @@ const CreateTicket = () => {
               </div>
             </motion.div>
 
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
-              <div className="relative">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <div className="absolute -inset-1 animate-ping rounded-full bg-emerald-500 opacity-20" />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
+                <div className="relative">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <div className="absolute -inset-1 animate-ping rounded-full bg-emerald-500 opacity-20" />
+                </div>
+                <span className="text-xs font-bold text-emerald-700">{tt("ready")}</span>
               </div>
-              <span className="text-xs font-bold text-emerald-700">{tt("ready")}</span>
+
+              <div className="flex items-center rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm">
+                <LanguageSwitcher mode="nav" />
+              </div>
             </div>
           </div>
         </div>

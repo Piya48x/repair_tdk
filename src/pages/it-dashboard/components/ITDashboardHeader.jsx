@@ -53,9 +53,9 @@ const ITDashboardHeader = ({
 
   return (
     <header className={`sticky top-0 z-40 border-b ${uiTheme.headerShell}`}>
-      <div className="mx-auto max-w-[1440px] px-6">
-        <div className="relative z-20 flex h-16 items-center justify-between">
-          <div className="flex min-w-0 items-center gap-3">
+      <div className="mx-auto max-w-[1440px] px-3 sm:px-6">
+        <div className="relative z-20 flex min-h-16 flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 w-full items-center gap-3 sm:w-auto">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className={`rounded-lg p-2 transition-colors lg:hidden ${uiTheme.iconButton}`}
@@ -68,7 +68,7 @@ const ITDashboardHeader = ({
               <img src={tdkLogo} alt="TDK Industrial logo" className="h-full w-full object-contain" />
             </div> */}
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1 sm:flex-none">
               <p className={`truncate text-sm font-bold sm:text-base ${headingTextClass}`}>
                 {t("itDashboard.title")}
               </p>
@@ -76,7 +76,7 @@ const ITDashboardHeader = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto sm:gap-3">
             <div
               className={`hidden items-center gap-2 rounded-lg border px-2 py-1 text-[11px] font-semibold md:flex ${uiTheme.statusBadge}`}
             >
@@ -92,7 +92,7 @@ const ITDashboardHeader = ({
                 setActiveTab("INCOMING");
                 setNotificationCount(0);
               }}
-              className={`relative rounded-lg p-2 transition-colors ${uiTheme.iconButton}`}
+              className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl p-2 transition-colors ${uiTheme.iconButton}`}
               aria-label={t("common.notifications")}
             >
               <Bell size={17} />
@@ -103,10 +103,10 @@ const ITDashboardHeader = ({
               )}
             </button>
 
-            <div className={`flex items-center gap-1 rounded-2xl border p-1 ${theme === "dark" ? "border-slate-700 bg-slate-900/85" : "border-slate-200 bg-white/90 shadow-sm shadow-slate-200/70"}`}>
+            <div className={`flex shrink-0 items-center gap-0.5 rounded-2xl border p-0.5 sm:gap-1 sm:p-1 ${theme === "dark" ? "border-slate-700 bg-slate-900/85" : "border-slate-200 bg-white/90 shadow-sm shadow-slate-200/70"}`}>
               <button
                 onClick={toggleTheme}
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${uiTheme.iconButton}`}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition-colors sm:h-10 sm:w-10 ${uiTheme.iconButton}`}
                 aria-label={t("common.toggleTheme")}
               >
                 {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
@@ -114,10 +114,10 @@ const ITDashboardHeader = ({
               <LanguageSwitcher mode="nav" isDarkTheme={theme === "dark"} />
             </div>
 
-            <div className="relative z-[80]" ref={profileRef}>
+            <div className="relative z-[80] shrink-0" ref={profileRef}>
               <button
                 onClick={() => setProfileMenuOpen((prev) => !prev)}
-                className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-sm ${uiTheme.statusButton}`}
+                className={`flex h-10 items-center gap-1.5 rounded-xl border px-1.5 py-1.5 text-sm sm:gap-2 sm:rounded-lg sm:px-2 ${uiTheme.statusButton}`}
               >
                 <img
                   src={
@@ -127,17 +127,17 @@ const ITDashboardHeader = ({
                     )}&background=2B59B0&color=fff`
                   }
                   alt={currentUser?.name || "User"}
-                  className="h-6 w-6 rounded-md object-cover"
+                  className="h-7 w-7 rounded-lg object-cover sm:h-6 sm:w-6 sm:rounded-md"
                 />
-                <span className="hidden max-w-[140px] truncate text-xs font-semibold sm:inline">
+                <span className="hidden max-w-[140px] truncate text-xs font-semibold md:inline">
                   {currentUser?.name || "IT"}
                 </span>
-                <ChevronDown size={14} />
+                <ChevronDown size={14} className="hidden sm:block" />
               </button>
 
               {profileMenuOpen && (
                 <div
-                  className={`absolute right-0 top-full z-[90] mt-2 w-60 rounded-xl border p-2 shadow-lg ${theme === "dark" ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white"
+                  className={`absolute right-0 top-full z-[90] mt-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border p-2 shadow-lg sm:w-60 ${theme === "dark" ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white"
                     }`}
                 >
                   <div className={`border-b px-2 py-2 ${menuDividerClass}`}>

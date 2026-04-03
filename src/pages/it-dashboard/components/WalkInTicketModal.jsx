@@ -44,7 +44,7 @@ function buildInitialForm() {
 }
 
 const FIELD_CLASS_BASE =
-  "w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition focus:ring-2";
+  "w-full rounded-xl border px-3 py-2 text-sm outline-none transition focus:ring-2 sm:py-2.5";
 
 const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "light" }) => {
   const webcamRef = useRef(null);
@@ -113,13 +113,13 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     ? `${FIELD_CLASS_BASE} cursor-not-allowed border-slate-600 bg-slate-800 text-slate-200`
     : `${FIELD_CLASS_BASE} cursor-not-allowed border-slate-300 bg-slate-50 text-slate-700`;
   const chipClass = isDark
-    ? "inline-flex items-center rounded-full border border-[#2b59b0]/35 bg-[#2b59b0]/15 px-3 py-1 text-xs font-semibold text-[#c8d9ff]"
-    : "inline-flex items-center rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-3 py-1 text-xs font-semibold text-[#2b59b0]";
+    ? "inline-flex items-center rounded-full border border-[#2b59b0]/35 bg-[#2b59b0]/15 px-2.5 py-1 text-[11px] font-semibold text-[#c8d9ff] sm:px-3 sm:text-xs"
+    : "inline-flex items-center rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2.5 py-1 text-[11px] font-semibold text-[#2b59b0] sm:px-3 sm:text-xs";
   const primaryButtonClass =
-    "inline-flex items-center justify-center gap-2 rounded-xl bg-[#2b59b0] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:opacity-60";
+    "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2b59b0] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto";
   const secondaryButtonClass = isDark
-    ? "inline-flex items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-700"
-    : "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50";
+    ? "inline-flex w-full items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 sm:w-auto"
+    : "inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto";
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -259,27 +259,27 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
 
   return (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 ${overlayClass} animate-fade-in`}
+      className={`fixed inset-0 z-[9999] flex items-end justify-center p-0 ${overlayClass} animate-fade-in sm:items-center sm:p-4`}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="walk-in-ticket-title"
     >
       <div
-        className={`w-full max-w-4xl overflow-hidden rounded-3xl border ${shellClass} animate-scale-in`}
+        className={`flex h-[100dvh] max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-none border ${shellClass} animate-scale-in sm:h-auto sm:max-h-[92vh] sm:rounded-3xl`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-inherit px-5 py-4 sm:px-6">
-          <div>
+        <div className="flex flex-col gap-2.5 border-b border-inherit px-3 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6 sm:py-4">
+          <div className="min-w-0">
             <div className="mb-2 flex flex-wrap gap-2">
               <span className={chipClass}>➕ บันทึกงาน (Walk-in)</span>
               <span className={chipClass}>status: open</span>
               <span className={chipClass}>ช่องทาง: Walk-in</span>
             </div>
-            <h2 id="walk-in-ticket-title" className="text-xl font-bold sm:text-2xl">
+            <h2 id="walk-in-ticket-title" className="text-base font-bold sm:text-2xl">
               บันทึกงานแจ้งซ่อมแบบปากเปล่า
             </h2>
-            <p className={`mt-1 text-sm ${mutedClass}`}>
+            <p className={`mt-1 text-xs leading-5 ${mutedClass} sm:text-sm`}>
               กรอกข้อมูลให้ครบเพื่อบันทึก Ticket ลง Supabase พร้อมเก็บรหัสพนักงานและรูปประกอบ
             </p>
           </div>
@@ -287,22 +287,22 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
           <button
             type="button"
             onClick={onClose}
-            className={`rounded-xl p-2 transition-colors ${isDark ? "text-slate-300 hover:bg-slate-800 hover:text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"}`}
+            className={`self-end rounded-xl p-2 transition-colors sm:self-auto ${isDark ? "text-slate-300 hover:bg-slate-800 hover:text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"}`}
             aria-label="ปิดหน้าต่าง"
           >
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[85vh] overflow-y-auto px-5 py-5 sm:px-6">
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-5">
           {errors.form && (
             <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
               {errors.form}
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="col-span-2">
               <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
                 requester_name <span className="text-rose-500">*</span>
               </label>
@@ -351,7 +351,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="col-span-2">
               <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
                 issue_title <span className="text-rose-500">*</span>
               </label>
@@ -368,12 +368,12 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               {errors.issue_title && <p className="mt-1 text-xs font-medium text-rose-600">{errors.issue_title}</p>}
             </div>
 
-            <div className="md:col-span-2">
+            <div className="col-span-2">
               <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
                 issue_description
               </label>
               <textarea
-                rows="4"
+                rows="3"
                 value={form.issue_description}
                 onChange={(event) => setField("issue_description", event.target.value)}
                 className={inputClass}
@@ -381,7 +381,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               />
             </div>
 
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>priority</label>
               <select
                 value={form.priority}
@@ -394,7 +394,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               </select>
             </div>
 
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>status</label>
               <input value={form.status} readOnly className={readonlyClass} />
             </div>
@@ -419,7 +419,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               </div>
             </div>
 
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>end_time</label>
               <input
                 type="datetime-local"
@@ -430,12 +430,12 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               {errors.end_time && <p className="mt-1 text-xs font-medium text-rose-600">{errors.end_time}</p>}
             </div>
 
-            <div className="md:col-span-2">
+            <div className="col-span-2">
               <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
                 resolution_note
               </label>
               <textarea
-                rows="3"
+                rows="2"
                 value={form.resolution_note}
                 onChange={(event) => setField("resolution_note", event.target.value)}
                 className={inputClass}
@@ -444,14 +444,14 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:mt-5 sm:rounded-2xl sm:p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-800">แนบหลักฐาน</p>
                 <p className="text-xs text-slate-500">รูปจากเครื่องหรือกล้อง</p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -462,7 +462,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto sm:py-2.5"
                 >
                   <ImagePlus size={16} />
                   แนบรูป
@@ -474,7 +474,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                     setIsReviewing(false);
                     setTempImage(null);
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-4 py-2.5 text-sm font-semibold text-[#2b59b0] transition hover:bg-[#2b59b0]/15"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-4 py-2 text-sm font-semibold text-[#2b59b0] transition hover:bg-[#2b59b0]/15 sm:w-auto sm:py-2.5"
                 >
                   <Camera size={16} />
                   {isCameraOpen ? "ปิดกล้อง" : "เปิดกล้อง"}
@@ -483,7 +483,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             </div>
 
             {selectedAttachmentName && (
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:mt-4">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-800">{selectedAttachmentName}</p>
                   <p className="text-xs text-slate-500">พร้อมอัปโหลดเข้า Ticket</p>
@@ -500,14 +500,14 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             )}
 
             {preview && !isCameraOpen && (
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <img src={preview} alt="attachment preview" className="max-h-72 w-full object-cover" />
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white sm:mt-4 sm:rounded-2xl">
+                <img src={preview} alt="attachment preview" className="max-h-44 w-full object-cover sm:max-h-72" />
               </div>
             )}
 
             {isCameraOpen && (
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
-                <div className="relative overflow-hidden p-3">
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-900 sm:mt-4 sm:rounded-2xl">
+                <div className="relative overflow-hidden p-2.5 sm:p-3">
                   <Webcam
                     ref={webcamRef}
                     audio={false}
@@ -520,7 +520,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                   {isReviewing && tempImage && (
                     <img src={tempImage} alt="camera preview" className="absolute inset-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] rounded-xl object-cover" />
                   )}
-                  <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-3 rounded-xl bg-gradient-to-b from-slate-950/80 to-transparent px-4 py-3 text-white">
+                  <div className="absolute inset-x-2.5 top-2.5 flex items-start justify-between gap-3 rounded-xl bg-gradient-to-b from-slate-950/80 to-transparent px-3 py-2.5 text-white sm:inset-x-3 sm:top-3 sm:px-4 sm:py-3">
                     <div className="min-w-0">
                       <p className="text-sm font-bold">????????????</p>
                       <p className="text-[11px] text-white/75">{isReviewing ? "??????????????????????????????" : "???????????????????????????"}</p>
@@ -531,14 +531,14 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                       </span>
                     )}
                   </div>
-                  <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2 rounded-xl bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
+                  <div className="absolute inset-x-2.5 bottom-2.5 flex flex-col gap-2 rounded-xl bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent px-3 py-2.5 text-white sm:inset-x-3 sm:bottom-3 sm:px-4 sm:py-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-[11px] text-white/75">{isReviewing ? "??????????????????????????" : "?????????????/???????"}</p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                       {!isReviewing && (
                         <button
                           type="button"
                           onClick={() => setFacingMode((mode) => (mode === "user" ? "environment" : "user"))}
-                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 sm:flex-none sm:py-2.5"
                         >
                           <FlipHorizontal size={16} />
                           <span className="hidden sm:inline">?????????</span>
@@ -547,7 +547,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                       <button
                         type="button"
                         onClick={isReviewing ? () => { setIsReviewing(false); setTempImage(null); } : capture}
-                        className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#244a95] transition hover:bg-slate-100"
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#244a95] transition hover:bg-slate-100 sm:flex-none sm:py-2.5"
                       >
                         <Camera size={16} />
                         {isReviewing ? "????????" : "???????"}
@@ -556,7 +556,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                         <button
                           type="button"
                           onClick={confirmCapture}
-                          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:flex-none sm:py-2.5"
                         >
                           <Send size={16} />
                           ?????????
@@ -570,7 +570,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
           </div>
 
           <div
-            className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${
+            className={`mt-4 rounded-xl border px-3 py-2.5 text-xs sm:mt-5 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${
               isDark
                 ? "border-slate-700 bg-slate-800/60 text-slate-300"
                 : "border-slate-200 bg-slate-50 text-slate-600"
@@ -580,7 +580,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             {currentUser?.employeeId ? ` • ${currentUser.employeeId}` : ""}
           </div>
 
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <div className={`sticky bottom-0 -mx-3 mt-4 flex flex-col-reverse gap-2 border-t px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:mt-6 sm:flex-row sm:justify-end sm:gap-3 sm:border-0 sm:px-0 sm:py-0 ${isDark ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/95"}`}>
             <button type="button" onClick={onClose} className={secondaryButtonClass}>
               ยกเลิก
             </button>
