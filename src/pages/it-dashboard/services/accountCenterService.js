@@ -504,6 +504,29 @@ export async function sendManagedPasswordReset(email) {
   return true;
 }
 
+export async function setManagedAccountPassword(memberId, nextPassword) {
+  const targetUserId = normalizeText(memberId);
+  const password = String(nextPassword || "");
+
+  if (!targetUserId) {
+    throw new Error("No member selected.");
+  }
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw new Error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+  }
+
+  const { error } = await supabase.rpc("set_managed_account_password", {
+    _target_user_id: targetUserId,
+    _next_password: password,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return true;
+}
+
 export async function deleteManagedProfileRecord(member) {
   if (!normalizeText(member?.id)) {
     throw new Error("No member selected.");

@@ -38,6 +38,7 @@ import {
   normalizeText,
   removeManagedAccountAvatar,
   sendManagedPasswordReset,
+  setManagedAccountPassword,
   updateManagedAccount,
   updateMemberAccessState,
   updateSelfAccount,
@@ -124,6 +125,7 @@ export default function SettingsPage({ theme, uiTheme, currentUser, onCurrentUse
   const [savingSelf, setSavingSelf] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingMember, setSavingMember] = useState(false);
+  const [savingManagedPassword, setSavingManagedPassword] = useState(false);
   const [creatingMember, setCreatingMember] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState("");
@@ -139,6 +141,7 @@ export default function SettingsPage({ theme, uiTheme, currentUser, onCurrentUse
   const [selfForm, setSelfForm] = useState(createProfileForm(currentUser));
   const [memberForm, setMemberForm] = useState(createProfileForm());
   const [passwordForm, setPasswordForm] = useState({ nextPassword: "", confirmPassword: "" });
+  const [managedPasswordForm, setManagedPasswordForm] = useState({ nextPassword: "", confirmPassword: "" });
   const [createForm, setCreateForm] = useState(createNewMemberForm());
   const [createAvatarFile, setCreateAvatarFile] = useState(null);
   const [createAvatarPreview, setCreateAvatarPreview] = useState("");
@@ -226,10 +229,15 @@ export default function SettingsPage({ theme, uiTheme, currentUser, onCurrentUse
     () => members.find((item) => normalizeText(item?.id) === normalizeText(selectedMemberId)) || null,
     [members, selectedMemberId],
   );
+  const isSelectedCurrentUser = normalizeText(selectedMember?.id) === currentUserId;
 
   useEffect(() => {
     setMemberForm(createProfileForm(selectedMember));
   }, [selectedMember]);
+
+  useEffect(() => {
+    setManagedPasswordForm({ nextPassword: "", confirmPassword: "" });
+  }, [selectedMember?.id]);
 
   const summary = useMemo(() => {
     const active = members.filter((item) => item?.is_active !== false);
@@ -321,6 +329,37 @@ export default function SettingsPage({ theme, uiTheme, currentUser, onCurrentUse
     } catch (error) {
       console.error("Member action error:", error);
       setErrorMessage(error.message || "Unable to update account access.");
+    }
+  };
+
+  const handleSetManagedPassword = async () => {
+    if (!selectedMember?.id) return;
+
+    if (isSelectedCurrentUser) {
+      setErrorMessage("Use the Security panel to change your own password.");
+      setSuccessMessage("");
+      return;
+    }
+
+    try {
+      if (managedPasswordForm.nextPassword.length < PASSWORD_MIN_LENGTH) {
+        throw new Error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+      }
+      if (managedPasswordForm.nextPassword !== managedPasswordForm.confirmPassword) {
+        throw new Error("Password confirmation does not match.");
+      }
+
+      setSavingManagedPassword(true);
+      setErrorMessage("");
+      setSuccessMessage("");
+      await setManagedAccountPassword(selectedMember.id, managedPasswordForm.nextPassword);
+      setManagedPasswordForm({ nextPassword: "", confirmPassword: "" });
+      setSuccessMessage(`Password for ${selectedMember.email || selectedMember.full_name || "selected member"} has been updated.`);
+    } catch (error) {
+      console.error("Set managed password error:", error);
+      setErrorMessage(error.message || "Unable to update this member password.");
+    } finally {
+      setSavingManagedPassword(false);
     }
   };
 
@@ -469,8 +508,21 @@ export default function SettingsPage({ theme, uiTheme, currentUser, onCurrentUse
                   <button type="button" onClick={() => memberAvatarRef.current?.click()} disabled={avatarBusy === "member"} className={ghostButton}><Camera size={15} />Change photo</button>
                   <button type="button" onClick={() => void mutateAvatar({ scope: "member", clear: true })} disabled={!memberForm.avatar_url || avatarBusy === "member"} className={dangerButton}><Trash2 size={15} />Remove photo</button>
                   <button type="button" onClick={async () => { if (!selectedMember.email) return; try { setSendingReset(true); setErrorMessage(""); setSuccessMessage(""); await sendManagedPasswordReset(selectedMember.email); setSuccessMessage(`Password reset instructions were sent to ${selectedMember.email}.`); } catch (error) { console.error("Send reset error:", error); setErrorMessage(error.message || "Unable to send a password reset email."); } finally { setSendingReset(false); } }} disabled={sendingReset || !selectedMember.email} className={secondaryButton}>{sendingReset ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}Send reset link</button>
-                  <button type="button" onClick={() => void confirmMemberAction(selectedMember.is_active === false ? "restore" : "pause")} disabled={normalizeText(selectedMember?.id) === currentUserId} className={selectedMember.is_active === false ? primaryButton : dangerButton}><Power size={15} />{selectedMember.is_active === false ? "Restore access" : "Pause access"}</button>
+                  <button type="button" onClick={() => void confirmMemberAction(selectedMember.is_active === false ? "restore" : "pause")} disabled={isSelectedCurrentUser} className={selectedMember.is_active === false ? primaryButton : dangerButton}><Power size={15} />{selectedMember.is_active === false ? "Restore access" : "Pause access"}</button>
                   <input ref={memberAvatarRef} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void mutateAvatar({ scope: "member", file }); }} />
+                </div>
+                <div className={`mt-5 rounded-[1.45rem] border p-4 ${subCardClass}`}>
+                  <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${uiTheme.textMuted}`}>Set Password</p>
+                  <h4 className={`mt-1 text-lg font-black ${uiTheme.textPrimary}`}>Set a new password for this member</h4>
+                  <p className={`mt-2 text-sm ${uiTheme.textSecondary}`}>This updates the account password immediately. Ask the user to sign in again with the new password.</p>
+                  {isSelectedCurrentUser ? <div className={`mt-3 rounded-2xl border px-4 py-3 text-xs ${subCardClass}`}>Use the Security panel to change your own password.</div> : null}
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <Field icon={KeyRound} label="New Password"><input type="password" value={managedPasswordForm.nextPassword} onChange={(event) => setManagedPasswordForm((prev) => ({ ...prev, nextPassword: event.target.value }))} className={inputClass} disabled={isSelectedCurrentUser} /></Field>
+                    <Field icon={KeyRound} label="Confirm Password" hint={`Minimum ${PASSWORD_MIN_LENGTH} characters`}><input type="password" value={managedPasswordForm.confirmPassword} onChange={(event) => setManagedPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} className={inputClass} disabled={isSelectedCurrentUser} /></Field>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                    <button type="button" onClick={handleSetManagedPassword} disabled={savingManagedPassword || isSelectedCurrentUser} className={primaryButton}>{savingManagedPassword ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}Set password now</button>
+                  </div>
                 </div>
                 <form className="mt-6 space-y-5" onSubmit={async (event) => {
                   event.preventDefault();

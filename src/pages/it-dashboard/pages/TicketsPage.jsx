@@ -5,15 +5,15 @@ import TicketWorkspacePage from "./TicketWorkspacePage";
 const TICKETS_PAGE_TRANSLATIONS = {
   th: {
     title: "งานซ่อม",
-    subtitle: "จัดการรายการงานซ่อมทั้งหมดของศูนย์บริการ",
+    subtitle: "จัดการงานซ่อมทั้งหมด",
   },
   en: {
     title: "Repair Tickets",
-    subtitle: "Manage all repair jobs for the service center.",
+    subtitle: "Manage all repair jobs.",
   },
   ko: {
     title: "수리 작업",
-    subtitle: "서비스 센터의 모든 수리 요청을 관리합니다.",
+    subtitle: "모든 수리 작업을 관리합니다.",
   },
 };
 

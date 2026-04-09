@@ -1,15 +1,17 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Package,
   Ticket,
   Activity,
   History,
+  HardDrive,
   CalendarDays,
   Camera,
   KeyRound,
   Laptop,
   BarChart3,
   Settings,
+  ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
   X as XIcon,
@@ -83,12 +85,16 @@ const ITDashboardSidebar = ({
   theme,
   currentPage,
   onNavigatePage,
+  onOpenExecutiveAssets,
   notificationCount = 0,
   serviceRequestNotificationCount = 0,
   notebookNotificationCount = 0,
 }) => {
   const { tt } = useScopedI18n(SIDEBAR_TRANSLATIONS);
   const uiTheme = getITDashboardTheme(theme);
+  const [repairMenuExpanded, setRepairMenuExpanded] = useState(
+    currentPage === "ACTIVE" || currentPage === "HISTORY",
+  );
 
   const navItems = [
     { id: "TICKETS", label: tt("nav.tickets"), icon: Ticket },
@@ -96,16 +102,33 @@ const ITDashboardSidebar = ({
     { id: "ACCESS_REQUESTS", label: tt("nav.accessRequests"), icon: KeyRound },
     { id: "NOTEBOOK_BORROW", label: tt("nav.notebookBorrow"), icon: Laptop },
     { id: "IT_WORK_LOGS", label: tt("nav.workLogs"), icon: Camera },
-    { id: "ACTIVE", label: tt("nav.active"), icon: Activity },
-    { id: "HISTORY", label: tt("nav.history"), icon: History },
+    { id: "EXECUTIVE_ASSETS", label: "จัดการอุปกรณ์", icon: HardDrive },
     { id: "CALENDAR", label: tt("nav.calendar"), icon: CalendarDays },
     { id: "REPORTS", label: tt("nav.reports"), icon: BarChart3 },
     { id: "SETTINGS", label: tt("nav.settings"), icon: Settings },
   ];
+  const repairSubItems = [
+    { id: "ACTIVE", label: tt("nav.active"), icon: Activity },
+    { id: "HISTORY", label: tt("nav.history"), icon: History },
+  ];
+
+  useEffect(() => {
+    if (currentPage === "ACTIVE" || currentPage === "HISTORY") {
+      setRepairMenuExpanded(true);
+    }
+  }, [currentPage]);
 
   const resolveActive = (itemId) => itemId === currentPage;
+  const isRepairSectionActive =
+    currentPage === "TICKETS" || currentPage === "ACTIVE" || currentPage === "HISTORY";
 
   const onNavigate = (itemId) => {
+    if (itemId === "EXECUTIVE_ASSETS") {
+      onOpenExecutiveAssets?.();
+      setSidebarOpen(false);
+      return;
+    }
+
     onNavigatePage?.(itemId);
     setSidebarOpen(false);
   };
@@ -159,10 +182,79 @@ const ITDashboardSidebar = ({
           <ul className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = resolveActive(item.id);
+              const isRepairParent = item.id === "TICKETS" && !sidebarCollapsed;
+              const isActive = item.id === "TICKETS" ? isRepairSectionActive : resolveActive(item.id);
               const showTicketBadge = item.id === "TICKETS" && notificationCount > 0;
-              const showServiceRequestBadge = item.id === "SERVICE_REQUESTS" && serviceRequestNotificationCount > 0;
-              const showNotebookBadge = item.id === "NOTEBOOK_BORROW" && notebookNotificationCount > 0;
+              const showServiceRequestBadge =
+                item.id === "SERVICE_REQUESTS" && serviceRequestNotificationCount > 0;
+              const showNotebookBadge =
+                item.id === "NOTEBOOK_BORROW" && notebookNotificationCount > 0;
+
+              if (isRepairParent) {
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRepairMenuExpanded((prev) => !prev);
+                        if (currentPage !== "TICKETS") {
+                          onNavigatePage?.("TICKETS");
+                        }
+                      }}
+                      aria-expanded={repairMenuExpanded}
+                      className={`group flex w-full items-center rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition-all duration-200 ${
+                        isActive
+                          ? uiTheme.sidebarNavActive
+                          : `border-transparent ${uiTheme.sidebarNavIdle}`
+                      } hover:-translate-y-[1px]`}
+                    >
+                      <span className="relative shrink-0">
+                        <Icon size={18} />
+                        {showTicketBadge && (
+                          <span className="absolute -right-2 -top-2 inline-flex min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-none text-white shadow">
+                            {notificationCount > 9 ? "9+" : notificationCount}
+                          </span>
+                        )}
+                      </span>
+                      <span className="ml-3 truncate">{item.label}</span>
+                      <ChevronDown
+                        size={16}
+                        className={`ml-auto transition-transform duration-200 ${
+                          repairMenuExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {repairMenuExpanded && (
+                      <ul className="mt-1 space-y-1 pl-3">
+                        {repairSubItems.map((subItem) => {
+                          const SubIcon = subItem.icon;
+                          const subIsActive = resolveActive(subItem.id);
+
+                          return (
+                            <li key={subItem.id}>
+                              <button
+                                type="button"
+                                onClick={() => onNavigate(subItem.id)}
+                                className={`group flex w-full items-center rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition-all duration-200 ${
+                                  subIsActive
+                                    ? uiTheme.sidebarNavActive
+                                    : `border-transparent ${uiTheme.sidebarNavIdle}`
+                                } hover:-translate-y-[1px]`}
+                              >
+                                <span className="shrink-0">
+                                  <SubIcon size={16} />
+                                </span>
+                                <span className="ml-3 truncate">{subItem.label}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              }
 
               return (
                 <li key={item.id}>

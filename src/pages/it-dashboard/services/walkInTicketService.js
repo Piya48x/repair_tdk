@@ -55,7 +55,14 @@ export async function createWalkInTicket({
   start_time,
   end_time,
   resolution_note,
+  reporter_avatar_url,
   created_by,
+  created_by_name,
+  assigned_to,
+  assigned_name,
+  assigned_employee_id,
+  closed_by,
+  closed_by_name,
   attachment,
 }) {
   const requesterName = normalizeText(requester_name);
@@ -71,8 +78,15 @@ export async function createWalkInTicket({
 
   const startTimeIso = toIsoString(start_time) || new Date().toISOString();
   const endTimeIso = toIsoString(end_time);
+  const closedAtIso = endTimeIso || startTimeIso || new Date().toISOString();
   const note = normalizeText(resolution_note);
   const systemPriority = mapPriorityToSystemValue(priority);
+  const departmentValue = normalizeText(department) || null;
+  const assignedNameValue = normalizeText(assigned_name) || normalizeText(created_by_name) || "IT Support";
+  const closedByNameValue =
+    normalizeText(closed_by_name) ||
+    normalizeText(created_by_name) ||
+    assignedNameValue;
   const attachmentUrl = await uploadWalkInAttachment({
     attachment,
     createdBy: created_by,
@@ -83,19 +97,29 @@ export async function createWalkInTicket({
     created_by: created_by || null,
     reporter_name: requesterName,
     reporter_emp_id: normalizeText(requester_emp_id) || null,
-    department: normalizeText(department) || null,
+    reporter_dept: departmentValue,
+    reporter_avatar_url: normalizeText(reporter_avatar_url) || null,
+    department: departmentValue,
     title: issueTitle,
     description: normalizeText(issue_description) || null,
     service_type: "walk-in",
     priority: systemPriority,
-    status: "NEW",
+    status: "CLOSED",
     channel: "walk-in",
     started_at: startTimeIso,
     start_time: startTimeIso,
-    end_time: endTimeIso,
+    end_time: endTimeIso || closedAtIso,
+    assigned_to: assigned_to || created_by || null,
+    assigned_name: assignedNameValue,
+    assigned_employee_id: normalizeText(assigned_employee_id) || null,
     resolution_note: note || null,
     solution_note: note || null,
     image_url: attachmentUrl,
+    image_after_url: attachmentUrl,
+    closed_at: closedAtIso,
+    closed_by: closed_by || created_by || null,
+    closed_by_name: closedByNameValue || null,
+    updated_at: closedAtIso,
   };
 
   const { data, error } = await insertTicketWithSchemaFallback(supabase, payload, {

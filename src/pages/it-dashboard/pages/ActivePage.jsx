@@ -5,15 +5,15 @@ import TicketWorkspacePage from "./TicketWorkspacePage";
 const ACTIVE_PAGE_TRANSLATIONS = {
   th: {
     title: "กำลังดำเนินการ",
-    subtitle: "ติดตามงานที่รับผิดชอบและกำลังซ่อมอยู่",
+    subtitle: "ติดตามงานที่รับผิดชอบ",
   },
   en: {
     title: "In Progress",
-    subtitle: "Track assigned work and tickets currently being repaired.",
+    subtitle: "Track assigned work.",
   },
   ko: {
     title: "진행 중",
-    subtitle: "담당 중이거나 현재 수리 중인 작업을 추적합니다.",
+    subtitle: "담당 작업을 확인합니다.",
   },
 };
 

@@ -65,7 +65,6 @@ import {
   Map as MapIcon,
   Briefcase,
   Monitor,
-  HardDrive,
   Router,
   Database,
   Cloud,
@@ -1607,14 +1606,6 @@ const ITDashboard = () => {
           return false;
         }
 
-        const tooShort = [problem, rootCause, solution, result].some(
-          (text) => text.trim().length < 6
-        );
-        if (tooShort) {
-          Swal.showValidationMessage('<span class="text-rose-400">โปรดระบุแต่ละหัวข้ออย่างน้อย 6 ตัวอักษร</span>');
-          return false;
-        }
-
         const normalizedParts = parts.trim() || "ไม่มีการเปลี่ยนอะไหล่";
         const report = buildStructuredRepairReport({
           problem: problem.trim(),
@@ -1849,7 +1840,9 @@ const ITDashboard = () => {
   const handleCreateWalkInTicket = async (payload) => {
     const record = await createWalkInTicket(payload);
     await fetchTickets();
-    toast.success(`บันทึก Walk-in Ticket สำเร็จ${record?.ticket_no ? ` #${record.ticket_no}` : ""}`);
+    setCurrentPage(DASHBOARD_PAGE_IDS.HISTORY);
+    setActiveTab("HISTORY");
+    toast.success(`บันทึก Walk-in เข้าประวัติแล้ว${record?.ticket_no ? ` #${record.ticket_no}` : ""}`);
     return record;
   };
 
@@ -2060,6 +2053,7 @@ const ITDashboard = () => {
         theme={theme}
         currentPage={currentPage}
         onNavigatePage={handleNavigatePage}
+        onOpenExecutiveAssets={() => navigate("/reports/executive/assets-management")}
         notificationCount={notificationCount}
         serviceRequestNotificationCount={serviceRequestNotificationCount}
         notebookNotificationCount={notebookNotificationCount}
@@ -2089,21 +2083,6 @@ const ITDashboard = () => {
         />
 
         <main className="mx-auto max-w-[1440px] px-6 py-4 lg:py-5">
-          <section className="mb-4">
-            <button
-              type="button"
-              onClick={() => navigate("/reports/executive/assets-management")}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-                theme === "dark"
-                  ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20"
-                  : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
-              }`}
-            >
-              <HardDrive size={16} />
-              จัดการอุปกรณ์ Executive Report
-            </button>
-          </section>
-
           <ITDashboardPageRenderer
             currentPage={currentPage}
             onNavigatePage={handleNavigatePage}
