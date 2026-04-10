@@ -1,6 +1,6 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import { LayoutDashboard, ListChecks } from "lucide-react";
+import { ArrowUp, LayoutDashboard, ListChecks } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import {
   createITWorkRecord,
@@ -19,6 +19,7 @@ import EvidenceRecordsSection from "./it-work-evidence/EvidenceRecordsSection";
 import {
   STATUS_OPTIONS,
   TYPE_OPTIONS,
+  buildReferenceCode,
   buildEndTimeFromDuration,
   buildForm,
   buildFormFromRecord,
@@ -75,6 +76,16 @@ function clampDurationInput(value, max) {
   return Math.min(numeric, max);
 }
 
+function buildDefaultFilters() {
+  return {
+    query: "",
+    type: "ALL",
+    status: "ALL",
+    user: "ALL",
+    department: "ALL",
+  };
+}
+
 export default function ITWorkEvidencePage({
   theme,
   uiTheme,
@@ -98,13 +109,8 @@ export default function ITWorkEvidencePage({
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [nowValue, setNowValue] = useState(new Date());
-  const [filters, setFilters] = useState({
-    query: "",
-    type: "ALL",
-    status: "ALL",
-    user: "ALL",
-    department: "ALL",
-  });
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const [filters, setFilters] = useState(buildDefaultFilters);
 
   const deferredQuery = useDeferredValue(filters.query);
   const isEditing = editingRecordId !== null;
@@ -181,6 +187,31 @@ export default function ITWorkEvidencePage({
     const timer = window.setInterval(() => setNowValue(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, [timerRunning]);
+
+  useEffect(() => {
+    if (isEditing) return;
+
+    const nextReference = buildReferenceCode({
+      jobType: formData.job_type,
+      startTime: formData.start_time || new Date(),
+    });
+
+    setFormData((prev) => (
+      prev.reference_code === nextReference
+        ? prev
+        : { ...prev, reference_code: nextReference }
+    ));
+  }, [formData.job_type, formData.start_time, isEditing]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollToTop(window.scrollY > 720);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const clearFormState = () => {
     setTimerRunning(false);
@@ -377,7 +408,12 @@ export default function ITWorkEvidencePage({
         deviceDetails: normalizeText(record.device_details),
         location: normalizeText(record.location),
         department: normalizeText(record.department),
-        referenceCode: normalizeText(record.reference_code),
+        referenceCode:
+          normalizeText(record.reference_code) ||
+          buildReferenceCode({
+            jobType: record.job_type,
+            startTime: startValue || new Date(),
+          }),
         requesterName: normalizeText(record.requester_name),
         userName: normalizeText(record.created_by_name),
         startValue,
@@ -471,7 +507,12 @@ export default function ITWorkEvidencePage({
       requester_name: normalizeText(formData.requester_name),
       department: normalizeText(formData.department),
       device_details: normalizeText(formData.device_details),
-      reference_code: normalizeText(formData.reference_code),
+      reference_code:
+        normalizeText(formData.reference_code) ||
+        buildReferenceCode({
+          jobType: formData.job_type,
+          startTime: formData.start_time || new Date(),
+        }),
       result_summary: normalizeText(formData.result_summary),
       start_time: startIso,
       end_time: endIso,
@@ -586,6 +627,16 @@ export default function ITWorkEvidencePage({
 
   const scrollToList = () => {
     listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleStartFreshView = () => {
+    clearFormState();
+    setFilters(buildDefaultFilters());
+    scrollToTop();
   };
 
   return (
@@ -705,8 +756,26 @@ export default function ITWorkEvidencePage({
           editingId={editingRecordId}
           onDelete={handleDelete}
           deletingId={deletingId}
+          onScrollToTop={scrollToTop}
+          onStartFreshView={handleStartFreshView}
         />
       </section>
+
+      {showScrollToTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className={`fixed bottom-4 right-4 z-30 inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold shadow-lg transition hover:-translate-y-0.5 sm:bottom-5 sm:right-5 ${
+            theme === "dark"
+              ? "border-slate-600 bg-[#162136]/95 text-slate-100 shadow-slate-950/40"
+              : "border-slate-200 bg-white/95 text-slate-700 shadow-slate-300/40"
+          }`}
+          aria-label="กลับขึ้นบนสุด"
+        >
+          <ArrowUp size={16} />
+          <span className="hidden sm:inline">กลับขึ้นบนสุด</span>
+        </button>
+      )}
     </div>
   );
 }

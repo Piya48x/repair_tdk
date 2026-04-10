@@ -2042,7 +2042,7 @@ const ITDashboard = () => {
 
   return (
     <div
-      className={`app-theme min-h-screen transition-colors duration-500 ${uiTheme.appFont} ${uiTheme.pageBackground} ${theme === "dark" ? "dark" : ""
+      className={`app-theme min-h-screen overflow-x-clip transition-colors duration-500 ${uiTheme.appFont} ${uiTheme.pageBackground} ${theme === "dark" ? "dark" : ""
         }`}
     >
       <ITDashboardSidebar
@@ -2060,7 +2060,7 @@ const ITDashboard = () => {
       />
 
       <div
-        className={`${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"} transition-all duration-300 ease-in-out`}
+        className={`${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"} min-w-0 transition-all duration-300 ease-in-out`}
       >
 
         <ITDashboardHeader
@@ -2082,7 +2082,7 @@ const ITDashboard = () => {
           syncAgoText={getTimeSinceRefresh()}
         />
 
-        <main className="mx-auto max-w-[1440px] px-6 py-4 lg:py-5">
+        <main className="app-safe-bottom mx-auto max-w-[1440px] px-3 py-4 sm:px-6 lg:py-5">
           <ITDashboardPageRenderer
             currentPage={currentPage}
             onNavigatePage={handleNavigatePage}
@@ -2238,7 +2238,7 @@ const ITDashboard = () => {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div>
                     <label className={`mb-1 block text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>วันที่เริ่มต้น</label>
                     <input
@@ -2260,7 +2260,7 @@ const ITDashboard = () => {
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 gap-2">
+              <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   onClick={() => {
                     setFilterState({

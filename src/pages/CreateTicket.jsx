@@ -984,14 +984,14 @@ const CreateTicket = () => {
   }
 
   return (
-    <div className="app-theme min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800  selection:bg-blue-100 antialiased">
+    <div className="app-theme app-safe-bottom min-h-screen overflow-x-clip bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800 selection:bg-blue-100 antialiased">
       <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
 
       {/* Clean enterprise background */}
 
       {/* Premium Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="app-safe-top mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <motion.button
               whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
@@ -1032,7 +1032,7 @@ const CreateTicket = () => {
               </div>
             </motion.div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center justify-between gap-2 min-[420px]:w-auto min-[420px]:justify-end">
               <div className="flex items-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
                 <div className="relative">
                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -1049,9 +1049,9 @@ const CreateTicket = () => {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 px-4 py-6 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:py-8">
+      <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-3 py-5 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:py-8">
         {/* Left Column - Main Form */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="space-y-5 lg:col-span-8 sm:space-y-6">
           <form id="create-ticket-form" onSubmit={handleSubmit} className="space-y-6">
             {/* Profile Card */}
             <motion.section
@@ -1742,7 +1742,7 @@ const CreateTicket = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 min-[430px]:grid-cols-2">
                   <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">{tt("category")}</p>
                     {selectedCategory ? (
@@ -1939,7 +1939,7 @@ const CreateTicket = () => {
       </main>
 
       {/* Premium Footer */}
-      <footer className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-6 sm:px-6">
+      <footer className="app-safe-bottom relative z-10 mx-auto w-full max-w-7xl px-3 pb-6 sm:px-6">
         <div className="flex flex-wrap items-center justify-center gap-4 border-t border-slate-200/80 pt-5 text-[9px] text-slate-500">
           <span className="flex items-center gap-1.5">
             <Building size={12} className="text-indigo-400" />

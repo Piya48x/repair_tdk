@@ -274,7 +274,7 @@ export default function ReportsTopbar({
 
   return (
     <>
-      <div className="relative z-20 mb-5 overflow-visible rounded-[2rem] border border-slate-200/80 bg-white/90 p-3 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-4">
+      <div className="app-safe-top relative z-20 mb-5 overflow-visible rounded-[2rem] border border-slate-200/80 bg-white/90 p-3 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {backTo ? (
@@ -295,10 +295,10 @@ export default function ReportsTopbar({
             </Link>
           </div>
 
-          <div className="relative z-30 flex flex-wrap items-center gap-2 lg:justify-end">
+          <div className="relative z-30 flex w-full flex-wrap items-center justify-between gap-2 sm:justify-end lg:w-auto">
             {currentUser?.name ? (
               <div
-                className="inline-flex max-w-[220px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2"
+                className="inline-flex min-w-0 flex-1 max-w-[220px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 sm:flex-none"
                 title={currentUser.name}
               >
                 {isRenderableAvatar(currentUser?.avatar) ? (
@@ -328,16 +328,17 @@ export default function ReportsTopbar({
               type="button"
               onClick={handleLogout}
               disabled={isLoggingOut}
+              aria-label={isLoggingOut ? tt("signingOut") : tt("signOut")}
               className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <LogOut size={16} />
-              {isLoggingOut ? tt("signingOut") : tt("signOut")}
+              <span className="hidden sm:inline">{isLoggingOut ? tt("signingOut") : tt("signOut")}</span>
             </button>
           </div>
         </div>
 
         <div className="mt-3 border-t border-slate-200/80 pt-3">
-          <nav className="flex flex-wrap items-center gap-2">
+          <nav className="app-horizontal-scroll items-center gap-2">
             {navItems.map((item) => (
               <NavigationPill
                 key={item.key}

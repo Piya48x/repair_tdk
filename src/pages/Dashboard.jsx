@@ -3753,7 +3753,7 @@ export default function Dashboard() {
 
       {/* Navigation */}
       <nav className={`sticky top-0 z-40 shrink-0 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-2.5 sm:min-h-[72px] sm:px-6 lg:flex-nowrap lg:px-8">
+        <div className="app-safe-top mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-2.5 sm:min-h-[72px] sm:px-6 lg:flex-nowrap lg:px-8">
           <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border p-1.5 shadow-sm lg:flex-none ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
             <div className="relative">
               <img
@@ -3867,7 +3867,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
+            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:justify-end xl:w-auto xl:flex-nowrap">
               <div className={`hidden lg:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
                 <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
                   <Hash size={12} />
@@ -3900,6 +3900,7 @@ export default function Dashboard() {
               </div>
               <button
                 onClick={() => setIsLogoutConfirmOpen(true)}
+                aria-label={t("common.signOut")}
                 className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-2.5 sm:px-3 lg:px-4 text-sm font-bold text-rose-600 transition-all ${isDarkTheme ? "hover:bg-rose-900/30" : "hover:bg-rose-50"}`}
               >
                 <LogOut size={18} />
@@ -3911,7 +3912,7 @@ export default function Dashboard() {
       </nav>
 
       {/* Main Content */}
-      <main id="dashboard-main-content" className="mx-auto flex w-full max-w-[1440px] flex-col px-4 pt-3 pb-28 sm:px-6 sm:pt-4 sm:pb-12 lg:px-8 lg:pb-8">
+      <main id="dashboard-main-content" className="app-safe-bottom mx-auto flex w-full max-w-[1440px] flex-col px-4 pt-3 pb-28 sm:px-6 sm:pt-4 sm:pb-12 lg:px-8 lg:pb-8">
         {/* Header Section */}
         <header className="mb-4 shrink-0 space-y-3">
           {/* Stats Overview */}

@@ -416,9 +416,9 @@ export default function MyStatus() {
   const subtleClass = isDarkTheme ? "text-slate-400" : "text-slate-500";
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDarkTheme ? "bg-[#0b1220] text-slate-100" : "bg-[#f4f7fb] text-slate-800"}`}>
+    <div className={`min-h-screen overflow-x-clip transition-colors duration-300 ${isDarkTheme ? "bg-[#0b1220] text-slate-100" : "bg-[#f4f7fb] text-slate-800"}`}>
       <header className={`sticky top-0 z-30 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/90"}`}>
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="app-safe-top mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -438,7 +438,7 @@ export default function MyStatus() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={() => setThemeMode((prev) => (prev === "dark" ? "light" : "dark"))}
@@ -462,7 +462,7 @@ export default function MyStatus() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+      <main className="app-safe-bottom mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
         {loading ? (
           <div className={`flex min-h-[50vh] items-center justify-center rounded-3xl border ${isDarkTheme ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
             <div className="flex items-center gap-3 text-sm font-semibold text-slate-500">

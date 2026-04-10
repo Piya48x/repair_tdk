@@ -733,7 +733,7 @@ export default function WorkNotes() {
 
   return (
     <div className="app-theme app-page-bg min-h-screen text-slate-800">
-      <div className="mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8">
+      <div className="app-safe-top app-safe-bottom mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8">
         <header className="app-surface p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -793,7 +793,7 @@ export default function WorkNotes() {
           </div>
         ) : null}
 
-        <section className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <section className="mt-5 grid grid-cols-2 gap-3 max-[399px]:grid-cols-1 xl:grid-cols-4">
           <SummaryCard icon={FileText} label={tt("allNotes")} value={totalNotes} hint={tt("allNotesHint")} />
           <SummaryCard icon={Clock3} label={tt("open")} value={openNotes} hint={tt("openHint")} />
           <SummaryCard icon={CheckCircle2} label={tt("done")} value={doneNotes} hint={tt("doneHint")} />

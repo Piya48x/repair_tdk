@@ -508,7 +508,7 @@ const AccessRequest = () => {
 
   return (
     <div className="app-theme app-page-bg min-h-screen text-slate-800">
-      <div className="mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 lg:px-8">
+      <div className="app-safe-top app-safe-bottom mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 lg:px-8">
         <header className="app-surface p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -544,7 +544,7 @@ const AccessRequest = () => {
           </div>
         </header>
 
-        <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section className="mt-5 grid grid-cols-2 gap-3 max-[399px]:grid-cols-1 lg:grid-cols-4">
           <article className="app-surface p-4">
             <p className="text-xs font-semibold text-slate-500">{tt("pendingApproval")}</p>
             <p className="mt-2 text-3xl font-black text-amber-600">{summary.pending}</p>
@@ -828,7 +828,7 @@ const AccessRequest = () => {
                 </p>
               )}
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="grid grid-cols-1 gap-2 pt-1 min-[420px]:grid-cols-2">
                 <button
                   type="button"
                   onClick={closeDrawer}

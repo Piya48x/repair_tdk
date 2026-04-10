@@ -1,7 +1,10 @@
 import React from "react";
+import { toast } from "react-hot-toast";
 import {
   Camera,
   Clock3,
+  Copy,
+  Hash,
   Pencil,
   Play,
   Square,
@@ -10,6 +13,14 @@ import {
   Upload,
 } from "lucide-react";
 import { MAX_FILES, STATUS_OPTIONS, TYPE_OPTIONS } from "./shared";
+
+function FieldLabel({ children, softTextClass }) {
+  return (
+    <p className={`mb-2 text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>
+      {children}
+    </p>
+  );
+}
 
 export default function EvidenceFormSection({
   theme,
@@ -45,6 +56,24 @@ export default function EvidenceFormSection({
   const ghostButtonClass = theme === "dark"
     ? "border-slate-600 bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+  const timerTileClass = `${theme === "dark" ? "bg-[#0f172a]" : "bg-white"} rounded-2xl p-3`;
+  const referencePanelClass = theme === "dark"
+    ? "border-slate-700 bg-[#0f172a]"
+    : "border-slate-200 bg-white";
+  const imageCardClass = theme === "dark"
+    ? "border-slate-700 bg-[#0f172a]"
+    : "border-slate-200 bg-white";
+
+  const handleCopyReference = async () => {
+    if (!formData.reference_code) return;
+
+    try {
+      await navigator.clipboard.writeText(formData.reference_code);
+      toast.success("คัดลอกเลขอ้างอิงแล้ว");
+    } catch {
+      toast.error("ไม่สามารถคัดลอกเลขอ้างอิงได้");
+    }
+  };
 
   return (
     <aside className={`${cardClass} p-5 sm:p-6`}>
@@ -57,7 +86,7 @@ export default function EvidenceFormSection({
             ชื่อเรื่อง รายละเอียด ประเภทงาน สถานที่ เวลา และรูปหลักฐาน
           </p>
           <p className={`mt-1 text-xs ${softTextClass}`}>
-            เลือกวันเวลาย้อนหลังได้ และกำหนดชั่วโมงการทำงานเองได้
+            กรอกย้อนหลังได้ จับเวลาได้ และเลขอ้างอิงจะสร้างอัตโนมัติให้ทันที
           </p>
         </div>
 
@@ -90,7 +119,7 @@ export default function EvidenceFormSection({
           <div>
             <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>ระบบจับเวลา</p>
             <p className={`mt-1 text-xs ${softTextClass}`}>
-              เริ่มและหยุดเวลาแบบ real-time หรือกรอกชั่วโมงและนาทีเองสำหรับงานย้อนหลัง
+              เริ่มและหยุดเวลาแบบ real-time หรือกำหนดชั่วโมงย้อนหลังเองได้
             </p>
           </div>
 
@@ -129,19 +158,19 @@ export default function EvidenceFormSection({
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className={`${theme === "dark" ? "bg-[#0f172a]" : "bg-white"} rounded-2xl p-3`}>
-            <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>เวลาเริ่ม</p>
-            <p className={`mt-2 text-sm font-semibold ${uiTheme.textPrimary}`}>{formData.start_time || "-"}</p>
+          <div className={timerTileClass}>
+            <FieldLabel softTextClass={softTextClass}>เวลาเริ่ม</FieldLabel>
+            <p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{formData.start_time || "-"}</p>
           </div>
-          <div className={`${theme === "dark" ? "bg-[#0f172a]" : "bg-white"} rounded-2xl p-3`}>
-            <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>เวลาสิ้นสุด</p>
-            <p className={`mt-2 text-sm font-semibold ${uiTheme.textPrimary}`}>
+          <div className={timerTileClass}>
+            <FieldLabel softTextClass={softTextClass}>เวลาสิ้นสุด</FieldLabel>
+            <p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>
               {formData.end_time || (timerRunning ? "กำลังจับเวลา..." : "-")}
             </p>
           </div>
-          <div className={`${theme === "dark" ? "bg-[#0f172a]" : "bg-white"} rounded-2xl p-3`}>
-            <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ระยะเวลา</p>
-            <p className={`mt-2 inline-flex items-center gap-2 text-sm font-semibold ${uiTheme.textPrimary}`}>
+          <div className={timerTileClass}>
+            <FieldLabel softTextClass={softTextClass}>ระยะเวลา</FieldLabel>
+            <p className={`inline-flex items-center gap-2 text-sm font-semibold ${uiTheme.textPrimary}`}>
               <Clock3 size={15} />
               {durationLabel}
             </p>
@@ -149,19 +178,19 @@ export default function EvidenceFormSection({
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className={`${theme === "dark" ? "bg-[#0f172a]" : "bg-white"} rounded-2xl p-3`}>
-            <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ชั่วโมงทำงาน</p>
+          <label className={timerTileClass}>
+            <FieldLabel softTextClass={softTextClass}>ชั่วโมงทำงาน</FieldLabel>
             <input
               type="number"
               min="0"
               step="1"
               value={durationHours}
               onChange={(event) => onDurationHoursChange(event.target.value)}
-              className="mt-2 w-full bg-transparent text-sm font-semibold outline-none"
+              className="w-full bg-transparent text-sm font-semibold outline-none"
             />
           </label>
-          <label className={`${theme === "dark" ? "bg-[#0f172a]" : "bg-white"} rounded-2xl p-3`}>
-            <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>นาทีทำงาน</p>
+          <label className={timerTileClass}>
+            <FieldLabel softTextClass={softTextClass}>นาทีทำงาน</FieldLabel>
             <input
               type="number"
               min="0"
@@ -169,128 +198,188 @@ export default function EvidenceFormSection({
               step="1"
               value={durationMinutes}
               onChange={(event) => onDurationMinutesChange(event.target.value)}
-              className="mt-2 w-full bg-transparent text-sm font-semibold outline-none"
+              className="w-full bg-transparent text-sm font-semibold outline-none"
             />
           </label>
         </div>
       </div>
 
       <form className="mt-5 space-y-4" onSubmit={onSave}>
-        <input
-          value={formData.title}
-          onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
-          className={inputClass}
-          placeholder="ชื่อเรื่องงาน"
-          maxLength={180}
-        />
+        <label className="block">
+          <FieldLabel softTextClass={softTextClass}>ชื่อเรื่องงาน</FieldLabel>
+          <input
+            value={formData.title}
+            onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
+            className={inputClass}
+            placeholder="เช่น ติดตั้งเครื่องใหม่ / เปลี่ยนอุปกรณ์ / แก้ปัญหาหน้างาน"
+            maxLength={180}
+          />
+        </label>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <select
-            value={formData.job_type}
-            onChange={(event) => setFormData((prev) => ({ ...prev, job_type: event.target.value }))}
-            className={inputClass}
-          >
-            {TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={formData.work_status}
-            onChange={(event) => setFormData((prev) => ({ ...prev, work_status: event.target.value }))}
-            className={inputClass}
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <label className="block">
+            <FieldLabel softTextClass={softTextClass}>ประเภทงาน</FieldLabel>
+            <select
+              value={formData.job_type}
+              onChange={(event) => setFormData((prev) => ({ ...prev, job_type: event.target.value }))}
+              className={inputClass}
+            >
+              {TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <FieldLabel softTextClass={softTextClass}>สถานะงาน</FieldLabel>
+            <select
+              value={formData.work_status}
+              onChange={(event) => setFormData((prev) => ({ ...prev, work_status: event.target.value }))}
+              className={inputClass}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <input
-            type="datetime-local"
-            value={formData.start_time}
-            onChange={(event) => setFormData((prev) => ({ ...prev, start_time: event.target.value }))}
-            className={inputClass}
-          />
-          <input
-            type="datetime-local"
-            value={formData.end_time}
-            onChange={(event) => setFormData((prev) => ({ ...prev, end_time: event.target.value }))}
-            className={inputClass}
-          />
+          <label className="block">
+            <FieldLabel softTextClass={softTextClass}>วันเวลาเริ่ม</FieldLabel>
+            <input
+              type="datetime-local"
+              value={formData.start_time}
+              onChange={(event) => setFormData((prev) => ({ ...prev, start_time: event.target.value }))}
+              className={inputClass}
+            />
+          </label>
+
+          <label className="block">
+            <FieldLabel softTextClass={softTextClass}>วันเวลาสิ้นสุด</FieldLabel>
+            <input
+              type="datetime-local"
+              value={formData.end_time}
+              onChange={(event) => setFormData((prev) => ({ ...prev, end_time: event.target.value }))}
+              className={inputClass}
+            />
+          </label>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <input
-            value={formData.location}
-            onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
-            className={inputClass}
-            placeholder="สถานที่"
-            maxLength={120}
-          />
-          <input
-            value={formData.reference_code}
-            onChange={(event) => setFormData((prev) => ({ ...prev, reference_code: event.target.value }))}
-            className={inputClass}
-            placeholder="เลขอ้างอิง / Ticket / Asset"
-            maxLength={80}
-          />
+          <label className="block">
+            <FieldLabel softTextClass={softTextClass}>สถานที่</FieldLabel>
+            <input
+              value={formData.location}
+              onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
+              className={inputClass}
+              placeholder="เช่น อาคาร A, ไลน์ผลิต, ห้องผู้บริหาร"
+              maxLength={120}
+            />
+          </label>
+
+          <div className={`overflow-hidden rounded-2xl border ${referencePanelClass}`}>
+            <div className={`flex items-center justify-between gap-3 border-b px-4 py-3 ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`}>
+              <div className="min-w-0">
+                <p className={`inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>
+                  <Hash size={13} />
+                  เลขอ้างอิงอัตโนมัติ
+                </p>
+                <p className={`mt-1 text-xs ${softTextClass}`}>
+                  ระบบสร้างให้อัตโนมัติจากประเภทงานและเวลาเริ่ม
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyReference}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${ghostButtonClass}`}
+              >
+                <Copy size={14} />
+                คัดลอก
+              </button>
+            </div>
+
+            <div className="px-4 py-3">
+              <input
+                value={formData.reference_code}
+                readOnly
+                className={`${inputClass} cursor-default border-0 px-0 py-0 font-semibold tracking-[0.08em] shadow-none focus:border-transparent focus:shadow-none`}
+                placeholder="ระบบจะสร้างเลขอ้างอิงให้อัตโนมัติ"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <input
-            value={formData.requester_name}
-            onChange={(event) => setFormData((prev) => ({ ...prev, requester_name: event.target.value }))}
-            className={inputClass}
-            placeholder="ผู้แจ้ง / ผู้ประสานงาน"
-            maxLength={120}
-          />
-          <input
-            value={formData.department}
-            onChange={(event) => setFormData((prev) => ({ ...prev, department: event.target.value }))}
-            className={inputClass}
-            placeholder="แผนก"
-            maxLength={100}
-          />
+          <label className="block">
+            <FieldLabel softTextClass={softTextClass}>ผู้แจ้ง / ผู้ประสานงาน</FieldLabel>
+            <input
+              value={formData.requester_name}
+              onChange={(event) => setFormData((prev) => ({ ...prev, requester_name: event.target.value }))}
+              className={inputClass}
+              placeholder="ชื่อผู้แจ้งหรือผู้ประสานงาน"
+              maxLength={120}
+            />
+          </label>
+
+          <label className="block">
+            <FieldLabel softTextClass={softTextClass}>แผนก</FieldLabel>
+            <input
+              value={formData.department}
+              onChange={(event) => setFormData((prev) => ({ ...prev, department: event.target.value }))}
+              className={inputClass}
+              placeholder="เช่น IT, QA, Production"
+              maxLength={100}
+            />
+          </label>
         </div>
 
-        <input
-          value={formData.device_details}
-          onChange={(event) => setFormData((prev) => ({ ...prev, device_details: event.target.value }))}
-          className={inputClass}
-          placeholder="อุปกรณ์ / รายการที่ทำ"
-          maxLength={180}
-        />
+        <label className="block">
+          <FieldLabel softTextClass={softTextClass}>อุปกรณ์ / รายการที่ทำ</FieldLabel>
+          <input
+            value={formData.device_details}
+            onChange={(event) => setFormData((prev) => ({ ...prev, device_details: event.target.value }))}
+            className={inputClass}
+            placeholder="เช่น PC Dell, Printer, CCTV, Network Point"
+            maxLength={180}
+          />
+        </label>
 
-        <textarea
-          rows={4}
-          value={formData.description}
-          onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
-          className={inputClass}
-          placeholder="รายละเอียดงาน"
-        />
+        <label className="block">
+          <FieldLabel softTextClass={softTextClass}>รายละเอียดงาน</FieldLabel>
+          <textarea
+            rows={4}
+            value={formData.description}
+            onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
+            className={inputClass}
+            placeholder="สรุปสิ่งที่ทำ ปัญหาที่พบ และขั้นตอนที่ดำเนินการ"
+          />
+        </label>
 
-        <textarea
-          rows={3}
-          value={formData.result_summary}
-          onChange={(event) => setFormData((prev) => ({ ...prev, result_summary: event.target.value }))}
-          className={inputClass}
-          placeholder="ผลลัพธ์ / หมายเหตุเพิ่มเติม"
-        />
+        <label className="block">
+          <FieldLabel softTextClass={softTextClass}>ผลลัพธ์ / หมายเหตุเพิ่มเติม</FieldLabel>
+          <textarea
+            rows={3}
+            value={formData.result_summary}
+            onChange={(event) => setFormData((prev) => ({ ...prev, result_summary: event.target.value }))}
+            className={inputClass}
+            placeholder="ผลหลังดำเนินการ เช่น ใช้งานได้ปกติ, รออะไหล่, นัดติดตามต่อ"
+          />
+        </label>
 
         <div className={`${subCardClass} p-4`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>รูปหลักฐานงาน</p>
               <p className={`mt-1 text-xs ${softTextClass}`}>
-                สูงสุด {MAX_FILES} รูป • {currentUser?.name || "-"}
+                สูงสุด {MAX_FILES} รูป • ผู้บันทึก {currentUser?.name || "-"}
               </p>
               <p className={`mt-1 text-xs ${softTextClass}`}>
-                Ctrl+V วางรูปได้
+                รองรับ Ctrl+V เพื่อวางภาพจากคลิปบอร์ดได้ทันที
               </p>
             </div>
             <button
@@ -312,7 +401,7 @@ export default function EvidenceFormSection({
           {existingImages?.length > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {existingImages.map((image, index) => (
-                <div key={`${image.url}_${index}`} className={`overflow-hidden rounded-2xl border ${theme === "dark" ? "border-slate-700 bg-[#0f172a]" : "border-slate-200 bg-white"}`}>
+                <div key={`${image.url}_${index}`} className={`overflow-hidden rounded-2xl border ${imageCardClass}`}>
                   <img src={image.url} alt={image.name || `existing-evidence-${index + 1}`} className="h-28 w-full object-cover" />
                   <div className="flex items-center justify-between gap-2 px-3 py-2">
                     <p className={`min-w-0 truncate text-xs font-semibold ${uiTheme.textSecondary}`}>
@@ -334,7 +423,7 @@ export default function EvidenceFormSection({
           {selectedFiles.length > 0 ? (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {selectedFiles.map((entry) => (
-                <div key={entry.id} className={`overflow-hidden rounded-2xl border ${theme === "dark" ? "border-slate-700 bg-[#0f172a]" : "border-slate-200 bg-white"}`}>
+                <div key={entry.id} className={`overflow-hidden rounded-2xl border ${imageCardClass}`}>
                   <img src={entry.previewUrl} alt={entry.file?.name || "evidence-preview"} className="h-28 w-full object-cover" />
                   <div className="flex items-center justify-between gap-2 px-3 py-2">
                     <p className={`min-w-0 truncate text-xs font-semibold ${uiTheme.textSecondary}`}>{entry.file?.name}</p>

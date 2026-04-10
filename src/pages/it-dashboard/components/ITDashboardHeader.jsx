@@ -53,7 +53,7 @@ const ITDashboardHeader = ({
 
   return (
     <header className={`sticky top-0 z-40 border-b ${uiTheme.headerShell}`}>
-      <div className="mx-auto max-w-[1440px] px-3 sm:px-6">
+      <div className="app-safe-top mx-auto max-w-[1440px] px-3 sm:px-6">
         <div className="relative z-20 flex min-h-16 flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 w-full items-center gap-3 sm:w-auto">
             <button
@@ -76,9 +76,9 @@ const ITDashboardHeader = ({
             </div>
           </div>
 
-          <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto sm:gap-3">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-3">
             <div
-              className={`hidden items-center gap-2 rounded-lg border px-2 py-1 text-[11px] font-semibold md:flex ${uiTheme.statusBadge}`}
+              className={`hidden items-center gap-2 rounded-lg border px-2 py-1 text-[11px] font-semibold lg:flex ${uiTheme.statusBadge}`}
             >
               <span
                 className={`h-2 w-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-slate-400"}`}
@@ -103,7 +103,7 @@ const ITDashboardHeader = ({
               )}
             </button>
 
-            <div className={`flex shrink-0 items-center gap-0.5 rounded-2xl border p-0.5 sm:gap-1 sm:p-1 ${theme === "dark" ? "border-slate-700 bg-slate-900/85" : "border-slate-200 bg-white/90 shadow-sm shadow-slate-200/70"}`}>
+            <div className={`flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-2xl border p-0.5 sm:flex-none sm:gap-1 sm:p-1 ${theme === "dark" ? "border-slate-700 bg-slate-900/85" : "border-slate-200 bg-white/90 shadow-sm shadow-slate-200/70"}`}>
               <button
                 onClick={toggleTheme}
                 className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition-colors sm:h-10 sm:w-10 ${uiTheme.iconButton}`}
@@ -114,10 +114,10 @@ const ITDashboardHeader = ({
               <LanguageSwitcher mode="nav" isDarkTheme={theme === "dark"} />
             </div>
 
-            <div className="relative z-[80] shrink-0" ref={profileRef}>
+            <div className="relative z-[80] ml-auto shrink-0 sm:ml-0" ref={profileRef}>
               <button
                 onClick={() => setProfileMenuOpen((prev) => !prev)}
-                className={`flex h-10 items-center gap-1.5 rounded-xl border px-1.5 py-1.5 text-sm sm:gap-2 sm:rounded-lg sm:px-2 ${uiTheme.statusButton}`}
+                className={`flex h-10 max-w-[9.75rem] items-center gap-1.5 rounded-xl border px-1.5 py-1.5 text-sm sm:max-w-none sm:gap-2 sm:rounded-lg sm:px-2 ${uiTheme.statusButton}`}
               >
                 <img
                   src={

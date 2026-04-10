@@ -498,9 +498,9 @@ export default function MyBorrowRequests() {
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDarkTheme ? "bg-[#0b1220] text-slate-100" : "bg-[#f4f7fb] text-slate-800"}`}>
+    <div className={`min-h-screen overflow-x-clip transition-colors duration-300 ${isDarkTheme ? "bg-[#0b1220] text-slate-100" : "bg-[#f4f7fb] text-slate-800"}`}>
       <header className={`sticky top-0 z-30 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/90"}`}>
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="app-safe-top mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -520,7 +520,7 @@ export default function MyBorrowRequests() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full flex-wrap justify-between gap-2 lg:w-auto lg:justify-end">
             <button
               type="button"
               onClick={() => navigate("/pick-up-equipment")}
@@ -554,7 +554,7 @@ export default function MyBorrowRequests() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <main className="app-safe-bottom mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid gap-4 xl:grid-cols-3">
           <article className={`rounded-3xl border p-5 shadow-sm ${shellClass}`}>
             <p className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedTextClass}`}>{tt("total")}</p>

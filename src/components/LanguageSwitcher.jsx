@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Select, { components } from "react-select";
 import { Check, ChevronDown } from "lucide-react";
 import thFlag from "flag-icons/flags/4x3/th.svg";
@@ -115,7 +115,29 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
   const { language, options, setLanguage, t } = useI18n();
   const isCompact = mode === "nav";
   const isAuthMode = mode === "auth";
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 640px)").matches;
+  });
   const menuPortalTarget = typeof document !== "undefined" ? document.body : undefined;
+  const shouldUseInlineMenu = isAuthMode || isCompact || isMobileViewport;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const handleViewportChange = (event) => setIsMobileViewport(event.matches);
+
+    setIsMobileViewport(mediaQuery.matches);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleViewportChange);
+      return () => mediaQuery.removeEventListener("change", handleViewportChange);
+    }
+
+    mediaQuery.addListener(handleViewportChange);
+    return () => mediaQuery.removeListener(handleViewportChange);
+  }, []);
 
   const selectOptions = useMemo(
     () =>
@@ -136,8 +158,8 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
     () => ({
       control: (base, state) => ({
         ...base,
-        minHeight: isCompact ? 40 : isAuthMode ? 58 : 46,
-        borderRadius: isCompact ? 16 : 9999,
+        minHeight: isCompact ? (isMobileViewport ? 38 : 40) : isAuthMode ? (isMobileViewport ? 52 : 58) : (isMobileViewport ? 44 : 46),
+        borderRadius: isCompact ? 14 : 9999,
         borderColor: state.isFocused
           ? (isDarkTheme ? "#818cf8" : "#93c5fd")
           : isAuthMode
@@ -160,10 +182,10 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
               ? "0 24px 48px -28px rgba(15, 23, 42, 0.45)"
               : "0 16px 34px -24px rgba(15, 23, 42, 0.5)"),
         backdropFilter: isCompact ? "blur(12px)" : isAuthMode ? "blur(18px)" : "blur(18px)",
-        paddingLeft: isCompact ? 3 : isAuthMode ? 5 : 4,
-        paddingRight: isCompact ? 3 : isAuthMode ? 7 : 4,
-        minWidth: isCompact ? 68 : isAuthMode ? 86 : undefined,
-        width: isCompact ? 68 : isAuthMode ? 86 : undefined,
+        paddingLeft: isCompact ? (isMobileViewport ? 1 : 3) : isAuthMode ? (isMobileViewport ? 4 : 5) : (isMobileViewport ? 3 : 4),
+        paddingRight: isCompact ? (isMobileViewport ? 1 : 3) : isAuthMode ? (isMobileViewport ? 5 : 7) : (isMobileViewport ? 3 : 4),
+        minWidth: isCompact ? (isMobileViewport ? 60 : 68) : isAuthMode ? (isMobileViewport ? 80 : 86) : undefined,
+        width: isCompact ? (isMobileViewport ? 60 : 68) : isAuthMode ? (isMobileViewport ? 80 : 86) : undefined,
         transition: "all 160ms ease",
         cursor: "pointer",
         ":hover": {
@@ -176,8 +198,8 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
       }),
       valueContainer: (base) => ({
         ...base,
-        paddingLeft: isCompact ? 8 : isAuthMode ? 0 : 8,
-        paddingRight: isCompact ? 4 : isAuthMode ? 0 : 6,
+        paddingLeft: isCompact ? (isMobileViewport ? 4 : 8) : isAuthMode ? 0 : (isMobileViewport ? 6 : 8),
+        paddingRight: isCompact ? (isMobileViewport ? 2 : 4) : isAuthMode ? 0 : (isMobileViewport ? 4 : 6),
         justifyContent: isAuthMode ? "center" : base.justifyContent,
       }),
       singleValue: (base) => ({
@@ -200,8 +222,8 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
           : isAuthMode
             ? "#2b59b0"
             : (isDarkTheme ? "#94a3b8" : "#64748b"),
-        paddingLeft: isCompact ? 0 : isAuthMode ? 2 : 6,
-        paddingRight: isCompact ? 6 : isAuthMode ? 10 : 8,
+        paddingLeft: isCompact ? 0 : isAuthMode ? 2 : (isMobileViewport ? 4 : 6),
+        paddingRight: isCompact ? (isMobileViewport ? 4 : 6) : isAuthMode ? (isMobileViewport ? 8 : 10) : (isMobileViewport ? 6 : 8),
         ":hover": {
           color: isDarkTheme ? "#e2e8f0" : "#244a95",
         },
@@ -215,11 +237,11 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
         boxShadow: isAuthMode
           ? "0 28px 48px -30px rgba(15, 23, 42, 0.45)"
           : "0 18px 40px -26px rgba(15, 23, 42, 0.5)",
-        minWidth: isCompact ? 168 : isAuthMode ? 224 : undefined,
-        width: isCompact ? 168 : isAuthMode ? 224 : undefined,
-        marginTop: isCompact ? 8 : isAuthMode ? 10 : base.marginTop,
-        right: isCompact || isAuthMode ? 0 : base.right,
-        left: isCompact || isAuthMode ? "auto" : base.left,
+        minWidth: isCompact ? (isMobileViewport ? 152 : 168) : isAuthMode ? (isMobileViewport ? 208 : 224) : (isMobileViewport ? 184 : undefined),
+        width: isCompact ? (isMobileViewport ? 152 : 168) : isAuthMode ? (isMobileViewport ? 208 : 224) : (isMobileViewport ? 184 : undefined),
+        marginTop: isCompact ? 8 : isAuthMode ? 10 : (isMobileViewport ? 8 : base.marginTop),
+        right: shouldUseInlineMenu ? 0 : base.right,
+        left: shouldUseInlineMenu ? "auto" : base.left,
         zIndex: 200,
       }),
       menuList: (base) => ({
@@ -245,22 +267,33 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
         zIndex: 200,
       }),
     }),
-    [isAuthMode, isCompact, isDarkTheme],
+    [isAuthMode, isCompact, isDarkTheme, isMobileViewport, shouldUseInlineMenu],
   );
 
   const outerClassName = mode === "floating" || isAuthMode
-    ? "pointer-events-none fixed right-3 top-3 z-[140] sm:right-4 sm:top-4"
+    ? "pointer-events-none fixed z-[140] max-w-[calc(100vw-1rem)]"
     : className;
+  const outerStyle = mode === "floating" || isAuthMode
+    ? {
+      top: "max(0.75rem, env(safe-area-inset-top))",
+      right: "max(0.75rem, env(safe-area-inset-right))",
+    }
+    : undefined;
 
   const innerClassName = mode === "floating"
-    ? "pointer-events-auto w-[164px] sm:w-[180px]"
+    ? "pointer-events-auto"
     : isAuthMode
-      ? "pointer-events-auto w-[86px]"
-    : "relative w-[68px] shrink-0 sm:w-[72px]";
+      ? "pointer-events-auto"
+    : "relative shrink-0";
+  const innerStyle = mode === "floating"
+    ? { width: isMobileViewport ? 150 : 180 }
+    : isAuthMode
+      ? { width: isMobileViewport ? 80 : 86 }
+      : { width: isMobileViewport ? 60 : 68 };
 
   return (
-    <div className={outerClassName}>
-      <div className={innerClassName}>
+    <div className={outerClassName} style={outerStyle}>
+      <div className={innerClassName} style={innerStyle}>
         <Select
           aria-label={t("common.appLanguage")}
           className="text-left"
@@ -273,8 +306,8 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
           isCompact={isCompact}
           isDarkTheme={isDarkTheme}
           menuPlacement="auto"
-          menuPortalTarget={isAuthMode || isCompact ? undefined : menuPortalTarget}
-          menuPosition={isAuthMode || isCompact ? "absolute" : "fixed"}
+          menuPortalTarget={shouldUseInlineMenu ? undefined : menuPortalTarget}
+          menuPosition={shouldUseInlineMenu ? "absolute" : "fixed"}
           menuShouldScrollIntoView={false}
           mode={mode}
           options={selectOptions}

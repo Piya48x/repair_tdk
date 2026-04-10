@@ -1,11 +1,14 @@
 import React from "react";
 import {
+  ArrowUp,
   CalendarDays,
   Clock3,
   MapPin,
   Pencil,
+  RotateCcw,
   Search,
   Trash2,
+  User,
 } from "lucide-react";
 
 export default function EvidenceRecordsSection({
@@ -28,7 +31,16 @@ export default function EvidenceRecordsSection({
   editingId,
   onDelete,
   deletingId,
+  onScrollToTop,
+  onStartFreshView,
 }) {
+  const chipClass = theme === "dark"
+    ? "border-slate-600 bg-[#162136] text-slate-300"
+    : "border-slate-200 bg-slate-50 text-slate-600";
+  const ghostButtonClass = theme === "dark"
+    ? "border-slate-600 bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
+    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+
   return (
     <section ref={listRef} className="space-y-4">
       <div className={`${cardClass} p-5 sm:p-6`}>
@@ -36,11 +48,30 @@ export default function EvidenceRecordsSection({
           <div>
             <h3 className={`text-lg font-black ${uiTheme.textPrimary}`}>รายการงาน</h3>
             <p className={`mt-1 text-sm ${softTextClass}`}>
-              กรองตามประเภทงาน ผู้ใช้ แผนก และสถานะ พร้อมเวลาใช้งานในแต่ละงาน
+              กรองตามประเภทงาน ผู้บันทึก แผนก และสถานะ พร้อมย้อนขึ้นบนสุดได้ทันทีเมื่อดูรายการลึก
             </p>
           </div>
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${theme === "dark" ? "border-slate-600 bg-[#162136] text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
-            พบ {records.length} รายการ
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
+              พบ {records.length} รายการ
+            </div>
+            <button
+              type="button"
+              onClick={onStartFreshView}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${ghostButtonClass}`}
+            >
+              <RotateCcw size={15} />
+              เริ่มดูใหม่
+            </button>
+            <button
+              type="button"
+              onClick={onScrollToTop}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${ghostButtonClass}`}
+            >
+              <ArrowUp size={15} />
+              บนสุด
+            </button>
           </div>
         </div>
 
@@ -115,7 +146,21 @@ export default function EvidenceRecordsSection({
                     </span>
                   )}
                 </div>
+
                 <h4 className={`mt-3 text-xl font-black ${uiTheme.textPrimary}`}>{record.title}</h4>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
+                    Ref {record.referenceCode || "-"}
+                  </span>
+                  {record.requesterName ? (
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
+                      <User size={13} />
+                      {record.requesterName}
+                    </span>
+                  ) : null}
+                </div>
+
                 <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm ${uiTheme.textSecondary}`}>
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarDays size={15} />

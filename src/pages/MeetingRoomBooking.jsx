@@ -806,7 +806,7 @@ const MeetingRoomBooking = () => {
   };
 
   return (
-    <div className="app-theme app-page-bg min-h-screen px-4 py-6 text-slate-800 selection:bg-blue-100 antialiased sm:px-6">
+    <div className="app-theme app-page-bg app-safe-top app-safe-bottom min-h-screen px-4 py-6 text-slate-800 selection:bg-blue-100 antialiased sm:px-6">
       <div className="mx-auto max-w-6xl space-y-5">
         <header className="app-surface p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -840,7 +840,7 @@ const MeetingRoomBooking = () => {
           </div>
         </header>
 
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 max-[399px]:grid-cols-1 sm:grid-cols-4">
           <div className="app-surface p-4">
             <p className="text-xs font-bold text-slate-500">{tt("stats.upcoming")}</p>
             <p className="mt-1 text-2xl font-black text-sky-700">{bookingStats.upcoming}</p>

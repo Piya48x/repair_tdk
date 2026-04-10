@@ -31,6 +31,16 @@ export const PERIOD_OPTIONS = [
   { value: "year", label: "ปี" },
 ];
 
+const JOB_TYPE_REFERENCE_CODES = {
+  camera_install: "CAM",
+  pc_install: "PC",
+  notebook_install: "NB",
+  printer_install: "PRN",
+  maintenance: "MNT",
+  repair: "REP",
+  other: "GEN",
+};
+
 export function padNumber(value) {
   return String(value).padStart(2, "0");
 }
@@ -59,7 +69,10 @@ export function buildForm(department = "") {
     requester_name: "",
     department,
     device_details: "",
-    reference_code: "",
+    reference_code: buildReferenceCode({
+      jobType: TYPE_OPTIONS[0].value,
+      startTime: nowValue,
+    }),
     start_time: nowValue,
     end_time: "",
     duration_minutes: 0,
@@ -85,7 +98,12 @@ export function buildFormFromRecord(record, fallbackDepartment = "") {
     requester_name: normalizeText(record?.requester_name),
     department: normalizeText(record?.department) || fallbackDepartment,
     device_details: normalizeText(record?.device_details),
-    reference_code: normalizeText(record?.reference_code),
+    reference_code:
+      normalizeText(record?.reference_code) ||
+      buildReferenceCode({
+        jobType: normalizeText(record?.job_type) || TYPE_OPTIONS[0].value,
+        startTime: startValue || new Date(),
+      }),
     start_time: startValue ? toDateTimeLocalValue(startValue) : "",
     end_time: endValue ? toDateTimeLocalValue(endValue) : derivedEndValue,
     duration_minutes: Math.max(durationMinutes, 0),
@@ -119,6 +137,27 @@ export function buildEndTimeFromDuration(startValue, totalMinutes) {
   if (Number.isNaN(start.getTime())) return "";
 
   return toDateTimeLocalValue(new Date(start.getTime() + safeMinutes * 60000));
+}
+
+export function buildReferenceCode({
+  jobType = TYPE_OPTIONS[0].value,
+  startTime = new Date(),
+} = {}) {
+  const baseDate = startTime ? new Date(startTime) : new Date();
+  const safeDate = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
+  const typeCode = JOB_TYPE_REFERENCE_CODES[jobType] || JOB_TYPE_REFERENCE_CODES.other;
+  const datePart = [
+    safeDate.getFullYear(),
+    padNumber(safeDate.getMonth() + 1),
+    padNumber(safeDate.getDate()),
+  ].join("");
+  const timePart = [
+    padNumber(safeDate.getHours()),
+    padNumber(safeDate.getMinutes()),
+    padNumber(safeDate.getSeconds()),
+  ].join("");
+
+  return `ITW-${typeCode}-${datePart}-${timePart}`;
 }
 
 export function formatDateTime(value) {

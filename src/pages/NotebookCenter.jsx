@@ -101,9 +101,9 @@ export default function NotebookCenter() {
   }, [profile]);
 
   return (
-    <div className={`app-theme min-h-screen transition-colors duration-300 ${isDarkTheme ? "bg-[#0b1220] text-slate-100" : "bg-[#f4f7fb] text-slate-800"}`}>
+    <div className={`app-theme min-h-screen overflow-x-clip transition-colors duration-300 ${isDarkTheme ? "bg-[#0b1220] text-slate-100" : "bg-[#f4f7fb] text-slate-800"}`}>
       <header className={`sticky top-0 z-30 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/90"}`}>
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="app-safe-top mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex min-w-0 items-start gap-3">
             <button
               type="button"
@@ -123,7 +123,7 @@ export default function NotebookCenter() {
             </div>
           </div>
 
-          <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 lg:w-auto lg:justify-end">
             <div className={`flex items-center gap-1 rounded-2xl border p-1 ${isDarkTheme ? "border-slate-700 bg-slate-900/85" : "border-slate-200 bg-white/90"}`}>
               <button
                 type="button"
@@ -147,7 +147,7 @@ export default function NotebookCenter() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+      <main className="app-safe-bottom mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
         {loading ? (
           <div className={`flex min-h-[50vh] items-center justify-center rounded-3xl border ${isDarkTheme ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
             <div className="text-sm font-semibold text-slate-500">{tt("loading")}</div>
