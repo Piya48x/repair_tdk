@@ -1,10 +1,12 @@
 const OPTIONAL_TICKET_COLUMNS = new Set([
   "creator_id",
   "created_by",
+  "attachments",
   "channel",
   "start_time",
   "started_at",
   "end_time",
+  "image_after_url",
   "resolution_note",
   "solution_note",
   "reporter_emp_id",

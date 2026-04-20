@@ -31,6 +31,11 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { useScopedI18n } from "../i18n/useScopedI18n";
 import {
+  getTicketAttachmentEntries,
+  getTicketAttachmentUrls,
+  getTicketDisplayNote,
+} from "../lib/ticketAttachmentMetadata";
+import {
   formatNotebookDuration,
   formatNotebookTime,
   isNotebookPermissionDenied,
@@ -430,18 +435,7 @@ const toTimeAgo = (dateString) => {
   }
 };
 
-const getTicketImageUrls = (ticket) => {
-  const attachmentUrls = Array.isArray(ticket?.attachments)
-    ? ticket.attachments.filter((url) => typeof url === "string" && url.trim())
-    : [];
-
-  const merged = [...attachmentUrls];
-  if (ticket?.image_url && typeof ticket.image_url === "string") {
-    merged.push(ticket.image_url);
-  }
-
-  return [...new Set(merged)];
-};
+const getTicketImageUrls = (ticket) => getTicketAttachmentUrls(ticket);
 
 const isImageAttachmentUrl = (url) =>
   /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)(?:[?#].*)?$/i.test(String(url || ""));
@@ -513,6 +507,14 @@ export default function TicketHistory() {
   const [notebookLogs, setNotebookLogs] = useState([]);
   const [notebookLoading, setNotebookLoading] = useState(true);
   const [notebookError, setNotebookError] = useState("");
+  const selectedTicketAttachments = useMemo(
+    () => getTicketAttachmentEntries(selectedTicket),
+    [selectedTicket],
+  );
+  const selectedTicketSolution = useMemo(
+    () => getTicketDisplayNote(selectedTicket),
+    [selectedTicket],
+  );
 
   useEffect(() => {
     if (initialFilter) setStatusFilter(initialFilter);
@@ -1297,40 +1299,25 @@ export default function TicketHistory() {
                     </div>
                   </div>
 
-                  {(selectedTicket.attachments || selectedTicket.image_url) && (
+                  {selectedTicketAttachments.length > 0 && (
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tt("detailAttachments")}</p>
                       <div className="mt-3 flex flex-wrap gap-3">
-                        {Array.isArray(selectedTicket.attachments) && selectedTicket.attachments.length > 0
-                          ? selectedTicket.attachments.map((url, index) => (
-                              <button
-                                key={`${url}-${index}`}
-                                type="button"
-                                onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-                                className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-                                title={tt("detailOpenAttach")}
-                              >
-                                <img
-                                  src={url}
-                                  alt={`หลักฐานแนบ ${index + 1}`}
-                                  className="h-24 w-24 object-cover transition hover:scale-105"
-                                />
-                              </button>
-                            ))
-                          : selectedTicket.image_url && (
-                              <button
-                                type="button"
-                                onClick={() => window.open(selectedTicket.image_url, "_blank", "noopener,noreferrer")}
-                                className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-                                title={tt("detailOpenAttach")}
-                              >
-                                <img
-                                  src={selectedTicket.image_url}
-                                  alt={tt("detailAttachAlt")}
-                                  className="h-24 w-24 object-cover transition hover:scale-105"
-                                />
-                              </button>
-                            )}
+                        {selectedTicketAttachments.map((entry, index) => (
+                          <button
+                            key={`${entry.url}-${index}`}
+                            type="button"
+                            onClick={() => window.open(entry.url, "_blank", "noopener,noreferrer")}
+                            className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                            title={tt("detailOpenAttach")}
+                          >
+                            <img
+                              src={entry.url}
+                              alt={`${entry.type === "after" ? "After" : "Before"} ${index + 1}`}
+                              className="h-24 w-24 object-cover transition hover:scale-105"
+                            />
+                          </button>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -1349,10 +1336,10 @@ export default function TicketHistory() {
                       </div>
                     </div>
 
-                    {selectedTicket.solution_note && (
+                    {selectedTicketSolution && (
                       <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-3">
                         <p className="text-xs font-bold text-emerald-700">{tt("detailSolution")}</p>
-                        <p className="mt-1 text-sm text-slate-700">{selectedTicket.solution_note}</p>
+                        <p className="mt-1 text-sm text-slate-700">{selectedTicketSolution}</p>
                       </div>
                     )}
                   </div>

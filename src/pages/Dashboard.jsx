@@ -51,6 +51,7 @@ import CentralChatDock from "../components/CentralChatDock";
 import LanguageSwitcher from "../components/LanguageSwitcher.jsx";
 import { loadMyNotebookBorrowLogs, NOTEBOOK_LOG_STATUS } from "../services/notebookBorrowService";
 import { isPickUpEquipmentRequest, splitTicketBuckets } from "../lib/serviceRequestUtils";
+import { getTicketDisplayNote } from "../lib/ticketAttachmentMetadata";
 import {
   getTicketStatusDetailMeta,
   getTicketStatusLabel,
@@ -1263,7 +1264,7 @@ function buildTicketStatusNotification(previousTicket, nextTicket, rt) {
   }
 
   if (nextStatus === "CLOSED") {
-    const solutionNote = String(nextTicket?.solution_note || "").trim();
+    const solutionNote = getTicketDisplayNote(nextTicket);
     return {
       title: rt("notifications.closedTitle"),
       message: solutionNote
@@ -2221,7 +2222,7 @@ export default function Dashboard() {
           t.category,
           t.location,
           t.assigned_name,
-          t.solution_note,
+          getTicketDisplayNote(t),
           t.status,
           statusSearchLabel,
           prioritySearchLabel,
@@ -2457,7 +2458,7 @@ export default function Dashboard() {
       events.push({
         id: "closed",
         label: rt("timeline.closedLabel"),
-        detail: ticket.solution_note || rt("timeline.closedDetail"),
+        detail: getTicketDisplayNote(ticket) || rt("timeline.closedDetail"),
         date: ticket.closed_at || ticket.updated_at || ticket.created_at,
       });
     } else {

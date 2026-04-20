@@ -9,6 +9,7 @@ import {
   getTicketStatusLabel,
   stripTicketStatusDetailFromParts,
 } from "../../../lib/ticketRepairStatus";
+import { getTicketDisplayNote } from "../../../lib/ticketAttachmentMetadata";
 
 const BRAND = {
   blue: "2B59B0",
@@ -693,7 +694,7 @@ async function buildRepairTicketsSheet(workbook, rows) {
       duration: durationMinutes > 0 ? formatDurationLabel(durationMinutes) : "-",
       before: "",
       after: "",
-      solution: ticket.solution_note || stripTicketStatusDetailFromParts(ticket.parts_used) || "-",
+      solution: getTicketDisplayNote(ticket) || stripTicketStatusDetailFromParts(ticket.parts_used) || "-",
     });
 
     styleDetailRow(row, index);

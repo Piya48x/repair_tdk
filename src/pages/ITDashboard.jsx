@@ -127,6 +127,7 @@ import {
   isPickUpEquipmentRequest,
   splitTicketBuckets,
 } from "../lib/serviceRequestUtils";
+import { getTicketDisplayNote } from "../lib/ticketAttachmentMetadata";
 
 function buildStructuredRepairReport({
   problem,
@@ -953,7 +954,7 @@ const ITDashboard = () => {
       ticket?.ticket_no || `IT-${String(ticket?.id || "").padStart(5, "0")}`,
     );
     const currentDetailKey = getTicketStatusDetailMeta(ticket)?.key || "WORKING";
-    const currentNote = String(ticket?.solution_note || "").trim();
+    const currentNote = getTicketDisplayNote(ticket);
     const fieldClass = isDark
       ? "w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/30"
       : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/20";

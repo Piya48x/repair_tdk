@@ -2,6 +2,10 @@ import React, { useMemo } from "react";
 import { CheckCircle2, FileText, X } from "lucide-react";
 import TicketChatPanel from "../../../components/TicketChatPanel";
 import { useScopedI18n } from "../../../i18n/useScopedI18n";
+import {
+  getTicketAttachmentEntries,
+  getTicketDisplayNote,
+} from "../../../lib/ticketAttachmentMetadata";
 
 const TICKET_DETAIL_MODAL_TRANSLATIONS = {
   th: {
@@ -82,26 +86,6 @@ function deriveEmployeeCodeFromEmail(email) {
   return match ? match[0] : "";
 }
 
-function collectAttachmentUrls(ticket) {
-  const urls = [];
-
-  if (Array.isArray(ticket?.attachments)) {
-    ticket.attachments.forEach((url) => {
-      if (typeof url === "string" && url.trim()) urls.push(url.trim());
-    });
-  }
-
-  if (typeof ticket?.image_url === "string" && ticket.image_url.trim()) {
-    urls.push(ticket.image_url.trim());
-  }
-
-  if (typeof ticket?.image_after_url === "string" && ticket.image_after_url.trim()) {
-    urls.push(ticket.image_after_url.trim());
-  }
-
-  return Array.from(new Set(urls));
-}
-
 function isImageAttachmentUrl(url) {
   return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)(?:[?#].*)?$/i.test(String(url || ""));
 }
@@ -126,7 +110,8 @@ export default function TicketDetailModal({
   currentUser,
 }) {
   const { tt } = useScopedI18n(TICKET_DETAIL_MODAL_TRANSLATIONS);
-  const attachmentUrls = useMemo(() => collectAttachmentUrls(ticket), [ticket]);
+  const attachmentEntries = useMemo(() => getTicketAttachmentEntries(ticket), [ticket]);
+  const noteText = useMemo(() => getTicketDisplayNote(ticket), [ticket]);
 
   if (!ticket) return null;
 
@@ -273,21 +258,30 @@ export default function TicketDetailModal({
               </div>
             </section>
 
-            {ticket.solution_note && (
+            {noteText && (
               <section className={noteSectionClass}>
                 <h3 className={noteHeadingClass}>
                   <CheckCircle2 size={14} />
                   {tt("resolutionNote")}
                 </h3>
-                <p className={noteBodyClass}>{ticket.solution_note}</p>
+                <p className={noteBodyClass}>{noteText}</p>
               </section>
             )}
 
-            {attachmentUrls.length > 0 && (
+            {attachmentEntries.length > 0 && (
               <section>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">{tt("attachments")}</h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {attachmentUrls.map((url, index) => (
+                  {(() => {
+                    let beforeIndex = 0;
+                    let afterIndex = 0;
+
+                    return attachmentEntries.map((entry, index) => {
+                      const url = entry.url;
+                      const type = entry.type === "after" ? "after" : "before";
+                      const label = type === "after" ? `After ${afterIndex += 1}` : `Before ${beforeIndex += 1}`;
+
+                      return (
                     <button
                       key={`${url}-${index}`}
                       type="button"
@@ -316,10 +310,12 @@ export default function TicketDetailModal({
                         </div>
                       )}
                       <div className="border-t border-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
-                        {isImageAttachmentUrl(url) ? tt("attachmentLabel", { index: index + 1 }) : getAttachmentName(url)}
+                        {isImageAttachmentUrl(url) ? label : getAttachmentName(url)}
                       </div>
                     </button>
-                  ))}
+                      );
+                    });
+                  })()}
                 </div>
               </section>
             )}

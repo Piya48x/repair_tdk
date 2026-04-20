@@ -17,6 +17,7 @@ import {
     getTicketStatusLabel,
     stripTicketStatusDetailFromParts,
 } from "../../../lib/ticketRepairStatus";
+import { getTicketDisplayNote } from "../../../lib/ticketAttachmentMetadata";
 
 export const getStatusColor = (status, theme) => {
     switch (status) {
@@ -260,7 +261,7 @@ export const handleExportExcelWithImages = async (
                 techId: ticket.assigned_employee_id || "-",
                 startDate: startedDate ? startedDate.toLocaleDateString("th-TH") : "-",
                 startTime: startedDate ? startedDate.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "-",
-                solution: ticket.solution_note || "-",
+                solution: getTicketDisplayNote(ticket) || "-",
                 parts: stripTicketStatusDetailFromParts(ticket.parts_used) || "-",
                 closedDate: closedDate ? closedDate.toLocaleDateString("th-TH") : "-",
                 closedTime: closedDate ? closedDate.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "-",
