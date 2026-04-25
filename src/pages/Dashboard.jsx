@@ -10,7 +10,7 @@ import {
   AlertCircle, Plus, Search, RefreshCw,
   BarChart3, Calendar, Hash, Shield,
   Timer, ShieldCheck, Mail, Phone, MapPin, Settings,
-  SlidersHorizontal, BookmarkPlus, Trash2, Moon, Sun, MessageSquare, FileText, DoorOpen, KeyRound, X
+  SlidersHorizontal, BookmarkPlus, Trash2, Moon, Sun, MessageSquare, FileText, DoorOpen, KeyRound, X, Menu
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
@@ -105,6 +105,7 @@ const DASHBOARD_TRANSLATIONS = {
       recentActivity: "กิจกรรมล่าสุด",
       borrowRequests: "รายการเบิกของ",
       moreMenu: "เมนูอื่นๆ",
+      statusOverview: "ภาพรวมสถานะ",
       newTicket: "แจ้งซ่อมใหม่",
       notSpecified: "ไม่ระบุ",
       notSpecifiedDepartment: "ไม่ระบุแผนก",
@@ -215,6 +216,7 @@ const DASHBOARD_TRANSLATIONS = {
       recentActivity: "Recent Activity",
       borrowRequests: "Borrow Requests",
       moreMenu: "More Menu",
+      statusOverview: "Status overview",
       newTicket: "New Ticket",
       notSpecified: "Not specified",
       notSpecifiedDepartment: "No department",
@@ -325,6 +327,7 @@ const DASHBOARD_TRANSLATIONS = {
       recentActivity: "최근 활동",
       borrowRequests: "장비 요청 목록",
       moreMenu: "추가 메뉴",
+      statusOverview: "상태 개요",
       newTicket: "새 티켓",
       notSpecified: "미지정",
       notSpecifiedDepartment: "부서 미지정",
@@ -1434,6 +1437,8 @@ export default function Dashboard() {
   const [selectedKpiMetricKey, setSelectedKpiMetricKey] = useState("");
   const [supportChatOpenSignal, setSupportChatOpenSignal] = useState(0);
   const [showMoreQuickActions, setShowMoreQuickActions] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isStatusOverviewMenuOpen, setIsStatusOverviewMenuOpen] = useState(false);
   const [navMoreSelection, setNavMoreSelection] = useState("");
   const [activeTicketId, setActiveTicketId] = useState(null);
   const [isMessengerOpen, setIsMessengerOpen] = useState(false);
@@ -1477,6 +1482,7 @@ export default function Dashboard() {
   const channelRef = useRef(null);
   const meetingRoomChannelRef = useRef(null);
   const accessRequestChannelRef = useRef(null);
+  const statusOverviewMenuRef = useRef(null);
   const searchInputRef = useRef(null);
   const notificationTimeoutsRef = useRef(new Map());
   const quickActionsSectionRef = useRef(null);
@@ -2017,6 +2023,44 @@ export default function Dashboard() {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [selectedKpiMetricKey, isOperationalOverviewModalOpen, isMeetingRoomStatusModalOpen, isRecentActivityModalOpen]);
+
+  useEffect(() => {
+    if (!isStatusOverviewMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (statusOverviewMenuRef.current && !statusOverviewMenuRef.current.contains(event.target)) {
+        setIsStatusOverviewMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsStatusOverviewMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isStatusOverviewMenuOpen]);
+
+  useEffect(() => {
+    if (!isMobileNavOpen) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsMobileNavOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isMobileNavOpen]);
 
   useEffect(() => {
     return () => {
@@ -3039,6 +3083,7 @@ export default function Dashboard() {
   const handleNavMoreSelection = (event) => {
     const selectedId = event.target.value;
     setNavMoreSelection(selectedId);
+    setIsStatusOverviewMenuOpen(false);
 
     const selectedItem = NAV_MORE_LINKS.find((item) => item.id === selectedId);
     if (selectedItem?.href) {
@@ -3089,6 +3134,70 @@ export default function Dashboard() {
   const STAT_VALUE_CLASS = "mt-1 text-xl font-black leading-none tracking-tight tabular-nums sm:text-2xl";
   const STAT_HELPER_LABEL_CLASS = `text-xs font-bold uppercase tracking-wide ${TEXT_SUBTLE_CLASS}`;
   const STAT_HELPER_TEXT_CLASS = `text-[11px] font-semibold leading-relaxed ${TEXT_MUTED_CLASS}`;
+  const topNavPrimaryLinks = [
+    {
+      id: "meeting-room-status",
+      label: dt("nav.meetingRoomStatus"),
+      count: todayMeetingBookings.length,
+      icon: Calendar,
+      onClick: () => setIsMeetingRoomStatusModalOpen(true),
+      cardClass: isDarkTheme
+        ? "border-cyan-500/25 bg-cyan-500/10 text-slate-100 hover:border-cyan-400/60 hover:bg-cyan-500/15"
+        : "border-cyan-200 bg-cyan-50/90 text-slate-800 hover:border-cyan-300 hover:bg-cyan-100/80",
+      iconClass: isDarkTheme
+        ? "bg-cyan-500/15 text-cyan-200"
+        : "bg-white text-cyan-700 shadow-sm shadow-cyan-200/70",
+      countClass: isDarkTheme
+        ? "bg-cyan-500/15 text-cyan-200"
+        : "bg-white text-cyan-700 shadow-sm shadow-cyan-200/70",
+    },
+    {
+      id: "recent-activity",
+      label: dt("nav.recentActivity"),
+      count: recentActivityBadgeCount > 99 ? "99+" : recentActivityBadgeCount,
+      icon: Clock,
+      onClick: () => setIsRecentActivityModalOpen(true),
+      cardClass: hasRecentActivityFlowPending
+        ? isDarkTheme
+          ? "border-amber-400/55 bg-amber-500/10 text-amber-50 shadow-[0_18px_34px_-26px_rgba(245,158,11,0.85)] hover:border-amber-300 hover:bg-amber-500/15"
+          : "border-amber-300 bg-amber-50/95 text-slate-800 shadow-[0_18px_34px_-26px_rgba(245,158,11,0.55)] hover:border-amber-400 hover:bg-amber-100/90"
+        : isDarkTheme
+          ? "border-slate-600 bg-slate-800/90 text-slate-100 hover:border-slate-500 hover:bg-slate-800"
+          : "border-blue-200 bg-white/95 text-slate-800 hover:border-blue-300 hover:bg-blue-50/85",
+      iconClass: hasRecentActivityFlowPending
+        ? isDarkTheme
+          ? "bg-amber-500/15 text-amber-200"
+          : "bg-white text-amber-700 shadow-sm shadow-amber-200/70"
+        : isDarkTheme
+          ? "bg-slate-700 text-slate-200"
+          : "bg-blue-50 text-blue-700",
+      countClass: hasRecentActivityFlowPending
+        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white"
+        : isDarkTheme
+          ? "bg-amber-500/15 text-amber-200"
+          : "bg-amber-50 text-amber-700",
+    },
+    {
+      id: "borrow-requests",
+      label: dt("nav.borrowRequests"),
+      count: borrowOpenCount > 99 ? "99+" : borrowOpenCount,
+      icon: Package,
+      onClick: () => navigate("/my-borrow-requests"),
+      cardClass: isDarkTheme
+        ? "border-emerald-500/25 bg-emerald-500/10 text-slate-100 hover:border-emerald-400/60 hover:bg-emerald-500/15"
+        : "border-emerald-200 bg-emerald-50/90 text-slate-800 hover:border-emerald-300 hover:bg-emerald-100/80",
+      iconClass: isDarkTheme
+        ? "bg-emerald-500/15 text-emerald-200"
+        : "bg-white text-emerald-700 shadow-sm shadow-emerald-200/70",
+      countClass: isDarkTheme
+        ? "bg-emerald-500/15 text-emerald-200"
+        : "bg-white text-emerald-700 shadow-sm shadow-emerald-200/70",
+    },
+  ];
+  const statusOverviewTotalCount = topNavPrimaryLinks.reduce((total, item) => {
+    const numericCount = Number.parseInt(item.count, 10);
+    return total + (Number.isFinite(numericCount) ? numericCount : 0);
+  }, 0);
   const profileDetailItems = [
     { key: "employee-code", label: rt("profile.employeeId"), value: profile?.employee_code || rt("common.notSpecified"), icon: Hash },
     { key: "email", label: rt("profile.email"), value: profile?.email || rt("common.noEmail"), icon: Mail },
@@ -3379,7 +3488,7 @@ export default function Dashboard() {
 
   const renderStatsCards = () => {
     return (
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-2.5 xl:grid-cols-4">
         {kpiMetrics.map((card) => {
           const isTrendCard = card.mode !== "status";
           const isReverseTrend = card.key === "risk" || card.key === "overdue";
@@ -3396,11 +3505,11 @@ export default function Dashboard() {
               key={card.key}
               type="button"
               onClick={() => setSelectedKpiMetricKey(card.key)}
-              className={`rounded-2xl border p-3 text-left shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75 focus-visible:ring-indigo-400" : "border-blue-100/80 bg-white/95 shadow-blue-100/40 focus-visible:ring-blue-300"}`}
+              className={`rounded-2xl border p-3 text-left shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 sm:p-3.5 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75 focus-visible:ring-indigo-400" : "border-blue-100/80 bg-white/95 shadow-blue-100/40 focus-visible:ring-blue-300"}`}
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className={STAT_LABEL_CLASS}>{card.label}</p>
+                  <p className={`${STAT_LABEL_CLASS} text-[10px] sm:text-xs`}>{card.label}</p>
                   <p className={`${STAT_VALUE_CLASS} ${card.valueColor}`}>{card.value}</p>
                 </div>
                 <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${card.iconWrap}`}>
@@ -3418,10 +3527,10 @@ export default function Dashboard() {
               ) : (
                 <div className={`mt-2 rounded-xl border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
                   <p className={STAT_HELPER_LABEL_CLASS}>{rt("common.currentStatus")}</p>
-                  <p className={`mt-1 ${STAT_HELPER_TEXT_CLASS}`}>{card.helperText}</p>
+                  <p className={`mt-1 line-clamp-2 ${STAT_HELPER_TEXT_CLASS}`}>{card.helperText}</p>
                 </div>
               )}
-              <div className="mt-2 flex items-center justify-end">
+              <div className="mt-2 hidden items-center justify-end sm:flex">
                 <ChevronRight size={14} className={isDarkTheme ? "text-slate-500" : "text-slate-400"} />
               </div>
             </button>
@@ -3431,22 +3540,127 @@ export default function Dashboard() {
     );
   };
 
+  const renderNavBrand = ({ className = "" } = {}) => (
+    <div className={`flex min-w-0 items-center gap-2.5 rounded-[22px] border px-2.5 py-1.5 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"} ${className}`}>
+      <div className="relative">
+        <img
+          src={tdkLogo}
+          alt={rt("common.companyLogoAlt")}
+          className="h-9 w-9 rounded-xl bg-white object-contain p-1 shadow-lg shadow-blue-200 animate-float xl:h-10 xl:w-10"
+        />
+        <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500 animate-pulse"></div>
+      </div>
+      <div className="min-w-0">
+        <h1 className="truncate bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-[15px] font-black leading-none tracking-tight text-transparent xl:text-lg">
+          TDK INDUSTRIAL
+        </h1>
+        <p className={`mt-0.5 hidden text-[9px] font-bold uppercase tracking-wider 2xl:block ${TEXT_SUBTLE_CLASS}`}>
+          {rt("common.companyName")}
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderProfilePanel = ({ containerClassName = "" } = {}) => (
+    <div className={`relative flex flex-col ${containerClassName}`}>
+      <div className={`order-1 overflow-hidden rounded-[28px] shadow-lg backdrop-blur-md group transition-all duration-500 hover:shadow-2xl lg:order-2 ${isDarkTheme ? "bg-slate-900/75 shadow-slate-900/40" : "bg-white/90 shadow-[0_14px_40px_-16px_rgba(43,89,176,0.4)]"}`}>
+        <div className={`relative h-20 overflow-hidden sm:h-28 ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]" : "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]"}`}>
+          <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0]/20 via-[#2b59b0]/20 to-[#244a95]/20" : "bg-gradient-to-r from-[#2b59b0]/25 via-[#2b59b0]/18 to-[#244a95]/15"}`}></div>
+          <div className="absolute -bottom-8 -right-8 h-32 w-32 rounded-full bg-white/10 blur-2xl sm:h-40 sm:w-40"></div>
+          <div className="absolute bottom-3 right-4 text-2xl font-black text-white/10 sm:bottom-4 sm:right-6 sm:text-4xl">TDK</div>
+        </div>
+
+        <div className="relative px-4 pb-4 sm:px-6 sm:pb-5">
+          <div className="relative -mt-6 mb-3 flex justify-center sm:-mt-9 sm:mb-5">
+            <div
+              className={`relative h-20 w-20 cursor-pointer overflow-hidden rounded-3xl p-1.5 shadow-2xl group/profile sm:h-28 sm:w-28 ${isDarkTheme ? "bg-slate-800" : "bg-white"}`}
+              onClick={() => profile?.id_card_url && setIsModalOpen(true)}
+            >
+              <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-br from-[#2b59b0]/12 to-[#244a95]/12" : "bg-gradient-to-br from-[#2b59b0]/15 to-[#244a95]/15"}`}></div>
+              {profile?.id_card_url ? (
+                <>
+                  <img
+                    src={profile.id_card_url}
+                    className="w-full h-full object-cover rounded-2xl transform group-hover/profile:scale-105 transition-transform duration-500"
+                    alt={rt("common.profileAlt")}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 transition-all duration-300 group-hover/profile:opacity-100">
+                    <ExternalLink size={20} className="text-white transform transition-transform group-hover/profile:scale-110" />
+                  </div>
+                </>
+              ) : (
+                <div className={`w-full h-full rounded-2xl flex items-center justify-center ${isDarkTheme ? "bg-gradient-to-br from-slate-700 to-slate-800 text-slate-400" : "bg-gradient-to-br from-[#EEF3FF] to-[#DCE8FF] text-[#2b59b0]"}`}>
+                  <User size={40} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-4 text-center sm:mb-5">
+            <h2 className={`text-base font-black sm:text-xl ${TEXT_PRIMARY_CLASS}`}>{profile?.full_name || rt("common.noName")}</h2>
+            <p className={`mt-1 text-xs font-bold uppercase tracking-widest ${isDarkTheme ? "text-indigo-300" : "text-[#2b59b0]"}`}>
+              {profile?.position || rt("common.employee")}
+            </p>
+          </div>
+
+          <div className="space-y-2.5">
+            <div className={`flex items-center gap-3 rounded-xl p-3 transition-all group/item ${isDarkTheme ? "bg-slate-800/80 hover:bg-slate-800" : "bg-[#EEF3FF]/70 hover:bg-white"}`}>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#2b59b0] to-[#244a95]">
+                <Building2 size={15} className="text-white" />
+              </div>
+              <div className="flex-1">
+                <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>{rt("common.department")}</p>
+                <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.department || rt("common.notSpecified")}</p>
+              </div>
+            </div>
+
+            <div className={`flex items-center gap-3 rounded-xl p-3 transition-all group/item ${isDarkTheme ? "bg-slate-800/80 hover:bg-slate-800" : "bg-[#EEF3FF]/70 hover:bg-white"}`}>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#2b59b0] to-[#244a95]">
+                <Briefcase size={15} className="text-white" />
+              </div>
+              <div className="flex-1">
+                <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>{rt("common.position")}</p>
+                <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.position || rt("common.employee")}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setShowProfileDetails((prev) => !prev)}
+                aria-expanded={showProfileDetails}
+                aria-label={showProfileDetails ? rt("common.profileHide") : rt("common.profileShow")}
+                title={showProfileDetails ? rt("common.profileHide") : rt("common.profileShow")}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-all duration-300 focus:outline-none focus-visible:ring-2 ${isDarkTheme
+                  ? "border-slate-600 bg-slate-900/70 text-slate-100 hover:bg-slate-800 focus-visible:ring-indigo-400"
+                  : "border-slate-200 bg-white text-[#2b59b0] hover:bg-[#F8FBFF] focus-visible:ring-blue-300"
+                  } ${showProfileDetails ? "rotate-90" : ""}`}
+              >
+                <Settings size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderOperationalMiniDashboard = () => {
     const loadLegend = operationalLoadData.filter((item) => !item.isPlaceholder).slice(0, 3);
 
     return (
       <section className={`overflow-hidden rounded-[2rem] border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <BarChart3 size={16} className="text-emerald-500" />
-                <h3 className={QUICK_ACTIONS_HEADING_CLASS}>{rt("operational.title")}</h3>
-                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/30 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                  {rt("common.active")}
-                </span>
-              </div>
-              <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("operational.subtitle")}</p>
+          <div>
+            <div className="flex items-center gap-2">
+              <BarChart3 size={16} className="text-emerald-500" />
+              <h3 className={QUICK_ACTIONS_HEADING_CLASS}>{rt("operational.title")}</h3>
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${isDarkTheme ? "border-emerald-700/50 bg-emerald-900/30 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                {rt("common.active")}
+              </span>
             </div>
+            <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("operational.subtitle")}</p>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-200 bg-white text-slate-700"}`}>
@@ -3578,10 +3792,10 @@ export default function Dashboard() {
                     </div>
                   ))
                 ) : (
-                    <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("operational.noExtraWorkload")}</p>
-                  )}
-                </div>
+                  <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("operational.noExtraWorkload")}</p>
+                )}
               </div>
+            </div>
           </button>
         </div>
       </section>
@@ -3719,194 +3933,188 @@ export default function Dashboard() {
         {dt("statusBar.skipToContent")}
       </a>
       {/* Status Bar */}
-      <div className={`shrink-0 border-b px-3 py-1.5 backdrop-blur-xl sm:px-4 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
-        <div className="mx-auto flex max-w-[1440px] justify-end text-xs sm:text-sm">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
-              <RefreshCw size={12} />
-              {getTimeSinceUpdate()}
-            </span>
-            <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-400" : "border-blue-200 bg-blue-100 text-blue-800"}`}>
-              <ShieldCheck size={12} />
-              {dt("statusBar.role")}: {roleLabel}
-            </span>
-            {canOpenAuditView && (
-              <button
-                type="button"
-                onClick={() => navigate("/audit-view")}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
-              >
-                <Shield size={12} />
-                {dt("statusBar.auditLog")}
-              </button>
-            )}
+      <div className={`shrink-0 border-b px-3 py-2 backdrop-blur-xl sm:px-4 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2 text-xs sm:text-sm">
+          <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
+            <RefreshCw size={12} />
+            {getTimeSinceUpdate()}
+          </span>
+          <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-400" : "border-blue-200 bg-blue-100 text-blue-800"}`}>
+            <ShieldCheck size={12} />
+            {dt("statusBar.role")}: {roleLabel}
+          </span>
+          {canOpenAuditView && (
             <button
               type="button"
-              onClick={initDashboard}
+              onClick={() => navigate("/audit-view")}
               className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
             >
-              <RefreshCw size={12} />
-              {dt("statusBar.refreshData")}
+              <Shield size={12} />
+              {dt("statusBar.auditLog")}
             </button>
-          </div>
+          )}
+          <button
+            type="button"
+            onClick={initDashboard}
+            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
+          >
+            <RefreshCw size={12} />
+            {dt("statusBar.refreshData")}
+          </button>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className={`sticky top-0 z-40 shrink-0 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
-        <div className="app-safe-top mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-2.5 sm:min-h-[72px] sm:px-6 lg:flex-nowrap lg:px-8">
-          <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border p-1.5 shadow-sm lg:flex-none ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"}`}>
-            <div className="relative">
-              <img
-                src={tdkLogo}
-                alt={rt("common.companyLogoAlt")}
-                className="h-10 w-10 rounded-xl bg-white object-contain p-1 shadow-lg shadow-blue-200 animate-float"
-              />
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white animate-pulse"></div>
+        <div className="app-safe-top mx-auto max-w-[1440px] px-4 py-2.5 sm:px-6 lg:px-6 xl:px-8">
+          <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between xl:gap-3">
+            <div className="flex items-center justify-between gap-3 md:hidden">
+              {renderNavBrand({ className: "flex-1" })}
+              <button
+                type="button"
+                onClick={() => setIsMobileNavOpen((value) => !value)}
+                aria-expanded={isMobileNavOpen}
+                aria-label="Toggle mobile navigation"
+                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition-colors ${isDarkTheme ? "border-slate-700 bg-slate-800 text-slate-100 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
+              >
+                {isMobileNavOpen ? <X size={18} /> : <Menu size={18} />}
+              </button>
             </div>
-            {/* <div className="relative">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 animate-float">
-                <Wrench size={20} className="text-white" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white animate-pulse"></div>
-            </div> */}
-            <div>
-              <h1 className="text-sm sm:text-lg font-black tracking-tight leading-none bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                TDK INDUSTRIAL
-              </h1>
-              <p className={`hidden sm:block text-[10px] font-bold uppercase tracking-widest mt-1 ${TEXT_SUBTLE_CLASS}`}>
-                {rt("common.companyName")}
-              </p>
-            </div>
-          </div>
 
-          <div className="flex min-w-0 basis-full flex-col gap-2.5 lg:ml-auto lg:basis-auto lg:flex-1 xl:flex-row xl:items-start xl:gap-3 2xl:items-center">
-            <div className="min-w-0 flex-1">
-              <div className={`rounded-2xl border p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsMeetingRoomStatusModalOpen(true)}
-                    title={dt("nav.meetingRoomStatus")}
-                    className={`inline-flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
-                  >
-                    <span className="inline-flex min-w-0 items-center gap-2">
-                      <Calendar size={16} />
-                      <span className="truncate" title={dt("nav.meetingRoomStatus")}>{dt("nav.meetingRoomStatus")}</span>
-                    </span>
-                    <span className={`inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>{todayMeetingBookings.length}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsRecentActivityModalOpen(true)}
-                    title={dt("nav.recentActivity")}
-                    className={`inline-flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${
-                      hasRecentActivityFlowPending
-                        ? isDarkTheme
-                          ? "border-amber-400/60 bg-amber-500/10 text-amber-100 shadow-[0_10px_24px_-16px_rgba(245,158,11,0.85)] hover:bg-amber-500/15 focus-visible:ring-amber-400"
-                          : "border-amber-300 bg-amber-50/90 text-slate-700 shadow-[0_10px_24px_-16px_rgba(245,158,11,0.45)] hover:bg-amber-100/90 focus-visible:ring-amber-300"
-                        : isDarkTheme
-                          ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400"
-                          : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"
-                    }`}
-                  >
-                    <span className="inline-flex min-w-0 items-center gap-2">
-                      <Clock size={16} />
-                      <span className="truncate" title={dt("nav.recentActivity")}>{dt("nav.recentActivity")}</span>
-                    </span>
-                    <span className="relative inline-flex shrink-0 items-center justify-center">
-                      {hasRecentActivityFlowPending && (
-                        <>
-                          <span className={`absolute inset-0 rounded-full motion-safe:animate-ping ${isDarkTheme ? "bg-amber-400/35" : "bg-amber-400/45"}`} />
-                          <span className={`absolute -inset-1 rounded-full border motion-safe:animate-pulse ${isDarkTheme ? "border-amber-300/65" : "border-amber-400/70"}`} />
-                        </>
-                      )}
-                      <span
-                        className={`relative inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${
-                          hasRecentActivityFlowPending
-                            ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 motion-safe:animate-pulse"
-                            : isDarkTheme
-                              ? "bg-amber-900/40 text-amber-300"
-                              : "bg-amber-50 text-amber-700"
-                        }`}
-                      >
-                        {recentActivityBadgeCount > 99 ? "99+" : recentActivityBadgeCount}
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/my-borrow-requests")}
-                    title={dt("nav.borrowRequests")}
-                    className={`inline-flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
-                  >
-                    <span className="inline-flex min-w-0 items-center gap-2">
-                      <Package size={16} />
-                      <span className="truncate" title={dt("nav.borrowRequests")}>{dt("nav.borrowRequests")}</span>
-                    </span>
-                    <span className={`inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${isDarkTheme ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>
-                      {borrowOpenCount > 99 ? "99+" : borrowOpenCount}
-                    </span>
-                  </button>
-                  <label className={`inline-flex w-full min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-200" : "border-blue-200 bg-white/90 text-slate-700"}`}>
-                    <SlidersHorizontal size={16} className="shrink-0" />
-                    <select
-                      value={navMoreSelection}
-                      onChange={handleNavMoreSelection}
-                      aria-label={dt("nav.moreMenu")}
-                      className={`w-full min-w-0 bg-transparent text-sm font-bold outline-none ${isDarkTheme ? "text-slate-200" : "text-slate-700"}`}
-                    >
-                      <option value="">{dt("nav.moreMenu")}</option>
-                      {localizedNavMoreLinks.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+            <div className="hidden md:flex md:items-center md:justify-between md:gap-3">
+              {renderNavBrand({ className: "md:min-w-[280px]" })}
+            </div>
+
+            <div className={`${isMobileNavOpen ? "flex" : "hidden"} w-full flex-col gap-2.5 sm:items-end md:flex md:w-auto md:flex-1 md:flex-row md:items-center md:justify-end md:gap-1.5`}>
+              <div className={`flex w-full flex-wrap items-center gap-1.5 rounded-[20px] border px-2 py-1.5 shadow-sm sm:w-auto xl:gap-2 xl:px-3 xl:py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/75" : "border-blue-200/80 bg-white/90 shadow-blue-100/40"}`}>
+                <div className="relative">
+                  <span className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-bold xl:px-2 xl:text-[11px] ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
+                    <Hash size={12} />
+                    ID: {profile?.employee_code || dt("nav.notSpecified")}
+                  </span>
                 </div>
-              </div>
-            </div>
-
-            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:justify-end xl:w-auto xl:flex-nowrap">
-              <div className={`hidden lg:flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
-                <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
-                  <Hash size={12} />
-                  ID: {profile?.employee_code || dt("nav.notSpecified")}
-                </span>
-                <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
+                <span className={`inline-flex max-w-[162px] items-center gap-1 truncate rounded-lg px-1.5 py-1 text-[10px] font-bold xl:max-w-none xl:px-2 xl:text-[11px] ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
                   <Building2 size={12} />
                   {profile?.department || dt("nav.notSpecifiedDepartment")}
                 </span>
               </div>
-              <button
-                onClick={() => navigate("/create-ticket")}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 sm:px-4 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 active:translate-y-0"
-                aria-label={dt("nav.newTicket")}
-              >
-                <Plus size={18} />
-                <span className="hidden sm:inline">{dt("nav.newTicket")}</span>
-              </button>
-              <div className={`flex items-center gap-1 rounded-2xl border p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+              <div ref={statusOverviewMenuRef} className="relative w-full sm:w-auto sm:min-w-[220px]">
                 <button
                   type="button"
-                  onClick={toggleTheme}
-                  aria-label={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
-                  title={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
-                  className={`inline-flex h-10 w-10 items-center justify-center rounded-xl transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                  onClick={() => setIsStatusOverviewMenuOpen((value) => !value)}
+                  aria-expanded={isStatusOverviewMenuOpen}
+                  aria-controls="dashboard-status-overview-menu"
+                  className={`inline-flex h-10 w-full items-center justify-between gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all sm:h-9 sm:w-full sm:justify-center sm:px-2.5 xl:h-10 xl:gap-2 xl:px-4 xl:text-sm ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
                 >
-                  {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
+                  <span className="inline-flex items-center gap-1.5 xl:gap-2">
+                    <BarChart3 size={16} />
+                    <span>{dt("nav.statusOverview")}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black xl:min-w-[1.5rem] xl:text-[10px] ${isDarkTheme ? "bg-indigo-500/20 text-indigo-200" : "bg-indigo-50 text-indigo-700"}`}>
+                      {statusOverviewTotalCount > 99 ? "99+" : statusOverviewTotalCount}
+                    </span>
+                    <ChevronDown
+                      size={15}
+                      className={`transition-transform ${isStatusOverviewMenuOpen ? "rotate-180" : ""}`}
+                    />
+                  </span>
                 </button>
-                <LanguageSwitcher mode="nav" isDarkTheme={isDarkTheme} />
+
+                <div
+                  id="dashboard-status-overview-menu"
+                  className={`absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 transition-all duration-150 sm:left-auto sm:right-0 sm:w-[360px] ${isStatusOverviewMenuOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"}`}
+                >
+                  <div className={`rounded-[22px] border p-2.5 shadow-2xl ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-blue-200 bg-white/95 shadow-blue-200/70"}`}>
+                    <div className="mb-2 flex items-start justify-between gap-3 px-1">
+                      <div className="min-w-0">
+                        <p className={`text-[11px] font-black uppercase tracking-[0.16em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.statusOverview")}</p>
+                        <p className={`mt-1 text-[11px] ${TEXT_MUTED_CLASS}`}>{rt("operational.footerHint")}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsStatusOverviewMenuOpen(false)}
+                        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-600 hover:bg-blue-50"}`}
+                        aria-label="Close status overview"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {topNavPrimaryLinks.map((item) => {
+                        const Icon = item.icon;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setIsStatusOverviewMenuOpen(false);
+                              item.onClick();
+                            }}
+                            className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition focus:outline-none ${item.cardClass} ${isDarkTheme ? "focus-visible:ring-2 focus-visible:ring-indigo-400" : "focus-visible:ring-2 focus-visible:ring-blue-300"}`}
+                          >
+                            <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl ${item.iconClass}`}>
+                              <Icon size={16} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-black">{item.label}</span>
+                              <span className={`mt-0.5 block text-[11px] ${TEXT_MUTED_CLASS}`}>{rt("common.currentStatus")}</span>
+                            </span>
+                            <span className={`inline-flex min-w-[1.6rem] shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.countClass}`}>
+                              {item.count}
+                            </span>
+                            <ChevronRight size={14} className="shrink-0" />
+                          </button>
+                        );
+                      })}
+
+                      <div className={`rounded-2xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-blue-100 bg-blue-50/70"}`}>
+                        <div className="mb-2 flex items-center gap-2">
+                          <SlidersHorizontal size={14} className={TEXT_SUBTLE_CLASS} />
+                          <span className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</span>
+                        </div>
+                        <select
+                          value={navMoreSelection}
+                          onChange={handleNavMoreSelection}
+                          aria-label={dt("nav.moreMenu")}
+                          className={`w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-100 focus:ring-2 focus:ring-indigo-400" : "border-blue-200 bg-white text-slate-700 focus:ring-2 focus:ring-blue-300"}`}
+                        >
+                          <option value="">{dt("nav.moreMenu")}</option>
+                          {localizedNavMoreLinks.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={() => setIsLogoutConfirmOpen(true)}
-                aria-label={t("common.signOut")}
-                className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-2.5 sm:px-3 lg:px-4 text-sm font-bold text-rose-600 transition-all ${isDarkTheme ? "hover:bg-rose-900/30" : "hover:bg-rose-50"}`}
-              >
-                <LogOut size={18} />
-                <span className="hidden xl:inline">{t("common.signOut")}</span>
-              </button>
+              <div className="ml-auto flex items-center gap-1.5">
+                <div className={`flex items-center gap-1 rounded-2xl border p-0.5 xl:p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    aria-label={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
+                    title={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition focus:outline-none focus-visible:ring-2 xl:h-10 xl:w-10 ${isDarkTheme ? "bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                  >
+                    {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
+                  </button>
+                  <LanguageSwitcher mode="nav" isDarkTheme={isDarkTheme} />
+                </div>
+                <button
+                  onClick={() => setIsLogoutConfirmOpen(true)}
+                  aria-label={t("common.signOut")}
+                  className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-bold transition-all xl:h-10 xl:gap-2 xl:px-3 xl:text-sm ${isDarkTheme ? "border-rose-500/30 text-rose-300 hover:bg-rose-900/30" : "border-rose-200 text-rose-600 hover:bg-rose-50"}`}
+                >
+                  <LogOut size={16} />
+                  <span className="hidden xl:inline">{t("common.signOut")}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3914,6 +4122,10 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main id="dashboard-main-content" className="app-safe-bottom mx-auto flex w-full max-w-[1440px] flex-col px-4 pt-3 pb-28 sm:px-6 sm:pt-4 sm:pb-12 lg:px-8 lg:pb-8">
+        <div className="mb-3 xl:hidden">
+          {renderProfilePanel()}
+        </div>
+
         {/* Header Section */}
         <header className="mb-4 shrink-0 space-y-3">
           {/* Stats Overview */}
@@ -3936,96 +4148,17 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:gap-4 xl:grid-cols-12 xl:items-start">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-12 xl:items-start">
           {/* Profile Section */}
-          <div className="relative flex flex-col xl:sticky xl:top-24 xl:col-span-4 xl:self-start">
-            <div className={`order-1 overflow-hidden rounded-3xl shadow-lg backdrop-blur-md group transition-all duration-500 hover:shadow-2xl lg:order-2 ${isDarkTheme ? "bg-slate-900/75 shadow-slate-900/40" : "bg-white/90 shadow-[0_14px_40px_-16px_rgba(43,89,176,0.4)]"}`}>
-              <div className={`h-20 sm:h-28 relative overflow-hidden ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]" : "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]"}`}>
-                <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0]/20 via-[#2b59b0]/20 to-[#244a95]/20" : "bg-gradient-to-r from-[#2b59b0]/25 via-[#2b59b0]/18 to-[#244a95]/15"}`}></div>
-                <div className="absolute -bottom-8 -right-8 w-32 h-32 sm:w-40 sm:h-40 bg-white/10 rounded-full blur-2xl"></div>
-                <div className="absolute bottom-3 sm:bottom-4 right-4 sm:right-6 text-white/10 font-black text-2xl sm:text-4xl">TDK</div>
-              </div>
-
-              <div className="relative px-4 pb-4 sm:px-6 sm:pb-5">
-                <div className="relative -mt-6 mb-4 flex justify-center sm:-mt-9 sm:mb-5">
-                  <div
-                    className={`h-20 w-20 rounded-3xl p-1.5 shadow-2xl cursor-pointer relative group/profile overflow-hidden sm:h-28 sm:w-28 ${isDarkTheme ? "bg-slate-800" : "bg-white"}`}
-                    onClick={() => profile?.id_card_url && setIsModalOpen(true)}
-                  >
-                    <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-br from-[#2b59b0]/12 to-[#244a95]/12" : "bg-gradient-to-br from-[#2b59b0]/15 to-[#244a95]/15"}`}></div>
-                    {profile?.id_card_url ? (
-                      <>
-                        <img
-                          src={profile.id_card_url}
-                          className="w-full h-full object-cover rounded-2xl transform group-hover/profile:scale-105 transition-transform duration-500"
-                          alt={rt("common.profileAlt")}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/profile:opacity-100 bg-black/40 transition-all duration-300 rounded-2xl">
-                          <ExternalLink size={20} className="text-white transform group-hover/profile:scale-110 transition-transform" />
-                        </div>
-                      </>
-                    ) : (
-                      <div className={`w-full h-full rounded-2xl flex items-center justify-center ${isDarkTheme ? "bg-gradient-to-br from-slate-700 to-slate-800 text-slate-400" : "bg-gradient-to-br from-[#EEF3FF] to-[#DCE8FF] text-[#2b59b0]"}`}>
-                        <User size={40} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mb-4 text-center sm:mb-5">
-                  <h2 className={`text-lg sm:text-xl font-black ${TEXT_PRIMARY_CLASS}`}>{profile?.full_name || rt("common.noName")}</h2>
-                  <p className={`mt-1 text-xs font-bold uppercase tracking-widest ${isDarkTheme ? "text-indigo-300" : "text-[#2b59b0]"}`}>
-                    {profile?.position || rt("common.employee")}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className={`flex items-center gap-3 rounded-xl p-3 transition-all group/item ${isDarkTheme ? "bg-slate-800/80 hover:bg-slate-800" : "bg-[#EEF3FF]/70 hover:bg-white"}`}>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#2b59b0] to-[#244a95]">
-                      <Building2 size={15} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>{rt("common.department")}</p>
-                      <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.department || rt("common.notSpecified")}</p>
-                    </div>
-                  </div>
-
-                  <div className={`flex items-center gap-3 rounded-xl p-3 transition-all group/item ${isDarkTheme ? "bg-slate-800/80 hover:bg-slate-800" : "bg-[#EEF3FF]/70 hover:bg-white"}`}>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#2b59b0] to-[#244a95]">
-                      <Briefcase size={15} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className={`text-[10px] uppercase font-bold ${TEXT_SUBTLE_CLASS}`}>{rt("common.position")}</p>
-                      <p className={`text-sm font-bold ${TEXT_SECONDARY_CLASS}`}>{profile?.position || rt("common.employee")}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowProfileDetails((prev) => !prev)}
-                      aria-expanded={showProfileDetails}
-                      aria-label={showProfileDetails ? rt("common.profileHide") : rt("common.profileShow")}
-                      title={showProfileDetails ? rt("common.profileHide") : rt("common.profileShow")}
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-all duration-300 focus:outline-none focus-visible:ring-2 ${isDarkTheme
-                        ? "border-slate-600 bg-slate-900/70 text-slate-100 hover:bg-slate-800 focus-visible:ring-indigo-400"
-                        : "border-slate-200 bg-white text-[#2b59b0] hover:bg-[#F8FBFF] focus-visible:ring-blue-300"
-                        } ${showProfileDetails ? "rotate-90" : ""}`}
-                    >
-                      <Settings size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
+          <div className="hidden xl:col-span-4 xl:block">
+            {renderProfilePanel({ containerClassName: "xl:sticky xl:top-24 xl:self-start" })}
           </div>
 
           {/* Main Content Area */}
-          <div className="flex min-w-0 flex-col gap-4 xl:col-span-8">
+          <div className="flex min-w-0 flex-col gap-3 xl:col-span-8">
             {/* Quick Actions */}
-            <section ref={quickActionsSectionRef} className={`order-1 rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <section ref={quickActionsSectionRef} className={`order-1 rounded-[28px] border p-3 shadow-sm backdrop-blur-sm sm:p-5 ${SURFACE_SECTION_CLASS}`}>
+              <div className="mb-3 flex flex-col gap-2.5 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className={QUICK_ACTIONS_HEADING_CLASS}>{rt("common.quickActionsTitle")}</h3>
                   <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("common.quickActionsSubtitle")}</p>
@@ -4035,7 +4168,7 @@ export default function Dashboard() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
                 {primaryQuickActions.map((action) => {
                   const Icon = action.icon;
                   const accentClassMap = {
@@ -4087,24 +4220,24 @@ export default function Dashboard() {
                     <button
                       key={action.id}
                       onClick={action.onClick}
-                      className={`group h-full rounded-[28px] border p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"} ${accent.hoverBorder} ${accent.hoverShadow}`}
+                      className={`group h-full rounded-[20px] border p-3 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:rounded-[24px] sm:p-4 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"} ${accent.hoverBorder} ${accent.hoverShadow}`}
                     >
-                      <div className="mb-4 flex items-start justify-between gap-3">
-                        <div className={`relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg}`}>
-                          <Icon size={20} />
+                      <div className="mb-2.5 flex items-start justify-between gap-2">
+                        <div className={`relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg} sm:h-12 sm:w-12 sm:rounded-2xl`}>
+                          <Icon size={17} />
                           {action.badgeCount > 0 && (
                             <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full border border-white bg-rose-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white shadow-sm">
                               {action.badgeCount > 9 ? "9+" : action.badgeCount}
                             </span>
                           )}
                         </div>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${accent.pill}`}>
+                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold sm:px-2.5 sm:text-[11px] ${accent.pill}`}>
                           {action.cta}
                         </span>
                       </div>
-                      <h4 className={QUICK_ACTIONS_TITLE_CLASS}>{action.label}</h4>
-                      <p className={`mt-2 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
-                      <div className={`mt-4 flex items-center gap-1 text-[11px] font-bold ${accent.text}`}>
+                      <h4 className={`${QUICK_ACTIONS_TITLE_CLASS} text-[13px] leading-snug sm:text-base`}>{action.label}</h4>
+                      <p className={`mt-1.5 line-clamp-2 text-[11px] leading-5 sm:mt-2 sm:line-clamp-3 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
+                      <div className={`mt-2.5 flex items-center gap-1 text-[10px] font-bold sm:mt-3 sm:text-[11px] ${accent.text}`}>
                         <span>{rt("common.active")}</span>
                         <ChevronRight size={12} className="transform transition-transform group-hover:translate-x-1" />
                       </div>
@@ -4129,8 +4262,8 @@ export default function Dashboard() {
 
                   <div
                     className={`mt-2 overflow-hidden transition-all duration-200 ease-out ${showMoreQuickActions
-                        ? "max-h-[560px] translate-y-0 opacity-100"
-                        : "pointer-events-none max-h-0 -translate-y-1 opacity-0"
+                      ? "max-h-[560px] translate-y-0 opacity-100"
+                      : "pointer-events-none max-h-0 -translate-y-1 opacity-0"
                       }`}
                   >
                     <div className={`rounded-2xl border p-2 ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-blue-100 bg-white/95"}`}>
@@ -4186,7 +4319,7 @@ export default function Dashboard() {
                             <button
                               key={action.id}
                               onClick={action.onClick}
-                              className={`group h-full rounded-[28px] border p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"
+                              className={`group h-full rounded-[20px] border p-3 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:rounded-[24px] sm:p-4 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"
                                 } ${accent.hoverBorder} ${accent.hoverShadow} ${isChatAction
                                   ? isDarkTheme
                                     ? "border-emerald-600/60 ring-1 ring-emerald-500/35"
@@ -4194,22 +4327,22 @@ export default function Dashboard() {
                                   : ""
                                 }`}
                             >
-                              <div className="mb-4 flex items-start justify-between gap-3">
-                                <div className={`relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg}`}>
-                                  <Icon size={20} />
+                              <div className="mb-2.5 flex items-start justify-between gap-2">
+                                <div className={`relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg} sm:h-12 sm:w-12 sm:rounded-2xl`}>
+                                  <Icon size={17} />
                                   {action.badgeCount > 0 && (
                                     <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full border border-white bg-rose-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white shadow-sm">
                                       {action.badgeCount > 9 ? "9+" : action.badgeCount}
                                     </span>
                                   )}
                                 </div>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${accent.pill}`}>
+                                <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold sm:px-2.5 sm:text-[11px] ${accent.pill}`}>
                                   {isChatAction ? dt("quickActions.startChat") : action.cta}
                                 </span>
                               </div>
-                              <h4 className={QUICK_ACTIONS_TITLE_CLASS}>{action.label}</h4>
-                              <p className={`mt-2 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
-                              <div className={`mt-4 flex items-center gap-1 text-[11px] font-bold ${accent.text}`}>
+                              <h4 className={`${QUICK_ACTIONS_TITLE_CLASS} text-[13px] leading-snug sm:text-base`}>{action.label}</h4>
+                              <p className={`mt-1.5 line-clamp-2 text-[11px] leading-5 sm:mt-2 sm:line-clamp-3 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
+                              <div className={`mt-2.5 flex items-center gap-1 text-[10px] font-bold sm:mt-3 sm:text-[11px] ${accent.text}`}>
                                 <span>{dt("quickActions.active")}</span>
                                 <ChevronRight size={12} className="transform transition-transform group-hover:translate-x-1" />
                               </div>
@@ -4654,12 +4787,12 @@ export default function Dashboard() {
                     </div>
 
                     <div>
-                        <select
-                          value={activeFilter}
-                          onChange={(e) => setActiveFilter(e.target.value)}
-                          aria-label={rt("recentActivity.filterStatusAria")}
-                          className={FORM_CONTROL_CLASS}
-                        >
+                      <select
+                        value={activeFilter}
+                        onChange={(e) => setActiveFilter(e.target.value)}
+                        aria-label={rt("recentActivity.filterStatusAria")}
+                        className={FORM_CONTROL_CLASS}
+                      >
                         {localizedFilterOptions.map((filter) => (
                           <option key={filter.id} value={filter.id}>{filter.label}</option>
                         ))}
@@ -4667,12 +4800,12 @@ export default function Dashboard() {
                     </div>
 
                     <div>
-                        <select
-                          value={categoryFilter}
-                          onChange={(e) => setCategoryFilter(e.target.value)}
-                          aria-label={rt("recentActivity.filterCategoryAria")}
-                          className={FORM_CONTROL_CLASS}
-                        >
+                      <select
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        aria-label={rt("recentActivity.filterCategoryAria")}
+                        className={FORM_CONTROL_CLASS}
+                      >
                         {categoryOptions.map((category) => (
                           <option key={category} value={category}>
                             {category === "ALL" ? dt("activity.allCategories") : category}
@@ -4683,12 +4816,12 @@ export default function Dashboard() {
 
                     {!isUserSearchMode && (
                       <div>
-                          <select
-                            value={priorityFilter}
-                            onChange={(e) => setPriorityFilter(e.target.value)}
-                            aria-label={rt("recentActivity.filterPriorityAria")}
-                            className={FORM_CONTROL_CLASS}
-                          >
+                        <select
+                          value={priorityFilter}
+                          onChange={(e) => setPriorityFilter(e.target.value)}
+                          aria-label={rt("recentActivity.filterPriorityAria")}
+                          className={FORM_CONTROL_CLASS}
+                        >
                           {localizedPriorityFilterOptions.map((option) => (
                             <option key={option.id} value={option.id}>{option.label}</option>
                           ))}
@@ -4698,12 +4831,12 @@ export default function Dashboard() {
 
                     {!isUserSearchMode && (
                       <div>
-                          <select
-                            value={slaFilter}
-                            onChange={(e) => setSlaFilter(e.target.value)}
-                            aria-label={rt("recentActivity.filterSlaAria")}
-                            className={FORM_CONTROL_CLASS}
-                          >
+                        <select
+                          value={slaFilter}
+                          onChange={(e) => setSlaFilter(e.target.value)}
+                          aria-label={rt("recentActivity.filterSlaAria")}
+                          className={FORM_CONTROL_CLASS}
+                        >
                           {localizedSlaFilterOptions.map((option) => (
                             <option key={option.id} value={option.id}>{option.label}</option>
                           ))}
@@ -4791,7 +4924,7 @@ export default function Dashboard() {
                         type="button"
                         onClick={handleViewAllClick}
                         className={`group/view-all w-full rounded-xl border border-dashed py-3 text-center text-sm font-bold transition-all duration-300 ${isDarkTheme ? "border-indigo-500/40 text-indigo-300 hover:border-indigo-400 hover:bg-indigo-900/30" : "border-indigo-200 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50"}`}
-                        >
+                      >
                         <div className="flex items-center justify-center gap-2">
                           <span>{dt("activity.viewAllHistory", { count: tickets.length })}</span>
                           <ChevronRight size={14} className="transform transition-transform group-hover/view-all:translate-x-1" />
