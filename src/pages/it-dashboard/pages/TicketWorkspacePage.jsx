@@ -1,6 +1,7 @@
 import React from "react";
 import { Search, Filter, Plus, ChevronDown, X } from "lucide-react";
 import { useScopedI18n } from "../../../i18n/useScopedI18n";
+import DashboardSummaryGrid from "../components/DashboardSummaryGrid";
 import TicketList from "../components/TicketList";
 
 const TICKET_WORKSPACE_TRANSLATIONS = {
@@ -115,6 +116,7 @@ const TicketWorkspacePage = ({
   handleUpdateRepairStatus,
   handleCloseJob,
   handleDeleteTicket,
+  handleDeleteTickets,
   handleViewDetails,
   handleOpenNavigation,
 }) => {
@@ -128,6 +130,12 @@ const TicketWorkspacePage = ({
     { id: "HARDWARE", label: tt("quickFilters.hardware") },
     { id: "SYSTEM", label: tt("quickFilters.system") },
   ];
+  const summaryItems = (statCards || []).map((stat) => ({
+    key: stat.key,
+    title: stat.title,
+    value: stat.value,
+    valueClass: stat.valueClass,
+  }));
 
   const sortOptions = [
     { id: "latest", label: tt("sortOptions.latest") },
@@ -151,16 +159,7 @@ const TicketWorkspacePage = ({
           </p>
         </section>
 
-        <section className="mb-4">
-          <div className="grid grid-cols-2 gap-3">
-            {statCards.map((stat) => (
-              <article key={stat.key} className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
-                <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{stat.title}</p>
-                <p className={`mt-1.5 text-2xl font-black ${stat.valueClass}`}>{stat.value}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+        <DashboardSummaryGrid items={summaryItems} theme={theme} uiTheme={uiTheme} />
 
         <section className={`mb-4 rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
           <div className="space-y-3">
@@ -289,6 +288,7 @@ const TicketWorkspacePage = ({
             handleUpdateRepairStatus={handleUpdateRepairStatus}
             handleCloseJob={handleCloseJob}
             handleDeleteTicket={handleDeleteTicket}
+            handleDeleteTickets={handleDeleteTickets}
             handleViewDetails={handleViewDetails}
             handleOpenNavigation={handleOpenNavigation}
           />
@@ -308,27 +308,10 @@ const TicketWorkspacePage = ({
         </p>
       </section>
 
-      <section className="mb-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {statCards.map((stat) => (
-            <div key={stat.key} className={`min-h-[152px] rounded-lg border p-5 shadow-none ${uiTheme.surfaceCard}`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className={`text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>{stat.title}</p>
-                  <p className={`mt-2 text-4xl font-bold ${stat.valueClass}`}>{stat.value}</p>
-                  <p className={`mt-1 text-xs ${theme === "dark" ? "text-[#94a3b8]" : "text-slate-500"}`}>{stat.trend}</p>
-                </div>
-                <div className={`rounded-md p-3 ${stat.iconWrapClass}`}>
-                  <stat.icon size={22} className={stat.iconClass} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <DashboardSummaryGrid items={summaryItems} theme={theme} uiTheme={uiTheme} />
 
-      <section className="mb-6">
-        <div className={`rounded-lg p-2 ${uiTheme.surfaceCard}`}>
+      <section className="mb-4">
+        <div className={`rounded-lg border p-2 ${uiTheme.surfaceCard}`}>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {tabItems.map((tab) => (
               <button
@@ -355,8 +338,8 @@ const TicketWorkspacePage = ({
         </div>
       </section>
 
-      <section className="mb-6">
-        <div className={`rounded-lg p-4 ${uiTheme.surfaceCard}`}>
+      <section className="mb-4">
+        <div className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_130px_180px_auto]">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -469,6 +452,7 @@ const TicketWorkspacePage = ({
           handleUpdateRepairStatus={handleUpdateRepairStatus}
           handleCloseJob={handleCloseJob}
           handleDeleteTicket={handleDeleteTicket}
+          handleDeleteTickets={handleDeleteTickets}
           handleViewDetails={handleViewDetails}
           handleOpenNavigation={handleOpenNavigation}
         />

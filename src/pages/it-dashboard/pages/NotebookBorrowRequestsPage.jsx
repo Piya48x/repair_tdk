@@ -16,6 +16,7 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import toast from "react-hot-toast";
 import { supabase } from "../../../lib/supabaseClient";
+import DashboardSummaryGrid from "../components/DashboardSummaryGrid";
 import {
   approveNotebookBorrow,
   confirmNotebookReturn,
@@ -625,6 +626,12 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
 
     return count;
   }, [queue]);
+  const summaryCards = useMemo(() => ([
+    { key: "total", title: "ทั้งหมด", value: summary.total, valueClass: "text-[#2b59b0]" },
+    { key: "pending", title: "รออนุมัติ", value: summary.pending, valueClass: "text-amber-500" },
+    { key: "active", title: "กำลังยืม", value: summary.active, valueClass: "text-blue-500" },
+    { key: "returned", title: "คืนแล้ว", value: summary.returned, valueClass: "text-emerald-500" },
+  ]), [summary]);
 
   const filteredQueue = useMemo(() => {
     const keyword = normalizeText(searchQuery).toLowerCase();
@@ -923,7 +930,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
   return (
     <>
       {!embedded ? (
-        <section className={isMobile ? "mb-4" : "mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"}>
+        <section className={`mb-4 ${isMobile ? "" : "flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"}`}>
           <div>
             <h2 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
               อนุมัติยืม-คืนโน้ตบุ๊ก
@@ -942,28 +949,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
         </section>
       ) : null}
 
-      <section className={`mb-4 grid gap-3 ${isMobile ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"}`}>
-        <article className={`${isMobile ? "rounded-lg" : "relative overflow-hidden rounded-lg shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] sm:rounded-[1.4rem]"} border p-4 ${uiTheme.surfaceCard}`}>
-          {!isMobile && <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-slate-900 via-[#2b59b0] to-cyan-500" />}
-          <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ทั้งหมด</p>
-          <p className="mt-1.5 text-2xl font-black text-[#2b59b0]">{summary.total}</p>
-        </article>
-        <article className={`${isMobile ? "rounded-lg" : "relative overflow-hidden rounded-lg shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] sm:rounded-[1.4rem]"} border p-4 ${uiTheme.surfaceCard}`}>
-          {!isMobile && <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500" />}
-          <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>รออนุมัติ</p>
-          <p className="mt-1.5 text-2xl font-black text-amber-500">{summary.pending}</p>
-        </article>
-        <article className={`${isMobile ? "rounded-lg" : "relative overflow-hidden rounded-lg shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] sm:rounded-[1.4rem]"} border p-4 ${uiTheme.surfaceCard}`}>
-          {!isMobile && <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#2b59b0] via-sky-500 to-cyan-400" />}
-          <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>กำลังยืม</p>
-          <p className="mt-1.5 text-2xl font-black text-blue-500">{summary.active}</p>
-        </article>
-        <article className={`${isMobile ? "rounded-lg" : "relative overflow-hidden rounded-lg shadow-[0_18px_35px_-24px_rgba(15,23,42,0.25)] sm:rounded-[1.4rem]"} border p-4 ${uiTheme.surfaceCard}`}>
-          {!isMobile && <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-400" />}
-          <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>คืนแล้ว</p>
-          <p className="mt-1.5 text-2xl font-black text-emerald-500">{summary.returned}</p>
-        </article>
-      </section>
+      <DashboardSummaryGrid items={summaryCards} theme={theme} uiTheme={uiTheme} />
 
       <section className={`rounded-lg border p-4 ${isMobile ? "" : "shadow-[0_20px_45px_-28px_rgba(15,23,42,0.22)] sm:rounded-[1.6rem]"} ${uiTheme.surfaceCard}`}>
         {isMobile ? (
@@ -1022,43 +1008,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
           </div>
         ) : (
           <>
-            <div className={`mb-4 flex flex-col gap-4 border-b pb-4 ${isDarkTheme ? "border-slate-700/80" : "border-slate-200/70"} xl:flex-row xl:items-center xl:justify-between`}>
-              <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#2b59b0]/15 bg-[#2b59b0]/8 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#2b59b0]">
-                  <Laptop size={13} />
-                  Notebook approvals
-                </div>
-                <h3 className={`mt-3 text-lg font-black ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>
-                  Approval Queue
-                </h3>
-                <p className={`mt-1 text-sm ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>
-                  Current view {filteredQueue.length} items | {statusFilterLabel}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {currentUser?.name ? (
-                  <div
-                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold sm:rounded-2xl ${
-                      isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    <ShieldCheck size={14} className="text-[#2b59b0]" />
-                    {currentUser.name}
-                  </div>
-                ) : null}
-                <div
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold sm:rounded-2xl ${
-                    isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"
-                  }`}
-                >
-                  <Clock3 size={14} className="text-amber-500" />
-                  Pending {summary.pending}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr),220px,auto,auto] xl:items-center">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="relative min-w-0 flex-1">
                 <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -1080,6 +1030,26 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                   <option value={NOTEBOOK_LOG_STATUS.APPROVED}>กำลังยืม</option>
                   <option value={NOTEBOOK_LOG_STATUS.RETURNED}>คืนเรียบร้อย</option>
                 </select>
+
+                {currentUser?.name ? (
+                  <div
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold sm:rounded-2xl ${
+                      isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <ShieldCheck size={14} className="text-[#2b59b0]" />
+                    {currentUser.name}
+                  </div>
+                ) : null}
+
+                <div
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold sm:rounded-2xl ${
+                    isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"
+                  }`}
+                >
+                  <Clock3 size={14} className="text-amber-500" />
+                  {statusFilterLabel} {filteredQueue.length.toLocaleString("th-TH")}
+                </div>
 
                 <button
                   type="button"

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   LayoutGrid,
@@ -55,6 +55,11 @@ const TEXT = {
   from: "\u0e08\u0e32\u0e01",
   items: "\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23",
   exportExcel: "\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01 Excel",
+  exportSelected: "\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01\u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01",
+  deleteSelected: "\u0e25\u0e1a\u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01",
+  selectedCount: "\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e41\u0e25\u0e49\u0e27",
+  selectAll: "\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14",
+  clearSelection: "\u0e25\u0e49\u0e32\u0e07\u0e01\u0e32\u0e23\u0e40\u0e25\u0e37\u0e2d\u0e01",
   tableRepair: "\u0e07\u0e32\u0e19\u0e0b\u0e48\u0e2d\u0e21",
   tableReporterLocation:
     "\u0e1c\u0e39\u0e49\u0e41\u0e08\u0e49\u0e07 / \u0e2a\u0e16\u0e32\u0e19\u0e17\u0e35\u0e48",
@@ -179,6 +184,7 @@ const TicketList = ({
   handleUpdateRepairStatus,
   handleCloseJob,
   handleDeleteTicket,
+  handleDeleteTickets,
   handleViewDetails,
 }) => {
   const uiTheme = getITDashboardTheme(theme);
@@ -272,6 +278,62 @@ const TicketList = ({
   };
 
   const isHistoryTab = activeTab === "HISTORY";
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState([]);
+  const visibleHistoryTickets = useMemo(
+    () => (isHistoryTab ? filteredTickets.filter((ticket) => ticket.status === "CLOSED") : []),
+    [filteredTickets, isHistoryTab],
+  );
+  const selectedHistoryTickets = useMemo(
+    () => visibleHistoryTickets.filter((ticket) => selectedHistoryIds.includes(ticket.id)),
+    [selectedHistoryIds, visibleHistoryTickets],
+  );
+  const allVisibleHistorySelected =
+    visibleHistoryTickets.length > 0 &&
+    visibleHistoryTickets.every((ticket) => selectedHistoryIds.includes(ticket.id));
+
+  useEffect(() => {
+    if (!isHistoryTab) {
+      setSelectedHistoryIds([]);
+      return;
+    }
+
+    const visibleIds = new Set(visibleHistoryTickets.map((ticket) => ticket.id));
+    setSelectedHistoryIds((prev) => prev.filter((id) => visibleIds.has(id)));
+  }, [isHistoryTab, visibleHistoryTickets]);
+
+  const toggleHistorySelection = (ticketId) => {
+    setSelectedHistoryIds((prev) =>
+      prev.includes(ticketId) ? prev.filter((id) => id !== ticketId) : [...prev, ticketId],
+    );
+  };
+
+  const toggleSelectAllHistory = () => {
+    setSelectedHistoryIds((prev) => {
+      if (allVisibleHistorySelected) {
+        return prev.filter((id) => !visibleHistoryTickets.some((ticket) => ticket.id === id));
+      }
+      const visibleIds = visibleHistoryTickets.map((ticket) => ticket.id);
+      return Array.from(new Set([...prev, ...visibleIds]));
+    });
+  };
+
+  const clearHistorySelection = () => {
+    setSelectedHistoryIds([]);
+  };
+
+  const handleExportSelectedHistory = () => {
+    if (selectedHistoryTickets.length === 0) return;
+    handleExportExcelWithImages(selectedHistoryTickets, theme, currentUser, dateRange);
+  };
+
+  const handleDeleteSelectedHistory = async () => {
+    if (selectedHistoryTickets.length === 0 || !handleDeleteTickets) return;
+    const deleted = await handleDeleteTickets(selectedHistoryTickets);
+    if (deleted) {
+      clearHistorySelection();
+    }
+  };
+
   const activeTabMeta = TAB_COPY[activeTab] || TAB_COPY.INCOMING;
   const tabTotalCount =
     activeTab === "INCOMING"
@@ -457,6 +519,17 @@ const TicketList = ({
           <tr
             className={isDark ? "bg-slate-900 text-slate-400" : "bg-slate-50 text-slate-500"}
           >
+            {isHistoryTab && (
+              <th className="w-14 px-4 py-3 text-center text-xs font-semibold uppercase">
+                <input
+                  type="checkbox"
+                  checked={allVisibleHistorySelected}
+                  onChange={toggleSelectAllHistory}
+                  aria-label={TEXT.selectAll}
+                  className="h-4 w-4 rounded border-slate-300 text-[#2b59b0] focus:ring-[#2b59b0]/30"
+                />
+              </th>
+            )}
             <th className="px-4 py-3 text-xs font-semibold uppercase">{TEXT.tableRepair}</th>
             <th className="px-4 py-3 text-xs font-semibold uppercase">{TEXT.tableReporterLocation}</th>
             <th className="px-4 py-3 text-xs font-semibold uppercase">{TEXT.tableStatus}</th>
@@ -483,6 +556,17 @@ const TicketList = ({
                 key={ticket.id}
                 className={isDark ? "hover:bg-slate-800/60" : "hover:bg-slate-50"}
               >
+                {isHistoryTab && (
+                  <td className="px-4 py-3 align-top text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedHistoryIds.includes(ticket.id)}
+                      onChange={() => toggleHistorySelection(ticket.id)}
+                      aria-label={`${TEXT.selectedCount} ${ticket.title}`}
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-[#2b59b0] focus:ring-[#2b59b0]/30"
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-3 align-top">
                   <p className={`max-w-[280px] font-semibold ${textPrimary}`}>{ticket.title}</p>
                   <div className="mt-1 flex items-center gap-2 text-xs">
@@ -690,6 +774,7 @@ const TicketList = ({
         const priorityMeta = PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.default;
         const statusClass = getStatusBadgeClass(ticket);
         const isCardInteractive = canOpenCardDetails(ticket);
+        const isHistorySelected = isHistoryTab && selectedHistoryIds.includes(ticket.id);
 
         return (
           <article
@@ -703,7 +788,13 @@ const TicketList = ({
               isCardInteractive
                 ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2b59b0]/40"
                 : "hover:shadow-md"
-            } ${listWrapClass}`}
+            } ${
+              isHistorySelected
+                ? isDark
+                  ? "border-[#8eb0f6] ring-2 ring-[#2b59b0]/30"
+                  : "border-[#2b59b0] ring-2 ring-[#2b59b0]/15"
+                : listWrapClass
+            }`}
           >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
@@ -719,14 +810,29 @@ const TicketList = ({
                     </span>
                   )}
                 </div>
-              <div className="text-right text-[11px]">
-                <p className={textSecondary}>{new Date(ticket.created_at).toLocaleDateString("th-TH")}</p>
-                <p className={textMuted}>
-                  {new Date(ticket.created_at).toLocaleTimeString("th-TH", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
+              <div className="flex items-start gap-3">
+                {isHistoryTab && (
+                  <input
+                    type="checkbox"
+                    checked={isHistorySelected}
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      toggleHistorySelection(ticket.id);
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    aria-label={`${TEXT.selectedCount} ${ticket.title}`}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#2b59b0] focus:ring-[#2b59b0]/30"
+                  />
+                )}
+                <div className="text-right text-[11px]">
+                  <p className={textSecondary}>{new Date(ticket.created_at).toLocaleDateString("th-TH")}</p>
+                  <p className={textMuted}>
+                    {new Date(ticket.created_at).toLocaleTimeString("th-TH", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -875,15 +981,44 @@ const TicketList = ({
               {tabTotalCount.toLocaleString("th-TH")} {TEXT.items}
             </div>
             {isHistoryTab && (
-              <button
-                onClick={() =>
-                  handleExportExcelWithImages(filteredTickets, theme, currentUser, dateRange)
-                }
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
-              >
-                <DownloadCloud size={14} />
-                {TEXT.exportExcel}
-              </button>
+              <>
+                {selectedHistoryTickets.length > 0 && (
+                  <>
+                    <div className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${softSurface} ${textSecondary}`}>
+                      {TEXT.selectedCount} {selectedHistoryTickets.length.toLocaleString("th-TH")} {TEXT.items}
+                    </div>
+                    <button
+                      onClick={handleExportSelectedHistory}
+                      className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                    >
+                      <DownloadCloud size={14} />
+                      {TEXT.exportSelected}
+                    </button>
+                    <button
+                      onClick={handleDeleteSelectedHistory}
+                      className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-rose-700"
+                    >
+                      <Trash2 size={14} />
+                      {TEXT.deleteSelected}
+                    </button>
+                    <button
+                      onClick={clearHistorySelection}
+                      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${neutralButtonClass}`}
+                    >
+                      {TEXT.clearSelection}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() =>
+                    handleExportExcelWithImages(filteredTickets, theme, currentUser, dateRange)
+                  }
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                >
+                  <DownloadCloud size={14} />
+                  {TEXT.exportExcel}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -915,15 +1050,38 @@ const TicketList = ({
           </div>
 
           {isHistoryTab && (
-            <button
-              onClick={() =>
-                handleExportExcelWithImages(filteredTickets, theme, currentUser, dateRange)
-              }
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
-            >
-              <DownloadCloud size={14} />
-              {TEXT.exportExcel}
-            </button>
+            <>
+              {selectedHistoryTickets.length > 0 && (
+                <div className="grid grid-cols-1 gap-2">
+                  <div className={`rounded-md border px-3 py-2 text-xs font-semibold ${softSurface} ${textSecondary}`}>
+                    {TEXT.selectedCount} {selectedHistoryTickets.length.toLocaleString("th-TH")} {TEXT.items}
+                  </div>
+                  <button
+                    onClick={handleExportSelectedHistory}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+                  >
+                    <DownloadCloud size={14} />
+                    {TEXT.exportSelected}
+                  </button>
+                  <button
+                    onClick={handleDeleteSelectedHistory}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+                  >
+                    <Trash2 size={14} />
+                    {TEXT.deleteSelected}
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() =>
+                  handleExportExcelWithImages(filteredTickets, theme, currentUser, dateRange)
+                }
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+              >
+                <DownloadCloud size={14} />
+                {TEXT.exportExcel}
+              </button>
+            </>
           )}
         </div>
       )}

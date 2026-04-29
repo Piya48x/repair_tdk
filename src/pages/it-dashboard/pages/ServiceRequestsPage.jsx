@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import { normalizeServiceType } from "../../../lib/serviceRequestUtils";
+import DashboardSummaryGrid from "../components/DashboardSummaryGrid";
 
 const SERVICE_REQUEST_LABELS = {
   req_new_device: "เบิกอุปกรณ์ใหม่",
@@ -116,6 +117,12 @@ export default function ServiceRequestsPage({
     inProgress: serviceRequests.filter((item) => String(item?.status || "").toUpperCase() === "IN_PROGRESS").length,
     closed: serviceRequests.filter((item) => String(item?.status || "").toUpperCase() === "CLOSED").length,
   }), [serviceRequests]);
+  const summaryCards = useMemo(() => ([
+    { key: "total", title: "ทั้งหมด", value: summary.total, valueClass: "text-violet-500" },
+    { key: "pending", title: "รอดำเนินการ", value: summary.pending, valueClass: "text-blue-500" },
+    { key: "inProgress", title: "กำลังดำเนินการ", value: summary.inProgress, valueClass: "text-amber-500" },
+    { key: "closed", title: "ปิดคำขอแล้ว", value: summary.closed, valueClass: "text-emerald-500" },
+  ]), [summary]);
 
   const filteredRequests = useMemo(() => {
     const keyword = normalizeText(searchQuery).toLowerCase();
@@ -220,24 +227,7 @@ export default function ServiceRequestsPage({
         </p>
       </section>
 
-      <section className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
-          <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ทั้งหมด</p>
-          <p className="mt-1.5 text-2xl font-black text-violet-500">{summary.total}</p>
-        </article>
-        <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
-          <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>รอดำเนินการ</p>
-          <p className="mt-1.5 text-2xl font-black text-blue-500">{summary.pending}</p>
-        </article>
-        <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
-          <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>กำลังดำเนินการ</p>
-          <p className="mt-1.5 text-2xl font-black text-amber-500">{summary.inProgress}</p>
-        </article>
-        <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
-          <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ปิดคำขอแล้ว</p>
-          <p className="mt-1.5 text-2xl font-black text-emerald-500">{summary.closed}</p>
-        </article>
-      </section>
+      <DashboardSummaryGrid items={summaryCards} theme={theme} uiTheme={uiTheme} />
 
       <section className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

@@ -93,6 +93,7 @@ import * as XLSX from "xlsx";
 import { toast } from "react-hot-toast";
 import ITDashboardGlobalStyles from "./it-dashboard/components/ITDashboardGlobalStyles";
 import TicketDetailModal from "./dashboard/components/TicketDetailModal";
+import CloseJobModal from "./it-dashboard/components/CloseJobModal";
 import WalkInTicketModal from "./it-dashboard/components/WalkInTicketModal";
 import { createWalkInTicket } from "./it-dashboard/services/walkInTicketService";
 
@@ -127,7 +128,11 @@ import {
   isPickUpEquipmentRequest,
   splitTicketBuckets,
 } from "../lib/serviceRequestUtils";
-import { getTicketDisplayNote } from "../lib/ticketAttachmentMetadata";
+import {
+  buildTicketAttachmentNote,
+  getTicketAttachmentEntries,
+  getTicketDisplayNote,
+} from "../lib/ticketAttachmentMetadata";
 
 function buildStructuredRepairReport({
   problem,
@@ -237,6 +242,8 @@ const ITDashboard = () => {
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
   const [detailTicket, setDetailTicket] = useState(null);
   const [isWalkInTicketOpen, setIsWalkInTicketOpen] = useState(false);
+  const [closingTicket, setClosingTicket] = useState(null);
+  const [isCloseJobSubmitting, setIsCloseJobSubmitting] = useState(false);
   const [chatOpenSignal, setChatOpenSignal] = useState(0);
   const [chatOpenTarget, setChatOpenTarget] = useState("support");
 
@@ -880,37 +887,52 @@ const ITDashboard = () => {
     }
   };
 
-  // Delete history ticket
-  const handleDeleteTicket = async (ticket) => {
-    const { value: confirm } = await fireThemedSwal({
-      title: "ลบประวัติงาน",
-      text: "ต้องการลบรายการนี้ออกจากประวัติใช่หรือไม่",
+  const handleDeleteTickets = async (ticketItems) => {
+    const ids = (Array.isArray(ticketItems) ? ticketItems : [ticketItems])
+      .map((item) => (typeof item === "object" ? item?.id : item))
+      .filter(Boolean);
+
+    if (ids.length === 0) return false;
+
+    const isBulkDelete = ids.length > 1;
+    const { isConfirmed } = await fireThemedSwal({
+      title: isBulkDelete ? "ลบหลายรายการจากประวัติ" : "ลบประวัติงาน",
+      text: isBulkDelete
+        ? `ต้องการลบ ${ids.length.toLocaleString("th-TH")} รายการที่เลือกใช่หรือไม่`
+        : "ต้องการลบรายการนี้ออกจากประวัติใช่หรือไม่",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "ลบรายการ",
+      confirmButtonText: isBulkDelete ? "ลบรายการที่เลือก" : "ลบรายการ",
       cancelButtonText: "ยกเลิก",
       reverseButtons: true,
     }, "danger");
 
-    if (!confirm) return;
+    if (!isConfirmed) return false;
 
     try {
       const { error } = await supabase
         .from("tickets")
         .delete()
-        .eq("id", ticket.id);
+        .in("id", ids);
 
       if (error) throw error;
+
+      if (detailTicket?.id && ids.includes(detailTicket.id)) {
+        setDetailTicket(null);
+      }
 
       await fireThemedSwal({
         icon: "success",
         title: "ลบสำเร็จ",
-        text: "ลบประวัติงานเรียบร้อยแล้ว",
+        text: isBulkDelete
+          ? `ลบ ${ids.length.toLocaleString("th-TH")} รายการเรียบร้อยแล้ว`
+          : "ลบประวัติงานเรียบร้อยแล้ว",
         timer: 1800,
         showConfirmButton: false,
       }, "success");
 
-      fetchTickets();
+      await fetchTickets();
+      return true;
     } catch (error) {
       console.error("Error deleting ticket:", error);
       fireThemedSwal({
@@ -918,8 +940,11 @@ const ITDashboard = () => {
         title: "เกิดข้อผิดพลาด",
         text: "ไม่สามารถลบรายการได้ กรุณาลองใหม่อีกครั้ง",
       }, "danger");
+      return false;
     }
   };
+
+  const handleDeleteTicket = async (ticket) => handleDeleteTickets(ticket);
 
   // Open navigation
   const handleOpenNavigation = (location) => {
@@ -1135,526 +1160,123 @@ const ITDashboard = () => {
     }
   };
 
-  // Close job
-  const handleCloseJob = async (ticket) => {
-    const isDark = theme === "dark";
-    const safeTicketNo = escapeHtml(
-      ticket?.ticket_no || `IT-${String(ticket?.id || "").padStart(5, "0")}`,
-    );
-    const popupClass = isDark
-      ? "w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900  shadow-2xl"
-      : "w-full max-w-2xl rounded-3xl border border-slate-200 bg-white  shadow-2xl";
-    const shellClass = isDark ? "text-slate-100" : "text-slate-900";
-    const mutedClass = isDark ? "text-slate-400" : "text-slate-500";
-    const sectionClass = isDark
-      ? "rounded-2xl border border-slate-700 bg-slate-800/70 p-3"
-      : "rounded-2xl border border-slate-200 bg-slate-50 p-3";
-    const labelClass = isDark ? "text-slate-300" : "text-slate-700";
-    const fieldClass = isDark
-      ? "w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/30"
-      : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/20";
-    const helperClass = isDark ? "text-slate-500" : "text-slate-500";
-    const chipClass = isDark
-      ? "inline-flex items-center rounded-full border border-[#2b59b0]/40 bg-[#2b59b0]/15 px-2.5 py-1 text-[11px] font-semibold text-[#9dbbf8]"
-      : "inline-flex items-center rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-2.5 py-1 text-[11px] font-semibold text-[#2b59b0]";
-    const cancelButtonClass = isDark
-      ? "inline-flex items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
-      : "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300";
-    const attachTriggerClass = isDark
-      ? "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-600 bg-slate-800 text-slate-200 transition hover:bg-slate-700"
-      : "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50";
-    const attachMenuClass = isDark
-      ? "absolute right-0 top-full z-30 mt-2 hidden w-48 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 p-2 shadow-2xl"
-      : "absolute right-0 top-full z-30 mt-2 hidden w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl";
-    const attachMenuButtonClass = isDark
-      ? "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
-      : "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50";
-    const pasteZoneClass = isDark
-      ? "mt-3 rounded-2xl border-2 border-dashed border-slate-600 bg-slate-900/60 p-4 outline-none transition hover:border-[#2b59b0]/60 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/30"
-      : "mt-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white/90 p-4 outline-none transition hover:border-[#2b59b0]/50 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/20";
-    const previewCardClass = isDark
-      ? "mt-3 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900"
-      : "mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white";
-    const previewFooterClass = isDark
-      ? "flex items-center justify-between gap-3 border-t border-slate-700 bg-slate-900/80 px-4 py-3"
-      : "flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3";
-    const removeButtonClass = isDark
-      ? "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600 bg-slate-800 text-slate-300 transition hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
-      : "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600";
-    const cameraPanelClass = isDark
-      ? "mt-3 hidden overflow-hidden rounded-2xl border border-slate-700 bg-slate-950"
-      : "mt-3 hidden overflow-hidden rounded-2xl border border-slate-200 bg-slate-950";
-    const smallGhostButtonClass = isDark
-      ? "inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
-      : "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50";
-    const primaryCameraButtonClass = "inline-flex items-center gap-2 rounded-xl bg-[#2b59b0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#244a95]";
-    const paperclipIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.82l8.49-8.48"/></svg>';
-    const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>';
-    const imageIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
-    const fileIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
-    const pasteIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-2"/><path d="M12 2H8a2 2 0 0 0-2 2v4h6V2Z"/><path d="M2 14h10"/><path d="m5 11-3 3 3 3"/></svg>';
-    const closeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
-    const previewCardLabelClass = isDark ? "text-slate-100" : "text-slate-800";
-    const previewCardMetaClass = isDark ? "text-slate-400" : "text-slate-500";
-    const existingEvidenceHint = ticket?.image_after_url ? "ไม่เลือกใหม่จะใช้หลักฐานเดิม" : "ยังไม่ได้เลือกหลักฐาน";
-    let selectedEvidenceFile = null;
-    let selectedEvidencePreviewUrl = null;
-    let activeCameraStream = null;
-    let popupElement = null;
-    let attachMenuWrap = null;
-    let attachMenu = null;
-    let attachTrigger = null;
-    let openCameraButton = null;
-    let openGalleryButton = null;
-    let openFileButton = null;
-    let galleryInput = null;
-    let genericFileInput = null;
-    let pasteZone = null;
-    let fileMeta = null;
-    let attachmentPreview = null;
-    let cameraPanel = null;
-    let cameraVideo = null;
-    let cameraCloseButton = null;
-    let cameraCaptureButton = null;
+  const uploadCloseJobAttachments = async ({ ticketId, kind, files, createdBy }) => {
+    const safeKind = kind === "after" ? "after" : "before";
+    const list = (Array.isArray(files) ? files : []).filter(Boolean);
 
-    const hideAttachMenu = () => {
-      attachMenu?.classList.add("hidden");
-    };
+    if (list.length === 0) return [];
 
-    const stopCamera = () => {
-      if (activeCameraStream) {
-        activeCameraStream.getTracks().forEach((track) => track.stop());
-        activeCameraStream = null;
+    const uploaded = [];
+
+    for (const file of list) {
+      const extension = String(file?.name || "").split(".").pop() || "jpg";
+      const fileName = `${createdBy || "it-support"}/${ticketId}/${safeKind}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("ticket-attachments")
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("ticket-attachments").getPublicUrl(fileName);
+
+      if (publicUrl) {
+        uploaded.push({
+          url: publicUrl,
+          type: safeKind,
+          name: file?.name || fileName.split("/").pop() || `${safeKind}.${extension}`,
+        });
       }
-      if (cameraVideo) {
-        cameraVideo.srcObject = null;
-      }
-      cameraPanel?.classList.add("hidden");
-    };
-
-    const revokePreviewUrl = () => {
-      if (selectedEvidencePreviewUrl && selectedEvidencePreviewUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(selectedEvidencePreviewUrl);
-      }
-      selectedEvidencePreviewUrl = null;
-    };
-
-    const renderSelectedEvidence = () => {
-      if (!attachmentPreview || !fileMeta) return;
-
-      if (!selectedEvidenceFile) {
-        attachmentPreview.classList.add("hidden");
-        attachmentPreview.innerHTML = "";
-        fileMeta.textContent = existingEvidenceHint;
-        return;
-      }
-
-      const safeName = escapeHtml(selectedEvidenceFile.name || "attachment");
-      const sizeLabel = formatAttachmentSize(selectedEvidenceFile.size);
-      const previewMeta = escapeHtml(sizeLabel);
-      const isImage = isImageLikeFile(selectedEvidenceFile);
-
-      if (isImage && selectedEvidencePreviewUrl) {
-        attachmentPreview.innerHTML = `
-          <div class="${previewCardClass}">
-            <img src="${selectedEvidencePreviewUrl}" alt="${safeName}" class="aspect-video w-full object-cover" />
-            <div class="${previewFooterClass}">
-              <div class="min-w-0">
-                <p class="truncate text-sm font-semibold ${previewCardLabelClass}">${safeName}</p>
-                <p class="text-[11px] ${previewCardMetaClass}">${previewMeta}</p>
-              </div>
-              <button type="button" id="swal-remove-attachment" class="${removeButtonClass}" aria-label="ลบหลักฐาน">
-                ${closeIcon}
-              </button>
-            </div>
-          </div>
-        `;
-      } else {
-        attachmentPreview.innerHTML = `
-          <div class="${previewCardClass}">
-            <div class="flex items-center justify-between gap-3 px-4 py-4">
-              <div class="flex min-w-0 items-center gap-3">
-                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-                  ${fileIcon}
-                </div>
-                <div class="min-w-0">
-                  <p class="truncate text-sm font-semibold ${previewCardLabelClass}">${safeName}</p>
-                  <p class="text-[11px] ${previewCardMetaClass}">${previewMeta}</p>
-                </div>
-              </div>
-              <button type="button" id="swal-remove-attachment" class="${removeButtonClass}" aria-label="ลบหลักฐาน">
-                ${closeIcon}
-              </button>
-            </div>
-          </div>
-        `;
-      }
-
-      attachmentPreview.classList.remove("hidden");
-      fileMeta.textContent = `${isImage ? "พร้อมอัปโหลดรูป" : "พร้อมอัปโหลดไฟล์"} • ${sizeLabel}`;
-      attachmentPreview.querySelector("#swal-remove-attachment")?.addEventListener("click", clearSelectedEvidence);
-    };
-
-    function clearSelectedEvidence() {
-      selectedEvidenceFile = null;
-      revokePreviewUrl();
-      if (galleryInput) galleryInput.value = "";
-      if (genericFileInput) genericFileInput.value = "";
-      renderSelectedEvidence();
     }
 
-    const applySelectedEvidence = (rawFile) => {
-      if (!rawFile) return false;
+    return uploaded;
+  };
 
-      const normalizedFile =
-        rawFile instanceof File && rawFile.name
-          ? rawFile
-          : new File([rawFile], inferClipboardFileName(rawFile), {
-              type: rawFile?.type || "application/octet-stream",
-            });
+  const handleCloseJob = (ticket) => {
+    setClosingTicket(ticket);
+  };
 
-      if (normalizedFile.size > CLOSE_JOB_MAX_FILE_SIZE) {
-        toast.error("ไฟล์ต้องไม่เกิน 5MB");
-        return false;
-      }
+  const handleSubmitCloseJob = async (payload) => {
+    const ticket = payload?.ticket || closingTicket;
+    if (!ticket?.id) {
+      throw new Error("ไม่พบข้อมูลงานที่ต้องการปิด");
+    }
 
-      selectedEvidenceFile = normalizedFile;
-      revokePreviewUrl();
-      selectedEvidencePreviewUrl = isImageLikeFile(normalizedFile) ? URL.createObjectURL(normalizedFile) : null;
-      hideAttachMenu();
-      stopCamera();
-      renderSelectedEvidence();
-      return true;
-    };
-
-    const startCamera = async () => {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        toast.error("อุปกรณ์นี้ไม่รองรับกล้อง");
-        return;
-      }
-
-      try {
-        stopCamera();
-        let stream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" } },
-            audio: false,
-          });
-        } catch {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        }
-
-        activeCameraStream = stream;
-        if (cameraVideo) {
-          cameraVideo.srcObject = stream;
-          await cameraVideo.play?.();
-        }
-        cameraPanel?.classList.remove("hidden");
-        hideAttachMenu();
-      } catch (error) {
-        console.error("Close job camera error:", error);
-        toast.error("เปิดกล้องไม่ได้");
-      }
-    };
-
-    const captureFromCamera = async () => {
-      if (!cameraVideo) {
-        toast.error("กล้องไม่พร้อมใช้งาน");
-        return;
-      }
-
-      const width = cameraVideo.videoWidth || 1280;
-      const height = cameraVideo.videoHeight || 720;
-      if (!width || !height) {
-        toast.error("จับภาพไม่ได้");
-        return;
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      context?.drawImage(cameraVideo, 0, 0, width, height);
-
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          toast.error("จับภาพไม่ได้");
-          return;
-        }
-
-        const capturedFile = new File([blob], `after_${ticket.id}_${Date.now()}.jpg`, {
-          type: "image/jpeg",
-        });
-        applySelectedEvidence(capturedFile);
-      }, "image/jpeg", 0.92);
-    };
-
-    const { value: formValues } = await Swal.fire({
-      title: `<span class="${shellClass}">ปิดงาน</span>`,
-      html: `
-        <div class="space-y-3 text-left ">
-          <div class="${sectionClass}">
-            <div class="mb-2 flex flex-wrap items-center gap-2">
-              <div class="flex flex-wrap items-center gap-2">
-              <span class="${chipClass}">Ticket ${safeTicketNo}</span>
-              <span class="${chipClass}">5 หัวข้อ</span>
-              </div>
-            </div>
-            <p class="text-sm font-semibold ${shellClass}">สรุปงานซ่อม</p>
-            <p class="mt-1 text-[11px] ${mutedClass}">
-              กรอกสั้น ๆ ให้ครบ
-            </p>
-          </div>
-
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div class="sm:col-span-2">
-              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">ปัญหาที่พบ (Problem)</label>
-              <textarea id="swal-problem" class="${fieldClass}" rows="2" placeholder="เช่น เปิดเครื่องไม่ติด / เครื่องค้าง / มีเสียงดังผิดปกติ"></textarea>
-            </div>
-
-            <div>
-              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">สาเหตุของปัญหา (Root Cause)</label>
-              <textarea id="swal-root-cause" class="${fieldClass}" rows="2" placeholder="เช่น สายไฟ/พอร์ตหลวม หรือการตั้งค่าระบบผิดพลาด"></textarea>
-            </div>
-
-            <div>
-              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">ผลการทดสอบหลังแก้ไข (Result)</label>
-              <textarea id="swal-result" class="${fieldClass}" rows="2" placeholder="เช่น ทดสอบใช้งาน 15 นาที ระบบกลับมาปกติ"></textarea>
-            </div>
-
-            <div class="sm:col-span-2">
-              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">วิธีการแก้ไข (Solution)</label>
-              <textarea id="swal-solution" class="${fieldClass}" rows="3" placeholder="เช่น ตรวจเช็กอุปกรณ์ ปรับการเชื่อมต่อและตั้งค่าใหม่"></textarea>
-            </div>
-
-            <div class="sm:col-span-2">
-              <label class="mb-1.5 block text-xs font-semibold ${labelClass}">อะไหล่ที่ใช้ (Parts Used)</label>
-              <input id="swal-parts" class="${fieldClass}" placeholder="เช่น ไม่มีการเปลี่ยนอะไหล่ / พัดลม CPU 1 ตัว" />
-            </div>
-          </div>
-
-          <div class="${sectionClass}">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <label class="mb-1.5 block text-xs font-semibold ${labelClass}">หลักฐาน (ไม่บังคับ)</label>
-                <p class="text-[11px] ${helperClass}">กล้อง / รูปภาพ / ไฟล์ / Ctrl+V</p>
-              </div>
-              <div id="swal-attach-menu-wrap" class="relative">
-                <button type="button" id="swal-attach-trigger" class="${attachTriggerClass}" aria-label="เพิ่มหลักฐาน">
-                  ${paperclipIcon}
-                </button>
-                <div id="swal-attach-menu" class="${attachMenuClass}">
-                  <button type="button" id="swal-open-camera" class="${attachMenuButtonClass}">
-                    <span class="text-[#2b59b0]">${cameraIcon}</span>
-                    <span>กล้อง</span>
-                  </button>
-                  <button type="button" id="swal-open-gallery" class="${attachMenuButtonClass}">
-                    <span class="text-emerald-600">${imageIcon}</span>
-                    <span>รูปภาพ</span>
-                  </button>
-                  <button type="button" id="swal-open-file" class="${attachMenuButtonClass}">
-                    <span class="text-amber-600">${fileIcon}</span>
-                    <span>ไฟล์</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <input type="file" id="swal-image-file" accept="${CLOSE_JOB_IMAGE_ACCEPT}" class="hidden" />
-            <input type="file" id="swal-file-input" accept="${CLOSE_JOB_FILE_ACCEPT}" class="hidden" />
-
-            <div id="swal-paste-zone" tabindex="0" class="${pasteZoneClass}">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#2b59b0]/10 text-[#2b59b0]">
-                  ${pasteIcon}
-                </div>
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold ${shellClass}">วางภาพหรือไฟล์</p>
-                  <p class="text-[11px] ${helperClass}">Win + Shift + S แล้ว Ctrl + V</p>
-                </div>
-              </div>
-            </div>
-
-            <div id="swal-camera-panel" class="${cameraPanelClass}">
-              <div class="relative p-3">
-                <video id="swal-camera-video" autoplay playsinline class="aspect-video w-full rounded-xl object-cover"></video>
-                <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p class="text-[11px] text-white/75">ถ่ายภาพหน้างานแล้วใช้เป็นหลักฐานได้ทันที</p>
-                  <div class="flex flex-wrap gap-2">
-                    <button type="button" id="swal-camera-close" class="${smallGhostButtonClass}">ปิด</button>
-                    <button type="button" id="swal-camera-capture" class="${primaryCameraButtonClass}">
-                      ${cameraIcon}
-                      <span>จับภาพ</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <p id="swal-file-meta" class="mt-3 text-[11px] ${helperClass}">${existingEvidenceHint}</p>
-            <div id="swal-attachment-preview" class="hidden"></div>
-          </div>
-
-          <div class="${sectionClass}">
-            <p class="text-[11px] leading-relaxed ${helperClass}">
-              ปัญหา > สาเหตุ > วิธีแก้ > ผล
-            </p>
-          </div>
-        </div>
-      `,
-      background: isDark ? "#0f172a" : "#ffffff",
-      color: isDark ? "#fff" : "#1f2937",
-      showCancelButton: true,
-      confirmButtonText: "ปิดงาน",
-      confirmButtonColor: "#2b59b0",
-      cancelButtonText: "ยกเลิก",
-      focusConfirm: false,
-      showLoaderOnConfirm: true,
-      buttonsStyling: false,
-      customClass: {
-        popup: popupClass,
-        title: " font-semibold",
-        htmlContainer: "!overflow-visible !px-5 !pt-2 !pb-0 sm:!px-6",
-        actions: "!mt-4 !w-full !justify-end !gap-2 !px-5 !pb-5 sm:!px-6",
-        confirmButton:
-          "inline-flex items-center justify-center rounded-xl bg-[#2b59b0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#244a95] focus:outline-none focus:ring-2 focus:ring-[#2b59b0]/30",
-        cancelButton: cancelButtonClass,
-      },
-      didOpen: () => {
-        const problemEl = document.getElementById("swal-problem");
-        if (problemEl && typeof problemEl.focus === "function") {
-          problemEl.focus();
-          problemEl.setSelectionRange?.(problemEl.value.length, problemEl.value.length);
-        }
-
-        popupElement = Swal.getPopup();
-        attachMenuWrap = document.getElementById("swal-attach-menu-wrap");
-        attachMenu = document.getElementById("swal-attach-menu");
-        attachTrigger = document.getElementById("swal-attach-trigger");
-        openCameraButton = document.getElementById("swal-open-camera");
-        openGalleryButton = document.getElementById("swal-open-gallery");
-        openFileButton = document.getElementById("swal-open-file");
-        galleryInput = document.getElementById("swal-image-file");
-        genericFileInput = document.getElementById("swal-file-input");
-        pasteZone = document.getElementById("swal-paste-zone");
-        fileMeta = document.getElementById("swal-file-meta");
-        attachmentPreview = document.getElementById("swal-attachment-preview");
-        cameraPanel = document.getElementById("swal-camera-panel");
-        cameraVideo = document.getElementById("swal-camera-video");
-        cameraCloseButton = document.getElementById("swal-camera-close");
-        cameraCaptureButton = document.getElementById("swal-camera-capture");
-
-        attachTrigger?.addEventListener("click", () => {
-          attachMenu?.classList.toggle("hidden");
-        });
-
-        popupElement?.addEventListener("click", (event) => {
-          if (attachMenuWrap && !attachMenuWrap.contains(event.target)) {
-            hideAttachMenu();
-          }
-        });
-
-        openCameraButton?.addEventListener("click", startCamera);
-        openGalleryButton?.addEventListener("click", () => {
-          hideAttachMenu();
-          galleryInput?.click();
-        });
-        openFileButton?.addEventListener("click", () => {
-          hideAttachMenu();
-          genericFileInput?.click();
-        });
-        galleryInput?.addEventListener("change", (event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          applySelectedEvidence(file);
-          event.target.value = "";
-        });
-        genericFileInput?.addEventListener("change", (event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          applySelectedEvidence(file);
-          event.target.value = "";
-        });
-        pasteZone?.addEventListener("click", () => pasteZone.focus());
-        pasteZone?.addEventListener("paste", (event) => {
-          const clipboardItems = Array.from(event.clipboardData?.items || []);
-          const clipboardFileItem = clipboardItems.find((item) => item.kind === "file");
-          const clipboardFile = clipboardFileItem?.getAsFile?.() || event.clipboardData?.files?.[0];
-
-          if (!clipboardFile) return;
-
-          event.preventDefault();
-          applySelectedEvidence(clipboardFile);
-        });
-        cameraCloseButton?.addEventListener("click", stopCamera);
-        cameraCaptureButton?.addEventListener("click", captureFromCamera);
-        renderSelectedEvidence();
-      },
-      willClose: () => {
-        stopCamera();
-        revokePreviewUrl();
-      },
-      preConfirm: () => {
-        const problem = document.getElementById("swal-problem")?.value || "";
-        const rootCause = document.getElementById("swal-root-cause")?.value || "";
-        const solution = document.getElementById("swal-solution")?.value || "";
-        const parts = document.getElementById("swal-parts")?.value || "";
-        const result = document.getElementById("swal-result")?.value || "";
-
-        if (!problem.trim() || !rootCause.trim() || !solution.trim() || !result.trim()) {
-          Swal.showValidationMessage('<span class="text-rose-400">กรุณากรอกข้อมูลให้ครบทุกหัวข้อหลักก่อนบันทึก</span>');
-          return false;
-        }
-
-        const normalizedParts = parts.trim() || "ไม่มีการเปลี่ยนอะไหล่";
-        const report = buildStructuredRepairReport({
-          problem: problem.trim(),
-          rootCause: rootCause.trim(),
-          solution: solution.trim(),
-          partsUsed: normalizedParts,
-          result: result.trim(),
-        });
-
-        return { solution: report, parts: normalizedParts, file: selectedEvidenceFile || null };
-      },
-    });
-
-    if (!formValues) return;
+    setIsCloseJobSubmitting(true);
 
     try {
-      let publicUrl = ticket?.image_after_url || null;
+      const normalizedParts = String(payload?.partsUsed || "").trim() || "ไม่มีการเปลี่ยนอะไหล่";
+      const report = buildStructuredRepairReport({
+        problem: String(payload?.problem || "").trim(),
+        rootCause: String(payload?.rootCause || "").trim(),
+        solution: String(payload?.solution || "").trim(),
+        partsUsed: normalizedParts,
+        result: String(payload?.result || "").trim(),
+      });
 
-      if (formValues.file) {
-        const fileExt = formValues.file.name.split(".").pop() || "jpg";
-        const fileName = `after_${ticket.id}_${Date.now()}.${fileExt}`;
+      const createdBy = currentUser?.id || ticket?.assigned_to || "it-support";
+      const existingEntries = getTicketAttachmentEntries(ticket);
+      const uploadedBeforeEntries = await uploadCloseJobAttachments({
+        ticketId: ticket.id,
+        kind: "before",
+        files: payload?.before_attachments,
+        createdBy,
+      });
+      const uploadedAfterEntries = await uploadCloseJobAttachments({
+        ticketId: ticket.id,
+        kind: "after",
+        files: payload?.after_attachments,
+        createdBy,
+      });
 
-        const { error: uploadError } = await supabase.storage
-          .from("ticket-images")
-          .upload(fileName, formValues.file);
+      const mergedEntries = [...existingEntries, ...uploadedBeforeEntries, ...uploadedAfterEntries]
+        .filter((entry) => entry?.url)
+        .reduce((accumulator, entry) => {
+          if (accumulator.some((item) => item.url === entry.url)) {
+            return accumulator;
+          }
+          accumulator.push(entry);
+          return accumulator;
+        }, []);
 
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl: uploadedUrl },
-        } = supabase.storage.from("ticket-images").getPublicUrl(fileName);
-        publicUrl = uploadedUrl || publicUrl;
-      }
+      const beforeUrls = mergedEntries
+        .filter((entry) => entry.type === "before")
+        .map((entry) => entry.url)
+        .filter(Boolean);
+      const afterUrls = mergedEntries
+        .filter((entry) => entry.type === "after")
+        .map((entry) => entry.url)
+        .filter(Boolean);
+      const noteWithAttachments = buildTicketAttachmentNote(report, mergedEntries);
+      const nowIso = new Date().toISOString();
 
       const { error: dbError } = await supabase
         .from("tickets")
         .update({
           status: "CLOSED",
-          solution_note: formValues.solution,
-          parts_used: formValues.parts,
-          image_after_url: publicUrl,
-          closed_at: new Date().toISOString(),
+          solution_note: noteWithAttachments,
+          parts_used: normalizedParts,
+          image_url: beforeUrls[0] || ticket?.image_url || null,
+          image_after_url: afterUrls[0] || ticket?.image_after_url || null,
+          attachments: mergedEntries.map((entry) => entry.url).filter(Boolean),
+          closed_at: nowIso,
           closed_by: currentUser?.id,
           closed_by_name: currentUser?.name,
+          updated_at: nowIso,
         })
         .eq("id", ticket.id);
 
       if (dbError) throw dbError;
+
+      if (detailTicket?.id === ticket.id) {
+        setDetailTicket(null);
+      }
+
+      setClosingTicket(null);
+      setActiveTab("HISTORY");
+      await fetchTickets();
 
       await fireThemedSwal({
         icon: "success",
@@ -1663,19 +1285,11 @@ const ITDashboard = () => {
         timer: 2200,
         showConfirmButton: false,
       }, "success");
-
-      setActiveTab("HISTORY");
-      fetchTickets();
     } catch (error) {
       console.error("Error closing job:", error);
-      fireThemedSwal({
-        icon: "error",
-        title: "เกิดข้อผิดพลาด",
-        html: `
-          <div class="text-sm">ไม่สามารถบันทึกและปิดงานได้ กรุณาลองใหม่อีกครั้ง</div>
-          ${error?.message ? `<div class="mt-2 text-xs text-slate-500">รายละเอียดระบบ: ${error.message}</div>` : ""}
-        `,
-      }, "danger");
+      throw new Error("ไม่สามารถบันทึกและปิดงานได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsCloseJobSubmitting(false);
     }
   };
 
@@ -2122,6 +1736,7 @@ const ITDashboard = () => {
             handleUpdateRepairStatus={handleUpdateRepairStatus}
             handleCloseJob={handleCloseJob}
             handleDeleteTicket={handleDeleteTicket}
+            handleDeleteTickets={handleDeleteTickets}
             handleViewDetails={handleViewDetails}
             handleOpenNavigation={handleOpenNavigation}
             onCurrentUserUpdate={(patch) => {
@@ -2158,6 +1773,16 @@ const ITDashboard = () => {
           onSubmit={handleCreateWalkInTicket}
           currentUser={currentUser}
           theme={theme}
+        />
+
+        <CloseJobModal
+          isOpen={Boolean(closingTicket)}
+          onClose={() => !isCloseJobSubmitting && setClosingTicket(null)}
+          onSubmit={handleSubmitCloseJob}
+          ticket={closingTicket}
+          currentUser={currentUser}
+          theme={theme}
+          isSubmitting={isCloseJobSubmitting}
         />
 
         {showDateFilter && (

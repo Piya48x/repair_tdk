@@ -28,7 +28,6 @@ import {
   Wifi,
   X,
   AlertTriangle,
-  Paperclip,
   Phone,
   FlipHorizontal,
   ShieldCheck,
@@ -249,6 +248,9 @@ const sectionAnim = {
   transition: { duration: 0.4 },
 };
 
+const ATTACHMENT_ACTION_BUTTON_CLASS =
+  "inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition";
+
 const CREATE_TICKET_TRANSLATIONS = {
   th: {
     headerSubtitle: "สร้างคำขอแจ้งซ่อม • ระบบมาตรฐานองค์กร",
@@ -278,9 +280,9 @@ const CREATE_TICKET_TRANSLATIONS = {
     issuePlaceholder: "ระบุอาการที่พบ ข้อความผิดพลาด เวลาที่เกิดเหตุ และสิ่งที่ได้ลองแก้ไขแล้ว...",
     issueHint: "การระบุรายละเอียดที่ชัดเจนช่วยให้ทีมงานแก้ไขปัญหาได้เร็วขึ้น",
     attachmentsTitle: "หลักฐานประกอบ",
-    attachmentsSubtitle: "รูปภาพ, เอกสาร, หรือภาพหน้าจอ",
+    attachmentsSubtitle: "แนบรูปปัญหาหรือภาพหน้าจอประกอบ",
     attached: "แนบแล้ว",
-    optional: "ไม่บังคับ",
+    optional: "ต้องมีรูป",
     cameraTitle: "ถ่ายภาพหลักฐาน",
     cameraOverlayHint: "ถ่ายแล้วรูปจะทับบนกล้อง ไม่เปลืองพื้นที่",
     cameraReviewHint: "รูปนี้จะถูกใช้เป็นหลักฐานทันที",
@@ -299,7 +301,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     attachFromGallery: "เลือกรูปภาพ",
     attachFromFile: "แนบไฟล์",
     uploadFile: "อัปโหลดไฟล์",
-    uploadFileHint: "รองรับรูปภาพ, PDF, Office และ TXT ไม่เกิน 5MB",
+    uploadFileHint: "รองรับไฟล์รูปภาพไม่เกิน 5MB",
     attachmentFile: "ไฟล์แนบ",
     galleryFile: "รูปภาพจากเครื่อง",
     documentFile: "เอกสารหรือไฟล์",
@@ -319,7 +321,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     notSelected: "ยังไม่เลือก",
     attachmentSummary: "หลักฐานแนบ",
     hasAttachment: "มีไฟล์แนบ",
-    noAttachment: "ไม่มีไฟล์แนบ",
+    noAttachment: "ยังไม่มีรูปปัญหา",
     detail: "รายละเอียด",
     characters: "ตัวอักษร",
     submitting: "กำลังส่งคำขอ...",
@@ -339,7 +341,8 @@ const CREATE_TICKET_TRANSLATIONS = {
       imageAttached: "แนบรูปภาพเรียบร้อย",
       fileAttached: "แนบไฟล์เรียบร้อย",
       imagePasted: "วางภาพจากคลิปบอร์ดเรียบร้อย",
-      formInvalid: "กรุณาเลือกหมวดหมู่และระบุรายละเอียดปัญหา",
+      formInvalid: "กรุณาเลือกหมวดหมู่ ระบุรายละเอียดปัญหา และแนบรูปปัญหา",
+      problemPhotoRequired: "กรุณาแนบรูปปัญหาก่อนส่งคำขอ",
       userNotFound: "ไม่พบผู้ใช้งาน",
       submitSuccess: "ส่งคำขอเรียบร้อยแล้ว",
       submitFailed: "เกิดข้อผิดพลาด",
@@ -373,9 +376,9 @@ const CREATE_TICKET_TRANSLATIONS = {
     issuePlaceholder: "Describe the symptoms, error messages, time of occurrence, and what you have already tried...",
     issueHint: "Clear details help the team solve the issue faster.",
     attachmentsTitle: "Attachments",
-    attachmentsSubtitle: "Images, documents, or screenshots",
+    attachmentsSubtitle: "Attach a problem photo or screenshot",
     attached: "Attached",
-    optional: "Optional",
+    optional: "Photo required",
     cameraTitle: "Capture Evidence",
     cameraOverlayHint: "The captured image stays on top of the camera preview to save space.",
     cameraReviewHint: "This image will be used as evidence immediately.",
@@ -394,7 +397,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     attachFromGallery: "Choose image",
     attachFromFile: "Attach file",
     uploadFile: "Upload File",
-    uploadFileHint: "Supports images, PDF, Office files, and TXT up to 5MB",
+    uploadFileHint: "Supports image files up to 5MB",
     attachmentFile: "Attachment",
     galleryFile: "Image from device",
     documentFile: "Document or file",
@@ -414,7 +417,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     notSelected: "Not selected",
     attachmentSummary: "Attachment",
     hasAttachment: "File attached",
-    noAttachment: "No attachment",
+    noAttachment: "No problem photo yet",
     detail: "Details",
     characters: "characters",
     submitting: "Submitting...",
@@ -434,7 +437,8 @@ const CREATE_TICKET_TRANSLATIONS = {
       imageAttached: "Image attached successfully.",
       fileAttached: "File attached successfully.",
       imagePasted: "Clipboard image attached successfully.",
-      formInvalid: "Please choose a category and describe the issue.",
+      formInvalid: "Please choose a category, describe the issue, and attach a problem photo.",
+      problemPhotoRequired: "Please attach a problem photo before submitting.",
       userNotFound: "User not found.",
       submitSuccess: "Request submitted successfully.",
       submitFailed: "Error",
@@ -468,9 +472,9 @@ const CREATE_TICKET_TRANSLATIONS = {
     issuePlaceholder: "증상, 오류 메시지, 발생 시간, 이미 시도한 조치를 적어 주세요...",
     issueHint: "상세한 정보는 문제 해결 속도를 높여 줍니다.",
     attachmentsTitle: "첨부 자료",
-    attachmentsSubtitle: "이미지, 문서, 또는 스크린샷",
+    attachmentsSubtitle: "문제 사진 또는 스크린샷을 첨부하세요",
     attached: "첨부됨",
-    optional: "선택 사항",
+    optional: "사진 필수",
     cameraTitle: "증빙 사진 촬영",
     cameraOverlayHint: "촬영 후 이미지가 카메라 위에 유지되어 공간을 아낍니다.",
     cameraReviewHint: "이 사진이 바로 증빙 자료로 사용됩니다.",
@@ -489,7 +493,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     attachFromGallery: "이미지 선택",
     attachFromFile: "파일 첨부",
     uploadFile: "파일 업로드",
-    uploadFileHint: "이미지, PDF, Office 파일, TXT를 5MB 이하로 첨부할 수 있습니다",
+    uploadFileHint: "5MB 이하의 이미지 파일을 첨부할 수 있습니다",
     attachmentFile: "첨부 파일",
     galleryFile: "기기 이미지",
     documentFile: "문서 또는 파일",
@@ -509,7 +513,7 @@ const CREATE_TICKET_TRANSLATIONS = {
     notSelected: "선택 안 함",
     attachmentSummary: "첨부 자료",
     hasAttachment: "파일 첨부됨",
-    noAttachment: "첨부 파일 없음",
+    noAttachment: "문제 사진이 아직 없습니다",
     detail: "상세 내용",
     characters: "자",
     submitting: "제출 중...",
@@ -529,7 +533,8 @@ const CREATE_TICKET_TRANSLATIONS = {
       imageAttached: "사진이 첨부되었습니다.",
       fileAttached: "파일이 첨부되었습니다.",
       imagePasted: "클립보드 이미지가 첨부되었습니다.",
-      formInvalid: "분류를 선택하고 문제 내용을 입력해 주세요.",
+      formInvalid: "분류를 선택하고 문제 내용을 입력한 뒤 문제 사진을 첨부해 주세요.",
+      problemPhotoRequired: "제출 전에 문제 사진을 첨부해 주세요.",
       userNotFound: "사용자를 찾을 수 없습니다.",
       submitSuccess: "요청이 제출되었습니다.",
       submitFailed: "오류",
@@ -616,9 +621,7 @@ function formatLocalizedDateTime(date, language) {
 const CreateTicket = () => {
   const navigate = useNavigate();
   const webcamRef = useRef(null);
-  const attachmentMenuRef = useRef(null);
   const imageInputRef = useRef(null);
-  const fileInputRef = useRef(null);
   const { language, tt } = useScopedI18n(CREATE_TICKET_TRANSLATIONS);
 
   const [loading, setLoading] = useState(false);
@@ -630,7 +633,6 @@ const CreateTicket = () => {
   const [facingMode, setFacingMode] = useState("user");
   const [tempImage, setTempImage] = useState(null);
   const [isReviewing, setIsReviewing] = useState(false);
-  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -649,6 +651,7 @@ const CreateTicket = () => {
   const [focusedField, setFocusedField] = useState(null);
   const hasAttachment = Boolean(form.attachment);
   const attachmentIsImage = isImageFile(form.attachment);
+  const hasProblemPhoto = hasAttachment && attachmentIsImage;
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -701,29 +704,6 @@ const CreateTicket = () => {
     };
   }, [preview]);
 
-  useEffect(() => {
-    if (!attachmentMenuOpen) return undefined;
-
-    const handlePointerDown = (event) => {
-      if (attachmentMenuRef.current && !attachmentMenuRef.current.contains(event.target)) {
-        setAttachmentMenuOpen(false);
-      }
-    };
-
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setAttachmentMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [attachmentMenuOpen]);
-
   const assignAttachment = useCallback((file, options = {}) => {
     if (!file) return false;
 
@@ -745,7 +725,6 @@ const CreateTicket = () => {
     setTempImage(null);
     setIsReviewing(false);
     setIsCameraActive(false);
-    setAttachmentMenuOpen(false);
 
     if (options.toastKey) {
       toast.success(tt(options.toastKey));
@@ -770,7 +749,6 @@ const CreateTicket = () => {
     setPreview(null);
     setTempImage(null);
     setIsReviewing(false);
-    setAttachmentMenuOpen(false);
     setForm((p) => ({ ...p, attachment: null }));
   };
 
@@ -810,8 +788,14 @@ const CreateTicket = () => {
 
   const handleAttachmentPaste = useCallback((event) => {
     const clipboardItems = Array.from(event.clipboardData?.items || []);
-    const clipboardFileItem = clipboardItems.find((item) => item.kind === "file");
-    const clipboardFile = clipboardFileItem?.getAsFile?.() || event.clipboardData?.files?.[0];
+    const clipboardImageItem = clipboardItems.find(
+      (item) => item.kind === "file" && String(item.type || "").startsWith("image/"),
+    );
+    const clipboardFile =
+      clipboardImageItem?.getAsFile?.() ||
+      Array.from(event.clipboardData?.files || []).find((file) =>
+        String(file?.type || "").startsWith("image/"),
+      );
 
     if (!clipboardFile) return;
 
@@ -835,6 +819,10 @@ const CreateTicket = () => {
       toast.error(tt("errors.formInvalid"));
       return;
     }
+    if (!hasProblemPhoto) {
+      toast.error(tt("errors.problemPhotoRequired"));
+      return;
+    }
 
     setLoading(true);
 
@@ -855,7 +843,7 @@ const CreateTicket = () => {
         const profileSnapshot = buildProfileSnapshot(profile || {}, user.user_metadata || {}, user);
         resolvedTicketLocation = resolveProfileLocation(profileSnapshot);
       }
-      if (form.attachment) {
+      if (hasProblemPhoto && form.attachment) {
         try {
           const ext = form.attachment.name.split('.').pop();
           const fileName = `${user.id}/${Date.now()}_ticket.${ext}`;
@@ -918,7 +906,7 @@ const CreateTicket = () => {
   const thaiDateTime = formatLocalizedDateTime(currentTime, language);
   const selectedCategory = localizedCategories.find((c) => c.id === form.category);
   const selectedUrgency = localizedUrgency.find((u) => u.id === form.urgency);
-  const canSubmit = !!form.category && !!form.issue.trim() && !loading;
+  const canSubmit = !!form.category && !!form.issue.trim() && hasProblemPhoto && !loading;
 
   if (success) {
     return (
@@ -992,13 +980,29 @@ const CreateTicket = () => {
       {/* Premium Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
         <div className="app-safe-top mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+          <div className="flex items-center justify-between gap-3 sm:hidden">
             <motion.button
               whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={() => navigate(-1)}
               className="rounded-xl border border-slate-200/80 bg-white/90 p-2.5 text-slate-700 shadow-sm transition-all hover:shadow-md"
+            >
+              <ArrowLeft size={18} />
+            </motion.button>
+
+            <div className="flex items-center rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm">
+              <LanguageSwitcher mode="nav" />
+            </div>
+          </div>
+
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+            <motion.button
+              whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={() => navigate(-1)}
+              className="hidden rounded-xl border border-slate-200/80 bg-white/90 p-2.5 text-slate-700 shadow-sm transition-all hover:shadow-md sm:inline-flex"
             >
               <ArrowLeft size={18} />
             </motion.button>
@@ -1017,7 +1021,7 @@ const CreateTicket = () => {
             </div>
           </div>
 
-          <div className="flex w-full flex-wrap items-center justify-between gap-3 sm:justify-end lg:w-auto">
+          <div className="flex w-full flex-wrap items-center justify-start gap-3 sm:justify-end lg:w-auto">
             <motion.div
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
@@ -1032,7 +1036,7 @@ const CreateTicket = () => {
               </div>
             </motion.div>
 
-            <div className="flex w-full items-center justify-between gap-2 min-[420px]:w-auto min-[420px]:justify-end">
+            <div className="flex w-full items-center justify-start gap-2 min-[420px]:w-auto min-[420px]:justify-end">
               <div className="flex items-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
                 <div className="relative">
                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -1041,7 +1045,7 @@ const CreateTicket = () => {
                 <span className="text-xs font-bold text-emerald-700">{tt("ready")}</span>
               </div>
 
-              <div className="flex items-center rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm">
+              <div className="hidden items-center rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm sm:flex">
                 <LanguageSwitcher mode="nav" />
               </div>
             </div>
@@ -1049,19 +1053,19 @@ const CreateTicket = () => {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-3 py-5 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:py-8">
+      <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-3 py-4 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:py-8">
         {/* Left Column - Main Form */}
-        <div className="space-y-5 lg:col-span-8 sm:space-y-6">
+        <div className="space-y-4 lg:col-span-8 sm:space-y-6">
           <form id="create-ticket-form" onSubmit={handleSubmit} className="space-y-6">
             {/* Profile Card */}
             <motion.section
               {...sectionAnim}
               transition={{ duration: 0.4, delay: 0.05 }}
-              className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_12px_32px_-22px_rgba(15,23,42,0.3)] sm:p-8"
+              className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_12px_32px_-22px_rgba(15,23,42,0.3)] sm:p-6"
             >
-              <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
+              <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
                 <div className="relative">
-                  <div className="h-20 w-20 rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-md shadow-slate-200/70 sm:h-24 sm:w-24">
+                  <div className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-md shadow-slate-200/70 sm:h-24 sm:w-24">
                     <div className="h-full w-full overflow-hidden rounded-[14px] border border-white bg-white">
                       {form.profilePic ? (
                         <img
@@ -1075,14 +1079,14 @@ const CreateTicket = () => {
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                          <User size={36} className="text-slate-500" />
+                          <User size={28} className="text-slate-500 sm:h-9 sm:w-9" />
                         </div>
                       )}
                     </div>
                   </div>
                   <div className="absolute -bottom-2 -right-2">
                     <div className="relative">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-emerald-500 shadow-md">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 shadow-md sm:h-6 sm:w-6">
                         <CheckCircle2 size={12} className="text-white" />
                       </div>
                     </div>
@@ -1095,7 +1099,7 @@ const CreateTicket = () => {
                       <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#2b59b0]">
                         {tt("profileLabel")}
                       </p>
-                      <h2 className="text-xl font-black text-slate-800 sm:text-2xl">
+                      <h2 className="text-lg font-black text-slate-800 sm:text-2xl">
                         {form.employeeName || tt("employeeFallback")}
                       </h2>
                     </div>
@@ -1105,7 +1109,7 @@ const CreateTicket = () => {
                     </span>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap items-center gap-4">
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <Briefcase size={16} className="text-indigo-500" />
                       <span className="font-medium">{form.position || tt("defaultPosition")}</span>
@@ -1131,7 +1135,7 @@ const CreateTicket = () => {
             <motion.section
               {...sectionAnim}
               transition={{ duration: 0.4, delay: 0.1 }}
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
             >
               <div className="relative">
                 <div className="mb-6 flex items-center justify-between">
@@ -1162,19 +1166,19 @@ const CreateTicket = () => {
                         whileTap={{ scale: 0.99 }}
                         onClick={() => setForm((p) => ({ ...p, category: cat.id, issue: "" }))}
                         className={`
-                          relative overflow-hidden rounded-2xl border-2 p-5 text-left transition-all duration-300
+                          relative overflow-hidden rounded-2xl border-2 p-4 text-left transition-all duration-300 sm:p-5
                           ${selected
                             ? `bg-gradient-to-br ${cat.selectedClass} text-white shadow-md`
                             : "bg-white border-slate-200/80 hover:border-slate-400 hover:shadow-sm"
                           }
                         `}
                       >
-                        <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/5 blur-2xl" />
+                        <div className="absolute top-0 right-0 h-20 w-20 translate-x-7 -translate-y-7 rounded-full bg-white/5 blur-2xl sm:h-24 sm:w-24 sm:translate-x-8 sm:-translate-y-8" />
 
                         <div className="relative">
                           <div className="mb-4 flex items-center justify-between">
                             <div className={`
-                              rounded-xl p-2.5 transition-all duration-300
+                              rounded-xl p-2 transition-all duration-300 sm:p-2.5
                               ${selected ? 'bg-white' : cat.softClass}
                             `}>
                               <Icon size={20} className={cat.iconClass} />
@@ -1211,7 +1215,7 @@ const CreateTicket = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
                 >
                   <div className="relative">
                     <div className="mb-6 flex items-center justify-between">
@@ -1315,7 +1319,7 @@ const CreateTicket = () => {
             <motion.section
               {...sectionAnim}
               transition={{ duration: 0.4, delay: 0.15 }}
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
             >
               <div className="relative">
                 <input
@@ -1325,90 +1329,50 @@ const CreateTicket = () => {
                   accept={IMAGE_FILE_ACCEPT}
                   onChange={handleFile}
                 />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  hidden
-                  accept={GENERIC_FILE_ACCEPT}
-                  onChange={handleFile}
-                />
 
-                <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-cyan-600 to-teal-600" />
-                      <div className="absolute -inset-1 animate-pulse rounded-full bg-cyan-500/20 blur-sm" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("attachmentsTitle")}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">{tt("attachmentsSubtitle")}</p>
+                <div className="mb-5 flex flex-col gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="relative">
+                        <div className="h-7 w-1.5 rounded-full bg-gradient-to-b from-cyan-600 to-teal-600 sm:h-8" />
+                        <div className="absolute -inset-1 animate-pulse rounded-full bg-cyan-500/20 blur-sm" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("attachmentsTitle")}</h3>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <p className="text-xs text-slate-500">{tt("attachmentsSubtitle")}</p>
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                            hasProblemPhoto
+                              ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                              : "border-amber-200 bg-amber-50 text-amber-700"
+                          }`}>
+                            {hasProblemPhoto ? tt("attached") : tt("optional")}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className={`
-                      flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                      ${hasAttachment
-                        ? "bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-lg shadow-cyan-200/50"
-                        : "bg-slate-100 text-slate-600 border border-slate-200"
-                      }
-                    `}>
-                      <Camera size={14} />
-                      {hasAttachment ? tt("attached") : tt("optional")}
-                    </div>
 
-                    <div ref={attachmentMenuRef} className="relative">
+                  {!isCameraActive && (
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => setAttachmentMenuOpen((open) => !open)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-[#2b59b0]/30 hover:text-[#244a95]"
+                        onClick={() => setIsCameraActive(true)}
+                        className={`${ATTACHMENT_ACTION_BUTTON_CLASS} border-indigo-200 bg-indigo-50 px-3 py-2.5 text-xs text-indigo-700 hover:bg-indigo-100 sm:text-sm`}
                       >
-                        <Paperclip size={14} />
-                        <span className="hidden sm:inline">{tt("addAttachment")}</span>
+                        <Camera size={16} />
+                        {tt("attachFromCamera")}
                       </button>
-
-                      <AnimatePresence>
-                        {attachmentMenuOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                            className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl"
-                          >
-                            <p className="px-3 pb-2 pt-1 text-[11px] font-semibold text-slate-500">
-                              {tt("attachmentMenuHint")}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAttachmentMenuOpen(false);
-                                setIsCameraActive(true);
-                              }}
-                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-indigo-50 hover:text-[#244a95]"
-                            >
-                              <Camera size={16} className="text-indigo-600" />
-                              {tt("attachFromCamera")}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => imageInputRef.current?.click()}
-                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
-                            >
-                              <ImageIcon size={16} className="text-emerald-600" />
-                              {tt("attachFromGallery")}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => fileInputRef.current?.click()}
-                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-amber-50 hover:text-amber-700"
-                            >
-                              <FileText size={16} className="text-amber-600" />
-                              {tt("attachFromFile")}
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                      <button
+                        type="button"
+                        onClick={() => imageInputRef.current?.click()}
+                        className={`${ATTACHMENT_ACTION_BUTTON_CLASS} border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700 hover:bg-emerald-100 sm:text-sm`}
+                      >
+                        <ImageIcon size={16} />
+                        {tt("attachFromGallery")}
+                      </button>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {isCameraActive ? (
@@ -1489,21 +1453,6 @@ const CreateTicket = () => {
                   </div>
                 ) : (
                   <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50/60 p-4 shadow-inner sm:p-5">
-                    <div className="mb-4 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-700">
-                        <Camera size={13} />
-                        {tt("attachFromCamera")}
-                      </span>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
-                        <ImageIcon size={13} />
-                        {tt("galleryFile")}
-                      </span>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
-                        <FileText size={13} />
-                        {tt("documentFile")}
-                      </span>
-                    </div>
-
                     <div
                       tabIndex={0}
                       onPaste={handleAttachmentPaste}
@@ -1537,37 +1486,19 @@ const CreateTicket = () => {
                   </div>
                 )}
 
-                {hasAttachment && (
+                {hasProblemPhoto && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="mt-5 overflow-hidden rounded-2xl border-2 border-slate-200/80 bg-white shadow-lg"
                   >
-                    {attachmentIsImage && preview ? (
+                    {preview && (
                       <img src={preview} alt="attachment preview" className="aspect-video w-full object-cover" />
-                    ) : (
-                      <div className="flex items-center gap-3 bg-gradient-to-r from-slate-50 to-white px-4 py-5">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-                          <FileText size={22} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-slate-800">
-                            {form.attachment?.name || tt("attachmentFile")}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {formatAttachmentSize(form.attachment?.size)} • {tt("readyToUse")}
-                          </p>
-                        </div>
-                      </div>
                     )}
                     <div className="flex items-center justify-between border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${attachmentIsImage ? "bg-gradient-to-br from-indigo-100 to-purple-100" : "bg-gradient-to-br from-amber-100 to-orange-100"}`}>
-                          {attachmentIsImage ? (
-                            <ImageIcon size={16} className="text-indigo-600" />
-                          ) : (
-                            <FileText size={16} className="text-amber-600" />
-                          )}
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100">
+                          <ImageIcon size={16} className="text-indigo-600" />
                         </div>
                         <div>
                           <p className="max-w-[13rem] truncate text-xs font-bold text-slate-700">
@@ -1597,12 +1528,12 @@ const CreateTicket = () => {
         </div>
 
         {/* Right Column - Summary & Submit */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="space-y-4 lg:col-span-4 sm:space-y-6">
           {/* Priority Card */}
           <motion.section
             {...sectionAnim}
             transition={{ duration: 0.4, delay: 0.2 }}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
           >
             <div className="relative">
               <div className="mb-6 flex items-center gap-3">
@@ -1703,7 +1634,7 @@ const CreateTicket = () => {
           <motion.section
             {...sectionAnim}
             transition={{ duration: 0.4, delay: 0.25 }}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
           >
             <div className="relative">
               <div className="mb-6 flex items-center gap-3">
@@ -1775,14 +1706,10 @@ const CreateTicket = () => {
 
                 <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">{tt("attachmentSummary")}</p>
-                  {hasAttachment ? (
+                  {hasProblemPhoto ? (
                     <div className="flex items-center gap-2">
-                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${attachmentIsImage ? "bg-gradient-to-br from-cyan-100 to-teal-100" : "bg-gradient-to-br from-amber-100 to-orange-100"}`}>
-                        {attachmentIsImage ? (
-                          <ImageIcon size={16} className="text-cyan-600" />
-                        ) : (
-                          <FileText size={16} className="text-amber-600" />
-                        )}
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-100 to-teal-100">
+                        <ImageIcon size={16} className="text-cyan-600" />
                       </div>
                       <div>
                         <p className="max-w-[12rem] truncate text-xs font-bold text-slate-800">
