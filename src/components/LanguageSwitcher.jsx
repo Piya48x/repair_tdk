@@ -21,14 +21,14 @@ const LANGUAGE_CODES = {
 function LanguageFlag({ languageId, variant = "default", isDarkTheme = false }) {
   const flagSrc = FLAG_ASSETS[languageId] || usFlag;
   const frameClass = variant === "compact"
-    ? `inline-flex items-center justify-center rounded-xl border p-1 ${isDarkTheme ? "border-slate-700 bg-slate-800/90" : "border-slate-200 bg-white/95"}`
+    ? `inline-flex shrink-0 items-center justify-center rounded-xl border p-1 ${isDarkTheme ? "border-slate-700 bg-slate-800/90" : "border-slate-200 bg-white/95"}`
     : variant === "auth-option"
       ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 shadow-[0_12px_30px_-20px_rgba(15,23,42,0.45)]"
       : variant === "auth-control"
         ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-gradient-to-b from-white to-slate-50 shadow-[0_14px_24px_-22px_rgba(15,23,42,0.45)]"
       : `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${isDarkTheme ? "border-slate-700 bg-slate-800/90" : "border-slate-200 bg-white/95"}`;
   const imageClass = variant === "compact"
-    ? "h-[15px] w-[21px] rounded-[5px] object-cover shadow-sm"
+    ? "h-[16px] w-[22px] shrink-0 rounded-[5px] object-cover shadow-sm"
     : variant === "auth-option" || variant === "auth-control"
       ? "h-[18px] w-[26px] rounded-[6px] object-cover shadow-sm"
       : "h-[16px] w-[22px] rounded-[5px] object-cover shadow-sm";
@@ -184,8 +184,8 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
         backdropFilter: isCompact ? "blur(12px)" : isAuthMode ? "blur(18px)" : "blur(18px)",
         paddingLeft: isCompact ? (isMobileViewport ? 1 : 3) : isAuthMode ? (isMobileViewport ? 4 : 5) : (isMobileViewport ? 3 : 4),
         paddingRight: isCompact ? (isMobileViewport ? 1 : 3) : isAuthMode ? (isMobileViewport ? 5 : 7) : (isMobileViewport ? 3 : 4),
-        minWidth: isCompact ? (isMobileViewport ? 60 : 68) : isAuthMode ? (isMobileViewport ? 80 : 86) : undefined,
-        width: isCompact ? (isMobileViewport ? 60 : 68) : isAuthMode ? (isMobileViewport ? 80 : 86) : undefined,
+        minWidth: isCompact ? (isMobileViewport ? 58 : 68) : isAuthMode ? (isMobileViewport ? 80 : 86) : undefined,
+        width: isCompact ? (isMobileViewport ? 58 : 68) : isAuthMode ? (isMobileViewport ? 80 : 86) : undefined,
         transition: "all 160ms ease",
         cursor: "pointer",
         ":hover": {
@@ -198,14 +198,16 @@ export default function LanguageSwitcher({ mode = "floating", isDarkTheme = fals
       }),
       valueContainer: (base) => ({
         ...base,
-        paddingLeft: isCompact ? (isMobileViewport ? 4 : 8) : isAuthMode ? 0 : (isMobileViewport ? 6 : 8),
-        paddingRight: isCompact ? (isMobileViewport ? 2 : 4) : isAuthMode ? 0 : (isMobileViewport ? 4 : 6),
+        paddingLeft: isCompact ? (isMobileViewport ? 3 : 8) : isAuthMode ? 0 : (isMobileViewport ? 6 : 8),
+        paddingRight: isCompact ? (isMobileViewport ? 1 : 4) : isAuthMode ? 0 : (isMobileViewport ? 4 : 6),
         justifyContent: isAuthMode ? "center" : base.justifyContent,
       }),
       singleValue: (base) => ({
         ...base,
+        display: "flex",
+        alignItems: "center",
         margin: 0,
-        maxWidth: "100%",
+        maxWidth: isCompact ? "none" : "100%",
       }),
       input: (base) => ({
         ...base,

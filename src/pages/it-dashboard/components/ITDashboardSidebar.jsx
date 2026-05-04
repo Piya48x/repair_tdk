@@ -99,6 +99,7 @@ const ITDashboardSidebar = ({
   const navItems = [
     { id: "TICKETS", label: tt("nav.tickets"), icon: Ticket },
     { id: "SERVICE_REQUESTS", label: "คำขอเบิกของ", icon: Package },
+    { id: "STOCK_MANAGEMENT", label: "จัดการ stock IT", icon: Package },
     { id: "ACCESS_REQUESTS", label: tt("nav.accessRequests"), icon: KeyRound },
     { id: "NOTEBOOK_BORROW", label: tt("nav.notebookBorrow"), icon: Laptop },
     { id: "IT_WORK_LOGS", label: tt("nav.workLogs"), icon: Camera },

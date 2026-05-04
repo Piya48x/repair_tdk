@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { fetchProfilesWithCompatibility } from "../lib/profileSchemaCompat";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -25,7 +26,6 @@ import {
   Phone,
   Mail,
   Building,
-  Map,
   ExternalLink,
   Download,
   Printer,
@@ -133,6 +133,7 @@ import {
   getTicketAttachmentEntries,
   getTicketDisplayNote,
 } from "../lib/ticketAttachmentMetadata";
+import { updateTicketWithSchemaFallback } from "../lib/ticketSchemaCompat";
 
 function buildStructuredRepairReport({
   problem,
@@ -676,7 +677,33 @@ const ITDashboard = () => {
     const ticketsData = Array.isArray(rows) ? rows : [];
     if (!ticketsData.length) return [];
 
+    const assignedIds = [...new Set(
+      ticketsData
+        .map((ticket) => String(ticket?.assigned_to || "").trim())
+        .filter(Boolean),
+    )];
+    let assignedProfileMap = new Map();
+
+    if (assignedIds.length > 0) {
+      const {
+        data: assignedProfiles,
+        error: assignedProfilesError,
+      } = await fetchProfilesWithCompatibility(supabase, {
+        ids: assignedIds,
+        columns: ["id", "full_name", "employee_code", "avatar_url", "id_card_url"],
+      });
+
+      if (assignedProfilesError) {
+        console.warn("Unable to load assignee profiles for ticket avatars:", assignedProfilesError);
+      } else {
+        assignedProfileMap = new Map(
+          (assignedProfiles || []).map((profile) => [String(profile?.id || ""), profile]),
+        );
+      }
+    }
+
     return ticketsData.map((ticket) => {
+      const assignedProfile = assignedProfileMap.get(String(ticket?.assigned_to || "").trim());
       const reporterName = normalizeText(ticket?.reporter_name) || "-";
       const reporterEmpId =
         normalizeText(ticket?.reporter_emp_id) ||
@@ -686,12 +713,17 @@ const ITDashboard = () => {
         normalizeText(ticket?.reporter_dept) ||
         normalizeText(ticket?.department) ||
         "";
-      const assignedName = normalizeText(ticket?.assigned_name) || "";
+      const assignedName =
+        normalizeText(ticket?.assigned_name) ||
+        normalizeText(assignedProfile?.full_name) ||
+        "";
       const reporterAvatar =
         normalizeText(ticket?.reporter_avatar_url) ||
         buildAvatarFallback(reporterName, "2b59b0");
       const assignedAvatar =
         normalizeText(ticket?.assigned_avatar_url) ||
+        normalizeText(assignedProfile?.avatar_url) ||
+        normalizeText(assignedProfile?.id_card_url) ||
         (assignedName ? buildAvatarFallback(assignedName, "059669") : "");
 
       return {
@@ -702,7 +734,10 @@ const ITDashboard = () => {
         department: normalizeText(ticket?.department) || reporterDept || "",
         reporter_avatar_url: reporterAvatar,
         assigned_name: assignedName || ticket?.assigned_name || "",
-        assigned_employee_id: normalizeText(ticket?.assigned_employee_id) || "",
+        assigned_employee_id:
+          normalizeText(ticket?.assigned_employee_id) ||
+          normalizeText(assignedProfile?.employee_code) ||
+          "",
         assigned_avatar_url: assignedAvatar,
       };
     });
@@ -848,17 +883,19 @@ const ITDashboard = () => {
     if (!accept) return;
 
     try {
-      const { error } = await supabase
-        .from("tickets")
-        .update({
+      const { error } = await updateTicketWithSchemaFallback(
+        supabase,
+        id,
+        {
           status: "IN_PROGRESS",
           assigned_to: currentUser?.id,
           assigned_name: currentUser?.name,
           assigned_employee_id: currentUser?.employeeId,
+          assigned_avatar_url: currentUser?.avatar || null,
           started_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+        },
+      );
 
       if (error) throw error;
 
@@ -1252,9 +1289,10 @@ const ITDashboard = () => {
       const noteWithAttachments = buildTicketAttachmentNote(report, mergedEntries);
       const nowIso = new Date().toISOString();
 
-      const { error: dbError } = await supabase
-        .from("tickets")
-        .update({
+      const { error: dbError } = await updateTicketWithSchemaFallback(
+        supabase,
+        ticket.id,
+        {
           status: "CLOSED",
           solution_note: noteWithAttachments,
           parts_used: normalizedParts,
@@ -1265,8 +1303,9 @@ const ITDashboard = () => {
           closed_by: currentUser?.id,
           closed_by_name: currentUser?.name,
           updated_at: nowIso,
-        })
-        .eq("id", ticket.id);
+        },
+        { maxRetries: 12 },
+      );
 
       if (dbError) throw dbError;
 

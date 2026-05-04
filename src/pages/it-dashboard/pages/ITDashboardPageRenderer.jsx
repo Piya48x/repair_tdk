@@ -3,6 +3,7 @@ import { DASHBOARD_PAGE_IDS } from "../constants/dashboardPages";
 import DashboardPage from "./DashboardPage";
 import TicketsPage from "./TicketsPage";
 import ServiceRequestsPage from "./ServiceRequestsPage";
+import StockManagementPage from "./StockManagementPage";
 import ActivePage from "./ActivePage";
 import HistoryPage from "./HistoryPage";
 import CalendarPage from "./CalendarPage";
@@ -20,6 +21,8 @@ const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
       return <TicketsPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.SERVICE_REQUESTS:
       return <ServiceRequestsPage {...workspaceProps} />;
+    case DASHBOARD_PAGE_IDS.STOCK_MANAGEMENT:
+      return <StockManagementPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.ACTIVE:
       return <ActivePage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.HISTORY:

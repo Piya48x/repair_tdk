@@ -1,7 +1,6 @@
 ﻿import React, { useMemo, useState } from "react";
 import {
   AlertTriangle,
-  Boxes,
   CheckCircle2,
   Clock3,
   ExternalLink,
@@ -239,6 +238,14 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, iconWrapClass, valueCl
   </article>
 );
 
+const CompactMetricCard = ({ title, value, subtitle, toneClass = "text-slate-900" }) => (
+  <article className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+    <p className={`mt-2 text-2xl font-black ${toneClass}`}>{value}</p>
+    <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+  </article>
+);
+
 const StatusBadge = ({ status }) => {
   const normalized = String(status || "").toUpperCase();
 
@@ -451,13 +458,79 @@ const ITServiceOverviewPanel = ({
         };
       });
   }, [departmentTickets]);
+  const periodLabel = PERIOD_OPTIONS.find((option) => option.id === period)?.label || PERIOD_OPTIONS[0].label;
+  const compactRecentActivities = recentActivities.slice(0, 6);
+  const primaryMetrics = [
+    {
+      title: "ตั๋วใหม่",
+      value: formatCount(kpiNew),
+      subtitle: "งานรับแจ้งใหม่",
+      icon: Ticket,
+      iconWrapClass: "bg-[#2b59b0]/10 text-[#2b59b0]",
+      valueClass: "text-slate-900",
+      onClick: () => onOpenRepair?.({ tab: "INCOMING", searchQuery: "", quickFilter: "ALL", sortBy: "latest" }),
+    },
+    {
+      title: "กำลังดำเนินการ",
+      value: formatCount(kpiInProgress),
+      subtitle: "งานที่กำลังซ่อม",
+      icon: Wrench,
+      iconWrapClass: "bg-amber-50 text-amber-700",
+      valueClass: "text-amber-600",
+      onClick: () => onOpenRepair?.({ tab: "ACTIVE", searchQuery: "", quickFilter: "MINE", sortBy: "latest" }),
+    },
+    {
+      title: "เกินกำหนด SLA",
+      value: formatCount(kpiOverdue),
+      subtitle: "ต้องเร่งจัดการ",
+      icon: AlertTriangle,
+      iconWrapClass: "bg-red-50 text-red-700",
+      valueClass: "text-red-600",
+      onClick: () => onOpenRepair?.({ tab: "INCOMING", searchQuery: "", quickFilter: "URGENT", sortBy: "priority" }),
+    },
+    {
+      title: "ปิดงานแล้ววันนี้",
+      value: formatCount(kpiClosedToday),
+      subtitle: "งานปิดวันนี้",
+      icon: CheckCircle2,
+      iconWrapClass: "bg-emerald-50 text-emerald-700",
+      valueClass: "text-emerald-600",
+      onClick: () => onOpenRepair?.({ tab: "HISTORY", searchQuery: "", quickFilter: "ALL", sortBy: "updated" }),
+    },
+  ];
+  const secondaryMetrics = [
+    {
+      title: "อุปกรณ์พร้อมใช้",
+      value: formatCount(kpiAvailableAssets),
+      subtitle: "พร้อมจ่ายใช้งาน",
+      toneClass: "text-[#2b59b0]",
+    },
+    {
+      title: "สินค้าใกล้หมด",
+      value: formatCount(kpiLowStock),
+      subtitle: "ควรเช็ก stock",
+      toneClass: "text-orange-600",
+    },
+    {
+      title: "มูลค่าเบิกออก",
+      value: formatCurrency(kpiIssuedValue),
+      subtitle: "อ้างอิงงานปิดแล้ว",
+      toneClass: "text-indigo-700",
+    },
+    {
+      title: "MTTR",
+      value: formatDuration(mttrMinutes),
+      subtitle: "เวลาเฉลี่ยปิดงาน",
+      toneClass: "text-slate-800",
+    },
+  ];
 
   return (
     <section className="mb-6 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm lg:p-5">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">Enterprise Overview</h3>
-          <p className="text-sm text-slate-600">เพิ่มภาพรวมวิเคราะห์งานซ่อมและทรัพย์สิน โดยยังคงโครงหน้าเดิม</p>
+          <h3 className="text-lg font-semibold text-slate-900">Operational Overview</h3>
+          <p className="text-sm text-slate-600">สรุปงานที่ต้องเห็นก่อนแบบกระชับ ทั้งงานซ่อม คำขอ และทรัพย์สิน</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -489,79 +562,28 @@ const ITServiceOverviewPanel = ({
         </div>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+          ช่วงเวลา: {periodLabel}
+        </span>
+        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+          แผนก: {department === "ALL" ? "ทุกแผนก" : department}
+        </span>
+        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+          รวม {formatCount(departmentTickets.length)} งาน
+        </span>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="ตั๋วใหม่"
-          value={formatCount(kpiNew)}
-          subtitle="งานรับแจ้งใหม่"
-          icon={Ticket}
-          iconWrapClass="bg-[#2b59b0]/10 text-[#2b59b0]"
-          valueClass="text-slate-900"
-          onClick={() => onOpenRepair?.({ tab: "INCOMING", searchQuery: "", quickFilter: "ALL", sortBy: "latest" })}
-        />
-        <MetricCard
-          title="กำลังดำเนินการ"
-          value={formatCount(kpiInProgress)}
-          subtitle="งานที่กำลังซ่อม"
-          icon={Wrench}
-          iconWrapClass="bg-amber-50 text-amber-700"
-          valueClass="text-amber-600"
-          onClick={() => onOpenRepair?.({ tab: "ACTIVE", searchQuery: "", quickFilter: "MINE", sortBy: "latest" })}
-        />
-        <MetricCard
-          title="เกินกำหนด SLA"
-          value={formatCount(kpiOverdue)}
-          subtitle="SLA Alert"
-          icon={AlertTriangle}
-          iconWrapClass="bg-red-50 text-red-700"
-          valueClass="text-red-600"
-          onClick={() => onOpenRepair?.({ tab: "INCOMING", searchQuery: "", quickFilter: "URGENT", sortBy: "priority" })}
-        />
-        <MetricCard
-          title="ปิดงานแล้ววันนี้"
-          value={formatCount(kpiClosedToday)}
-          subtitle="งานปิดวันนี้"
-          icon={CheckCircle2}
-          iconWrapClass="bg-emerald-50 text-emerald-700"
-          valueClass="text-emerald-600"
-          onClick={() => onOpenRepair?.({ tab: "HISTORY", searchQuery: "", quickFilter: "ALL", sortBy: "updated" })}
-        />
-        <MetricCard
-          title="อุปกรณ์พร้อมใช้"
-          value={formatCount(kpiAvailableAssets)}
-          subtitle="พร้อมจ่ายใช้งาน"
-          icon={Boxes}
-          iconWrapClass="bg-[#2b59b0]/10 text-[#2b59b0]"
-          valueClass="text-[#2b59b0]"
-          onClick={() => onOpenRepair?.({ tab: "HISTORY", searchQuery: "", quickFilter: "HARDWARE", sortBy: "latest" })}
-        />
-        <MetricCard
-          title="สินค้าใกล้หมด"
-          value={formatCount(kpiLowStock)}
-          subtitle="Low Stock"
-          icon={AlertTriangle}
-          iconWrapClass="bg-orange-50 text-orange-700"
-          valueClass="text-orange-600"
-          onClick={() => onOpenRepair?.({ tab: "HISTORY", searchQuery: "", quickFilter: "HARDWARE", sortBy: "priority" })}
-        />
-        <MetricCard
-          title="มูลค่าอุปกรณ์ที่เบิกออก"
-          value={formatCurrency(kpiIssuedValue)}
-          subtitle="ตามงานปิดแล้ว"
-          icon={Package}
-          iconWrapClass="bg-indigo-50 text-indigo-700"
-          valueClass="text-indigo-700"
-          onClick={() => onOpenRepair?.({ tab: "HISTORY", searchQuery: "", quickFilter: "HARDWARE", sortBy: "updated" })}
-        />
-        <MetricCard
-          title="MTTR"
-          value={formatDuration(mttrMinutes)}
-          subtitle="Mean Time to Repair"
-          icon={Clock3}
-          iconWrapClass="bg-slate-100 text-slate-700"
-          valueClass="text-slate-800"
-          onClick={() => onOpenRepair?.({ tab: "HISTORY", searchQuery: "", quickFilter: "ALL", sortBy: "updated" })}
-        />
+        {primaryMetrics.map((metric) => (
+          <MetricCard key={metric.title} {...metric} />
+        ))}
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {secondaryMetrics.map((metric) => (
+          <CompactMetricCard key={metric.title} {...metric} />
+        ))}
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -618,64 +640,48 @@ const ITServiceOverviewPanel = ({
 
       <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <article className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h4 className="text-sm font-semibold text-slate-900">Recent Activities</h4>
-          <p className="mb-2 text-xs text-slate-500">5-10 รายการล่าสุด</p>
+          <h4 className="text-sm font-semibold text-slate-900">Latest Queue</h4>
+          <p className="mb-3 text-xs text-slate-500">รายการล่าสุดที่ควรหยิบดูต่อ</p>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
-                  <th className="px-3 py-2">ชื่อผู้แจ้ง</th>
-                  <th className="px-3 py-2">แผนก</th>
-                  <th className="px-3 py-2">ประเภท</th>
-                  <th className="px-3 py-2">อุปกรณ์/ปัญหา</th>
-                  <th className="px-3 py-2">สถานะ</th>
-                  <th className="px-3 py-2">ระยะเวลา</th>
-                  <th className="px-3 py-2">ลิงก์</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentActivities.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="cursor-pointer border-b border-slate-100 text-sm text-slate-700 hover:bg-slate-50"
-                    onClick={() =>
-                      onOpenRepair?.({
-                        tab: isClosedStatus(item.status) ? "HISTORY" : "INCOMING",
-                        searchQuery: String(item.id),
-                        quickFilter: "ALL",
-                        sortBy: "latest",
-                      })
-                    }
-                  >
-                    <td className="px-3 py-3 font-medium text-slate-900">{item.reporter}</td>
-                    <td className="px-3 py-3">{item.department}</td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${item.type === "ซ่อม" ? "bg-[#2b59b0]/10 text-[#2b59b0]" : "bg-violet-50 text-violet-700"
-                          }`}
-                      >
+          <div className="space-y-3">
+            {compactRecentActivities.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left transition hover:border-[#2b59b0]/25 hover:bg-white"
+                onClick={() =>
+                  onOpenRepair?.({
+                    tab: isClosedStatus(item.status) ? "HISTORY" : "INCOMING",
+                    searchQuery: String(item.id),
+                    quickFilter: "ALL",
+                    sortBy: "latest",
+                  })
+                }
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-900">{item.reporter}</p>
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${item.type === "ซ่อม" ? "bg-[#2b59b0]/10 text-[#2b59b0]" : "bg-violet-50 text-violet-700"}`}>
                         {item.type}
                       </span>
-                    </td>
-                    <td className="px-3 py-3">{item.subject}</td>
-                    <td className="px-3 py-3">
-                      <StatusBadge status={item.status} />
-                    </td>
-                    <td className="px-3 py-3 text-slate-600">{item.duration}</td>
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#2b59b0]">
-                        เปิดงาน
-                        <ExternalLink size={12} />
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    <p className="mt-1 truncate text-sm text-slate-700">{item.subject}</p>
+                    <p className="mt-2 text-xs text-slate-500">{item.department} • {item.duration}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <StatusBadge status={item.status} />
+                    <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#2b59b0]">
+                      เปิดงาน
+                      <ExternalLink size={12} />
+                    </span>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
 
-          {recentActivities.length === 0 && (
+          {compactRecentActivities.length === 0 && (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center text-sm text-slate-500">
               ไม่พบข้อมูลกิจกรรมในเงื่อนไขที่เลือก
             </div>
@@ -684,8 +690,8 @@ const ITServiceOverviewPanel = ({
 
         <aside className="space-y-4">
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h4 className="text-sm font-semibold text-slate-900">Quick Action</h4>
-            <p className="mt-1 text-xs text-slate-500">ปุ่มลัดการทำงาน</p>
+            <h4 className="text-sm font-semibold text-slate-900">Actions</h4>
+            <p className="mt-1 text-xs text-slate-500">ทางลัดสำหรับงานที่ใช้บ่อย</p>
 
             <div className="mt-3 space-y-2">
               <button

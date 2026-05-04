@@ -62,3 +62,39 @@ export async function insertTicketWithSchemaFallback(
 
   return { data: null, error: lastError, payload: workingPayload };
 }
+
+export async function updateTicketWithSchemaFallback(
+  supabaseClient,
+  ticketId,
+  payload,
+  options = {},
+) {
+  const { select = "", single = false, maxRetries = 5 } = options;
+  let workingPayload = { ...(payload || {}) };
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    let query = supabaseClient.from("tickets").update(workingPayload).eq("id", ticketId);
+    if (select) {
+      query = query.select(select);
+      if (single) query = query.single();
+    }
+
+    const { data, error } = await query;
+    if (!error) {
+      return { data: data || null, error: null, payload: workingPayload };
+    }
+
+    lastError = error;
+    const missingColumn = extractMissingTicketColumn(error);
+    if (!missingColumn || !OPTIONAL_TICKET_COLUMNS.has(missingColumn)) {
+      break;
+    }
+    if (!(missingColumn in workingPayload)) {
+      break;
+    }
+    delete workingPayload[missingColumn];
+  }
+
+  return { data: null, error: lastError, payload: workingPayload };
+}

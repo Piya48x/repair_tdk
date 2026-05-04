@@ -1482,7 +1482,9 @@ export default function Dashboard() {
   const channelRef = useRef(null);
   const meetingRoomChannelRef = useRef(null);
   const accessRequestChannelRef = useRef(null);
-  const statusOverviewMenuRef = useRef(null);
+  const mobileNavMenuRef = useRef(null);
+  const mobileStatusOverviewMenuRef = useRef(null);
+  const desktopStatusOverviewMenuRef = useRef(null);
   const searchInputRef = useRef(null);
   const notificationTimeoutsRef = useRef(new Map());
   const quickActionsSectionRef = useRef(null);
@@ -2028,9 +2030,10 @@ export default function Dashboard() {
     if (!isStatusOverviewMenuOpen) return undefined;
 
     const handlePointerDown = (event) => {
-      if (statusOverviewMenuRef.current && !statusOverviewMenuRef.current.contains(event.target)) {
-        setIsStatusOverviewMenuOpen(false);
-      }
+      const isInsideMobileMenu = mobileNavMenuRef.current?.contains(event.target);
+      const isInsideDesktopMenu = desktopStatusOverviewMenuRef.current?.contains(event.target);
+
+      if (!isInsideMobileMenu && !isInsideDesktopMenu) setIsStatusOverviewMenuOpen(false);
     };
 
     const handleEscape = (event) => {
@@ -2050,14 +2053,22 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isMobileNavOpen) return undefined;
 
+    const handlePointerDown = (event) => {
+      if (mobileNavMenuRef.current && !mobileNavMenuRef.current.contains(event.target)) {
+        setIsMobileNavOpen(false);
+      }
+    };
+
     const handleEscape = (event) => {
       if (event.key === "Escape") {
         setIsMobileNavOpen(false);
       }
     };
 
+    document.addEventListener("mousedown", handlePointerDown);
     window.addEventListener("keydown", handleEscape);
     return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
       window.removeEventListener("keydown", handleEscape);
     };
   }, [isMobileNavOpen]);
@@ -3084,6 +3095,7 @@ export default function Dashboard() {
     const selectedId = event.target.value;
     setNavMoreSelection(selectedId);
     setIsStatusOverviewMenuOpen(false);
+    setIsMobileNavOpen(false);
 
     const selectedItem = NAV_MORE_LINKS.find((item) => item.id === selectedId);
     if (selectedItem?.href) {
@@ -3198,6 +3210,13 @@ export default function Dashboard() {
     const numericCount = Number.parseInt(item.count, 10);
     return total + (Number.isFinite(numericCount) ? numericCount : 0);
   }, 0);
+  const mobileNavDepartment = String(profile?.department || dt("nav.notSpecifiedDepartment")).trim();
+  const mobileNavEmployeeCode = String(profile?.employee_code || dt("nav.notSpecified")).trim();
+  const mobileNavEmployeeCodeCompact = (() => {
+    if (!mobileNavEmployeeCode || mobileNavEmployeeCode === dt("nav.notSpecified")) return "--";
+    return mobileNavEmployeeCode.slice(-4);
+  })();
+  const mobileNavIdentityTitle = `ID: ${mobileNavEmployeeCode} • ${mobileNavDepartment}`;
   const profileDetailItems = [
     { key: "employee-code", label: rt("profile.employeeId"), value: profile?.employee_code || rt("common.notSpecified"), icon: Hash },
     { key: "email", label: rt("profile.email"), value: profile?.email || rt("common.noEmail"), icon: Mail },
@@ -3540,23 +3559,93 @@ export default function Dashboard() {
     );
   };
 
-  const renderNavBrand = ({ className = "" } = {}) => (
-    <div className={`flex min-w-0 items-center gap-2.5 rounded-[22px] border px-2.5 py-1.5 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"} ${className}`}>
+  const renderNavBrand = ({ className = "", compact = false } = {}) => (
+    <div className={`flex min-w-0 items-center shadow-sm ${compact ? "gap-1.5 rounded-2xl px-1.5 py-1.5" : "gap-2.5 rounded-[22px] px-2.5 py-1.5"} ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"} border ${className}`}>
       <div className="relative">
         <img
           src={tdkLogo}
           alt={rt("common.companyLogoAlt")}
-          className="h-9 w-9 rounded-xl bg-white object-contain p-1 shadow-lg shadow-blue-200 animate-float xl:h-10 xl:w-10"
+          className={`${compact ? "h-7 w-7 rounded-lg" : "h-9 w-9 rounded-xl xl:h-10 xl:w-10"} bg-white object-contain p-1 shadow-lg shadow-blue-200 animate-float`}
         />
-        <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500 animate-pulse"></div>
+        <div className={`absolute ${compact ? "-bottom-0.5 -right-0.5 h-3 w-3" : "-bottom-1 -right-1 h-4 w-4"} rounded-full border-2 border-white bg-emerald-500 animate-pulse`}></div>
       </div>
       <div className="min-w-0">
-        <h1 className="truncate bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-[15px] font-black leading-none tracking-tight text-transparent xl:text-lg">
-          TDK INDUSTRIAL
+        <h1 className={`truncate bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text font-black leading-none tracking-tight text-transparent ${compact ? "text-[12px]" : "text-[15px] xl:text-lg"}`}>
+          {compact ? "TDK" : "TDK INDUSTRIAL"}
         </h1>
         <p className={`mt-0.5 hidden text-[9px] font-bold uppercase tracking-wider 2xl:block ${TEXT_SUBTLE_CLASS}`}>
           {rt("common.companyName")}
         </p>
+      </div>
+    </div>
+  );
+
+  const renderStatusOverviewMenuContent = ({ mobile = false } = {}) => (
+    <div className={`rounded-[22px] border shadow-2xl ${mobile ? "max-h-[min(68dvh,32rem)] overflow-y-auto p-2" : "p-2.5"} ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-blue-200 bg-white/95 shadow-blue-200/70"}`}>
+      <div className={`flex items-start justify-between gap-3 px-1 ${mobile ? "mb-1.5" : "mb-2"}`}>
+        <div className="min-w-0">
+          <p className={`text-[11px] font-black uppercase tracking-[0.16em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.statusOverview")}</p>
+          <p className={`mt-1 text-[11px] ${TEXT_MUTED_CLASS}`}>{rt("operational.footerHint")}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsStatusOverviewMenuOpen(false)}
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-600 hover:bg-blue-50"}`}
+          aria-label="Close status overview"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className={mobile ? "space-y-1.5" : "space-y-2"}>
+        {topNavPrimaryLinks.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setIsStatusOverviewMenuOpen(false);
+                setIsMobileNavOpen(false);
+                item.onClick();
+              }}
+              className={`flex w-full items-center rounded-2xl border text-left transition focus:outline-none ${mobile ? "gap-2.5 px-2.5 py-2.5" : "gap-3 px-3 py-2.5"} ${item.cardClass} ${isDarkTheme ? "focus-visible:ring-2 focus-visible:ring-indigo-400" : "focus-visible:ring-2 focus-visible:ring-blue-300"}`}
+            >
+              <span className={`inline-flex shrink-0 items-center justify-center rounded-2xl ${mobile ? "h-8 w-8" : "h-9 w-9"} ${item.iconClass}`}>
+                <Icon size={mobile ? 15 : 16} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={`block truncate font-black ${mobile ? "text-[13px]" : "text-sm"}`}>{item.label}</span>
+                <span className={`mt-0.5 block text-[11px] ${TEXT_MUTED_CLASS}`}>{rt("common.currentStatus")}</span>
+              </span>
+              <span className={`inline-flex min-w-[1.6rem] shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.countClass}`}>
+                {item.count}
+              </span>
+              <ChevronRight size={14} className="shrink-0" />
+            </button>
+          );
+        })}
+
+        <div className={`rounded-2xl border ${mobile ? "px-2.5 py-2" : "px-3 py-2.5"} ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-blue-100 bg-blue-50/70"}`}>
+          <div className="mb-2 flex items-center gap-2">
+            <SlidersHorizontal size={14} className={TEXT_SUBTLE_CLASS} />
+            <span className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</span>
+          </div>
+          <select
+            value={navMoreSelection}
+            onChange={handleNavMoreSelection}
+            aria-label={dt("nav.moreMenu")}
+            className={`w-full rounded-xl border px-3 py-2 font-bold outline-none ${mobile ? "text-[13px]" : "text-sm"} ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-100 focus:ring-2 focus:ring-indigo-400" : "border-blue-200 bg-white text-slate-700 focus:ring-2 focus:ring-blue-300"}`}
+          >
+            <option value="">{dt("nav.moreMenu")}</option>
+            {localizedNavMoreLinks.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </div>
   );
@@ -3967,26 +4056,142 @@ export default function Dashboard() {
       {/* Navigation */}
       <nav className={`sticky top-0 z-40 shrink-0 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
         <div className="app-safe-top mx-auto max-w-[1440px] px-4 py-2.5 sm:px-6 lg:px-6 xl:px-8">
-          <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between xl:gap-3">
-            <div className="flex items-center justify-between gap-3 md:hidden">
-              {renderNavBrand({ className: "flex-1" })}
-              <button
-                type="button"
-                onClick={() => setIsMobileNavOpen((value) => !value)}
-                aria-expanded={isMobileNavOpen}
-                aria-label="Toggle mobile navigation"
-                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition-colors ${isDarkTheme ? "border-slate-700 bg-slate-800 text-slate-100 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
+          <div className="relative flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between xl:gap-3">
+            <div ref={mobileNavMenuRef} className="relative md:hidden">
+              <div className="flex items-center gap-2">
+                <div
+                  title={mobileNavIdentityTitle}
+                  className={`flex min-w-0 flex-1 items-center gap-2 rounded-[1.4rem] border px-2.5 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/90 shadow-slate-950/20" : "border-blue-200 bg-white/95 shadow-blue-100/70"}`}
+                >
+                  <div className="relative shrink-0">
+                    <img
+                      src={tdkLogo}
+                      alt={rt("common.companyLogoAlt")}
+                      className="h-8 w-8 rounded-xl bg-white object-contain p-1 shadow-lg shadow-blue-200"
+                    />
+                    <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-[12px] font-black leading-none tracking-tight text-transparent">
+                      TDK INDUSTRIAL
+                    </p>
+                    <div className={`mt-1 flex items-center gap-1 text-[9px] font-bold ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>
+                      <Building2 size={10} className="shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{mobileNavDepartment}</span>
+                      <span className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[8px] font-black ${isDarkTheme ? "bg-indigo-500/20 text-indigo-100" : "bg-blue-100 text-blue-700"}`}>
+                        #{mobileNavEmployeeCodeCompact}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div ref={mobileStatusOverviewMenuRef} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileNavOpen(false);
+                      setIsStatusOverviewMenuOpen((value) => !value);
+                    }}
+                    aria-expanded={isStatusOverviewMenuOpen}
+                    aria-controls="dashboard-status-overview-menu-mobile"
+                    aria-label={dt("nav.statusOverview")}
+                    className={`relative inline-flex h-10 w-10 items-center justify-center rounded-[1.2rem] border shadow-sm transition-colors ${isDarkTheme ? "border-slate-700 bg-slate-800/90 text-slate-100 shadow-slate-950/20 hover:bg-slate-700" : "border-blue-200 bg-white/95 text-slate-700 shadow-blue-100/70 hover:bg-blue-50"}`}
+                  >
+                    <BarChart3 size={17} />
+                    <span className={`absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1 py-0.5 text-[9px] font-black ${isDarkTheme ? "bg-indigo-500 text-white" : "bg-indigo-600 text-white"}`}>
+                      {statusOverviewTotalCount > 99 ? "99+" : statusOverviewTotalCount}
+                    </span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStatusOverviewMenuOpen(false);
+                    setIsMobileNavOpen((value) => !value);
+                  }}
+                  aria-expanded={isMobileNavOpen}
+                  aria-label="Toggle mobile navigation"
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[1.2rem] border shadow-sm transition-colors ${isDarkTheme ? "border-slate-700 bg-slate-800/90 text-slate-100 shadow-slate-950/20 hover:bg-slate-700" : "border-blue-200 bg-white/95 text-slate-700 shadow-blue-100/70 hover:bg-blue-50"}`}
+                >
+                  {isMobileNavOpen ? <X size={18} /> : <Menu size={18} />}
+                </button>
+
+                <div className={`flex shrink-0 items-center gap-0.5 rounded-[1.2rem] border p-0.5 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/90 shadow-slate-950/20" : "border-blue-200 bg-white/95 shadow-blue-100/70"}`}>
+                  <LanguageSwitcher mode="nav" isDarkTheme={isDarkTheme} className="shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileNavOpen(false);
+                      setIsStatusOverviewMenuOpen(false);
+                      setIsLogoutConfirmOpen(true);
+                    }}
+                    aria-label={t("common.signOut")}
+                    title={t("common.signOut")}
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${isDarkTheme ? "text-rose-300 hover:bg-rose-900/30" : "text-rose-600 hover:bg-rose-50"}`}
+                  >
+                    <LogOut size={15} />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                id="dashboard-status-overview-menu-mobile"
+                className={`absolute left-0 right-0 top-[calc(100%+0.55rem)] z-50 transition-all duration-150 ${isStatusOverviewMenuOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"}`}
               >
-                {isMobileNavOpen ? <X size={18} /> : <Menu size={18} />}
-              </button>
+                {renderStatusOverviewMenuContent({ mobile: true })}
+              </div>
+
+              <div
+                className={`absolute left-0 right-0 top-[calc(100%+0.55rem)] z-40 transition-all duration-150 ${isMobileNavOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"}`}
+              >
+                <div className={`rounded-[22px] border p-2.5 shadow-2xl ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-blue-200 bg-white/95 shadow-blue-200/70"}`}>
+                  <div className={`flex items-center justify-between gap-3 rounded-[18px] border px-3 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-blue-100 bg-blue-50/70"}`}>
+                    <div className="min-w-0">
+                      <p className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</p>
+                      <p className={`mt-1 text-[11px] ${TEXT_MUTED_CLASS}`}>{rt("operational.footerHint")}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
+                      aria-label={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
+                      title={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
+                      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-bold transition ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-100 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
+                    >
+                      {isDarkTheme ? <Sun size={15} /> : <Moon size={15} />}
+                      <span>{isDarkTheme ? t("common.lightMode") : t("common.darkMode")}</span>
+                    </button>
+                  </div>
+
+                  <div className={`mt-2 rounded-2xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-blue-100 bg-blue-50/70"}`}>
+                    <div className="mb-2 flex items-center gap-2">
+                      <SlidersHorizontal size={14} className={TEXT_SUBTLE_CLASS} />
+                      <span className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</span>
+                    </div>
+                    <select
+                      value={navMoreSelection}
+                      onChange={handleNavMoreSelection}
+                      aria-label={dt("nav.moreMenu")}
+                      className={`w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-100 focus:ring-2 focus:ring-indigo-400" : "border-blue-200 bg-white text-slate-700 focus:ring-2 focus:ring-blue-300"}`}
+                    >
+                      <option value="">{dt("nav.moreMenu")}</option>
+                      {localizedNavMoreLinks.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="hidden md:flex md:items-center md:justify-between md:gap-3">
               {renderNavBrand({ className: "md:min-w-[280px]" })}
             </div>
 
-            <div className={`${isMobileNavOpen ? "flex" : "hidden"} w-full flex-col gap-2.5 sm:items-end md:flex md:w-auto md:flex-1 md:flex-row md:items-center md:justify-end md:gap-1.5`}>
-              <div className={`flex w-full flex-wrap items-center gap-1.5 rounded-[20px] border px-2 py-1.5 shadow-sm sm:w-auto xl:gap-2 xl:px-3 xl:py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/75" : "border-blue-200/80 bg-white/90 shadow-blue-100/40"}`}>
+            <div className="hidden md:flex md:w-auto md:flex-1 md:items-center md:justify-end md:gap-1.5">
+              <div className={`flex flex-wrap items-center gap-1.5 rounded-[20px] border px-2 py-1.5 shadow-sm sm:w-auto xl:gap-2 xl:px-3 xl:py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/75" : "border-blue-200/80 bg-white/90 shadow-blue-100/40"}`}>
                 <div className="relative">
                   <span className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-bold xl:px-2 xl:text-[11px] ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
                     <Hash size={12} />
@@ -3998,12 +4203,13 @@ export default function Dashboard() {
                   {profile?.department || dt("nav.notSpecifiedDepartment")}
                 </span>
               </div>
-              <div ref={statusOverviewMenuRef} className="relative w-full sm:w-auto sm:min-w-[220px]">
+
+              <div ref={desktopStatusOverviewMenuRef} className="relative md:min-w-[220px]">
                 <button
                   type="button"
                   onClick={() => setIsStatusOverviewMenuOpen((value) => !value)}
                   aria-expanded={isStatusOverviewMenuOpen}
-                  aria-controls="dashboard-status-overview-menu"
+                  aria-controls="dashboard-status-overview-menu-desktop"
                   className={`inline-flex h-10 w-full items-center justify-between gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all sm:h-9 sm:w-full sm:justify-center sm:px-2.5 xl:h-10 xl:gap-2 xl:px-4 xl:text-sm ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
                 >
                   <span className="inline-flex items-center gap-1.5 xl:gap-2">
@@ -4022,77 +4228,13 @@ export default function Dashboard() {
                 </button>
 
                 <div
-                  id="dashboard-status-overview-menu"
-                  className={`absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 transition-all duration-150 sm:left-auto sm:right-0 sm:w-[360px] ${isStatusOverviewMenuOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"}`}
+                  id="dashboard-status-overview-menu-desktop"
+                  className={`absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(20rem,calc(100vw-2rem))] transition-all duration-150 sm:w-[360px] ${isStatusOverviewMenuOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"}`}
                 >
-                  <div className={`rounded-[22px] border p-2.5 shadow-2xl ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-blue-200 bg-white/95 shadow-blue-200/70"}`}>
-                    <div className="mb-2 flex items-start justify-between gap-3 px-1">
-                      <div className="min-w-0">
-                        <p className={`text-[11px] font-black uppercase tracking-[0.16em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.statusOverview")}</p>
-                        <p className={`mt-1 text-[11px] ${TEXT_MUTED_CLASS}`}>{rt("operational.footerHint")}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsStatusOverviewMenuOpen(false)}
-                        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-600 hover:bg-blue-50"}`}
-                        aria-label="Close status overview"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      {topNavPrimaryLinks.map((item) => {
-                        const Icon = item.icon;
-
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => {
-                              setIsStatusOverviewMenuOpen(false);
-                              item.onClick();
-                            }}
-                            className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition focus:outline-none ${item.cardClass} ${isDarkTheme ? "focus-visible:ring-2 focus-visible:ring-indigo-400" : "focus-visible:ring-2 focus-visible:ring-blue-300"}`}
-                          >
-                            <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl ${item.iconClass}`}>
-                              <Icon size={16} />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-black">{item.label}</span>
-                              <span className={`mt-0.5 block text-[11px] ${TEXT_MUTED_CLASS}`}>{rt("common.currentStatus")}</span>
-                            </span>
-                            <span className={`inline-flex min-w-[1.6rem] shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.countClass}`}>
-                              {item.count}
-                            </span>
-                            <ChevronRight size={14} className="shrink-0" />
-                          </button>
-                        );
-                      })}
-
-                      <div className={`rounded-2xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-blue-100 bg-blue-50/70"}`}>
-                        <div className="mb-2 flex items-center gap-2">
-                          <SlidersHorizontal size={14} className={TEXT_SUBTLE_CLASS} />
-                          <span className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</span>
-                        </div>
-                        <select
-                          value={navMoreSelection}
-                          onChange={handleNavMoreSelection}
-                          aria-label={dt("nav.moreMenu")}
-                          className={`w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-100 focus:ring-2 focus:ring-indigo-400" : "border-blue-200 bg-white text-slate-700 focus:ring-2 focus:ring-blue-300"}`}
-                        >
-                          <option value="">{dt("nav.moreMenu")}</option>
-                          {localizedNavMoreLinks.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
+                  {renderStatusOverviewMenuContent()}
                 </div>
               </div>
+
               <div className="ml-auto flex items-center gap-1.5">
                 <div className={`flex items-center gap-1 rounded-2xl border p-0.5 xl:p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
                   <button

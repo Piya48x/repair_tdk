@@ -22,7 +22,6 @@ import {
   ListChecks,
   Package,
   Sparkles,
-  UserRound,
   Wrench,
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
@@ -210,6 +209,7 @@ export default function ITWorkReportPanel({
   tickets,
   serviceRequests = [],
   onNavigatePage,
+  onKpiChange,
 }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -479,18 +479,18 @@ export default function ITWorkReportPanel({
 
   const summaryCards = useMemo(() => ([
     {
-      label: "งานแจ้งซ่อมทั้งหมด",
+      label: "งานซ่อม",
       value: repairTickets.length.toLocaleString("th-TH"),
-      helper: "นับจาก repair ticket ภายใต้ตัวกรองปัจจุบัน",
+      helper: "นับตามตัวกรองที่เลือกอยู่",
       icon: AlertTriangle,
       accent: "from-rose-500 to-orange-400",
       iconWrapClass: isDarkTheme ? "bg-rose-500/10 text-rose-300" : "bg-rose-50 text-rose-600",
       valueClass: isDarkTheme ? "text-rose-200" : "text-rose-600",
     },
     {
-      label: "คำขอบริการ / เบิกของ",
+      label: "คำขอบริการ",
       value: serviceRequestTickets.length.toLocaleString("th-TH"),
-      helper: "แยกจากงานแจ้งซ่อมเพื่อให้ทีม IT เห็นคำขอใหม่ชัดเจน",
+      helper: "แยกจากคิวซ่อมเพื่ออ่านปริมาณงานง่ายขึ้น",
       icon: Package,
       accent: "from-violet-500 to-fuchsia-500",
       iconWrapClass: isDarkTheme ? "bg-violet-500/10 text-violet-200" : "bg-violet-50 text-violet-600",
@@ -499,7 +499,7 @@ export default function ITWorkReportPanel({
     {
       label: "บันทึกงาน IT",
       value: reportKpis.jobCount.toLocaleString("th-TH"),
-      helper: "จำนวน work logs ที่ใช้สรุปรายงาน",
+      helper: "จำนวน work logs ที่ถูกดึงมาสรุปรายงาน",
       icon: Wrench,
       accent: "from-[#2b59b0] to-cyan-500",
       iconWrapClass: isDarkTheme ? "bg-[#2b59b0]/15 text-cyan-200" : "bg-[#2b59b0]/10 text-[#2b59b0]",
@@ -508,30 +508,51 @@ export default function ITWorkReportPanel({
     {
       label: "ชั่วโมงรวม",
       value: formatHoursLabel(reportKpis.totalMinutes),
-      helper: "เวลาทำงานสะสมทั้งหมดของทีม",
+      helper: "เวลาทำงานสะสมของทีมในช่วงที่เลือก",
       icon: Clock3,
       accent: "from-amber-500 to-yellow-400",
       iconWrapClass: isDarkTheme ? "bg-amber-500/10 text-amber-200" : "bg-amber-50 text-amber-600",
       valueClass: isDarkTheme ? "text-amber-100" : "text-amber-600",
     },
-    {
-      label: "เฉลี่ยต่องาน",
-      value: formatHoursLabel(reportKpis.averageMinutes),
-      helper: "ใช้ประเมิน workload และเวลาจริงต่องาน",
-      icon: UserRound,
-      accent: "from-emerald-500 to-teal-400",
-      iconWrapClass: isDarkTheme ? "bg-emerald-500/10 text-emerald-200" : "bg-emerald-50 text-emerald-600",
-      valueClass: isDarkTheme ? "text-emerald-100" : "text-emerald-600",
-    },
-  ]), [isDarkTheme, repairTickets.length, reportKpis.averageMinutes, reportKpis.jobCount, reportKpis.totalMinutes, serviceRequestTickets.length]);
+  ]), [isDarkTheme, repairTickets.length, reportKpis.jobCount, reportKpis.totalMinutes, serviceRequestTickets.length]);
 
   const selectedTypeLabel = filters.type === "ALL" ? "ทุกประเภทงาน" : getTypeMeta(filters.type).label;
   const reportPeriodLabel = PERIOD_OPTIONS.find((option) => option.value === reportPeriod)?.label || reportPeriod;
   const activeFilterSummary = [
-    filters.department === "ALL" ? "ทุกแผนก" : filters.department,
-    filters.user === "ALL" ? "ทุกผู้ปฏิบัติงาน" : filters.user,
-    selectedTypeLabel,
+    `แผนก: ${filters.department === "ALL" ? "ทั้งหมด" : filters.department}`,
+    `ผู้ปฏิบัติงาน: ${filters.user === "ALL" ? "ทั้งหมด" : filters.user}`,
+    `ประเภท: ${selectedTypeLabel}`,
   ];
+
+  useEffect(() => {
+    if (!onKpiChange) return;
+
+    onKpiChange({
+      jobCount: reportKpis.jobCount,
+      totalMinutes: reportKpis.totalMinutes,
+      totalHoursLabel: formatHoursLabel(reportKpis.totalMinutes),
+      evidenceJobs: reportKpis.evidenceJobs,
+      evidenceCoverage,
+      reportPeriod,
+      reportPeriodLabel,
+      selectedTypeLabel,
+      filters,
+      loading,
+      hasError: Boolean(loadError),
+    });
+  }, [
+    evidenceCoverage,
+    filters,
+    loadError,
+    loading,
+    onKpiChange,
+    reportKpis.evidenceJobs,
+    reportKpis.jobCount,
+    reportKpis.totalMinutes,
+    reportPeriod,
+    reportPeriodLabel,
+    selectedTypeLabel,
+  ]);
 
   const handleExportExcel = async () => {
     if (filteredRecords.length === 0 && repairTickets.length === 0 && serviceRequestTickets.length === 0) {
@@ -580,14 +601,14 @@ export default function ITWorkReportPanel({
             <div className="max-w-3xl">
               <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] ${isDarkTheme ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200" : "border-cyan-200 bg-cyan-50 text-cyan-700"}`}>
                 <Sparkles size={14} />
-                Operational Report
+                IT Operations
               </span>
               <h3 className={`mt-4 text-2xl font-black sm:text-3xl ${titleTextClass}`}>
-                รายงานภาพรวมงาน IT และการแจ้งซ่อม
+                สรุปงาน IT แบบอ่านเร็ว
               </h3>
-              <p className={`mt-3 max-w-3xl text-sm leading-7 ${bodyTextClass}`}>
-                รวมข้อมูล repair ticket, บันทึกงาน IT, ชั่วโมงทำงาน และหลักฐานรูปภาพไว้ในหน้าเดียว
-                เพื่อใช้ติดตามผลและ export เป็น Excel ที่อ่านต่อได้ทันที
+              <p className={`mt-3 max-w-3xl text-sm leading-6 ${bodyTextClass}`}>
+                รวมงานซ่อม คำขอ บันทึกงาน และชั่วโมงทำงานไว้ในมุมมองเดียว
+                เพื่อดูปริมาณงานของทีมและส่งต่อรายงานได้ทันที
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -600,10 +621,10 @@ export default function ITWorkReportPanel({
                   </span>
                 ))}
                 <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isDarkTheme ? "bg-emerald-500/10 text-emerald-200" : "bg-emerald-50 text-emerald-700"}`}>
-                  หลักฐานรูปภาพ {evidenceCoverage}%
+                  หลักฐาน {evidenceCoverage}%
                 </span>
                 <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isDarkTheme ? "bg-amber-500/10 text-amber-200" : "bg-amber-50 text-amber-700"}`}>
-                  สรุปตาม {reportPeriodLabel}
+                  ช่วง: {reportPeriodLabel}
                 </span>
               </div>
             </div>
@@ -631,7 +652,7 @@ export default function ITWorkReportPanel({
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2b59b0] to-[#244a95] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_18px_34px_-20px_rgba(43,89,176,0.8)] transition hover:translate-y-[-1px]"
               >
                 <FileSpreadsheet size={16} />
-                Export Excel พร้อมรูปภาพ
+                Export Excel
               </button>
             </div>
           </div>
@@ -705,7 +726,7 @@ export default function ITWorkReportPanel({
           </div>
         </div>
       </article>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((item) => {
           const Icon = item.icon;
 

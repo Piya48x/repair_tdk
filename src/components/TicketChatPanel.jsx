@@ -20,6 +20,13 @@ const BOTTOM_THRESHOLD_PX = 48;
 const MESSAGE_TOAST_TIMEOUT_MS = 4200;
 const NOTIFICATION_PROMPT_KEY = "ticket-chat:notification-permission-prompted";
 const CHAT_LOCALE = { th: "th-TH", en: "en-US", ko: "ko-KR" };
+const OPTIONAL_PROFILE_COLUMNS = new Set([
+  "full_name",
+  "role",
+  "employee_code",
+  "avatar_url",
+  "id_card_url",
+]);
 
 const TICKET_CHAT_PANEL_TRANSLATIONS = {
   th: {
@@ -184,6 +191,52 @@ function isMissingTicketMessageTable(error) {
 function isMissingSenderAvatarColumn(error) {
   const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
   return text.includes("sender_avatar_url");
+}
+
+function extractMissingProfileColumn(error) {
+  const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`;
+  const fromSchemaCache = text.match(
+    /Could not find the '([^']+)' column of 'profiles' in the schema cache/i,
+  );
+  if (fromSchemaCache?.[1]) return fromSchemaCache[1];
+
+  const fromPostgres = text.match(
+    /column ["']?([^"'\s]+)["']? of relation ["']?profiles["']? does not exist/i,
+  );
+  if (fromPostgres?.[1]) return fromPostgres[1];
+
+  return "";
+}
+
+async function fetchProfilesWithCompatibility(userIds = []) {
+  const ids = Array.isArray(userIds) ? userIds.filter(Boolean) : [];
+  if (ids.length === 0) {
+    return { data: [], error: null };
+  }
+
+  let columns = ["id", "full_name", "role", "employee_code", "avatar_url", "id_card_url"];
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= columns.length; attempt += 1) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(columns.join(", "))
+      .in("id", ids);
+
+    if (!error) {
+      return { data: Array.isArray(data) ? data : [], error: null };
+    }
+
+    lastError = error;
+    const missingColumn = extractMissingProfileColumn(error);
+    if (!missingColumn || !OPTIONAL_PROFILE_COLUMNS.has(missingColumn) || !columns.includes(missingColumn)) {
+      break;
+    }
+
+    columns = columns.filter((column) => column !== missingColumn);
+  }
+
+  return { data: [], error: lastError };
 }
 
 function toDisplayName(currentUser, fallbackUser, fallbackLabel = "User") {
@@ -394,24 +447,8 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
     const missingIds = uuidLikeIds.filter((id) => !profileMapRef.current[id]);
     if (!missingIds.length) return;
 
-    let data = null;
-
-    const { data: rpcData, error: rpcError } = await supabase.rpc("get_ticket_chat_profiles", {
-      _ticket_id: ticketId || null,
-      _user_ids: missingIds,
-    });
-
-    if (!rpcError && Array.isArray(rpcData)) {
-      data = rpcData;
-    } else {
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from("profiles")
-        .select("id, full_name, role, employee_code, avatar_url, id_card_url")
-        .in("id", missingIds);
-
-      if (fallbackError || !Array.isArray(fallbackData)) return;
-      data = fallbackData;
-    }
+    const { data, error: profileError } = await fetchProfilesWithCompatibility(missingIds);
+    if (profileError || !Array.isArray(data)) return;
 
     const patch = {};
     data.forEach((row) => {
@@ -419,9 +456,9 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
       if (!rowId) return;
       patch[rowId] = {
         id: rowId,
-        name: row?.full_name || "",
+        name: row?.full_name || row?.name || "",
         role: row?.role || "",
-        employeeCode: row?.employee_code || "",
+        employeeCode: row?.employee_code || row?.employeeId || "",
         avatarUrl: row?.avatar_url || row?.id_card_url || "",
       };
     });
@@ -429,7 +466,7 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
     if (Object.keys(patch).length) {
       setProfileMap((prev) => ({ ...prev, ...patch }));
     }
-  }, [ticketId]);
+  }, []);
 
   const applyMessages = useCallback(
     (nextMessages, options = {}) => {
