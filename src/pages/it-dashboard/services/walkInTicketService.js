@@ -82,6 +82,8 @@ export async function createWalkInTicket({
   requester_name,
   requester_emp_id,
   department,
+  location,
+  category,
   issue_title,
   issue_description,
   priority,
@@ -116,6 +118,8 @@ export async function createWalkInTicket({
   const note = normalizeText(resolution_note);
   const systemPriority = mapPriorityToSystemValue(priority);
   const departmentValue = normalizeText(department) || null;
+  const locationValue = normalizeText(location) || departmentValue;
+  const categoryValue = normalizeText(category) || "Walk-in";
   const assignedNameValue = normalizeText(assigned_name) || normalizeText(created_by_name) || "IT Support";
   const closedByNameValue =
     normalizeText(closed_by_name) ||
@@ -146,6 +150,8 @@ export async function createWalkInTicket({
     reporter_dept: departmentValue,
     reporter_avatar_url: normalizeText(reporter_avatar_url) || null,
     department: departmentValue,
+    location: locationValue || null,
+    category: categoryValue,
     title: issueTitle,
     description: normalizeText(issue_description) || null,
     service_type: "walk-in",

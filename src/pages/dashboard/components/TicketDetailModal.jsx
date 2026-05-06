@@ -100,6 +100,25 @@ function getAttachmentName(url) {
   }
 }
 
+function isWalkInTicket(ticket) {
+  return String(ticket?.channel || ticket?.service_type || "").toLowerCase() === "walk-in";
+}
+
+function getTicketLocation(ticket, currentUser) {
+  return (
+    ticket?.location ||
+    ticket?.reporter_location ||
+    ticket?.work_location ||
+    (isWalkInTicket(ticket) ? ticket?.reporter_dept || ticket?.department || "" : "") ||
+    currentUser?.location ||
+    "-"
+  );
+}
+
+function getTicketCategory(ticket) {
+  return ticket?.category || ticket?.device_type || (isWalkInTicket(ticket) ? "Walk-in" : "-");
+}
+
 export default function TicketDetailModal({
   ticket,
   onClose,
@@ -124,13 +143,11 @@ export default function TicketDetailModal({
   const reporterAvatar =
     ticket.reporter_avatar_url || buildAvatarFallback(reporterName, "2b59b0");
   const technicianAvatar =
-    ticket.assigned_avatar_url || buildAvatarFallback(ticket.assigned_name || "IT", "059669");
-  const ticketLocation =
-    ticket.location ||
-    ticket.reporter_location ||
-    ticket.work_location ||
-    currentUser?.location ||
-    "-";
+    ticket.assigned_avatar_url ||
+    (ticket.assigned_to === currentUser?.id ? currentUser?.avatar : "") ||
+    buildAvatarFallback(ticket.assigned_name || "IT", "059669");
+  const ticketLocation = getTicketLocation(ticket, currentUser);
+  const ticketCategory = getTicketCategory(ticket);
   const isResolvedTicket = String(ticket.status || "").toUpperCase() === "CLOSED" || Boolean(ticket.closed_at);
   const noteSectionClass = isResolvedTicket
     ? "rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
@@ -197,7 +214,7 @@ export default function TicketDetailModal({
                 <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex items-center justify-between gap-3 text-sm">
                     <span className="text-slate-500">{tt("category")}</span>
-                    <span className="font-semibold text-slate-800">{ticket.category || "-"}</span>
+                    <span className="font-semibold text-slate-800">{ticketCategory}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 text-sm">
                     <span className="text-slate-500">{tt("createdAt")}</span>

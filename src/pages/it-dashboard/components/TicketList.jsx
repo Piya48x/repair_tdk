@@ -248,10 +248,26 @@ const TicketList = ({
 
   const resolveAssigneeAvatar = (ticket) =>
     ticket?.assigned_avatar_url ||
+    (ticket?.assigned_to === currentUser?.id ? currentUser?.avatar || "" : "") ||
     (ticket?.assigned_name ? buildAvatarFallback(ticket.assigned_name, "059669") : "");
 
   const isWalkInTicket = (ticket) =>
     String(ticket?.channel || ticket?.service_type || "").toLowerCase() === "walk-in";
+
+  const resolveTicketLocation = (ticket) =>
+    String(
+      ticket?.location ||
+      ticket?.reporter_location ||
+      ticket?.work_location ||
+      (isWalkInTicket(ticket) ? ticket?.reporter_dept || ticket?.department || "Walk-in" : ""),
+    ).trim() || TEXT.notSpecified;
+
+  const resolveTicketCategory = (ticket) =>
+    String(
+      ticket?.category ||
+      ticket?.device_type ||
+      (isWalkInTicket(ticket) ? "Walk-in" : ""),
+    ).trim() || TEXT.notSpecified;
 
   const canOpenCardDetails = (ticket) => ticket?.status === "CLOSED";
   const canUpdateClosedTicketStatus = (ticket) =>
@@ -600,7 +616,7 @@ const TicketList = ({
                         {resolveReporterEmpId(ticket)} • {resolveReporterDept(ticket)}
                       </p>
                       <p className={textSecondary}>
-                        {ticket.location || "-"} | {ticket.category || "-"}
+                        {resolveTicketLocation(ticket)} | {resolveTicketCategory(ticket)}
                       </p>
                     </div>
                   </div>
@@ -875,14 +891,14 @@ const TicketList = ({
                 <p className={`mb-1 text-[11px] font-semibold ${textMuted}`}>{TEXT.location}</p>
                 <p className={`flex items-center gap-1.5 text-xs font-medium ${textPrimary}`}>
                   <MapPin size={13} className="text-[#2b59b0]" />
-                  <span className="truncate">{ticket.location || TEXT.notSpecified}</span>
+                  <span className="truncate">{resolveTicketLocation(ticket)}</span>
                 </p>
               </div>
               <div className={`rounded-xl p-3 ${softSurface}`}>
                 <p className={`mb-1 text-[11px] font-semibold ${textMuted}`}>{TEXT.category}</p>
                 <p className={`flex items-center gap-1.5 text-xs font-medium ${textPrimary}`}>
-                  {getDeviceIcon(ticket.category || ticket.device_type)}
-                  <span className="truncate">{ticket.category || TEXT.notSpecified}</span>
+                  {getDeviceIcon(resolveTicketCategory(ticket) || ticket.device_type)}
+                  <span className="truncate">{resolveTicketCategory(ticket)}</span>
                 </p>
               </div>
             </div>

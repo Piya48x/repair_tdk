@@ -236,8 +236,19 @@ function buildProfileSnapshot(profile = {}, metadata = {}, authUser = null) {
     phone: profile.phone || metadata.phone || metadata.mobile_phone || "",
     department: profile.department || metadata.department || "",
     position: profile.position || metadata.position || "",
-    avatar_url: profile.avatar_url || metadata.avatar_url || null,
-    id_card_url: profile.id_card_url || metadata.id_card_url || null,
+    avatar_url:
+      profile.avatar_url ||
+      profile.avatar ||
+      metadata.avatar_url ||
+      metadata.picture ||
+      authUser?.user_metadata?.avatar_url ||
+      authUser?.user_metadata?.picture ||
+      null,
+    id_card_url:
+      profile.id_card_url ||
+      metadata.id_card_url ||
+      authUser?.user_metadata?.id_card_url ||
+      null,
     location: resolveProfileLocation(profile) || resolveProfileLocation(metadata),
   };
 }

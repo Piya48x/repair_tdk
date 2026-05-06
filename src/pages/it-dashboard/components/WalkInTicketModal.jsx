@@ -7,7 +7,9 @@ import {
   FileImage,
   FlipHorizontal,
   ImagePlus,
+  LayoutGrid,
   Loader2,
+  MapPin,
   Search,
   Send,
   Trash2,
@@ -21,6 +23,23 @@ const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS = 8;
 const FIELD_CLASS_BASE =
   "w-full rounded-xl border px-3 py-2 text-sm outline-none transition focus:ring-2 sm:py-2.5";
+const LEGACY_WALK_IN_CATEGORY_OPTIONS = [
+  { value: "Hardware", label: "คอมพิวเตอร์ / อุปกรณ์" },
+  { value: "Network", label: "เครือข่าย / Wi-Fi" },
+  { value: "Printer", label: "เครื่องพิมพ์ / สแกน" },
+  { value: "Email", label: "อีเมล / บัญชี" },
+  { value: "System", label: "ระบบงาน / ซอฟต์แวร์" },
+  { value: "Access", label: "สิทธิ์ / บัญชีผู้ใช้" },
+  { value: "Walk-in", label: "อื่น ๆ / Walk-in" },
+];
+
+const WALK_IN_CATEGORY_OPTIONS = [
+  { value: "Hardware", label: "คอมพิวเตอร์ / อุปกรณ์" },
+  { value: "Network", label: "เครือข่าย / Wi-Fi" },
+  { value: "Printer", label: "เครื่องพิมพ์ / สแกน" },
+  { value: "Email", label: "อีเมลองค์กร" },
+  { value: "System", label: "ระบบงาน / ซอฟต์แวร์" },
+];
 
 function toLocalDatetimeValue(date = new Date()) {
   const value = date instanceof Date ? date : new Date(date);
@@ -33,12 +52,14 @@ function toLocalDatetimeValue(date = new Date()) {
   ].join("-") + `T${pad(value.getHours())}:${pad(value.getMinutes())}`;
 }
 
-function buildInitialForm() {
+function buildInitialForm(currentUser = null) {
   const nowValue = toLocalDatetimeValue(new Date());
   return {
     requester_name: "",
     requester_emp_id: "",
     department: "",
+    location: String(currentUser?.location || "").trim(),
+    category: "",
     issue_title: "",
     issue_description: "",
     priority: "medium",
@@ -97,7 +118,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const fileInputRef = useRef(null);
   const attachmentsRef = useRef([]);
 
-  const [form, setForm] = useState(buildInitialForm);
+  const [form, setForm] = useState(() => buildInitialForm(currentUser));
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attachments, setAttachments] = useState([]);
@@ -147,7 +168,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       return;
     }
     resetAttachmentState();
-    setForm(buildInitialForm());
+    setForm(buildInitialForm(currentUser));
     setErrors({});
     setIsSubmitting(false);
     setTempImage(null);
@@ -155,7 +176,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     setFacingMode("environment");
     setIsReviewing(false);
     setActiveLookupField(null);
-  }, [isOpen]);
+  }, [currentUser, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -197,6 +218,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             full_name: String(row?.full_name || row?.name || row?.email || "").trim(),
             employee_code: String(row?.employee_code || row?.employeeId || "").trim(),
             department: String(row?.department || "").trim(),
+            location: String(row?.location || row?.work_location || "").trim(),
             avatar_url: String(row?.avatar_url || row?.id_card_url || "").trim(),
             email: String(row?.email || "").trim(),
           })),
@@ -264,6 +286,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       requester_name: member.full_name || prev.requester_name,
       requester_emp_id: member.employee_code || prev.requester_emp_id,
       department: member.department || prev.department,
+      location: member.location || prev.location,
       reporter_avatar_url: member.avatar_url || "",
     }));
     setErrors((prev) => {
@@ -435,6 +458,10 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       nextErrors.issue_title = "กรุณาระบุหัวข้อปัญหา";
     }
 
+    if (!String(form.category || "").trim()) {
+      nextErrors.category = "กรุณาเลือกหมวดหมู่งาน";
+    }
+
     if (form.end_time && form.start_time) {
       const start = new Date(form.start_time);
       const end = new Date(form.end_time);
@@ -462,6 +489,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
         requester_name: String(form.requester_name || "").trim(),
         requester_emp_id: String(form.requester_emp_id || "").trim(),
         department: String(form.department || "").trim(),
+        location: String(form.location || "").trim(),
+        category: String(form.category || "").trim(),
         issue_title: String(form.issue_title || "").trim(),
         issue_description: String(form.issue_description || "").trim(),
         resolution_note: String(form.resolution_note || "").trim(),
@@ -719,11 +748,48 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               />
             </div>
           </div>
+
+          <div>
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>สถานที่</label>
+            <div className="relative">
+              <MapPin size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={form.location}
+                onChange={(event) => setField("location", event.target.value)}
+                className={`${inputClass} pl-10`}
+                placeholder="สถานที่ / จุดรับบริการ"
+                autoComplete="off"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
       <div className={`${surfaceClass} p-4 sm:p-5`}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
+              หมวดหมู่ <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative">
+              <LayoutGrid size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <select
+                value={form.category}
+                onChange={(event) => setField("category", event.target.value)}
+                className={`${inputClass} pl-10 ${errors.category ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""}`}
+              >
+                <option value="">เลือกหมวดหมู่</option>
+                {WALK_IN_CATEGORY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {errors.category && (
+              <p className="mt-1 text-xs font-medium text-rose-600">{errors.category}</p>
+            )}
+          </div>
           <div className="sm:col-span-2">
             <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
               หัวข้อปัญหา <span className="text-rose-500">*</span>
