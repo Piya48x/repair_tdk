@@ -526,15 +526,6 @@ const CloseJobModal = ({
           </button>
         </div>
 
-        <div className={`mb-4 rounded-2xl border px-4 py-3 ${isDark ? "border-slate-700 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-          <p className={`text-sm font-semibold ${labelClass}`}>
-            กำลังเพิ่มรูปในกลุ่ม {activeAttachmentKind === "after" ? "After" : "Before"}
-          </p>
-          <p className={`mt-1 text-xs ${mutedClass}`}>
-            รูปที่เลือกหรือถ่ายตอนนี้จะถูกจัดเข้ากลุ่มนี้อัตโนมัติ
-          </p>
-        </div>
-
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <input
             ref={fileInputRef}
@@ -566,20 +557,6 @@ const CloseJobModal = ({
             <Camera size={16} />
             {isCameraOpen ? "ปิดกล้อง" : "เปิดกล้อง"}
           </button>
-        </div>
-
-        <div className={`mt-4 rounded-2xl border-2 border-dashed px-4 py-3 ${isDark ? "border-slate-600 bg-slate-950/50" : "border-slate-300 bg-white"}`}>
-          <div className="flex items-start gap-3">
-            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${isDark ? "bg-[#2b59b0]/15 text-[#c8d9ff]" : "bg-[#2b59b0]/10 text-[#2b59b0]"}`}>
-              <FileImage size={18} />
-            </div>
-            <div className="min-w-0">
-              <p className={`text-sm font-semibold ${labelClass}`}>วางภาพจาก Clipboard ได้ทันที</p>
-              <p className={`mt-1 text-xs leading-5 ${mutedClass}`}>
-                กด Win + Shift + S แล้ว Ctrl + V เพื่อแนบภาพเข้ากลุ่ม {activeAttachmentKind === "after" ? "After" : "Before"}
-              </p>
-            </div>
-          </div>
         </div>
 
         <div className={`mt-4 overflow-hidden rounded-2xl border ${isDark ? "border-slate-700 bg-slate-950/80" : "border-slate-200 bg-white"}`}>

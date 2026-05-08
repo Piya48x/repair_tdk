@@ -2,6 +2,7 @@ import React, { useDeferredValue, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import Webcam from "react-webcam";
 import {
+  AlertTriangle,
   Building2,
   Camera,
   FileImage,
@@ -117,6 +118,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
   const attachmentsRef = useRef([]);
+  const initialFormRef = useRef(buildInitialForm(currentUser));
 
   const [form, setForm] = useState(() => buildInitialForm(currentUser));
   const [errors, setErrors] = useState({});
@@ -127,6 +129,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const [facingMode, setFacingMode] = useState("environment");
   const [tempImage, setTempImage] = useState(null);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [directoryMembers, setDirectoryMembers] = useState([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [activeLookupField, setActiveLookupField] = useState(null);
@@ -159,16 +162,59 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     }
   };
 
+  const hasUnsavedChanges = () => {
+    const initialForm = initialFormRef.current || buildInitialForm(currentUser);
+    const trackedKeys = [
+      "requester_name",
+      "requester_emp_id",
+      "department",
+      "location",
+      "category",
+      "issue_title",
+      "issue_description",
+      "priority",
+      "start_time",
+      "end_time",
+      "resolution_note",
+      "reporter_avatar_url",
+    ];
+
+    if (trackedKeys.some((key) => String(form?.[key] || "") !== String(initialForm?.[key] || ""))) {
+      return true;
+    }
+
+    return attachmentsRef.current.length > 0 || Boolean(tempImage);
+  };
+
+  const closeModal = () => {
+    setIsCloseConfirmOpen(false);
+    onClose?.();
+  };
+
+  const requestClose = () => {
+    if (isSubmitting) return;
+    if (hasUnsavedChanges()) {
+      setIsCloseConfirmOpen(true);
+      return;
+    }
+
+    closeModal();
+  };
+
   useEffect(() => {
     if (!isOpen) {
+      setIsCloseConfirmOpen(false);
       resetAttachmentState();
       setTempImage(null);
       setIsCameraOpen(false);
       setIsReviewing(false);
       return;
     }
+    const nextInitialForm = buildInitialForm(currentUser);
+    initialFormRef.current = nextInitialForm;
     resetAttachmentState();
-    setForm(buildInitialForm(currentUser));
+    setForm(nextInitialForm);
+    setIsCloseConfirmOpen(false);
     setErrors({});
     setIsSubmitting(false);
     setTempImage(null);
@@ -185,7 +231,11 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose?.();
+      if (event.key === "Escape" && isCloseConfirmOpen) {
+        setIsCloseConfirmOpen(false);
+        return;
+      }
+      if (event.key === "Escape") requestClose();
     };
 
     document.addEventListener("keydown", handleKeyDown);
@@ -194,7 +244,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isCloseConfirmOpen, isOpen, requestClose]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -397,15 +447,16 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       if (!clipboardImage) return;
 
       event.preventDefault();
+      setActiveAttachmentKind("before");
       appendAttachments(clipboardImage, {
-        kind: activeAttachmentKind,
-        successMessage: `แนบภาพ ${activeAttachmentKind === "after" ? "After" : "Before"} จากคลิปบอร์ดแล้ว`,
+        kind: "before",
+        successMessage: "แนบภาพจากคลิปบอร์ดเข้า Before แล้ว",
       });
     };
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [isOpen, activeAttachmentKind]);
+  }, [isOpen]);
 
   const handleFileSelect = (event) => {
     const files = Array.from(event.target.files || []);
@@ -505,7 +556,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
         before_attachments: beforeAttachments.map((item) => item.file),
         after_attachments: afterAttachments.map((item) => item.file),
       });
-      onClose?.();
+      closeModal();
     } catch (error) {
       setErrors({
         form: error?.message || "ไม่สามารถบันทึกงานได้ กรุณาลองใหม่อีกครั้ง",
@@ -538,6 +589,12 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const secondaryButtonClass = isDark
     ? "inline-flex w-full items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
     : "inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto";
+  const confirmSecondaryButtonClass = isDark
+    ? "inline-flex w-full items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+    : "inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
+  const dangerButtonClass = isDark
+    ? "inline-flex w-full items-center justify-center rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+    : "inline-flex w-full items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60";
   const metaTileClass = isDark
     ? "rounded-2xl border border-slate-700 bg-slate-800/70 px-3 py-3"
     : "rounded-2xl border border-slate-200 bg-white px-3 py-3";
@@ -939,12 +996,16 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
           </button>
         </div>
 
-        <div className={`mb-4 rounded-2xl border px-4 py-3 ${isDark ? "border-slate-700 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
+        <div className="hidden">
           <p className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-800"}`}>
             โหมดที่กำลังเพิ่มรูป: {activeAttachmentKind === "after" ? "After" : "Before"}
           </p>
           <p className={`mt-1 text-xs ${mutedClass}`}>
             รูปที่เลือกหรือวางตอนนี้จะถูกจัดเข้ากลุ่ม {activeAttachmentKind === "after" ? "After" : "Before"}
+          </p>
+          <p className={`mt-2 text-[11px] ${mutedClass}`}>
+            Clipboard paste with <span className="font-semibold">Ctrl + V</span> always adds the image to{" "}
+            <span className="font-semibold">Before</span> to avoid confusion.
           </p>
         </div>
 
@@ -982,12 +1043,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
         </div>
 
         <div
-          tabIndex={0}
-          className={`mt-4 rounded-2xl border-2 border-dashed px-4 py-3 outline-none transition ${
-            isDark
-              ? "border-slate-600 bg-slate-950/50 hover:border-[#2b59b0]/60 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/30"
-              : "border-slate-300 bg-white hover:border-[#2b59b0]/50 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/20"
-          }`}
+          tabIndex={-1}
+          className="hidden"
         >
           <div className="flex items-start gap-3">
             <div
@@ -1003,7 +1060,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               </p>
               <p className={`mt-1 text-xs leading-5 ${mutedClass}`}>
                 ขณะเปิดฟอร์มนี้ กด Win + Shift + S แล้ว Ctrl + V ระบบจะนำภาพมาแนบในกลุ่ม{" "}
-                {activeAttachmentKind === "after" ? "After" : "Before"}
+                Before
               </p>
             </div>
           </div>
@@ -1144,7 +1201,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   return (
     <motion.div
       className={`fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 ${overlayClass}`}
-      onClick={onClose}
+      onClick={requestClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="walk-in-ticket-title"
@@ -1153,7 +1210,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       transition={{ duration: 0.18, ease: "easeOut" }}
     >
       <motion.div
-        className={`flex w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border ${shellClass}`}
+        className={`relative flex w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border ${shellClass}`}
         style={{
           maxHeight: "calc(100dvh - 1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
         }}
@@ -1184,7 +1241,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className={`rounded-xl p-2 transition-colors ${
                 isDark
                   ? "text-slate-300 hover:bg-slate-800 hover:text-white"
@@ -1218,7 +1275,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
           >
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
-              <button type="button" onClick={onClose} className={secondaryButtonClass}>
+              <button type="button" onClick={requestClose} className={secondaryButtonClass}>
                 ยกเลิก
               </button>
               <button type="submit" disabled={isSubmitting} className={primaryButtonClass}>
@@ -1228,6 +1285,51 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             </div>
           </div>
         </form>
+
+        {isCloseConfirmOpen && (
+          <motion.div
+            className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            onClick={() => setIsCloseConfirmOpen(false)}
+          >
+            <motion.div
+              role="alertdialog"
+              aria-modal="true"
+              className={`w-full max-w-md rounded-[26px] border p-5 shadow-2xl ${isDark ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-900"}`}
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", damping: 26, stiffness: 320 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                    isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-600"
+                  }`}
+                >
+                  <AlertTriangle size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-bold">ออกจากฟอร์มนี้หรือไม่?</p>
+                  <p className={`mt-1 text-sm leading-6 ${mutedClass}`}>
+                    ข้อมูลที่กรอกและรูปที่แนบไว้ยังไม่ได้บันทึก หากออกตอนนี้ข้อมูลจะหาย
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button type="button" onClick={() => setIsCloseConfirmOpen(false)} className={confirmSecondaryButtonClass}>
+                  กลับไปแก้ต่อ
+                </button>
+                <button type="button" onClick={closeModal} className={dangerButtonClass}>
+                  ออกจากฟอร์ม
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </motion.div>
     </motion.div>
   );
