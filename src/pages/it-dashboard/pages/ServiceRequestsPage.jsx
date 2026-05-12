@@ -13,6 +13,7 @@ import {
 import { supabase } from "../../../lib/supabaseClient";
 import { normalizeServiceType } from "../../../lib/serviceRequestUtils";
 import DashboardSummaryGrid from "../components/DashboardSummaryGrid";
+import WalkInStockIssueModal from "../components/WalkInStockIssueModal";
 
 const SERVICE_REQUEST_LABELS = {
   req_new_device: "เบิกอุปกรณ์ใหม่",
@@ -110,6 +111,7 @@ export default function ServiceRequestsPage({
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isWalkInIssueOpen, setIsWalkInIssueOpen] = useState(false);
 
   const summary = useMemo(() => ({
     total: serviceRequests.length,
@@ -255,6 +257,15 @@ export default function ServiceRequestsPage({
 
             <button
               type="button"
+              onClick={() => setIsWalkInIssueOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#244a95]"
+            >
+              <Package size={14} />
+              เบิกของ Walk-in
+            </button>
+
+            <button
+              type="button"
               onClick={() => void handleRefresh()}
               className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold ${uiTheme.statusButton}`}
             >
@@ -375,6 +386,14 @@ export default function ServiceRequestsPage({
           })}
         </div>
       </section>
+
+      <WalkInStockIssueModal
+        isOpen={isWalkInIssueOpen}
+        onClose={() => setIsWalkInIssueOpen(false)}
+        onIssued={() => setIsWalkInIssueOpen(false)}
+        currentUser={currentUser}
+        theme={theme}
+      />
     </>
   );
 }

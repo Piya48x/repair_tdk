@@ -454,6 +454,13 @@ const TicketList = ({
             <MessageSquare size={15} />
           </button>
           <button
+            onClick={() => handleViewDetails(ticket)}
+            className={`rounded-lg p-2 transition-colors ${blueIconButtonClass}`}
+            title={TEXT.viewDetail}
+          >
+            <Eye size={15} />
+          </button>
+          <button
             onClick={() => handleUpdateRepairStatus(ticket)}
             className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${neutralButtonClass}`}
           >
@@ -702,23 +709,30 @@ const TicketList = ({
 
     if (ticket.status === "IN_PROGRESS" && ticket.assigned_to === currentUser?.id) {
       return (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <button
-            onClick={() => openCaseChat(ticket)}
+            onClick={(event) => handleCardActionClick(event, () => openCaseChat(ticket))}
             className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
           >
             <MessageSquare size={15} />
             {TEXT.caseChat}
           </button>
           <button
-            onClick={() => handleUpdateRepairStatus(ticket)}
+            onClick={(event) => handleCardActionClick(event, () => handleViewDetails(ticket))}
+            className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
+          >
+            <Eye size={15} />
+            {TEXT.viewDetail}
+          </button>
+          <button
+            onClick={(event) => handleCardActionClick(event, () => handleUpdateRepairStatus(ticket))}
             className={`inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${neutralButtonClass}`}
           >
             <FileText size={15} />
             {TEXT.recordProgress}
           </button>
           <button
-            onClick={() => handleCloseJob(ticket)}
+            onClick={(event) => handleCardActionClick(event, () => handleCloseJob(ticket))}
             className="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
           >
             <Camera size={15} />

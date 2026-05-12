@@ -1,4 +1,3 @@
-import { fetchProfilesWithCompatibility } from "../../../lib/profileSchemaCompat";
 import { supabase } from "../../../lib/supabaseClient";
 
 export const STOCK_ATTACHMENT_BUCKET = "it-stock-attachments";
@@ -138,11 +137,11 @@ export async function loadStockIssueLogs() {
 }
 
 export async function loadProfileDirectory() {
-  const { data, error } = await fetchProfilesWithCompatibility(supabase, {
-    columns: ["id", "full_name", "employee_code", "department", "avatar_url", "id_card_url", "email"],
-    orderBy: "created_at",
-    ascending: false,
-  });
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .order("created_at", { ascending: false });
+
   return {
     data: Array.isArray(data)
       ? data.map((row) => ({

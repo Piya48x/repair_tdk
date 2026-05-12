@@ -8,6 +8,44 @@ const OPTIONAL_PROFILE_COLUMNS = new Set([
   "email",
 ]);
 
+const PROFILE_COMPAT_SESSION_KEY = "__profile_compat_missing_columns__";
+const unsupportedProfileColumns = new Set();
+
+function hydrateUnsupportedColumnsFromSession() {
+  if (typeof window === "undefined" || !window.sessionStorage) return;
+  if (unsupportedProfileColumns.size > 0) return;
+
+  try {
+    const raw = window.sessionStorage.getItem(PROFILE_COMPAT_SESSION_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return;
+    parsed
+      .map((value) => normalizeColumnName(value))
+      .filter((value) => OPTIONAL_PROFILE_COLUMNS.has(value))
+      .forEach((value) => unsupportedProfileColumns.add(value));
+  } catch {
+    // Ignore cache hydration failures.
+  }
+}
+
+function rememberUnsupportedColumn(columnName) {
+  const normalized = normalizeColumnName(columnName);
+  if (!OPTIONAL_PROFILE_COLUMNS.has(normalized)) return;
+
+  unsupportedProfileColumns.add(normalized);
+
+  if (typeof window === "undefined" || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem(
+      PROFILE_COMPAT_SESSION_KEY,
+      JSON.stringify(Array.from(unsupportedProfileColumns)),
+    );
+  } catch {
+    // Ignore cache persistence failures.
+  }
+}
+
 function normalizeColumnName(value) {
   return String(value || "")
     .trim()
@@ -52,10 +90,14 @@ export async function fetchProfilesWithCompatibility(
     ascending = false,
   } = {},
 ) {
+  hydrateUnsupportedColumnsFromSession();
+
   const safeIds = Array.isArray(ids)
     ? [...new Set(ids.map((value) => String(value || "").trim()).filter(Boolean))]
     : [];
-  let selectedColumns = [...new Set(["id", ...columns.filter(Boolean)])];
+  let selectedColumns = [...new Set(["id", ...columns.filter(Boolean)])].filter(
+    (column) => !unsupportedProfileColumns.has(normalizeColumnName(column)),
+  );
   let lastError = null;
 
   if (ids && safeIds.length === 0) {
@@ -92,6 +134,7 @@ export async function fetchProfilesWithCompatibility(
       break;
     }
 
+    rememberUnsupportedColumn(missingColumn);
     selectedColumns = selectedColumns.filter((column) => column !== missingColumn);
   }
 
