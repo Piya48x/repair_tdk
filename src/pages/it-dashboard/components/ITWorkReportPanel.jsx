@@ -25,6 +25,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
+import { isWalkInTicketRecord } from "../../../lib/serviceRequestUtils";
 import {
   isITWorkRecordSchemaError,
   loadITWorkRecords,
@@ -49,6 +50,7 @@ import {
 } from "../pages/it-work-evidence/shared";
 
 const CHART_COLORS = ["#2b59b0", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444"];
+const WALK_IN_TYPE_OPTION = { value: "WALK_IN", label: "Walk-in" };
 const SERVICE_REQUEST_LABELS = {
   req_new_device: "เบิกอุปกรณ์ใหม่",
   req_replacement: "ขอเปลี่ยนเครื่องทดแทน",
@@ -90,6 +92,7 @@ function getTicketIssueLabel(ticket) {
 
 function classifyTicketKind(ticket) {
   const source = `${ticket?.service_type || ""} ${ticket?.title || ""} ${ticket?.category || ""}`.toLowerCase();
+  if (isWalkInTicketRecord(ticket)) return "repair";
   if (source.includes("repair") || source.includes("ซ่อม")) return "repair";
   if (
     source.includes("req_") ||
@@ -116,6 +119,7 @@ function getTicketDepartment(ticket) {
 }
 
 function isRepairTicket(ticket) {
+  if (isWalkInTicketRecord(ticket)) return true;
   const serviceType = normalizeTicketKey(ticket?.service_type);
   const source = `${ticket?.service_type || ""} ${ticket?.title || ""} ${ticket?.category || ""}`.toLowerCase();
   return serviceType === "req_repair" || source.includes("repair") || source.includes("ซ่อม");
@@ -202,6 +206,21 @@ function buildDailySummaries(records) {
   return [...summaryMap.values()]
     .sort((left, right) => String(right.dateKey).localeCompare(String(left.dateKey)))
     .slice(0, 6);
+}
+
+function buildTicketImageEntries(ticket) {
+  const urls = [
+    ticket?.image_url,
+    ticket?.image_after_url,
+    ...(Array.isArray(ticket?.attachments) ? ticket.attachments : []),
+  ]
+    .map((url) => normalizeServiceText(url))
+    .filter(Boolean);
+
+  return [...new Set(urls)].map((url, index) => ({
+    url,
+    name: index === 0 ? "before" : index === 1 ? "after" : `attachment-${index + 1}`,
+  }));
 }
 
 export default function ITWorkReportPanel({
@@ -295,8 +314,13 @@ export default function ITWorkReportPanel({
     };
   }, []);
 
+  const reportTypeOptions = useMemo(() => {
+    const hasWalkIn = (tickets || []).some((ticket) => isWalkInTicketRecord(ticket));
+    return hasWalkIn ? [...TYPE_OPTIONS, WALK_IN_TYPE_OPTION] : TYPE_OPTIONS;
+  }, [tickets]);
+
   const recordViews = useMemo(() => {
-    return records.map((record) => {
+    const workRecordViews = records.map((record) => {
       const startValue = record.start_time || record.performed_at || record.created_at || "";
       const activeEnd =
         record.end_time ||
@@ -327,7 +351,39 @@ export default function ITWorkReportPanel({
         dateKey: getLocalDateKey(startValue),
       };
     });
-  }, [records]);
+
+    const walkInRecordViews = (tickets || [])
+      .filter((ticket) => isWalkInTicketRecord(ticket))
+      .map((ticket) => {
+        const startValue = ticket.started_at || ticket.start_time || ticket.created_at || ticket.closed_at || "";
+        const endValue = ticket.end_time || ticket.closed_at || ticket.updated_at || startValue;
+        const durationMinutes = calculateDurationMinutes(startValue, endValue);
+        const images = buildTicketImageEntries(ticket);
+
+        return {
+          id: `walk-in-${ticket.id}`,
+          title: normalizeServiceText(ticket.title) || normalizeServiceText(ticket.category) || "Walk-in",
+          description: normalizeServiceText(ticket.resolution_note) || normalizeServiceText(ticket.solution_note) || normalizeServiceText(ticket.description),
+          userName: normalizeServiceText(ticket.assigned_name) || normalizeServiceText(ticket.closed_by_name) || "IT Support",
+          department: getTicketDepartment(ticket),
+          location: normalizeServiceText(ticket.location),
+          referenceCode: normalizeServiceText(ticket.ticket_no) || `IT-${String(ticket.id || "").padStart(5, "0")}`,
+          requesterName: normalizeServiceText(ticket.reporter_name),
+          startValue,
+          endValue,
+          startLabel: formatDateTime(startValue),
+          durationMinutes,
+          durationLabel: formatDurationLabel(durationMinutes),
+          typeLabel: WALK_IN_TYPE_OPTION.label,
+          typeValue: WALK_IN_TYPE_OPTION.value,
+          imageCount: images.length,
+          images,
+          dateKey: getLocalDateKey(startValue),
+        };
+      });
+
+    return [...workRecordViews, ...walkInRecordViews];
+  }, [records, tickets]);
 
   const userOptions = useMemo(
     () => [...new Set(recordViews.map((item) => item.userName).filter(Boolean))].sort((left, right) => left.localeCompare(right, "th")),
@@ -672,7 +728,7 @@ export default function ITWorkReportPanel({
               className={selectClass}
             >
               <option value="ALL">ทุกประเภทงาน</option>
-              {TYPE_OPTIONS.map((option) => (
+              {reportTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

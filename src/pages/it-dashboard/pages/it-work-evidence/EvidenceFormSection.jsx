@@ -1,25 +1,87 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import {
   Camera,
+  CheckCircle2,
   Clock3,
   Copy,
+  FileText,
   Hash,
+  ImagePlus,
+  MapPin,
   Pencil,
   Play,
   Square,
   TimerReset,
   Trash2,
   Upload,
+  UserRound,
 } from "lucide-react";
 import { MAX_FILES, STATUS_OPTIONS, TYPE_OPTIONS } from "./shared";
 
-function FieldLabel({ children, softTextClass }) {
+function FieldLabel({ children, softTextClass, required = false }) {
   return (
     <p className={`mb-2 text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>
       {children}
+      {required ? <span className="ml-1 text-rose-500">*</span> : null}
     </p>
   );
+}
+
+function StepCard({
+  step,
+  title,
+  helper,
+  icon: Icon,
+  theme,
+  uiTheme,
+  subCardClass,
+  children,
+}) {
+  return (
+    <section className={`${subCardClass} overflow-hidden`}>
+      <div className={`border-b px-4 py-4 ${theme === "dark" ? "border-slate-700/80" : "border-slate-200"}`}>
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#2b59b0] text-sm font-black text-white shadow-[0_14px_30px_-18px_rgba(43,89,176,0.9)]">
+            {step}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {Icon ? (
+                <span className={`inline-flex rounded-xl p-2 ${theme === "dark" ? "bg-[#0f172a] text-cyan-200" : "bg-white text-[#2b59b0]"}`}>
+                  <Icon size={16} />
+                </span>
+              ) : null}
+              <h4 className={`text-base font-black ${uiTheme.textPrimary}`}>{title}</h4>
+            </div>
+            {helper ? <p className={`mt-1 text-xs leading-5 ${uiTheme.textSecondary}`}>{helper}</p> : null}
+          </div>
+        </div>
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
+
+function buildEmployeeLabel(member) {
+  return [
+    member?.employee_code,
+    member?.full_name || member?.email,
+    member?.department,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
+function normalizeLookupText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
+function buildAvatarFallback(name) {
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&background=2B59B0&color=fff`;
 }
 
 export default function EvidenceFormSection({
@@ -52,6 +114,9 @@ export default function EvidenceFormSection({
   onDurationMinutesChange,
   isEditing,
   onCancelEdit,
+  employeeOptions = [],
+  employeeLoading = false,
+  onEmployeeSelect,
 }) {
   const ghostButtonClass = theme === "dark"
     ? "border-slate-600 bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
@@ -63,6 +128,36 @@ export default function EvidenceFormSection({
   const imageCardClass = theme === "dark"
     ? "border-slate-700 bg-[#0f172a]"
     : "border-slate-200 bg-white";
+  const selectedEmployee = useMemo(
+    () => employeeOptions.find((member) => member.id === formData.requester_profile_id) || null,
+    [employeeOptions, formData.requester_profile_id],
+  );
+  const [requesterLookupOpen, setRequesterLookupOpen] = useState(false);
+  const requesterLookupQuery = normalizeLookupText(formData.requester_name);
+  const requesterSuggestions = useMemo(() => {
+    if (!requesterLookupQuery) return [];
+
+    return employeeOptions
+      .filter((member) => {
+        const searchable = [
+          member.full_name,
+          member.employee_code,
+          member.email,
+          member.department,
+        ]
+          .map(normalizeLookupText)
+          .join(" ");
+
+        return searchable.includes(requesterLookupQuery);
+      })
+      .slice(0, 6);
+  }, [employeeOptions, requesterLookupQuery]);
+  const evidenceCount = (existingImages?.length || 0) + selectedFiles.length;
+
+  const handleRequesterSuggestionSelect = (member) => {
+    onEmployeeSelect?.(member.id);
+    setRequesterLookupOpen(false);
+  };
 
   const handleCopyReference = async () => {
     if (!formData.reference_code) return;
@@ -82,15 +177,12 @@ export default function EvidenceFormSection({
           <h3 className={`text-lg font-black ${uiTheme.textPrimary}`}>
             {isEditing ? "แก้ไขบันทึกงาน" : "เพิ่มบันทึกงาน"}
           </h3>
-          <p className={`mt-1 text-sm ${softTextClass}`}>
-            ชื่อเรื่อง รายละเอียด ประเภทงาน สถานที่ เวลา และรูปหลักฐาน
-          </p>
-          <p className={`mt-1 text-xs ${softTextClass}`}>
-            กรอกย้อนหลังได้ จับเวลาได้ และเลขอ้างอิงจะสร้างอัตโนมัติให้ทันที
+          <p className={`mt-1 text-sm leading-6 ${softTextClass}`}>
+            กรอกตามลำดับเลข 1-5 เพื่อลดการสลับช่องผิด รายชื่อพนักงานเลือกจาก dropdown แล้วระบบจะเติมชื่อและแผนกให้
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
           {isEditing && (
             <button
               type="button"
@@ -114,272 +206,379 @@ export default function EvidenceFormSection({
         </div>
       </div>
 
-      <div className={`${subCardClass} mt-4 p-4`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>ระบบจับเวลา</p>
-            <p className={`mt-1 text-xs ${softTextClass}`}>
-              เริ่มและหยุดเวลาแบบ real-time หรือกำหนดชั่วโมงย้อนหลังเองได้
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onStartTimer}
-              disabled={timerRunning}
-              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
-                timerRunning
-                  ? "cursor-not-allowed bg-slate-300 text-slate-600"
-                  : theme === "dark"
-                    ? "bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
-                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-              }`}
-            >
-              <Play size={16} />
-              Start
-            </button>
-            <button
-              type="button"
-              onClick={onStopTimer}
-              disabled={!timerRunning}
-              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
-                !timerRunning
-                  ? "cursor-not-allowed bg-slate-300 text-slate-600"
-                  : theme === "dark"
-                    ? "bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
-                    : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-              }`}
-            >
-              <Square size={16} />
-              Stop
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className={timerTileClass}>
-            <FieldLabel softTextClass={softTextClass}>เวลาเริ่ม</FieldLabel>
-            <p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{formData.start_time || "-"}</p>
-          </div>
-          <div className={timerTileClass}>
-            <FieldLabel softTextClass={softTextClass}>เวลาสิ้นสุด</FieldLabel>
-            <p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>
-              {formData.end_time || (timerRunning ? "กำลังจับเวลา..." : "-")}
-            </p>
-          </div>
-          <div className={timerTileClass}>
-            <FieldLabel softTextClass={softTextClass}>ระยะเวลา</FieldLabel>
-            <p className={`inline-flex items-center gap-2 text-sm font-semibold ${uiTheme.textPrimary}`}>
-              <Clock3 size={15} />
-              {durationLabel}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className={timerTileClass}>
-            <FieldLabel softTextClass={softTextClass}>ชั่วโมงทำงาน</FieldLabel>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={durationHours}
-              onChange={(event) => onDurationHoursChange(event.target.value)}
-              className="w-full bg-transparent text-sm font-semibold outline-none"
-            />
-          </label>
-          <label className={timerTileClass}>
-            <FieldLabel softTextClass={softTextClass}>นาทีทำงาน</FieldLabel>
-            <input
-              type="number"
-              min="0"
-              max="59"
-              step="1"
-              value={durationMinutes}
-              onChange={(event) => onDurationMinutesChange(event.target.value)}
-              className="w-full bg-transparent text-sm font-semibold outline-none"
-            />
-          </label>
-        </div>
-      </div>
-
       <form className="mt-5 space-y-4" onSubmit={onSave}>
-        <label className="block">
-          <FieldLabel softTextClass={softTextClass}>ชื่อเรื่องงาน</FieldLabel>
-          <input
-            value={formData.title}
-            onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
-            className={inputClass}
-            placeholder="เช่น ติดตั้งเครื่องใหม่ / เปลี่ยนอุปกรณ์ / แก้ปัญหาหน้างาน"
-            maxLength={180}
-          />
-        </label>
+        <StepCard
+          step="1"
+          title="กำหนดเวลาและชั่วโมงงาน"
+          helper="ใช้ Start/Stop เมื่อทำงานสด หรือกรอกชั่วโมงย้อนหลังเองได้"
+          icon={Clock3}
+          theme={theme}
+          uiTheme={uiTheme}
+          subCardClass={subCardClass}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>ระบบจับเวลา</p>
+              <p className={`mt-1 text-xs ${softTextClass}`}>ถ้ากรอกย้อนหลัง ให้เลือกเวลาเริ่มและใส่ชั่วโมง/นาทีด้านล่าง</p>
+            </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <FieldLabel softTextClass={softTextClass}>ประเภทงาน</FieldLabel>
-            <select
-              value={formData.job_type}
-              onChange={(event) => setFormData((prev) => ({ ...prev, job_type: event.target.value }))}
-              className={inputClass}
-            >
-              {TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <FieldLabel softTextClass={softTextClass}>สถานะงาน</FieldLabel>
-            <select
-              value={formData.work_status}
-              onChange={(event) => setFormData((prev) => ({ ...prev, work_status: event.target.value }))}
-              className={inputClass}
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <FieldLabel softTextClass={softTextClass}>วันเวลาเริ่ม</FieldLabel>
-            <input
-              type="datetime-local"
-              value={formData.start_time}
-              onChange={(event) => setFormData((prev) => ({ ...prev, start_time: event.target.value }))}
-              className={inputClass}
-            />
-          </label>
-
-          <label className="block">
-            <FieldLabel softTextClass={softTextClass}>วันเวลาสิ้นสุด</FieldLabel>
-            <input
-              type="datetime-local"
-              value={formData.end_time}
-              onChange={(event) => setFormData((prev) => ({ ...prev, end_time: event.target.value }))}
-              className={inputClass}
-            />
-          </label>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <FieldLabel softTextClass={softTextClass}>สถานที่</FieldLabel>
-            <input
-              value={formData.location}
-              onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
-              className={inputClass}
-              placeholder="เช่น อาคาร A, ไลน์ผลิต, ห้องผู้บริหาร"
-              maxLength={120}
-            />
-          </label>
-
-          <div className={`overflow-hidden rounded-2xl border ${referencePanelClass}`}>
-            <div className={`flex items-center justify-between gap-3 border-b px-4 py-3 ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`}>
-              <div className="min-w-0">
-                <p className={`inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>
-                  <Hash size={13} />
-                  เลขอ้างอิงอัตโนมัติ
-                </p>
-                <p className={`mt-1 text-xs ${softTextClass}`}>
-                  ระบบสร้างให้อัตโนมัติจากประเภทงานและเวลาเริ่ม
-                </p>
-              </div>
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={handleCopyReference}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${ghostButtonClass}`}
+                onClick={onStartTimer}
+                disabled={timerRunning}
+                className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
+                  timerRunning
+                    ? "cursor-not-allowed bg-slate-300 text-slate-600"
+                    : theme === "dark"
+                      ? "bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+                      : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                }`}
               >
-                <Copy size={14} />
-                คัดลอก
+                <Play size={16} />
+                Start
+              </button>
+              <button
+                type="button"
+                onClick={onStopTimer}
+                disabled={!timerRunning}
+                className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
+                  !timerRunning
+                    ? "cursor-not-allowed bg-slate-300 text-slate-600"
+                    : theme === "dark"
+                      ? "bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
+                      : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+              >
+                <Square size={16} />
+                Stop
               </button>
             </div>
+          </div>
 
-            <div className="px-4 py-3">
-              <input
-                value={formData.reference_code}
-                readOnly
-                className={`${inputClass} cursor-default border-0 px-0 py-0 font-semibold tracking-[0.08em] shadow-none focus:border-transparent focus:shadow-none`}
-                placeholder="ระบบจะสร้างเลขอ้างอิงให้อัตโนมัติ"
-              />
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className={timerTileClass}>
+              <FieldLabel softTextClass={softTextClass}>เวลาเริ่ม</FieldLabel>
+              <p className={`break-words text-sm font-semibold ${uiTheme.textPrimary}`}>{formData.start_time || "-"}</p>
+            </div>
+            <div className={timerTileClass}>
+              <FieldLabel softTextClass={softTextClass}>เวลาสิ้นสุด</FieldLabel>
+              <p className={`break-words text-sm font-semibold ${uiTheme.textPrimary}`}>
+                {formData.end_time || (timerRunning ? "กำลังจับเวลา..." : "-")}
+              </p>
+            </div>
+            <div className={timerTileClass}>
+              <FieldLabel softTextClass={softTextClass}>ระยะเวลา</FieldLabel>
+              <p className={`inline-flex items-center gap-2 text-sm font-semibold ${uiTheme.textPrimary}`}>
+                <Clock3 size={15} />
+                {durationLabel}
+              </p>
             </div>
           </div>
-        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className={timerTileClass}>
+              <FieldLabel softTextClass={softTextClass}>ชั่วโมงทำงาน</FieldLabel>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={durationHours}
+                onChange={(event) => onDurationHoursChange(event.target.value)}
+                className="w-full bg-transparent text-sm font-semibold outline-none"
+              />
+            </label>
+            <label className={timerTileClass}>
+              <FieldLabel softTextClass={softTextClass}>นาทีทำงาน</FieldLabel>
+              <input
+                type="number"
+                min="0"
+                max="59"
+                step="1"
+                value={durationMinutes}
+                onChange={(event) => onDurationMinutesChange(event.target.value)}
+                className="w-full bg-transparent text-sm font-semibold outline-none"
+              />
+            </label>
+          </div>
+        </StepCard>
+
+        <StepCard
+          step="2"
+          title="ระบุหัวข้องานและประเภท"
+          helper="เลือกประเภทให้ถูก เพราะเลขอ้างอิงจะสร้างตามประเภทงานและเวลาเริ่ม"
+          icon={FileText}
+          theme={theme}
+          uiTheme={uiTheme}
+          subCardClass={subCardClass}
+        >
           <label className="block">
-            <FieldLabel softTextClass={softTextClass}>ผู้แจ้ง / ผู้ประสานงาน</FieldLabel>
+            <FieldLabel softTextClass={softTextClass} required>ชื่อเรื่องงาน</FieldLabel>
             <input
-              value={formData.requester_name}
-              onChange={(event) => setFormData((prev) => ({ ...prev, requester_name: event.target.value }))}
+              value={formData.title}
+              onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
               className={inputClass}
-              placeholder="ชื่อผู้แจ้งหรือผู้ประสานงาน"
-              maxLength={120}
+              placeholder="เช่น ติดตั้งเครื่องใหม่ / เปลี่ยนอุปกรณ์ / แก้ปัญหาหน้างาน"
+              maxLength={180}
             />
           </label>
 
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <FieldLabel softTextClass={softTextClass}>ประเภทงาน</FieldLabel>
+              <select
+                value={formData.job_type}
+                onChange={(event) => setFormData((prev) => ({ ...prev, job_type: event.target.value }))}
+                className={inputClass}
+              >
+                {TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <FieldLabel softTextClass={softTextClass}>สถานะงาน</FieldLabel>
+              <select
+                value={formData.work_status}
+                onChange={(event) => setFormData((prev) => ({ ...prev, work_status: event.target.value }))}
+                className={inputClass}
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <FieldLabel softTextClass={softTextClass}>วันเวลาเริ่ม</FieldLabel>
+              <input
+                type="datetime-local"
+                value={formData.start_time}
+                onChange={(event) => setFormData((prev) => ({ ...prev, start_time: event.target.value }))}
+                className={inputClass}
+              />
+            </label>
+
+            <label className="block">
+              <FieldLabel softTextClass={softTextClass}>วันเวลาสิ้นสุด</FieldLabel>
+              <input
+                type="datetime-local"
+                value={formData.end_time}
+                onChange={(event) => setFormData((prev) => ({ ...prev, end_time: event.target.value }))}
+                className={inputClass}
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <FieldLabel softTextClass={softTextClass}>สถานที่</FieldLabel>
+              <div className="relative">
+                <MapPin size={16} className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${softTextClass}`} />
+                <input
+                  value={formData.location}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
+                  className={`${inputClass} pl-10`}
+                  placeholder="เช่น อาคาร A, ไลน์ผลิต, ห้องผู้บริหาร"
+                  maxLength={120}
+                />
+              </div>
+            </label>
+
+            <div className={`overflow-hidden rounded-2xl border ${referencePanelClass}`}>
+              <div className={`flex items-center justify-between gap-3 border-b px-4 py-3 ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`}>
+                <div className="min-w-0">
+                  <p className={`inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>
+                    <Hash size={13} />
+                    เลขอ้างอิงอัตโนมัติ
+                  </p>
+                  <p className={`mt-1 text-xs ${softTextClass}`}>สร้างจากประเภทงานและเวลาเริ่ม</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyReference}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${ghostButtonClass}`}
+                >
+                  <Copy size={14} />
+                  คัดลอก
+                </button>
+              </div>
+
+              <div className="px-4 py-3">
+                <input
+                  value={formData.reference_code}
+                  readOnly
+                  className={`${inputClass} cursor-default border-0 px-0 py-0 font-semibold tracking-[0.08em] shadow-none focus:border-transparent focus:shadow-none`}
+                  placeholder="ระบบจะสร้างเลขอ้างอิงให้อัตโนมัติ"
+                />
+              </div>
+            </div>
+          </div>
+        </StepCard>
+
+        <StepCard
+          step="3"
+          title="เลือกพนักงานและแผนก"
+          helper="เลือกจาก dropdown เพื่อลดชื่อซ้ำ/สะกดผิด ถ้าไม่มีรายชื่อยังพิมพ์เองได้"
+          icon={UserRound}
+          theme={theme}
+          uiTheme={uiTheme}
+          subCardClass={subCardClass}
+        >
+          <div className="space-y-4">
+            <label className="block">
+              <FieldLabel softTextClass={softTextClass}>ผู้แจ้ง / ผู้ประสานงาน</FieldLabel>
+              <div>
+                <input
+                  value={formData.requester_name}
+                  onFocus={() => setRequesterLookupOpen(true)}
+                  onBlur={() => window.setTimeout(() => setRequesterLookupOpen(false), 120)}
+                  onChange={(event) => {
+                    setRequesterLookupOpen(true);
+                    setFormData((prev) => ({ ...prev, requester_name: event.target.value, requester_profile_id: "" }));
+                  }}
+                  className={`${inputClass} pr-10`}
+                  placeholder="พิมพ์ชื่อ / รหัสพนักงาน / อีเมล"
+                  maxLength={120}
+                  autoComplete="off"
+                />
+
+                {requesterLookupOpen && requesterLookupQuery ? (
+                  <div className={`mt-2 max-h-72 overflow-y-auto rounded-2xl border ${
+                    theme === "dark"
+                      ? "border-slate-700 bg-[#0f172a]"
+                      : "border-slate-200 bg-white"
+                  }`}>
+                    {requesterSuggestions.length > 0 ? (
+                      requesterSuggestions.map((member) => (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => handleRequesterSuggestionSelect(member)}
+                          className={`flex w-full items-center gap-3 px-4 py-3 text-left transition ${
+                            theme === "dark" ? "hover:bg-[#162136]" : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <img
+                            src={member.avatar_url || buildAvatarFallback(member.full_name || member.employee_code || member.email)}
+                            alt={member.full_name || "profile"}
+                            className="h-9 w-9 shrink-0 rounded-full object-cover"
+                            onError={(event) => {
+                              event.currentTarget.src = buildAvatarFallback(member.full_name || member.employee_code || member.email);
+                            }}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className={`block truncate text-sm font-bold ${uiTheme.textPrimary}`}>
+                              {member.full_name || member.employee_code || member.email || "-"}
+                            </span>
+                            <span className={`mt-0.5 block truncate text-xs ${softTextClass}`}>
+                              {member.employee_code || "ไม่มีรหัส"} • {member.department || "ไม่ระบุแผนก"}
+                            </span>
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className={`px-4 py-3 text-sm ${softTextClass}`}>
+                        ไม่พบรายชื่อในระบบ สามารถพิมพ์เองได้
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {selectedEmployee ? (
+                  <div className={`mt-3 rounded-2xl border px-4 py-3 ${theme === "dark" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold">{selectedEmployee.full_name || selectedEmployee.employee_code || selectedEmployee.email}</p>
+                        <p className="mt-1 text-xs opacity-85">
+                          {selectedEmployee.employee_code || "ไม่มีรหัส"} • {selectedEmployee.department || "ไม่ระบุแผนก"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </label>
+
+            <label className="block">
+              <FieldLabel softTextClass={softTextClass}>แผนก</FieldLabel>
+              <input
+                value={formData.department}
+                onChange={(event) => setFormData((prev) => ({ ...prev, department: event.target.value }))}
+                className={inputClass}
+                placeholder="เช่น IT, QA, Production"
+                maxLength={100}
+              />
+            </label>
+          </div>
+        </StepCard>
+
+        <StepCard
+          step="4"
+          title="รายละเอียดงานและผลลัพธ์"
+          helper="แยกรายละเอียดงานกับผลลัพธ์ชัดเจน เพื่อย้อนดูประวัติและทำรายงานได้ง่าย"
+          icon={Pencil}
+          theme={theme}
+          uiTheme={uiTheme}
+          subCardClass={subCardClass}
+        >
           <label className="block">
-            <FieldLabel softTextClass={softTextClass}>แผนก</FieldLabel>
+            <FieldLabel softTextClass={softTextClass}>อุปกรณ์ / รายการที่ทำ</FieldLabel>
             <input
-              value={formData.department}
-              onChange={(event) => setFormData((prev) => ({ ...prev, department: event.target.value }))}
+              value={formData.device_details}
+              onChange={(event) => setFormData((prev) => ({ ...prev, device_details: event.target.value }))}
               className={inputClass}
-              placeholder="เช่น IT, QA, Production"
-              maxLength={100}
+              placeholder="เช่น PC Dell, Printer, CCTV, Network Point"
+              maxLength={180}
             />
           </label>
-        </div>
 
-        <label className="block">
-          <FieldLabel softTextClass={softTextClass}>อุปกรณ์ / รายการที่ทำ</FieldLabel>
-          <input
-            value={formData.device_details}
-            onChange={(event) => setFormData((prev) => ({ ...prev, device_details: event.target.value }))}
-            className={inputClass}
-            placeholder="เช่น PC Dell, Printer, CCTV, Network Point"
-            maxLength={180}
-          />
-        </label>
+          <label className="mt-4 block">
+            <FieldLabel softTextClass={softTextClass} required>รายละเอียดงาน</FieldLabel>
+            <textarea
+              rows={4}
+              value={formData.description}
+              onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
+              className={inputClass}
+              placeholder="สรุปสิ่งที่ทำ ปัญหาที่พบ และขั้นตอนที่ดำเนินการ"
+            />
+          </label>
 
-        <label className="block">
-          <FieldLabel softTextClass={softTextClass}>รายละเอียดงาน</FieldLabel>
-          <textarea
-            rows={4}
-            value={formData.description}
-            onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
-            className={inputClass}
-            placeholder="สรุปสิ่งที่ทำ ปัญหาที่พบ และขั้นตอนที่ดำเนินการ"
-          />
-        </label>
+          <label className="mt-4 block">
+            <FieldLabel softTextClass={softTextClass}>ผลลัพธ์ / หมายเหตุเพิ่มเติม</FieldLabel>
+            <textarea
+              rows={3}
+              value={formData.result_summary}
+              onChange={(event) => setFormData((prev) => ({ ...prev, result_summary: event.target.value }))}
+              className={inputClass}
+              placeholder="เช่น ใช้งานได้ปกติ, รออะไหล่, นัดติดตามต่อ"
+            />
+          </label>
+        </StepCard>
 
-        <label className="block">
-          <FieldLabel softTextClass={softTextClass}>ผลลัพธ์ / หมายเหตุเพิ่มเติม</FieldLabel>
-          <textarea
-            rows={3}
-            value={formData.result_summary}
-            onChange={(event) => setFormData((prev) => ({ ...prev, result_summary: event.target.value }))}
-            className={inputClass}
-            placeholder="ผลหลังดำเนินการ เช่น ใช้งานได้ปกติ, รออะไหล่, นัดติดตามต่อ"
-          />
-        </label>
-
-        <div className={`${subCardClass} p-4`}>
+        <StepCard
+          step="5"
+          title="แนบภาพหลักฐาน"
+          helper={`แนบได้สูงสุด ${MAX_FILES} รูป รองรับการกด Ctrl+V เพื่อวางภาพจาก clipboard`}
+          icon={ImagePlus}
+          theme={theme}
+          uiTheme={uiTheme}
+          subCardClass={subCardClass}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>รูปหลักฐานงาน</p>
               <p className={`mt-1 text-xs ${softTextClass}`}>
-                สูงสุด {MAX_FILES} รูป • ผู้บันทึก {currentUser?.name || "-"}
-              </p>
-              <p className={`mt-1 text-xs ${softTextClass}`}>
-                รองรับ Ctrl+V เพื่อวางภาพจากคลิปบอร์ดได้ทันที
+                เลือกแล้ว {evidenceCount}/{MAX_FILES} รูป • ผู้บันทึก {currentUser?.name || "-"}
               </p>
             </div>
             <button
@@ -399,52 +598,66 @@ export default function EvidenceFormSection({
           <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={onFileSelect} />
 
           {existingImages?.length > 0 && (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {existingImages.map((image, index) => (
-                <div key={`${image.url}_${index}`} className={`overflow-hidden rounded-2xl border ${imageCardClass}`}>
-                  <img src={image.url} alt={image.name || `existing-evidence-${index + 1}`} className="h-28 w-full object-cover" />
-                  <div className="flex items-center justify-between gap-2 px-3 py-2">
-                    <p className={`min-w-0 truncate text-xs font-semibold ${uiTheme.textSecondary}`}>
-                      {image.name || `หลักฐานเดิม ${index + 1}`}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveExistingImage(image.url)}
-                      className={theme === "dark" ? "rounded-lg p-1 text-rose-300 hover:bg-rose-500/10" : "rounded-lg p-1 text-rose-600 hover:bg-rose-50"}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+            <div className="mt-4">
+              <p className={`mb-2 text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>รูปเดิม</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {existingImages.map((image, index) => (
+                  <div key={`${image.url}_${index}`} className={`overflow-hidden rounded-2xl border ${imageCardClass}`}>
+                    <img src={image.url} alt={image.name || `existing-evidence-${index + 1}`} className="h-28 w-full object-cover" />
+                    <div className="flex items-center justify-between gap-2 px-3 py-2">
+                      <p className={`min-w-0 truncate text-xs font-semibold ${uiTheme.textSecondary}`}>
+                        {image.name || `หลักฐานเดิม ${index + 1}`}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveExistingImage(image.url)}
+                        className={theme === "dark" ? "rounded-lg p-1 text-rose-300 hover:bg-rose-500/10" : "rounded-lg p-1 text-rose-600 hover:bg-rose-50"}
+                        aria-label="ลบรูปเดิม"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 
           {selectedFiles.length > 0 ? (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {selectedFiles.map((entry) => (
-                <div key={entry.id} className={`overflow-hidden rounded-2xl border ${imageCardClass}`}>
-                  <img src={entry.previewUrl} alt={entry.file?.name || "evidence-preview"} className="h-28 w-full object-cover" />
-                  <div className="flex items-center justify-between gap-2 px-3 py-2">
-                    <p className={`min-w-0 truncate text-xs font-semibold ${uiTheme.textSecondary}`}>{entry.file?.name}</p>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveFile(entry.id)}
-                      className={theme === "dark" ? "rounded-lg p-1 text-rose-300 hover:bg-rose-500/10" : "rounded-lg p-1 text-rose-600 hover:bg-rose-50"}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+            <div className="mt-4">
+              <p className={`mb-2 text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>รูปใหม่</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {selectedFiles.map((entry, index) => (
+                  <div key={entry.id} className={`overflow-hidden rounded-2xl border ${imageCardClass}`}>
+                    <div className="relative">
+                      <img src={entry.previewUrl} alt={entry.file?.name || "evidence-preview"} className="h-28 w-full object-cover" />
+                      <span className="absolute left-2 top-2 rounded-full bg-[#2b59b0] px-2 py-0.5 text-[11px] font-black text-white">
+                        {index + 1}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 px-3 py-2">
+                      <p className={`min-w-0 truncate text-xs font-semibold ${uiTheme.textSecondary}`}>{entry.file?.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveFile(entry.id)}
+                        className={theme === "dark" ? "rounded-lg p-1 text-rose-300 hover:bg-rose-500/10" : "rounded-lg p-1 text-rose-600 hover:bg-rose-50"}
+                        aria-label="ลบรูปใหม่"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           ) : !existingImages?.length ? (
             <div className={`mt-4 rounded-2xl border border-dashed px-4 py-6 text-center ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-300 text-slate-500"}`}>
               <Camera size={20} className="mx-auto mb-2" />
               <p className="text-sm font-semibold">ยังไม่ได้เลือกรูปประกอบ</p>
+              <p className="mt-1 text-xs">กด “แนบรูป” หรือวางภาพด้วย Ctrl+V</p>
             </div>
           ) : null}
-        </div>
+        </StepCard>
 
         <button
           type="submit"

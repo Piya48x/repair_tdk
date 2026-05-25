@@ -1,7 +1,21 @@
 import React, { useMemo, useState } from "react";
+import {
+  Activity,
+  BarChart3,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  FileText,
+  Gauge,
+  LayoutDashboard,
+  ListChecks,
+  ShieldAlert,
+} from "lucide-react";
 import { useScopedI18n } from "../../../i18n/useScopedI18n";
 import ITServiceOverviewPanel from "../components/ITServiceOverviewPanel";
 import ITWorkReportPanel from "../components/ITWorkReportPanel";
+import { DASHBOARD_PAGE_IDS } from "../constants/dashboardPages";
+import { isPickUpEquipmentRequest, isRepairTicketRecord } from "../../../lib/serviceRequestUtils";
 
 const CLOSED_STATUSES = new Set(["CLOSED", "COMPLETED", "RESOLVED"]);
 const SLA_HOURS = {
@@ -10,6 +24,168 @@ const SLA_HOURS = {
   high: 4,
   normal: 8,
   low: 24,
+};
+
+const REPORT_VIEWS = {
+  USAGE: "usage",
+  OVERVIEW: "overview",
+  SUMMARY: "summary",
+};
+
+const REPORTS_PAGE_TRANSLATIONS = {
+  th: {
+    eyebrow: "IT Operations Report",
+    title: "รายงานภาพรวม Dashboard IT Usage",
+    description: "จัดหน้าใหม่ให้เริ่มจากตัวเลขสำคัญ เลือกมุมมองที่ต้องดู แล้วค่อยลงรายละเอียดรายงาน ไม่ปนคิวงานกับ KPI ไว้ก้อนเดียว",
+    updatedLabel: "ข้อมูลจาก dashboard ปัจจุบัน",
+    quickActions: {
+      dashboard: "กลับ Dashboard",
+      workLogs: "ไปบันทึกงาน IT",
+    },
+    views: {
+      usage: "IT Usage Report",
+      usageHint: "รายงาน work log, ชั่วโมงทำงาน, export และ insight หลัก",
+      overview: "Queue Overview",
+      overviewHint: "สถานะคิวงานซ่อม คำขอ และรายการล่าสุด",
+      summary: "KPI Summary",
+      summaryHint: "สรุปภาพรวมสำหรับตรวจสุขภาพงาน IT อย่างเร็ว",
+    },
+    sections: {
+      usageTitle: "รายงานการใช้งานทีม IT",
+      usageDescription: "ใช้มุมมองนี้เป็นหน้า report หลัก ดูปริมาณงาน ชั่วโมง หลักฐาน และ export Excel",
+      overviewTitle: "ภาพรวมคิวงานปฏิบัติการ",
+      overviewDescription: "แยกคิวงานออกจาก report หลัก เพื่อให้เห็นงานที่ต้องจัดการโดยไม่รบกวนการอ่านรายงาน",
+      summaryTitle: "KPI Summary",
+      summaryDescription: "รวมตัวเลขสำคัญและสัญญาณเสี่ยงสำหรับตรวจความพร้อมของทีม",
+      operationalMix: "สัดส่วนงาน",
+      queueHealth: "สุขภาพคิวงาน",
+      reportReadiness: "ความพร้อมของรายงาน",
+      signalTitle: "สัญญาณที่ควรดูต่อ",
+    },
+    stats: {
+      totalWork: "งานทั้งหมด",
+      repairTickets: "งานซ่อม",
+      serviceRequests: "คำขอบริการ",
+      newToday: "เข้าใหม่วันนี้",
+      openQueue: "คิวเปิดอยู่",
+      closedToday: "ปิดวันนี้",
+      completionRate: "อัตราปิดงาน",
+      slaRisk: "เสี่ยง SLA",
+      slaOk: "SLA ปกติ",
+      noBacklog: "ไม่มีงานค้าง",
+      workLogs: "บันทึกงาน IT",
+      totalHours: "ชั่วโมงรวม",
+      evidenceCoverage: "ความครบหลักฐาน",
+      reportScope: "ช่วงรายงาน",
+      activeScope: "ขอบเขตงาน",
+      loading: "กำลังโหลด",
+      queuePressure: "แรงกดดันคิว",
+      repairShare: "งานซ่อม",
+      requestShare: "คำขอ",
+    },
+  },
+  en: {
+    eyebrow: "IT Operations Report",
+    title: "IT Usage Dashboard Overview",
+    description: "The page is reorganized around key numbers, focused views, and detailed reporting so queue work, report data, and KPI summary no longer compete in one long stack.",
+    updatedLabel: "Using current dashboard data",
+    quickActions: {
+      dashboard: "Back to Dashboard",
+      workLogs: "Open IT work logs",
+    },
+    views: {
+      usage: "IT Usage Report",
+      usageHint: "Work logs, hours, export, and core operational insights",
+      overview: "Queue Overview",
+      overviewHint: "Repair queue, service requests, and latest operational items",
+      summary: "KPI Summary",
+      summaryHint: "Fast health review for IT operations",
+    },
+    sections: {
+      usageTitle: "IT team usage report",
+      usageDescription: "Use this as the primary report view for workload, hours, evidence coverage, and Excel export.",
+      overviewTitle: "Operational queue overview",
+      overviewDescription: "Queue work is separated from the main report so urgent items stay visible without cluttering report reading.",
+      summaryTitle: "KPI Summary",
+      summaryDescription: "Key counts and risk signals grouped for quick IT health review.",
+      operationalMix: "Operational mix",
+      queueHealth: "Queue health",
+      reportReadiness: "Report readiness",
+      signalTitle: "Signals to review next",
+    },
+    stats: {
+      totalWork: "Total work",
+      repairTickets: "Repair tickets",
+      serviceRequests: "Service requests",
+      newToday: "New today",
+      openQueue: "Open queue",
+      closedToday: "Closed today",
+      completionRate: "Completion rate",
+      slaRisk: "SLA risk",
+      slaOk: "SLA OK",
+      noBacklog: "No backlog",
+      workLogs: "IT work logs",
+      totalHours: "Total hours",
+      evidenceCoverage: "Evidence coverage",
+      reportScope: "Report scope",
+      activeScope: "Active scope",
+      loading: "Loading",
+      queuePressure: "Queue pressure",
+      repairShare: "Repairs",
+      requestShare: "Requests",
+    },
+  },
+  ko: {
+    eyebrow: "IT Operations Report",
+    title: "IT 사용 현황 대시보드",
+    description: "핵심 숫자, 집중 보기, 상세 리포트를 분리해 작업 대기열과 KPI가 한 화면에 뒤섞이지 않도록 정리했습니다.",
+    updatedLabel: "현재 대시보드 데이터 기준",
+    quickActions: {
+      dashboard: "대시보드로 돌아가기",
+      workLogs: "IT 작업 기록 열기",
+    },
+    views: {
+      usage: "IT Usage Report",
+      usageHint: "작업 기록, 투입 시간, 내보내기, 주요 운영 인사이트",
+      overview: "Queue Overview",
+      overviewHint: "수리 대기열, 서비스 요청, 최신 운영 항목",
+      summary: "KPI Summary",
+      summaryHint: "IT 운영 상태를 빠르게 점검하는 요약",
+    },
+    sections: {
+      usageTitle: "IT 팀 사용 현황 리포트",
+      usageDescription: "업무량, 투입 시간, 증빙 완성도, Excel 내보내기를 확인하는 기본 리포트 화면입니다.",
+      overviewTitle: "운영 대기열 개요",
+      overviewDescription: "긴급 작업을 리포트와 분리해 리포트 읽기 흐름을 방해하지 않도록 했습니다.",
+      summaryTitle: "KPI Summary",
+      summaryDescription: "IT 운영 상태를 빠르게 검토할 수 있도록 핵심 수치와 위험 신호를 모았습니다.",
+      operationalMix: "업무 비중",
+      queueHealth: "대기열 상태",
+      reportReadiness: "리포트 준비도",
+      signalTitle: "다음 확인 신호",
+    },
+    stats: {
+      totalWork: "전체 작업",
+      repairTickets: "수리 작업",
+      serviceRequests: "서비스 요청",
+      newToday: "오늘 신규",
+      openQueue: "열린 작업",
+      closedToday: "오늘 완료",
+      completionRate: "완료율",
+      slaRisk: "SLA 위험",
+      slaOk: "SLA 정상",
+      noBacklog: "대기 작업 없음",
+      workLogs: "IT 작업 기록",
+      totalHours: "총 시간",
+      evidenceCoverage: "증빙 완성도",
+      reportScope: "리포트 범위",
+      activeScope: "작업 범위",
+      loading: "로딩 중",
+      queuePressure: "대기열 압력",
+      repairShare: "수리",
+      requestShare: "요청",
+    },
+  },
 };
 
 const toSafeDate = (value) => {
@@ -32,120 +208,30 @@ const formatLocalDateKey = (value) => {
 const isClosedStatus = (status) => CLOSED_STATUSES.has(String(status || "").toUpperCase());
 const getSlaHours = (priority) => SLA_HOURS[String(priority || "normal").toLowerCase()] || SLA_HOURS.normal;
 
-const REPORTS_PAGE_TRANSLATIONS = {
-  th: {
-    eyebrow: "IT Operations Report",
-    title: "รายงานภาพรวม Dashboard IT Usage",
-    description: "เรียงการดูงานจากภาพรวมปฏิบัติการไปจนถึงรายงานเชิงลึก แล้วปิดท้ายด้วย KPI summary",
-    topHint: "เริ่มจากภาพรวมคิวงานด้านบน ดูรายงานงาน IT ตรงกลาง และตรวจ KPI สรุปที่ด้านล่างสุด",
-    summaryTitle: "Executive KPI Summary",
-    summaryDescription: "สรุปตัวเลขสำคัญของงานซ่อม คำขอบริการ และ work log ไว้ท้ายหน้าเพื่อเช็กผลงานและ workload ได้เร็วขึ้น",
-    sections: {
-      overview: "Operational Overview",
-      report: "IT Work Report",
-      summary: "KPI Summary",
-    },
-    stats: {
-      tickets: "งานซ่อม",
-      requests: "คำขอบริการ",
-      newToday: "เข้าใหม่วันนี้",
-      openQueue: "คิวเปิดอยู่",
-      closedToday: "ปิดวันนี้",
-      completionRate: "อัตราปิดงาน",
-      totalWork: "งานทั้งหมด",
-      slaRisk: "เสี่ยง SLA",
-      queueHealth: "สุขภาพคิวงาน",
-      intakeMix: "สัดส่วนงาน",
-      healthCaption: "เห็นภาพคิวงานและความเสี่ยงได้ก่อนลงรายละเอียด",
-      kpiTag: "KPI",
-      slaOk: "SLA ปกติ",
-      noBacklog: "ไม่มีงานค้าง",
-      workLogs: "บันทึกงาน IT",
-      totalHours: "ชั่วโมงรวม",
-      evidenceCoverage: "ความครบหลักฐาน",
-      reportHealth: "สุขภาพรายงาน",
-      reportScope: "ช่วงรายงาน",
-      activeScope: "ขอบเขตงาน",
-      loading: "กำลังโหลดข้อมูล",
-    },
-  },
-  en: {
-    eyebrow: "IT Operations Report",
-    title: "IT Usage Dashboard Overview",
-    description: "Move from live operations overview to detailed reporting, then finish with a KPI summary.",
-    topHint: "Start with operational activity, review the IT work report in the middle, and finish with KPI summary at the bottom.",
-    summaryTitle: "Executive KPI Summary",
-    summaryDescription: "Key repair, service-request, and work-log numbers are grouped at the bottom for faster review.",
-    sections: {
-      overview: "Operational Overview",
-      report: "IT Work Report",
-      summary: "KPI Summary",
-    },
-    stats: {
-      tickets: "Repair tickets",
-      requests: "Requests",
-      newToday: "New today",
-      openQueue: "Open queue",
-      closedToday: "Closed today",
-      completionRate: "Completion rate",
-      totalWork: "Total work",
-      slaRisk: "SLA risk",
-      queueHealth: "Queue health",
-      intakeMix: "Work mix",
-      healthCaption: "See queue pressure and risk before opening detailed reports.",
-      kpiTag: "KPI",
-      slaOk: "SLA OK",
-      noBacklog: "No backlog",
-      workLogs: "Work logs",
-      totalHours: "Total hours",
-      evidenceCoverage: "Evidence coverage",
-      reportHealth: "Report health",
-      reportScope: "Report scope",
-      activeScope: "Active scope",
-      loading: "Loading data",
-    },
-  },
-  ko: {
-    eyebrow: "IT Operations Report",
-    title: "IT 사용 대시보드 개요",
-    description: "운영 현황부터 상세 리포트까지 본 뒤, 마지막에 KPI 요약으로 마무리합니다.",
-    topHint: "상단에서 운영 현황을 보고, 중간의 IT 작업 리포트를 확인한 뒤, 하단 KPI 요약으로 마무리합니다.",
-    summaryTitle: "Executive KPI Summary",
-    summaryDescription: "수리, 서비스 요청, IT 작업 기록의 핵심 수치를 하단에 모아 빠르게 검토할 수 있습니다.",
-    sections: {
-      overview: "Operational Overview",
-      report: "IT Work Report",
-      summary: "KPI Summary",
-    },
-    stats: {
-      tickets: "수리 작업",
-      requests: "서비스 요청",
-      newToday: "오늘 신규",
-      openQueue: "열린 작업",
-      closedToday: "오늘 완료",
-      completionRate: "완료율",
-      totalWork: "전체 작업",
-      slaRisk: "SLA 위험",
-      queueHealth: "대기열 상태",
-      intakeMix: "작업 비중",
-      healthCaption: "상세 리포트 전에 대기열과 위험도를 먼저 확인합니다.",
-      kpiTag: "KPI",
-      slaOk: "SLA 정상",
-      noBacklog: "밀린 작업 없음",
-      workLogs: "작업 기록",
-      totalHours: "총 시간",
-      evidenceCoverage: "증빙 완성도",
-      reportHealth: "리포트 상태",
-      reportScope: "리포트 범위",
-      activeScope: "작업 범위",
-      loading: "데이터 불러오는 중",
-    },
-  },
+const getNumberLocale = (language) => {
+  if (language === "ko") return "ko-KR";
+  if (language === "en") return "en-US";
+  return "th-TH";
 };
+
+const SectionIntro = ({ eyebrow, title, description, isDarkTheme }) => (
+  <div className="flex flex-col gap-2">
+    <span className={`text-xs font-bold uppercase tracking-[0.18em] ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>
+      {eyebrow}
+    </span>
+    <div>
+      <h3 className={`text-xl font-black ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>
+        {title}
+      </h3>
+      <p className={`mt-1 max-w-3xl text-sm leading-6 ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>
+        {description}
+      </p>
+    </div>
+  </div>
+);
 
 const ReportsPage = ({
   theme,
-  uiTheme,
   tickets,
   serviceRequests,
   onCreateTicket,
@@ -154,7 +240,8 @@ const ReportsPage = ({
   onOpenRepairFromOverview,
   onNavigatePage,
 }) => {
-  const { tt } = useScopedI18n(REPORTS_PAGE_TRANSLATIONS);
+  const { language, tt } = useScopedI18n(REPORTS_PAGE_TRANSLATIONS);
+  const [activeView, setActiveView] = useState(REPORT_VIEWS.USAGE);
   const [workLogKpis, setWorkLogKpis] = useState({
     jobCount: 0,
     totalMinutes: 0,
@@ -171,18 +258,21 @@ const ReportsPage = ({
     loading: true,
     hasError: false,
   });
+
+  const isDarkTheme = theme === "dark";
+  const numberFormatter = useMemo(
+    () => new Intl.NumberFormat(getNumberLocale(language)),
+    [language],
+  );
+
   const dashboardKpis = useMemo(() => {
     const repairTickets = (tickets || []).filter((ticket) => {
-      const source = `${ticket?.service_type || ""} ${ticket?.title || ""} ${ticket?.category || ""}`.toLowerCase();
-      return String(ticket?.service_type || "").toLowerCase() === "req_repair" || source.includes("repair") || source.includes("ซ่อม");
+      return isRepairTicketRecord(ticket);
     });
     const requestRows = (serviceRequests || []).length > 0
       ? serviceRequests
       : (tickets || []).filter((ticket) => {
-        const source = `${ticket?.service_type || ""} ${ticket?.title || ""} ${ticket?.category || ""}`.toLowerCase();
-        const serviceType = String(ticket?.service_type || "").toLowerCase();
-        if (!serviceType || serviceType === "req_repair") return false;
-        return serviceType.startsWith("req_") || /เบิก|install|license|vpn|wifi|access|purchase|quotation|borrow/.test(source);
+        return isPickUpEquipmentRequest(ticket);
       });
     const allRows = [...repairTickets, ...requestRows];
     const todayKey = formatLocalDateKey(new Date());
@@ -205,291 +295,392 @@ const ReportsPage = ({
     const requestShare = allRows.length > 0 ? 100 - repairShare : 0;
 
     return {
+      allRows,
       repairTickets,
       requestRows,
+      repairToday,
+      requestToday,
       openQueue,
+      closedToday,
+      closedTotal,
+      completionRate,
       overdueRepair,
       repairShare,
       requestShare,
-      cards: [
-        {
-          label: tt("stats.newToday"),
-          value: repairToday + requestToday,
-          caption: `${repairToday.toLocaleString("th-TH")} ${tt("stats.tickets")} / ${requestToday.toLocaleString("th-TH")} ${tt("stats.requests")}`,
-          tone: "blue",
-        },
-        {
-          label: tt("stats.openQueue"),
-          value: openQueue,
-          caption: overdueRepair > 0 ? `${overdueRepair.toLocaleString("th-TH")} ${tt("stats.slaRisk")}` : tt("stats.slaOk"),
-          tone: "amber",
-        },
-        {
-          label: tt("stats.closedToday"),
-          value: closedToday,
-          caption: `${closedTotal.toLocaleString("th-TH")} / ${allRows.length.toLocaleString("th-TH")} ${tt("stats.totalWork")}`,
-          tone: "emerald",
-        },
-        {
-          label: tt("stats.completionRate"),
-          value: `${completionRate}%`,
-          caption: openQueue > 0 ? `${openQueue.toLocaleString("th-TH")} ${tt("stats.openQueue")}` : tt("stats.noBacklog"),
-          tone: "violet",
-        },
-      ],
     };
-  }, [serviceRequests, tickets, tt]);
+  }, [serviceRequests, tickets]);
 
   const toneStyles = {
     blue: {
-      value: theme === "dark" ? "text-cyan-100" : "text-[#2b59b0]",
-      pill: theme === "dark" ? "bg-cyan-400/10 text-cyan-200" : "bg-cyan-50 text-cyan-700",
-      card: theme === "dark" ? "border-cyan-400/15 bg-cyan-400/5" : "border-cyan-100 bg-cyan-50/70",
+      icon: isDarkTheme ? "bg-[#2b59b0]/20 text-cyan-200" : "bg-[#2b59b0]/10 text-[#2b59b0]",
+      card: isDarkTheme ? "border-[#2b59b0]/25 bg-[#2b59b0]/10" : "border-[#2b59b0]/15 bg-[#2b59b0]/5",
+      value: isDarkTheme ? "text-cyan-100" : "text-[#2b59b0]",
     },
     amber: {
-      value: theme === "dark" ? "text-amber-100" : "text-amber-600",
-      pill: theme === "dark" ? "bg-amber-400/10 text-amber-200" : "bg-amber-50 text-amber-700",
-      card: theme === "dark" ? "border-amber-400/15 bg-amber-400/5" : "border-amber-100 bg-amber-50/70",
+      icon: isDarkTheme ? "bg-amber-400/10 text-amber-200" : "bg-amber-50 text-amber-700",
+      card: isDarkTheme ? "border-amber-400/20 bg-amber-400/10" : "border-amber-100 bg-amber-50/70",
+      value: isDarkTheme ? "text-amber-100" : "text-amber-600",
     },
     emerald: {
-      value: theme === "dark" ? "text-emerald-100" : "text-emerald-600",
-      pill: theme === "dark" ? "bg-emerald-400/10 text-emerald-200" : "bg-emerald-50 text-emerald-700",
-      card: theme === "dark" ? "border-emerald-400/15 bg-emerald-400/5" : "border-emerald-100 bg-emerald-50/70",
+      icon: isDarkTheme ? "bg-emerald-400/10 text-emerald-200" : "bg-emerald-50 text-emerald-700",
+      card: isDarkTheme ? "border-emerald-400/20 bg-emerald-400/10" : "border-emerald-100 bg-emerald-50/70",
+      value: isDarkTheme ? "text-emerald-100" : "text-emerald-600",
     },
-    violet: {
-      value: theme === "dark" ? "text-violet-100" : "text-violet-600",
-      pill: theme === "dark" ? "bg-violet-400/10 text-violet-200" : "bg-violet-50 text-violet-700",
-      card: theme === "dark" ? "border-violet-400/15 bg-violet-400/5" : "border-violet-100 bg-violet-50/70",
-    },
-    sky: {
-      value: theme === "dark" ? "text-sky-100" : "text-sky-700",
-      pill: theme === "dark" ? "bg-sky-400/10 text-sky-200" : "bg-sky-50 text-sky-700",
-      card: theme === "dark" ? "border-sky-400/15 bg-sky-400/5" : "border-sky-100 bg-sky-50/70",
+    rose: {
+      icon: isDarkTheme ? "bg-rose-400/10 text-rose-200" : "bg-rose-50 text-rose-700",
+      card: isDarkTheme ? "border-rose-400/20 bg-rose-400/10" : "border-rose-100 bg-rose-50/70",
+      value: isDarkTheme ? "text-rose-100" : "text-rose-600",
     },
     slate: {
-      value: theme === "dark" ? "text-slate-100" : "text-slate-800",
-      pill: theme === "dark" ? "bg-slate-700/60 text-slate-200" : "bg-slate-100 text-slate-700",
-      card: theme === "dark" ? "border-slate-600/40 bg-slate-800/30" : "border-slate-200 bg-slate-50/80",
+      icon: isDarkTheme ? "bg-slate-700 text-slate-200" : "bg-slate-100 text-slate-700",
+      card: isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white",
+      value: isDarkTheme ? "text-slate-100" : "text-slate-900",
     },
   };
-  const isDarkTheme = theme === "dark";
-  const totalWorkCount = dashboardKpis.repairTickets.length + dashboardKpis.requestRows.length;
-  const summaryCards = useMemo(() => ([
-    ...dashboardKpis.cards,
+
+  const headlineCards = useMemo(() => ([
+    {
+      label: tt("stats.newToday"),
+      value: dashboardKpis.repairToday + dashboardKpis.requestToday,
+      helper: `${numberFormatter.format(dashboardKpis.repairToday)} ${tt("stats.repairTickets")} / ${numberFormatter.format(dashboardKpis.requestToday)} ${tt("stats.serviceRequests")}`,
+      tone: "blue",
+      icon: Activity,
+    },
+    {
+      label: tt("stats.openQueue"),
+      value: dashboardKpis.openQueue,
+      helper: dashboardKpis.overdueRepair > 0
+        ? `${numberFormatter.format(dashboardKpis.overdueRepair)} ${tt("stats.slaRisk")}`
+        : tt("stats.slaOk"),
+      tone: dashboardKpis.overdueRepair > 0 ? "rose" : "amber",
+      icon: ShieldAlert,
+    },
+    {
+      label: tt("stats.closedToday"),
+      value: dashboardKpis.closedToday,
+      helper: `${numberFormatter.format(dashboardKpis.closedTotal)} / ${numberFormatter.format(dashboardKpis.allRows.length)} ${tt("stats.totalWork")}`,
+      tone: "emerald",
+      icon: CheckCircle2,
+    },
+    {
+      label: tt("stats.completionRate"),
+      value: `${dashboardKpis.completionRate}%`,
+      helper: dashboardKpis.openQueue > 0
+        ? `${numberFormatter.format(dashboardKpis.openQueue)} ${tt("stats.openQueue")}`
+        : tt("stats.noBacklog"),
+      tone: "slate",
+      icon: Gauge,
+    },
     {
       label: tt("stats.workLogs"),
-      value: workLogKpis.loading ? "-" : workLogKpis.jobCount,
-      caption: workLogKpis.loading
-        ? tt("stats.loading")
-        : `${tt("stats.reportScope")} ${workLogKpis.reportPeriodLabel}`,
-      tone: "sky",
+      value: workLogKpis.loading ? "-" : numberFormatter.format(workLogKpis.jobCount),
+      helper: workLogKpis.loading ? tt("stats.loading") : `${tt("stats.reportScope")} ${workLogKpis.reportPeriodLabel}`,
+      tone: "blue",
+      icon: ClipboardList,
     },
     {
       label: tt("stats.totalHours"),
       value: workLogKpis.loading ? "-" : workLogKpis.totalHoursLabel,
-      caption: workLogKpis.loading
-        ? tt("stats.loading")
-        : `${workLogKpis.evidenceCoverage}% ${tt("stats.evidenceCoverage")}`,
+      helper: workLogKpis.loading ? tt("stats.loading") : `${workLogKpis.evidenceCoverage}% ${tt("stats.evidenceCoverage")}`,
+      tone: "slate",
+      icon: Clock3,
+    },
+  ]), [dashboardKpis, numberFormatter, tt, workLogKpis]);
+
+  const viewOptions = [
+    {
+      id: REPORT_VIEWS.USAGE,
+      icon: BarChart3,
+      title: tt("views.usage"),
+      hint: tt("views.usageHint"),
+    },
+    {
+      id: REPORT_VIEWS.OVERVIEW,
+      icon: LayoutDashboard,
+      title: tt("views.overview"),
+      hint: tt("views.overviewHint"),
+    },
+    {
+      id: REPORT_VIEWS.SUMMARY,
+      icon: FileText,
+      title: tt("views.summary"),
+      hint: tt("views.summaryHint"),
+    },
+  ];
+
+  const shellClass = isDarkTheme
+    ? "rounded-[28px] border border-slate-700 bg-[#0f172a] shadow-[0_24px_60px_-42px_rgba(2,6,23,0.95)]"
+    : "rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_60px_-42px_rgba(15,23,42,0.24)]";
+  const mutedTextClass = isDarkTheme ? "text-slate-400" : "text-slate-500";
+  const titleTextClass = isDarkTheme ? "text-slate-100" : "text-slate-900";
+  const bodyTextClass = isDarkTheme ? "text-slate-300" : "text-slate-600";
+  const chipClass = isDarkTheme
+    ? "border-slate-700 bg-slate-900/80 text-slate-200"
+    : "border-slate-200 bg-slate-50 text-slate-700";
+
+  const summarySignals = [
+    {
+      label: tt("stats.queuePressure"),
+      value: numberFormatter.format(dashboardKpis.openQueue),
+      helper: dashboardKpis.overdueRepair > 0 ? `${numberFormatter.format(dashboardKpis.overdueRepair)} ${tt("stats.slaRisk")}` : tt("stats.slaOk"),
+      tone: dashboardKpis.overdueRepair > 0 ? "rose" : "amber",
+    },
+    {
+      label: tt("stats.activeScope"),
+      value: workLogKpis.loading ? "-" : workLogKpis.selectedTypeLabel,
+      helper: workLogKpis.loading ? tt("stats.loading") : `${tt("stats.reportScope")} ${workLogKpis.reportPeriodLabel}`,
       tone: "slate",
     },
-  ]), [dashboardKpis.cards, tt, workLogKpis.evidenceCoverage, workLogKpis.jobCount, workLogKpis.loading, workLogKpis.reportPeriodLabel, workLogKpis.totalHoursLabel]);
-  const topFlowCards = [
-    { step: "01", label: tt("sections.overview") },
-    { step: "02", label: tt("sections.report") },
-    { step: "03", label: tt("sections.summary") },
+    {
+      label: tt("stats.evidenceCoverage"),
+      value: workLogKpis.loading ? "-" : `${workLogKpis.evidenceCoverage}%`,
+      helper: `${numberFormatter.format(workLogKpis.evidenceJobs || 0)} / ${numberFormatter.format(workLogKpis.jobCount || 0)} ${tt("stats.workLogs")}`,
+      tone: "emerald",
+    },
   ];
-  const introCardClass = isDarkTheme
-    ? "rounded-[30px] border border-slate-700 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_35%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(17,24,39,0.96))] shadow-[0_26px_70px_-40px_rgba(15,23,42,0.95)]"
-    : "rounded-[30px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_34%),linear-gradient(135deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.96))] shadow-[0_26px_70px_-40px_rgba(15,23,42,0.22)]";
-  const summaryShellClass = isDarkTheme
-    ? "rounded-[32px] border border-slate-700 bg-[radial-gradient(circle_at_top_right,_rgba(43,89,176,0.28),_transparent_30%),radial-gradient(circle_at_bottom_left,_rgba(14,165,233,0.16),_transparent_36%),linear-gradient(135deg,_rgba(15,23,42,0.99),_rgba(17,24,39,0.97))] shadow-[0_30px_80px_-44px_rgba(2,6,23,0.95)]"
-    : "rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_right,_rgba(43,89,176,0.16),_transparent_32%),radial-gradient(circle_at_bottom_left,_rgba(14,165,233,0.12),_transparent_38%),linear-gradient(135deg,_rgba(248,250,252,0.98),_rgba(255,255,255,0.98))] shadow-[0_30px_80px_-44px_rgba(15,23,42,0.22)]";
-  const glassCardClass = isDarkTheme
-    ? "rounded-[24px] border border-slate-700/80 bg-slate-950/35 backdrop-blur"
-    : "rounded-[24px] border border-white/80 bg-white/88 shadow-sm backdrop-blur";
 
   return (
-    <div className="space-y-6">
-      <section>
-        <div className={`${introCardClass} overflow-hidden px-5 py-5 sm:px-6`}>
+    <div className="space-y-5">
+      <section className={`${shellClass} overflow-hidden`}>
+        <div className={`border-b px-5 py-5 sm:px-6 ${isDarkTheme ? "border-slate-800 bg-[radial-gradient(circle_at_top_left,_rgba(43,89,176,0.18),_transparent_36%)]" : "border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(43,89,176,0.10),_transparent_34%)]"}`}>
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
-              <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${isDarkTheme ? "bg-cyan-400/10 text-cyan-200" : "bg-cyan-50 text-cyan-700"}`}>
+            <div className="max-w-4xl">
+              <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] ${isDarkTheme ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200" : "border-cyan-200 bg-cyan-50 text-cyan-700"}`}>
+                <BarChart3 size={14} />
                 {tt("eyebrow")}
               </span>
-              <h3 className={`mt-4 text-2xl font-black ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
+              <h2 className={`mt-4 text-2xl font-black sm:text-3xl ${titleTextClass}`}>
                 {tt("title")}
-              </h3>
-              <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
+              </h2>
+              <p className={`mt-2 max-w-3xl text-sm leading-6 ${bodyTextClass}`}>
                 {tt("description")}
               </p>
-              <p className={`mt-3 text-sm ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
-                {tt("topHint")}
-              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
+                  {tt("updatedLabel")}
+                </span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
+                  {tt("stats.totalWork")} {numberFormatter.format(dashboardKpis.allRows.length)}
+                </span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
+                  {tt("stats.repairShare")} {dashboardKpis.repairShare}% / {tt("stats.requestShare")} {dashboardKpis.requestShare}%
+                </span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:min-w-[520px]">
-              {topFlowCards.map((item) => (
-                <div
-                  key={item.step}
-                  className={`${glassCardClass} px-4 py-4`}
-                >
-                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${isDarkTheme ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"}`}>
-                    {item.step}
-                  </span>
-                  <p className={`mt-3 text-sm font-bold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{item.label}</p>
-                </div>
-              ))}
+            <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
+              <button
+                type="button"
+                onClick={() => onNavigatePage?.(DASHBOARD_PAGE_IDS.DASHBOARD)}
+                className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+              >
+                <LayoutDashboard size={16} />
+                {tt("quickActions.dashboard")}
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigatePage?.(DASHBOARD_PAGE_IDS.IT_WORK_LOGS)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2b59b0] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_18px_34px_-22px_rgba(43,89,176,0.85)] transition hover:bg-[#244a95]"
+              >
+                <ListChecks size={16} />
+                {tt("quickActions.workLogs")}
+              </button>
             </div>
           </div>
         </div>
-      </section>
 
-      <section>
-        <ITServiceOverviewPanel
-          tickets={tickets}
-          serviceRequests={serviceRequests}
-          onCreateTicket={onCreateTicket}
-          onOpenWalkInTicket={onOpenWalkInTicket}
-          onPickUpEquipment={onPickUpEquipment}
-          onOpenRepair={onOpenRepairFromOverview}
-        />
-      </section>
+        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          {headlineCards.map((item) => {
+            const Icon = item.icon;
+            const tone = toneStyles[item.tone] || toneStyles.slate;
 
-      <section>
-        <ITWorkReportPanel
-          theme={theme}
-          tickets={tickets}
-          serviceRequests={serviceRequests}
-          onNavigatePage={onNavigatePage}
-          onKpiChange={setWorkLogKpis}
-        />
-      </section>
-
-      <section>
-        <div className={`${summaryShellClass} relative overflow-hidden p-5 sm:p-6`}>
-          <div className="pointer-events-none absolute inset-0 opacity-80">
-            <div className={`absolute -right-20 top-0 h-48 w-48 rounded-full blur-3xl ${isDarkTheme ? "bg-cyan-500/12" : "bg-cyan-200/60"}`} />
-            <div className={`absolute -bottom-16 left-0 h-44 w-44 rounded-full blur-3xl ${isDarkTheme ? "bg-[#2b59b0]/18" : "bg-blue-200/60"}`} />
-          </div>
-
-          <div className="relative">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-              <div className="max-w-3xl">
-                <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${toneStyles.blue.pill}`}>
-                  {tt("sections.summary")}
-                </span>
-                <h3 className={`mt-4 text-2xl font-black ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>
-                  {tt("summaryTitle")}
-                </h3>
-                <p className={`mt-2 text-sm leading-6 ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>
-                  {tt("summaryDescription")}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${isDarkTheme ? "bg-slate-800/80 text-slate-200" : "bg-white/90 text-slate-700 shadow-sm"}`}>
-                  {tt("stats.totalWork")} {totalWorkCount.toLocaleString("th-TH")}
-                </span>
-                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneStyles.sky.pill}`}>
-                  {tt("stats.workLogs")} {workLogKpis.loading ? "-" : workLogKpis.jobCount.toLocaleString("th-TH")}
-                </span>
-                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneStyles.slate.pill}`}>
-                  {workLogKpis.loading ? tt("stats.loading") : workLogKpis.totalHoursLabel}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {summaryCards.map((item) => (
-                  <article
-                    key={item.label}
-                    className={`rounded-[24px] border px-4 py-4 backdrop-blur ${toneStyles[item.tone].card}`}
-                  >
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${toneStyles[item.tone].pill}`}>
-                      {tt("stats.kpiTag")}
-                    </span>
-                    <p className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>
+            return (
+              <article key={item.label} className={`rounded-3xl border p-4 ${tone.card}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={`text-xs font-bold uppercase tracking-[0.14em] ${mutedTextClass}`}>
                       {item.label}
                     </p>
-                    <p className={`mt-2 text-3xl font-black ${toneStyles[item.tone].value}`}>
-                      {typeof item.value === "number" ? item.value.toLocaleString("th-TH") : item.value}
+                    <p className={`mt-2 truncate text-2xl font-black ${tone.value}`}>
+                      {item.value}
                     </p>
-                    <p className={`mt-2 text-xs leading-5 ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>
-                      {item.caption}
+                    <p className={`mt-1 line-clamp-2 text-xs leading-5 ${mutedTextClass}`}>
+                      {item.helper}
                     </p>
-                  </article>
-                ))}
-              </div>
-
-              <div className="space-y-4">
-                <article className={`${glassCardClass} px-4 py-4`}>
-                  <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>
-                    {tt("stats.queueHealth")}
-                  </p>
-                  <h4 className={`mt-2 text-base font-bold ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>
-                    {tt("stats.healthCaption")}
-                  </h4>
-
-                  <div className="mt-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm font-medium ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>{tt("stats.intakeMix")}</span>
-                      <span className={`text-sm font-semibold ${isDarkTheme ? "text-slate-100" : "text-slate-900"}`}>
-                        {dashboardKpis.repairShare}% / {dashboardKpis.requestShare}%
-                      </span>
-                    </div>
-                    <div className={`h-2 overflow-hidden rounded-full ${isDarkTheme ? "bg-slate-800" : "bg-slate-100"}`}>
-                      <div className="h-full rounded-full bg-[#2b59b0]" style={{ width: `${dashboardKpis.repairShare}%` }} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className={`rounded-2xl px-3 py-3 ${isDarkTheme ? "bg-slate-900/70" : "bg-slate-50"}`}>
-                        <p className={`text-xs font-semibold ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>{tt("stats.openQueue")}</p>
-                        <p className={`mt-1 text-xl font-black ${toneStyles.amber.value}`}>{dashboardKpis.openQueue.toLocaleString("th-TH")}</p>
-                      </div>
-                      <div className={`rounded-2xl px-3 py-3 ${isDarkTheme ? "bg-slate-900/70" : "bg-slate-50"}`}>
-                        <p className={`text-xs font-semibold ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>{tt("stats.slaRisk")}</p>
-                        <p className={`mt-1 text-xl font-black ${dashboardKpis.overdueRepair > 0 ? toneStyles.amber.value : toneStyles.emerald.value}`}>
-                          {dashboardKpis.overdueRepair > 0 ? dashboardKpis.overdueRepair.toLocaleString("th-TH") : tt("stats.slaOk")}
-                        </p>
-                      </div>
-                    </div>
                   </div>
-                </article>
-
-                <article className={`${glassCardClass} px-4 py-4`}>
-                  <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>
-                    {tt("stats.reportHealth")}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneStyles.sky.pill}`}>
-                      {workLogKpis.loading ? tt("stats.loading") : `${tt("stats.reportScope")} ${workLogKpis.reportPeriodLabel}`}
-                    </span>
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneStyles.slate.pill}`}>
-                      {workLogKpis.loading ? tt("stats.loading") : `${tt("stats.activeScope")} ${workLogKpis.selectedTypeLabel}`}
-                    </span>
+                  <div className={`shrink-0 rounded-2xl p-3 ${tone.icon}`}>
+                    <Icon size={18} />
                   </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className={`rounded-2xl px-3 py-3 ${isDarkTheme ? "bg-slate-900/70" : "bg-slate-50"}`}>
-                      <p className={`text-xs font-semibold ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>{tt("stats.workLogs")}</p>
-                      <p className={`mt-1 text-xl font-black ${toneStyles.sky.value}`}>
-                        {workLogKpis.loading ? "-" : workLogKpis.jobCount.toLocaleString("th-TH")}
-                      </p>
-                    </div>
-                    <div className={`rounded-2xl px-3 py-3 ${isDarkTheme ? "bg-slate-900/70" : "bg-slate-50"}`}>
-                      <p className={`text-xs font-semibold ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>{tt("stats.evidenceCoverage")}</p>
-                      <p className={`mt-1 text-xl font-black ${toneStyles.slate.value}`}>
-                        {workLogKpis.loading ? "-" : `${workLogKpis.evidenceCoverage}%`}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              </div>
-            </div>
-          </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
+
+      <section className={`grid gap-2 rounded-[28px] border p-2 lg:grid-cols-3 ${isDarkTheme ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white/85 shadow-sm"}`}>
+        {viewOptions.map((view) => {
+          const Icon = view.icon;
+          const isActive = activeView === view.id;
+
+          return (
+            <button
+              key={view.id}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => setActiveView(view.id)}
+              className={`flex items-start gap-3 rounded-3xl px-4 py-3 text-left transition ${
+                isActive
+                  ? "bg-[#2b59b0] text-white shadow-[0_18px_34px_-24px_rgba(43,89,176,0.95)]"
+                  : isDarkTheme
+                    ? "text-slate-300 hover:bg-slate-800"
+                    : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <span className={`mt-0.5 rounded-2xl p-2 ${isActive ? "bg-white/15 text-white" : isDarkTheme ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-600"}`}>
+                <Icon size={18} />
+              </span>
+              <span>
+                <span className="block text-sm font-black">{view.title}</span>
+                <span className={`mt-1 block text-xs leading-5 ${isActive ? "text-blue-50" : mutedTextClass}`}>
+                  {view.hint}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </section>
+
+      {activeView === REPORT_VIEWS.USAGE ? (
+        <section>
+          <ITWorkReportPanel
+            theme={theme}
+            tickets={tickets}
+            serviceRequests={serviceRequests}
+            onNavigatePage={onNavigatePage}
+            onKpiChange={setWorkLogKpis}
+          />
+        </section>
+      ) : null}
+
+      {activeView === REPORT_VIEWS.OVERVIEW ? (
+        <section>
+          <ITServiceOverviewPanel
+            theme={theme}
+            tickets={tickets}
+            serviceRequests={serviceRequests}
+            onCreateTicket={onCreateTicket}
+            onOpenWalkInTicket={onOpenWalkInTicket}
+            onPickUpEquipment={onPickUpEquipment}
+            onOpenRepair={onOpenRepairFromOverview}
+          />
+        </section>
+      ) : null}
+
+      {activeView === REPORT_VIEWS.SUMMARY ? (
+        <section className="space-y-4">
+          <SectionIntro
+            eyebrow={tt("views.summary")}
+            title={tt("sections.summaryTitle")}
+            description={tt("sections.summaryDescription")}
+            isDarkTheme={isDarkTheme}
+          />
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_380px]">
+            <article className={`${shellClass} p-5 sm:p-6`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className={`text-xs font-bold uppercase tracking-[0.18em] ${mutedTextClass}`}>
+                    {tt("sections.operationalMix")}
+                  </p>
+                  <h4 className={`mt-2 text-lg font-black ${titleTextClass}`}>
+                    {tt("stats.repairShare")} {dashboardKpis.repairShare}% / {tt("stats.requestShare")} {dashboardKpis.requestShare}%
+                  </h4>
+                </div>
+                <span className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
+                  {tt("stats.totalWork")} {numberFormatter.format(dashboardKpis.allRows.length)}
+                </span>
+              </div>
+
+              <div className={`mt-5 h-3 overflow-hidden rounded-full ${isDarkTheme ? "bg-slate-800" : "bg-slate-100"}`}>
+                <div
+                  className="h-full rounded-full bg-[#2b59b0]"
+                  style={{ width: `${dashboardKpis.repairShare}%` }}
+                />
+              </div>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {headlineCards.map((item) => {
+                  const Icon = item.icon;
+                  const tone = toneStyles[item.tone] || toneStyles.slate;
+
+                  return (
+                    <div key={item.label} className={`rounded-3xl border p-4 ${tone.card}`}>
+                      <div className={`mb-3 inline-flex rounded-2xl p-2 ${tone.icon}`}>
+                        <Icon size={18} />
+                      </div>
+                      <p className={`text-xs font-bold uppercase tracking-[0.14em] ${mutedTextClass}`}>
+                        {item.label}
+                      </p>
+                      <p className={`mt-2 text-2xl font-black ${tone.value}`}>
+                        {item.value}
+                      </p>
+                      <p className={`mt-1 text-xs leading-5 ${mutedTextClass}`}>
+                        {item.helper}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+
+            <aside className="space-y-5">
+              <article className={`${shellClass} p-5`}>
+                <p className={`text-xs font-bold uppercase tracking-[0.18em] ${mutedTextClass}`}>
+                  {tt("sections.queueHealth")}
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className={`rounded-3xl border p-4 ${toneStyles.amber.card}`}>
+                    <p className={`text-xs font-semibold ${mutedTextClass}`}>{tt("stats.openQueue")}</p>
+                    <p className={`mt-2 text-2xl font-black ${toneStyles.amber.value}`}>
+                      {numberFormatter.format(dashboardKpis.openQueue)}
+                    </p>
+                  </div>
+                  <div className={`rounded-3xl border p-4 ${dashboardKpis.overdueRepair > 0 ? toneStyles.rose.card : toneStyles.emerald.card}`}>
+                    <p className={`text-xs font-semibold ${mutedTextClass}`}>{tt("stats.slaRisk")}</p>
+                    <p className={`mt-2 text-2xl font-black ${dashboardKpis.overdueRepair > 0 ? toneStyles.rose.value : toneStyles.emerald.value}`}>
+                      {dashboardKpis.overdueRepair > 0 ? numberFormatter.format(dashboardKpis.overdueRepair) : tt("stats.slaOk")}
+                    </p>
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${shellClass} p-5`}>
+                <p className={`text-xs font-bold uppercase tracking-[0.18em] ${mutedTextClass}`}>
+                  {tt("sections.reportReadiness")}
+                </p>
+                <div className="mt-4 space-y-3">
+                  {summarySignals.map((item) => {
+                    const tone = toneStyles[item.tone] || toneStyles.slate;
+
+                    return (
+                      <div key={item.label} className={`rounded-3xl border p-4 ${tone.card}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className={`text-xs font-semibold ${mutedTextClass}`}>{item.label}</p>
+                            <p className={`mt-1 truncate text-lg font-black ${tone.value}`}>{item.value}</p>
+                            <p className={`mt-1 text-xs leading-5 ${mutedTextClass}`}>{item.helper}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </article>
+            </aside>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 };

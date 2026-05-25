@@ -23,10 +23,16 @@ export function normalizeServiceType(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+export function isWalkInTicketRecord(ticket) {
+  const serviceType = normalizeServiceType(ticket?.service_type);
+  const channel = normalizeServiceType(ticket?.channel);
+  return serviceType === "walk-in" || serviceType === "walk_in" || channel === "walk-in" || channel === "walk_in";
+}
+
 export function isRepairTicketRecord(ticket) {
   const serviceType = normalizeServiceType(ticket?.service_type);
   const source = `${ticket?.service_type || ""} ${ticket?.title || ""} ${ticket?.category || ""}`.toLowerCase();
-  return serviceType === "req_repair" || source.includes("repair") || source.includes("ซ่อม");
+  return isWalkInTicketRecord(ticket) || serviceType === "req_repair" || source.includes("repair") || source.includes("ซ่อม");
 }
 
 export function isPickUpEquipmentRequest(ticket) {

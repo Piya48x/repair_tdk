@@ -2,6 +2,7 @@ import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "r
 import { toast } from "react-hot-toast";
 import { ArrowUp, LayoutDashboard, ListChecks } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
+import { fetchProfilesWithCompatibility } from "../../../lib/profileSchemaCompat";
 import {
   createITWorkRecord,
   deleteITWorkRecord,
@@ -111,6 +112,8 @@ export default function ITWorkEvidencePage({
   const [nowValue, setNowValue] = useState(new Date());
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const [filters, setFilters] = useState(buildDefaultFilters);
+  const [employeeDirectory, setEmployeeDirectory] = useState([]);
+  const [employeeDirectoryLoading, setEmployeeDirectoryLoading] = useState(false);
 
   const deferredQuery = useDeferredValue(filters.query);
   const isEditing = editingRecordId !== null;
@@ -181,6 +184,65 @@ export default function ITWorkEvidencePage({
       if (channel) supabase.removeChannel(channel);
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadEmployeeDirectory = async () => {
+      setEmployeeDirectoryLoading(true);
+
+      const { data, error } = await fetchProfilesWithCompatibility(supabase, {
+        ids: null,
+        columns: ["id", "full_name", "employee_code", "department", "avatar_url", "id_card_url", "email"],
+      });
+
+      if (!mounted) return;
+
+      if (error) {
+        console.warn("Load IT work evidence employee directory error:", error);
+        setEmployeeDirectory([]);
+      } else {
+        const rows = (Array.isArray(data) ? data : [])
+          .map((row) => ({
+            id: normalizeText(row?.id),
+            full_name: normalizeText(row?.full_name || row?.name || row?.email),
+            employee_code: normalizeText(row?.employee_code || row?.employeeId),
+            department: normalizeText(row?.department),
+            avatar_url: normalizeText(row?.avatar_url || row?.id_card_url),
+            email: normalizeText(row?.email),
+          }))
+          .filter((row) => row.id && (row.full_name || row.employee_code || row.email))
+          .sort((left, right) => (
+            (left.full_name || left.employee_code || left.email)
+              .localeCompare(right.full_name || right.employee_code || right.email, "th")
+          ));
+
+        const currentUserOption = currentUser?.id
+          ? {
+              id: normalizeText(currentUser.id),
+              full_name: normalizeText(currentUser.name || currentUser.email),
+              employee_code: normalizeText(currentUser.employeeId),
+              department: normalizeText(currentUser.department),
+              avatar_url: normalizeText(currentUser.avatar),
+              email: normalizeText(currentUser.email),
+            }
+          : null;
+        const withCurrentUser = currentUserOption?.id && !rows.some((row) => row.id === currentUserOption.id)
+          ? [currentUserOption, ...rows]
+          : rows;
+
+        setEmployeeDirectory(withCurrentUser);
+      }
+
+      setEmployeeDirectoryLoading(false);
+    };
+
+    void loadEmployeeDirectory();
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     if (!timerRunning) return undefined;
@@ -381,6 +443,26 @@ export default function ITWorkEvidencePage({
 
   const handleDurationMinutesChange = (value) => {
     applyManualDuration(durationParts.hours, value);
+  };
+
+  const handleEmployeeSelect = (profileId) => {
+    if (!profileId) {
+      setFormData((prev) => ({
+        ...prev,
+        requester_profile_id: "",
+      }));
+      return;
+    }
+
+    const member = employeeDirectory.find((item) => item.id === profileId);
+    if (!member) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      requester_profile_id: member.id,
+      requester_name: member.full_name || member.employee_code || member.email || prev.requester_name,
+      department: member.department || prev.department,
+    }));
   };
 
   const recordViews = useMemo(() => {
@@ -734,6 +816,9 @@ export default function ITWorkEvidencePage({
           onDurationMinutesChange={handleDurationMinutesChange}
           isEditing={isEditing}
           onCancelEdit={handleCancelEdit}
+          employeeOptions={employeeDirectory}
+          employeeLoading={employeeDirectoryLoading}
+          onEmployeeSelect={handleEmployeeSelect}
         />
 
         <EvidenceRecordsSection
