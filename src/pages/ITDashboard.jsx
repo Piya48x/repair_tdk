@@ -204,6 +204,19 @@ function inferClipboardFileName(file) {
   return `clipboard_${Date.now()}.${extension}`;
 }
 
+const STOCK_SECTION_TO_PAGE = {
+  issue: DASHBOARD_PAGE_IDS.STOCK_WALK_IN,
+  receive: DASHBOARD_PAGE_IDS.STOCK_RECEIVE,
+  history: DASHBOARD_PAGE_IDS.STOCK_HISTORY,
+};
+
+const STOCK_PAGE_TO_SECTION = {
+  [DASHBOARD_PAGE_IDS.STOCK_MANAGEMENT]: "issue",
+  [DASHBOARD_PAGE_IDS.STOCK_WALK_IN]: "issue",
+  [DASHBOARD_PAGE_IDS.STOCK_RECEIVE]: "receive",
+  [DASHBOARD_PAGE_IDS.STOCK_HISTORY]: "history",
+};
+
 const ITDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -232,6 +245,7 @@ const ITDashboard = () => {
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [stockManagementSection, setStockManagementSection] = useState("issue");
   const [notificationCount, setNotificationCount] = useState(0);
   const [serviceRequestNotificationCount, setServiceRequestNotificationCount] = useState(0);
   const [notebookNotificationCount, setNotebookNotificationCount] = useState(0);
@@ -306,6 +320,9 @@ const ITDashboard = () => {
   };
 
   const handleNavigatePage = (pageId) => {
+    if (STOCK_PAGE_TO_SECTION[pageId]) {
+      setStockManagementSection(STOCK_PAGE_TO_SECTION[pageId]);
+    }
     setCurrentPage(pageId);
     if (pageId === DASHBOARD_PAGE_IDS.DASHBOARD || pageId === DASHBOARD_PAGE_IDS.TICKETS) {
       setActiveTab("INCOMING");
@@ -318,6 +335,10 @@ const ITDashboard = () => {
     if (pageId === DASHBOARD_PAGE_IDS.HISTORY) {
       setActiveTab("HISTORY");
     }
+  };
+  const handleNavigateStockSection = (sectionId = "issue", pageId) => {
+    setStockManagementSection(sectionId);
+    setCurrentPage(pageId || STOCK_SECTION_TO_PAGE[sectionId] || DASHBOARD_PAGE_IDS.STOCK_WALK_IN);
   };
 
   const loadNotebookNotifications = async () => {
@@ -1707,6 +1728,8 @@ const ITDashboard = () => {
         theme={theme}
         currentPage={currentPage}
         onNavigatePage={handleNavigatePage}
+        stockManagementSection={stockManagementSection}
+        onNavigateStockSection={handleNavigateStockSection}
         onOpenExecutiveAssets={() => navigate("/reports/executive/assets-management")}
         notificationCount={notificationCount}
         serviceRequestNotificationCount={serviceRequestNotificationCount}
@@ -1714,7 +1737,7 @@ const ITDashboard = () => {
       />
 
       <div
-        className={`${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"} min-w-0 transition-all duration-300 ease-in-out`}
+        className={`${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"} min-w-0 transition-[margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]`}
       >
 
         <ITDashboardHeader
@@ -1740,6 +1763,8 @@ const ITDashboard = () => {
           <ITDashboardPageRenderer
             currentPage={currentPage}
             onNavigatePage={handleNavigatePage}
+            stockManagementSection={stockManagementSection}
+            onStockManagementSectionChange={setStockManagementSection}
             theme={theme}
             uiTheme={uiTheme}
             statCards={statCards}

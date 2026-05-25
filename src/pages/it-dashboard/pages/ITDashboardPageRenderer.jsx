@@ -14,6 +14,10 @@ import ReportsPage from "./ReportsPage";
 import SettingsPage from "./SettingsPage";
 
 const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
+  const renderStockPage = (stockManagementSection) => (
+    <StockManagementPage {...workspaceProps} stockManagementSection={stockManagementSection} />
+  );
+
   switch (currentPage) {
     case DASHBOARD_PAGE_IDS.DASHBOARD:
       return <DashboardPage {...workspaceProps} />;
@@ -22,7 +26,13 @@ const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
     case DASHBOARD_PAGE_IDS.SERVICE_REQUESTS:
       return <ServiceRequestsPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.STOCK_MANAGEMENT:
-      return <StockManagementPage {...workspaceProps} />;
+      return renderStockPage(workspaceProps.stockManagementSection || "issue");
+    case DASHBOARD_PAGE_IDS.STOCK_WALK_IN:
+      return renderStockPage("issue");
+    case DASHBOARD_PAGE_IDS.STOCK_RECEIVE:
+      return renderStockPage("receive");
+    case DASHBOARD_PAGE_IDS.STOCK_HISTORY:
+      return renderStockPage("history");
     case DASHBOARD_PAGE_IDS.ACTIVE:
       return <ActivePage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.HISTORY:
