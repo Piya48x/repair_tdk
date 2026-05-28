@@ -447,16 +447,16 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       if (!clipboardImage) return;
 
       event.preventDefault();
-      setActiveAttachmentKind("before");
+      const targetKind = activeAttachmentKind === "after" ? "after" : "before";
       appendAttachments(clipboardImage, {
-        kind: "before",
-        successMessage: "แนบภาพจากคลิปบอร์ดเข้า Before แล้ว",
+        kind: targetKind,
+        successMessage: `แนบภาพจากคลิปบอร์ดเข้า ${targetKind === "after" ? "After" : "Before"} แล้ว`,
       });
     };
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [isOpen]);
+  }, [activeAttachmentKind, isOpen]);
 
   const handleFileSelect = (event) => {
     const files = Array.from(event.target.files || []);
@@ -1004,8 +1004,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             รูปที่เลือกหรือวางตอนนี้จะถูกจัดเข้ากลุ่ม {activeAttachmentKind === "after" ? "After" : "Before"}
           </p>
           <p className={`mt-2 text-[11px] ${mutedClass}`}>
-            Clipboard paste with <span className="font-semibold">Ctrl + V</span> always adds the image to{" "}
-            <span className="font-semibold">Before</span> to avoid confusion.
+            Clipboard paste with <span className="font-semibold">Ctrl + V</span> adds the image to{" "}
+            <span className="font-semibold">{activeAttachmentKind === "after" ? "After" : "Before"}</span>.
           </p>
         </div>
 
@@ -1060,7 +1060,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               </p>
               <p className={`mt-1 text-xs leading-5 ${mutedClass}`}>
                 ขณะเปิดฟอร์มนี้ กด Win + Shift + S แล้ว Ctrl + V ระบบจะนำภาพมาแนบในกลุ่ม{" "}
-                Before
+                {activeAttachmentKind === "after" ? "After" : "Before"}
               </p>
             </div>
           </div>
