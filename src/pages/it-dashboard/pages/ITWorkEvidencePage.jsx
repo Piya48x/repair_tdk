@@ -153,15 +153,6 @@ export default function ITWorkEvidencePage({
   useEffect(() => () => revokePreviewEntries(previewRef.current), []);
 
   useEffect(() => {
-    if (!currentUser?.department) return;
-    setFormData((prev) => (
-      normalizeText(prev.department)
-        ? prev
-        : { ...prev, department: currentUser.department }
-    ));
-  }, [currentUser]);
-
-  useEffect(() => {
     let mounted = true;
     let channel = null;
 
@@ -282,7 +273,7 @@ export default function ITWorkEvidencePage({
     setEditingRecordSnapshot(null);
     setExistingImages([]);
     setOriginalImages([]);
-    setFormData(buildForm(currentUser?.department || ""));
+    setFormData(buildForm());
     setSelectedFiles((prev) => {
       revokePreviewEntries(prev);
       return [];
@@ -461,7 +452,7 @@ export default function ITWorkEvidencePage({
       ...prev,
       requester_profile_id: member.id,
       requester_name: member.full_name || member.employee_code || member.email || prev.requester_name,
-      department: member.department || prev.department,
+      department: member.department || "",
     }));
   };
 
@@ -564,7 +555,7 @@ export default function ITWorkEvidencePage({
     setEditingRecordSnapshot(recordView.raw);
     setExistingImages(nextImages);
     setOriginalImages(nextImages);
-    setFormData(buildFormFromRecord(recordView.raw, currentUser?.department || ""));
+    setFormData(buildFormFromRecord(recordView.raw));
     setSelectedFiles((prev) => {
       revokePreviewEntries(prev);
       return [];

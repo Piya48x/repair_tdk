@@ -22,6 +22,17 @@ function sanitizePathSegment(value) {
   return String(value || "unknown").replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+function normalizePendingStockUpload(entry) {
+  if (entry instanceof File) {
+    return { file: entry, role: "evidence" };
+  }
+  const file = entry?.file;
+  return {
+    file: file instanceof File ? file : null,
+    role: normalizeText(entry?.role) === "device" ? "device" : "evidence",
+  };
+}
+
 function normalizeStockAttachment(item) {
   return {
     id: item?.id ?? null,
@@ -248,21 +259,23 @@ export async function saveStockItem({
 }
 
 export async function uploadStockItemAttachments({ stockItemId, userId, files = [] }) {
-  const safeFiles = (Array.isArray(files) ? files : []).filter((file) => file instanceof File);
-  if (!stockItemId || safeFiles.length === 0) return [];
+  const safeUploads = (Array.isArray(files) ? files : []).map(normalizePendingStockUpload).filter((entry) => entry.file instanceof File);
+  if (!stockItemId || safeUploads.length === 0) return [];
 
   const uploadedPaths = [];
   const attachmentRows = [];
 
   try {
-    for (const [index, file] of safeFiles.entries()) {
+    for (const [index, upload] of safeUploads.entries()) {
+      const { file, role } = upload;
       if (Number(file.size || 0) > STOCK_ATTACHMENT_MAX_SIZE) {
         throw new Error(`ไฟล์ ${file.name} ต้องมีขนาดไม่เกิน 20 MB`);
       }
 
       const safeUserId = sanitizePathSegment(userId || "unknown");
+      const safeRole = sanitizePathSegment(role || "evidence");
       const safeName = sanitizePathSegment(file?.name || `stock_attachment_${Date.now()}`);
-      const filePath = `items/${safeUserId}/${stockItemId}/${Date.now()}_${index}_${safeName}`;
+      const filePath = `items/${safeUserId}/${stockItemId}/${safeRole}/${Date.now()}_${index}_${safeName}`;
 
       const { error: uploadError } = await supabase.storage
         .from(STOCK_ATTACHMENT_BUCKET)
@@ -320,6 +333,39 @@ export async function deleteStockItemAttachments({ attachments = [] }) {
 
   if (error) throw error;
   await cleanupUploadedPaths(paths);
+}
+
+export async function deleteStockItem({ stockItem = null }) {
+  const stockItemId = stockItem?.id;
+  if (!stockItemId) {
+    throw new Error("ไม่พบรายการ stock ที่ต้องการลบ");
+  }
+
+  const { count, error: countError } = await supabase
+    .from("it_stock_issue_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("stock_item_id", stockItemId);
+
+  if (countError) throw countError;
+  if (Number(count || 0) > 0) {
+    throw new Error("รายการนี้มีประวัติการเบิกแล้ว ไม่สามารถลบได้ ให้ปรับจำนวนคงเหลือหรือใส่หมายเหตุแทน");
+  }
+
+  const existingAttachments = Array.isArray(stockItem?.stock_attachments)
+    ? stockItem.stock_attachments
+    : [];
+
+  if (existingAttachments.length > 0) {
+    await deleteStockItemAttachments({ attachments: existingAttachments });
+  }
+
+  const { error } = await supabase
+    .from("it_stock_items")
+    .delete()
+    .eq("id", stockItemId);
+
+  if (error) throw error;
+  return { id: stockItemId };
 }
 
 export async function uploadStockIssueAttachments({ issueLogId, userId, files = [] }) {

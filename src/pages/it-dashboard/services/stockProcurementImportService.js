@@ -61,6 +61,7 @@ function guessCatalogItem({ categoryTh, itemDescription, brandModel, unit, devic
     { pattern: /mouse|เมาส์/, code: "IT-MS-001" },
     { pattern: /monitor|จอภาพ/, code: "IT-MN-001" },
     { pattern: /printer|เครื่องพิมพ์/, code: "IT-PR-001" },
+    { pattern: /charger|charging cable|adapter|adaptor|สายชาจ|สายชาร์จ/, code: "IT-BS-001" },
     { pattern: /lan cable|สายแลน/, code: "IT-MC-001" },
   ];
 

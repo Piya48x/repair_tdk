@@ -49,6 +49,7 @@ export const IT_STOCK_CATALOG_GROUPS = [
       ["IT-HS", "IT-HS-001", "หูฟัง / ไมโครโฟน (Headset)", "Headset / Microphone", "อัน"],
       ["IT-WC", "IT-WC-001", "กล้องเว็บแคม (Webcam)", "Webcam", "อัน"],
       ["IT-BR", "IT-BR-001", "เครื่องอ่านบาร์โค้ด (Barcode Reader)", "Barcode Reader", "อัน"],
+      ["IT-BR", "IT-BS-001", "สายชาจ Notebook", "Notebook charging cable", "อัน"],
     ],
   },
   {

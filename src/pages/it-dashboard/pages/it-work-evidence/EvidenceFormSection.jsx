@@ -441,8 +441,14 @@ export default function EvidenceFormSection({
                   onFocus={() => setRequesterLookupOpen(true)}
                   onBlur={() => window.setTimeout(() => setRequesterLookupOpen(false), 120)}
                   onChange={(event) => {
+                    const nextRequesterName = event.target.value;
                     setRequesterLookupOpen(true);
-                    setFormData((prev) => ({ ...prev, requester_name: event.target.value, requester_profile_id: "" }));
+                    setFormData((prev) => ({
+                      ...prev,
+                      requester_name: nextRequesterName,
+                      requester_profile_id: "",
+                      department: prev.requester_profile_id ? "" : prev.department,
+                    }));
                   }}
                   className={`${inputClass} pr-10`}
                   placeholder="พิมพ์ชื่อ / รหัสพนักงาน / อีเมล"
