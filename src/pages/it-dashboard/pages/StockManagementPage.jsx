@@ -135,7 +135,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   const [pendingStockImageFiles, setPendingStockImageFiles] = useState([]);
   const [pendingStockFiles, setPendingStockFiles] = useState([]);
   const [pendingIssueFiles, setPendingIssueFiles] = useState([]);
-  const [previewAttachment, setPreviewAttachment] = useState(null);
+  const [previewState, setPreviewState] = useState({ attachments: [], initialIndex: 0 });
   const [activeLookupField, setActiveLookupField] = useState("");
   const deferredRequesterName = useDeferredValue(issueForm.requester_name);
   const deferredRequesterEmpId = useDeferredValue(issueForm.requester_emp_id);
@@ -254,6 +254,17 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
       null
     );
   };
+  const handleOpenAttachmentPreview = (attachment) => {
+    if (!attachment?.file_url) return;
+    setPreviewState({ attachments: [attachment], initialIndex: 0 });
+  };
+  const handleOpenAttachmentGallery = (attachments, initialIndex = 0) => {
+    const previewAttachments = getSafeAttachments(attachments).filter((item) => item?.file_url);
+    if (previewAttachments.length === 0) return;
+    const nextIndex = Math.min(Math.max(Number(initialIndex) || 0, 0), previewAttachments.length - 1);
+    setPreviewState({ attachments: previewAttachments, initialIndex: nextIndex });
+  };
+  const handleCloseAttachmentPreview = () => setPreviewState({ attachments: [], initialIndex: 0 });
 
   const handleStockFieldChange = (field, value) => setStockForm((prev) => ({ ...prev, [field]: value }));
   const handleIssueFieldChange = (field, value) => setIssueForm((prev) => ({ ...prev, [field]: value, ...(field === "stock_item_search" ? { stock_item_id: "" } : {}), ...((field === "requester_name" || field === "requester_emp_id") ? { requester_profile_id: "" } : {}) }));
@@ -455,7 +466,6 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
       description: "ดูรายการเบิกย้อนหลังและรูปหลักฐานเท่านั้น ไม่มีฟอร์มรับเข้า/เบิกมาปะปน",
     },
   }[normalizedStockSection];
-
   return (
     <>
       <section className="mb-4"><p className={`text-xs font-black uppercase tracking-[0.16em] ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>จัดการ stock IT</p><h2 className={`mt-1 text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{pageMeta.title}</h2><p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>{pageMeta.description}</p></section>
@@ -583,8 +593,8 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                 </div>
 
                 <aside className="space-y-4">
-                  <AttachmentField title="รูปภาพอุปกรณ์" hint="รูปแรกจะแสดงเป็นภาพอุปกรณ์ในรายการ stock" buttonLabel="เพิ่มรูป" emptyLabel="ยังไม่มีรูปภาพอุปกรณ์" accept={STOCK_IMAGE_ACCEPT} capture="environment" inputRef={stockImageInputRef} onSelect={(files) => handleSelectFiles(files, setPendingStockImageFiles, true)} existing={stockImageAttachments} pending={pendingStockImageFiles} onPreview={setPreviewAttachment} onRemoveExisting={handleRemoveExistingStockAttachment} onRemovePending={(entryId) => removePendingFile(entryId, setPendingStockImageFiles)} />
-                  <AttachmentField title="หลักฐานรับเข้า" hint="แนบ invoice, ใบส่งของ หรือไฟล์อ้างอิงของ lot นี้" buttonLabel="เพิ่มหลักฐาน" emptyLabel="ยังไม่มีไฟล์หลักฐานรับเข้า" accept={STOCK_ATTACHMENT_ACCEPT} inputRef={stockFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingStockFiles, false)} existing={stockEvidenceAttachments} pending={pendingStockFiles} onPreview={setPreviewAttachment} onRemoveExisting={handleRemoveExistingStockAttachment} onRemovePending={(entryId) => removePendingFile(entryId, setPendingStockFiles)} />
+                  <AttachmentField title="รูปภาพอุปกรณ์" hint="รูปแรกจะแสดงเป็นภาพอุปกรณ์ในรายการ stock" buttonLabel="เพิ่มรูป" emptyLabel="ยังไม่มีรูปภาพอุปกรณ์" accept={STOCK_IMAGE_ACCEPT} capture="environment" inputRef={stockImageInputRef} onSelect={(files) => handleSelectFiles(files, setPendingStockImageFiles, true)} existing={stockImageAttachments} pending={pendingStockImageFiles} onPreview={handleOpenAttachmentPreview} onRemoveExisting={handleRemoveExistingStockAttachment} onRemovePending={(entryId) => removePendingFile(entryId, setPendingStockImageFiles)} />
+                  <AttachmentField title="หลักฐานรับเข้า" hint="แนบ invoice, ใบส่งของ หรือไฟล์อ้างอิงของ lot นี้" buttonLabel="เพิ่มหลักฐาน" emptyLabel="ยังไม่มีไฟล์หลักฐานรับเข้า" accept={STOCK_ATTACHMENT_ACCEPT} inputRef={stockFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingStockFiles, false)} existing={stockEvidenceAttachments} pending={pendingStockFiles} onPreview={handleOpenAttachmentPreview} onRemoveExisting={handleRemoveExistingStockAttachment} onRemovePending={(entryId) => removePendingFile(entryId, setPendingStockFiles)} />
                 </aside>
               </div>
               <div className={`mt-5 flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-end ${theme === "dark" ? "border-slate-800" : "border-slate-200"}`}>
@@ -670,7 +680,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                   <textarea value={issueForm.notes} onChange={(event) => handleIssueFieldChange("notes", event.target.value)} className={`min-h-[92px] w-full rounded-lg border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`} placeholder="หมายเหตุเพิ่มเติม" />
                 </div>
                 <aside>
-                  <AttachmentField title="รูปหลักฐานการเบิก" hint="บังคับแนบอย่างน้อย 1 รูป เพื่อยืนยันการจ่ายของ" pasteHint="แคปจอแล้วคลิกกล่องนี้ จากนั้นกด Ctrl+V เพื่อวางรูปได้ทันที" buttonLabel="ถ่ายหรือเลือกรูป" emptyLabel="ยังไม่ได้แนบรูปหลักฐานการเบิก" accept={ISSUE_ATTACHMENT_ACCEPT} capture="environment" inputRef={issueFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingIssueFiles, true)} onPaste={handlePasteIssueEvidence} pending={pendingIssueFiles} onPreview={setPreviewAttachment} onRemovePending={(entryId) => removePendingFile(entryId, setPendingIssueFiles)} />
+                  <AttachmentField title="รูปหลักฐานการเบิก" hint="บังคับแนบอย่างน้อย 1 รูป เพื่อยืนยันการจ่ายของ" pasteHint="แคปจอแล้วคลิกกล่องนี้ จากนั้นกด Ctrl+V เพื่อวางรูปได้ทันที" buttonLabel="ถ่ายหรือเลือกรูป" emptyLabel="ยังไม่ได้แนบรูปหลักฐานการเบิก" accept={ISSUE_ATTACHMENT_ACCEPT} capture="environment" inputRef={issueFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingIssueFiles, true)} onPaste={handlePasteIssueEvidence} pending={pendingIssueFiles} onPreview={handleOpenAttachmentPreview} onRemovePending={(entryId) => removePendingFile(entryId, setPendingIssueFiles)} />
                 </aside>
               </div>
               <div className={`mt-5 flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-end ${theme === "dark" ? "border-slate-800" : "border-slate-200"}`}>
@@ -733,7 +743,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                 <article key={item.id} className={`rounded-lg border p-4 ${theme === "dark" ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
                   <div className="flex gap-3">
                     {stockImage ? (
-                      <button type="button" onClick={() => setPreviewAttachment(stockImage)} className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                      <button type="button" onClick={() => handleOpenAttachmentPreview(stockImage)} className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                         <img src={stockImage.file_url} alt={stockImage.file_name || item.item_name || "stock"} className="h-full w-full object-cover" />
                       </button>
                     ) : (
@@ -764,7 +774,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                     </div>
                   </div>
                   <div className="mt-3 flex gap-2">
-                    {evidencePreview ? <button type="button" onClick={() => setPreviewAttachment(evidencePreview)} className="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูหลักฐาน</button> : null}
+                    {evidencePreview ? <button type="button" onClick={() => handleOpenAttachmentPreview(evidencePreview)} className="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูหลักฐาน</button> : null}
                     {showIssuePage ? <button type="button" onClick={() => handlePrefillIssue(item)} disabled={Number(item?.quantity_on_hand || 0) <= 0} className="flex-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">เบิกออก</button> : null}
                     {showReceivePage ? <button type="button" onClick={() => handleEditItem(item)} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">แก้ไข</button> : null}
                     {showReceivePage ? <button type="button" onClick={() => handleDeleteStock(item)} disabled={deletingStockId === String(item.id || "")} className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60">{deletingStockId === String(item.id || "") ? "กำลังลบ..." : "ลบรายการ"}</button> : null}
@@ -822,7 +832,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                       <div className={`rounded-lg border px-3 py-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>หลักฐาน: {Array.isArray(log.issue_attachments) ? log.issue_attachments.length : 0} รูป</div>
                     </div>
                     <div className="mt-3 flex gap-2">
-                      {Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => setPreviewAttachment(log.issue_attachments[0])} className="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูหลักฐาน</button> : null}
+                      {Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => handleOpenAttachmentGallery(log.issue_attachments)} className="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูหลักฐานทั้งหมด</button> : null}
                       <div className={`flex-1 rounded-lg border px-3 py-2 text-xs ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>ผู้บันทึก: {log.issued_by_name || "-"}</div>
                     </div>
                   </article>
@@ -857,7 +867,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                     </div>
                     <div className="text-sm font-semibold">{formatQuantity(log.quantity)} {log.unit_snapshot || "ชิ้น"}</div>
                     <div className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{formatDateTime(log.issued_at || log.created_at)}</div>
-                    <div>{Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => setPreviewAttachment(log.issue_attachments[0])} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูรูป</button> : <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>ไม่มีรูป</span>}</div>
+                    <div>{Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => handleOpenAttachmentGallery(log.issue_attachments)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูทุกรูป</button> : <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>ไม่มีรูป</span>}</div>
                   </div>
                 );
               })}
@@ -865,7 +875,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
           )}
         </section>
       ) : null}
-      <AttachmentPreviewModal attachment={previewAttachment} onClose={() => setPreviewAttachment(null)} />
+      <AttachmentPreviewModal attachment={previewState.attachments[previewState.initialIndex] || null} attachments={previewState.attachments} initialIndex={previewState.initialIndex} onClose={handleCloseAttachmentPreview} />
     </>
   );
 }
