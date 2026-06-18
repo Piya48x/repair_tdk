@@ -5,6 +5,7 @@ import {
   Clock3,
   MapPin,
   Pencil,
+  Plus,
   RotateCcw,
   Search,
   Trash2,
@@ -21,6 +22,7 @@ export default function EvidenceRecordsSection({
   listRef,
   loading,
   records,
+  totalRecords = records.length,
   filters,
   setFilters,
   typeOptions,
@@ -33,6 +35,7 @@ export default function EvidenceRecordsSection({
   deletingId,
   onScrollToTop,
   onStartFreshView,
+  onCreateRecord,
 }) {
   const chipClass = theme === "dark"
     ? "border-slate-600 bg-[#162136] text-slate-300"
@@ -54,8 +57,16 @@ export default function EvidenceRecordsSection({
 
           <div className="flex flex-wrap items-center gap-2">
             <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
-              พบ {records.length} รายการ
+              พบ {records.length} จาก {totalRecords} รายการ
             </div>
+            <button
+              type="button"
+              onClick={onCreateRecord}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#2b59b0] px-3 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#244a95]"
+            >
+              <Plus size={15} />
+              เพิ่มบันทึกงาน
+            </button>
             <button
               type="button"
               onClick={onStartFreshView}
@@ -126,11 +137,31 @@ export default function EvidenceRecordsSection({
         </div>
       ) : records.length === 0 ? (
         <div className={`${cardClass} border-dashed p-10 text-center`}>
-          <p className={`text-base font-black ${uiTheme.textPrimary}`}>ยังไม่มีรายการงานที่ตรงกับเงื่อนไข</p>
+          <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl ${
+            theme === "dark" ? "bg-[#162136] text-cyan-200" : "bg-cyan-50 text-cyan-700"
+          }`}>
+            <Plus size={24} />
+          </div>
+          <p className={`text-base font-black ${uiTheme.textPrimary}`}>
+            {totalRecords === 0 ? "ยังไม่มีประวัติบันทึกงาน" : "ยังไม่มีรายการงานที่ตรงกับเงื่อนไข"}
+          </p>
+          <p className={`mx-auto mt-2 max-w-md text-sm leading-6 ${uiTheme.textSecondary}`}>
+            {totalRecords === 0
+              ? "กดปุ่มเพิ่มบันทึกงานเพื่อเริ่มเก็บประวัติงานติดตั้ง ปรับปรุง และแก้ไข"
+              : "ลองล้างตัวกรองหรือค้นหาด้วยคำอื่น เพื่อดูรายการที่บันทึกไว้"}
+          </p>
+          <button
+            type="button"
+            onClick={totalRecords === 0 ? onCreateRecord : onStartFreshView}
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#2b59b0] px-4 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#244a95]"
+          >
+            {totalRecords === 0 ? <Plus size={16} /> : <RotateCcw size={16} />}
+            {totalRecords === 0 ? "เพิ่มบันทึกงานแรก" : "ล้างตัวกรอง"}
+          </button>
         </div>
       ) : (
         records.map((record) => (
-          <article key={record.id} className={`${cardClass} p-5 sm:p-6`}>
+          <article key={record.id} className={`${cardClass} overflow-hidden p-5 transition hover:-translate-y-0.5 sm:p-6`}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -222,16 +253,16 @@ export default function EvidenceRecordsSection({
             <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
               <div className={`${subCardClass} p-4`}>
                 <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>รายละเอียดงาน</p>
-                <p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.description || "-"}</p>
+                <p className={`mt-2 line-clamp-5 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.description || "-"}</p>
               </div>
               <div className="space-y-4">
                 <div className={`${subCardClass} p-4`}>
                   <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>อุปกรณ์ / รายการที่ทำ</p>
-                  <p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.deviceDetails || "-"}</p>
+                  <p className={`mt-2 line-clamp-3 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.deviceDetails || "-"}</p>
                 </div>
                 <div className={`${subCardClass} p-4`}>
                   <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ผลลัพธ์ / หมายเหตุ</p>
-                  <p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.resultSummary || "-"}</p>
+                  <p className={`mt-2 line-clamp-3 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.resultSummary || "-"}</p>
                 </div>
               </div>
             </div>
@@ -240,14 +271,21 @@ export default function EvidenceRecordsSection({
               <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ภาพประกอบ</p>
               {record.images.length > 0 ? (
                 <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-                  {record.images.map((image, index) => (
+                  {record.images.slice(0, 4).map((image, index) => (
                     <button
                       key={`${record.id}_${index}`}
                       type="button"
                       onClick={() => window.open(image.url, "_blank", "noopener,noreferrer")}
                       className={`overflow-hidden rounded-2xl border text-left transition hover:-translate-y-[1px] ${theme === "dark" ? "border-slate-700 bg-[#162136]" : "border-slate-200 bg-slate-50"}`}
                     >
-                      <img src={image.url} alt={image.name || `it-evidence-${index + 1}`} className="h-32 w-full object-cover" />
+                      <div className="relative">
+                        <img src={image.url} alt={image.name || `it-evidence-${index + 1}`} className="h-32 w-full object-cover" />
+                        {index === 3 && record.images.length > 4 ? (
+                          <span className="absolute inset-0 flex items-center justify-center bg-slate-950/60 text-lg font-black text-white">
+                            +{record.images.length - 4}
+                          </span>
+                        ) : null}
+                      </div>
                       <div className="px-3 py-2">
                         <p className={`truncate text-xs font-semibold ${uiTheme.textSecondary}`}>{image.name || `หลักฐาน ${index + 1}`}</p>
                       </div>

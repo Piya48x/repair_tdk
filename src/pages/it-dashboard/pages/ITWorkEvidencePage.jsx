@@ -1,6 +1,14 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import { ArrowUp, LayoutDashboard, ListChecks } from "lucide-react";
+import {
+  ArrowUp,
+  CheckCircle2,
+  Clock3,
+  LayoutDashboard,
+  ListChecks,
+  Plus,
+  X,
+} from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import { fetchProfilesWithCompatibility } from "../../../lib/profileSchemaCompat";
 import {
@@ -114,14 +122,15 @@ export default function ITWorkEvidencePage({
   const [filters, setFilters] = useState(buildDefaultFilters);
   const [employeeDirectory, setEmployeeDirectory] = useState([]);
   const [employeeDirectoryLoading, setEmployeeDirectoryLoading] = useState(false);
+  const [recordModalOpen, setRecordModalOpen] = useState(false);
 
   const deferredQuery = useDeferredValue(filters.query);
   const isEditing = editingRecordId !== null;
-  const cardClass = `${uiTheme.surfaceCard} rounded-3xl border`;
+  const cardClass = `${uiTheme.surfaceCard} rounded-2xl border sm:rounded-3xl`;
   const subCardClass = theme === "dark"
-    ? "rounded-2xl border border-slate-700 bg-[#162136]"
-    : "rounded-2xl border border-slate-200 bg-slate-50";
-  const inputClass = `w-full rounded-2xl border px-4 py-3 text-sm ${uiTheme.searchInputMobile}`;
+    ? "rounded-xl border border-slate-700 bg-[#162136] sm:rounded-2xl"
+    : "rounded-xl border border-slate-200 bg-slate-50 sm:rounded-2xl";
+  const inputClass = `w-full rounded-xl border px-3 py-2.5 text-sm sm:rounded-2xl sm:px-4 sm:py-3 ${uiTheme.searchInputMobile}`;
   const softTextClass = theme === "dark" ? "text-slate-400" : "text-slate-500";
 
   const loadRecords = async ({ silent = false } = {}) => {
@@ -266,6 +275,17 @@ export default function ITWorkEvidencePage({
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (!recordModalOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [recordModalOpen]);
+
   const clearFormState = () => {
     setTimerRunning(false);
     setNowValue(new Date());
@@ -281,12 +301,24 @@ export default function ITWorkEvidencePage({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const openCreateRecordModal = () => {
+    if (saving) return;
+    clearFormState();
+    setRecordModalOpen(true);
+  };
+
+  const closeRecordModal = () => {
+    if (saving) return;
+    clearFormState();
+    setRecordModalOpen(false);
+  };
+
   const resetForm = () => {
     clearFormState();
   };
 
   const handleCancelEdit = () => {
-    clearFormState();
+    closeRecordModal();
   };
 
   const appendEvidenceFiles = (files, { source = "upload", notifyInvalid = true } = {}) => {
@@ -561,7 +593,7 @@ export default function ITWorkEvidencePage({
       return [];
     });
     if (fileInputRef.current) fileInputRef.current.value = "";
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setRecordModalOpen(true);
   };
 
   const buildPayload = (uploadedImages) => {
@@ -660,6 +692,7 @@ export default function ITWorkEvidencePage({
       }
 
       clearFormState();
+      setRecordModalOpen(false);
     } catch (error) {
       if (uploadedImages.length > 0) {
         await removeITWorkEvidenceFiles(uploadedImages);
@@ -708,58 +741,148 @@ export default function ITWorkEvidencePage({
 
   const handleStartFreshView = () => {
     clearFormState();
+    setRecordModalOpen(false);
     setFilters(buildDefaultFilters());
     scrollToTop();
   };
 
-  return (
-    <div className="space-y-6">
-      <section className={`${cardClass} p-5 sm:p-6`}>
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${
-              theme === "dark"
-                ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200"
-                : "border-cyan-200 bg-cyan-50 text-cyan-700"
-            }`}>
-              <ListChecks size={14} />
-              บันทึกงาน IT
-            </div>
-            <h2 className={`mt-3 text-2xl font-black ${uiTheme.textPrimary}`}>
-              บันทึกงานติดตั้ง ปรับปรุง และแก้ไข พร้อมภาพหลักฐาน
-            </h2>
-            <p className={`mt-2 max-w-3xl text-sm leading-6 ${uiTheme.textSecondary}`}>
-              รองรับการบันทึกย้อนหลัง กำหนดชั่วโมงงานเอง และแก้ไขรายการเดิมได้จากหน้าเดียว
-            </p>
-          </div>
+  const summaryCards = useMemo(() => {
+    const todayKey = toDateTimeLocalValue(new Date()).slice(0, 10);
+    const totalMinutes = recordViews.reduce((sum, record) => sum + record.durationMinutes, 0);
+    const completedCount = recordViews.filter((record) => record.raw.work_status === "completed").length;
+    const activeCount = recordViews.filter((record) => record.raw.work_status === "in_progress").length;
+    const todayCount = recordViews.filter((record) => {
+      if (!record.startValue) return false;
+      return toDateTimeLocalValue(record.startValue).slice(0, 10) === todayKey;
+    }).length;
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onNavigatePage?.(DASHBOARD_PAGE_IDS.REPORTS)}
-              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
+    return [
+      {
+        key: "total",
+        title: "ประวัติทั้งหมด",
+        value: recordViews.length,
+        hint: "งานติดตั้ง/ปรับปรุงที่บันทึกไว้",
+        icon: ListChecks,
+        tone: theme === "dark" ? "bg-cyan-500/10 text-cyan-200" : "bg-cyan-50 text-cyan-700",
+      },
+      {
+        key: "today",
+        title: "บันทึกวันนี้",
+        value: todayCount,
+        hint: "รายการที่เริ่มงานวันนี้",
+        icon: Clock3,
+        tone: theme === "dark" ? "bg-amber-500/10 text-amber-200" : "bg-amber-50 text-amber-700",
+      },
+      {
+        key: "completed",
+        title: "เสร็จสิ้น",
+        value: completedCount,
+        hint: activeCount > 0 ? `กำลังทำ ${activeCount} รายการ` : "ไม่มีงานค้างในหน้านี้",
+        icon: CheckCircle2,
+        tone: theme === "dark" ? "bg-emerald-500/10 text-emerald-200" : "bg-emerald-50 text-emerald-700",
+      },
+      {
+        key: "hours",
+        title: "ชั่วโมงรวม",
+        value: formatDurationLabel(totalMinutes),
+        hint: "รวมเวลาจากประวัติงานทั้งหมด",
+        icon: Clock3,
+        tone: theme === "dark" ? "bg-slate-700 text-slate-200" : "bg-slate-100 text-slate-700",
+      },
+    ];
+  }, [recordViews, theme]);
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      <section className={`${cardClass} overflow-hidden`}>
+        <div className="relative p-4 sm:p-6">
+          <div className={`pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl sm:h-48 sm:w-48 ${
+            theme === "dark" ? "bg-cyan-500/10" : "bg-cyan-200/50"
+          }`} />
+          <div className={`pointer-events-none absolute bottom-0 left-8 h-24 w-24 rounded-full blur-3xl sm:h-32 sm:w-32 ${
+            theme === "dark" ? "bg-[#2b59b0]/20" : "bg-[#2b59b0]/10"
+          }`} />
+
+          <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${
                 theme === "dark"
-                  ? "bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              <LayoutDashboard size={16} />
-              Dashboard IT Usage
-            </button>
-            <button
-              type="button"
-              onClick={scrollToList}
-              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
-                theme === "dark"
-                  ? "bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              <ListChecks size={16} />
-              รายการงาน
-            </button>
+                  ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200"
+                  : "border-cyan-200 bg-cyan-50 text-cyan-700"
+              }`}>
+                <ListChecks size={14} />
+                บันทึกงาน IT
+              </div>
+              <h2 className={`mt-2 text-xl font-black sm:mt-3 sm:text-3xl ${uiTheme.textPrimary}`}>
+                บันทึกงานติดตั้ง ปรับปรุง และแก้ไข
+              </h2>
+              <p className={`mt-1 line-clamp-2 max-w-3xl text-xs leading-5 sm:mt-2 sm:text-sm sm:leading-6 ${uiTheme.textSecondary}`}>
+                หน้าแรกจะแสดงประวัติงานที่บันทึกไว้ทันที ส่วนการเพิ่มหรือแก้ไขงานย้ายไปอยู่ใน popup เพื่อให้ใช้งานเร็วและไม่ต้องเลื่อนหาฟอร์มยาว
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              <button
+                type="button"
+                onClick={openCreateRecordModal}
+                disabled={schemaMissing}
+                className={`col-span-2 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 sm:col-span-1 sm:rounded-2xl sm:px-4 sm:py-3 ${
+                  schemaMissing
+                    ? "cursor-not-allowed bg-slate-400 shadow-none"
+                    : "bg-[#2b59b0] shadow-[#2b59b0]/25 hover:bg-[#244a95]"
+                }`}
+              >
+                <Plus size={18} />
+                เพิ่มบันทึกงาน
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigatePage?.(DASHBOARD_PAGE_IDS.REPORTS)}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${
+                  theme === "dark"
+                    ? "bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
+                    : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <LayoutDashboard size={16} />
+                <span className="truncate">Dashboard</span>
+              </button>
+              <button
+                type="button"
+                onClick={scrollToList}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${
+                  theme === "dark"
+                    ? "bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
+                    : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <ListChecks size={16} />
+                <span className="truncate">ประวัติงาน</span>
+              </button>
+            </div>
           </div>
         </div>
+      </section>
+
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+        {summaryCards.map((card) => {
+          const Icon = card.icon;
+
+          return (
+            <article key={card.key} className={`${cardClass} p-3 sm:p-5`}>
+              <div className="flex items-start justify-between gap-2 sm:gap-3">
+                <div>
+                  <p className={`text-[11px] font-bold uppercase tracking-[0.12em] sm:text-xs sm:tracking-[0.16em] ${softTextClass}`}>{card.title}</p>
+                  <p className={`mt-1 text-lg font-black leading-tight sm:mt-2 sm:text-2xl ${uiTheme.textPrimary}`}>{card.value}</p>
+                  <p className={`mt-1 hidden text-xs leading-5 sm:block ${uiTheme.textSecondary}`}>{card.hint}</p>
+                </div>
+                <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 sm:rounded-2xl ${card.tone}`}>
+                  <Icon size={18} />
+                </span>
+              </div>
+            </article>
+          );
+        })}
       </section>
 
       {loadError && (
@@ -776,66 +899,118 @@ export default function ITWorkEvidencePage({
         </section>
       )}
 
-      <section className="grid gap-6 xl:grid-cols-[430px_minmax(0,1fr)]">
-        <EvidenceFormSection
-          theme={theme}
-          uiTheme={uiTheme}
-          cardClass={cardClass}
-          subCardClass={subCardClass}
-          inputClass={inputClass}
-          softTextClass={softTextClass}
-          currentUser={currentUser}
-          formData={formData}
-          setFormData={setFormData}
-          selectedFiles={selectedFiles}
-          existingImages={existingImages}
-          fileInputRef={fileInputRef}
-          onFileSelect={handleFileSelect}
-          onRemoveFile={handleRemoveFile}
-          onRemoveExistingImage={handleRemoveExistingImage}
-          onReset={resetForm}
-          onSave={handleSave}
-          saving={saving}
-          schemaMissing={schemaMissing}
-          timerRunning={timerRunning}
-          durationLabel={formatDurationLabel(currentDurationMinutes)}
-          durationHours={durationParts.hours}
-          durationMinutes={durationParts.minutes}
-          onStartTimer={handleStartTimer}
-          onStopTimer={handleStopTimer}
-          onDurationHoursChange={handleDurationHoursChange}
-          onDurationMinutesChange={handleDurationMinutesChange}
-          isEditing={isEditing}
-          onCancelEdit={handleCancelEdit}
-          employeeOptions={employeeDirectory}
-          employeeLoading={employeeDirectoryLoading}
-          onEmployeeSelect={handleEmployeeSelect}
-        />
+      <EvidenceRecordsSection
+        theme={theme}
+        uiTheme={uiTheme}
+        cardClass={cardClass}
+        subCardClass={subCardClass}
+        inputClass={inputClass}
+        softTextClass={softTextClass}
+        listRef={listRef}
+        loading={loading}
+        records={filteredRecords}
+        totalRecords={recordViews.length}
+        filters={filters}
+        setFilters={setFilters}
+        typeOptions={TYPE_OPTIONS}
+        statusOptions={STATUS_OPTIONS}
+        userOptions={userOptions}
+        departmentOptions={departmentOptions}
+        onEdit={beginEditRecord}
+        editingId={editingRecordId}
+        onDelete={handleDelete}
+        deletingId={deletingId}
+        onScrollToTop={scrollToTop}
+        onStartFreshView={handleStartFreshView}
+        onCreateRecord={openCreateRecordModal}
+      />
 
-        <EvidenceRecordsSection
-          theme={theme}
-          uiTheme={uiTheme}
-          cardClass={cardClass}
-          subCardClass={subCardClass}
-          inputClass={inputClass}
-          softTextClass={softTextClass}
-          listRef={listRef}
-          loading={loading}
-          records={filteredRecords}
-          filters={filters}
-          setFilters={setFilters}
-          typeOptions={TYPE_OPTIONS}
-          statusOptions={STATUS_OPTIONS}
-          userOptions={userOptions}
-          departmentOptions={departmentOptions}
-          onEdit={beginEditRecord}
-          editingId={editingRecordId}
-          onDelete={handleDelete}
-          deletingId={deletingId}
-          onScrollToTop={scrollToTop}
-          onStartFreshView={handleStartFreshView}
-        />
-      </section>
+      {recordModalOpen && (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+          <div
+            className={`absolute inset-0 backdrop-blur-sm ${
+              theme === "dark" ? "bg-slate-950/80" : "bg-slate-900/35"
+            }`}
+            onClick={closeRecordModal}
+          />
+
+          <div className={`relative z-10 flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:max-h-[96vh] sm:rounded-[2rem] ${
+            theme === "dark"
+              ? "border-slate-700 bg-[#0f172a] shadow-slate-950/60"
+              : "border-slate-200 bg-white shadow-slate-400/30"
+          }`}>
+            <div className={`flex items-start justify-between gap-3 border-b px-4 py-3 sm:gap-4 sm:px-6 sm:py-4 ${
+              theme === "dark" ? "border-slate-700" : "border-slate-200"
+            }`}>
+              <div>
+                <p className={`text-[11px] font-bold uppercase tracking-[0.16em] sm:text-xs sm:tracking-[0.18em] ${softTextClass}`}>
+                  {isEditing ? "Edit work record" : "New work record"}
+                </p>
+                <h3 className={`mt-0.5 text-base font-black sm:mt-1 sm:text-lg ${uiTheme.textPrimary}`}>
+                  {isEditing ? "แก้ไขบันทึกงาน" : "เพิ่มบันทึกงาน"}
+                </h3>
+                <p className={`mt-1 hidden text-sm sm:block ${uiTheme.textSecondary}`}>
+                  กรอกข้อมูลและแนบรูปหลักฐานได้ในหน้าต่างนี้ บันทึกเสร็จแล้วรายการจะอัปเดตในประวัติทันที
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeRecordModal}
+                disabled={saving}
+                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition sm:h-10 sm:w-10 sm:rounded-2xl ${
+                  saving
+                    ? "cursor-not-allowed opacity-60"
+                    : theme === "dark"
+                      ? "border-slate-600 text-slate-300 hover:bg-slate-800"
+                      : "border-slate-200 text-slate-500 hover:bg-slate-100"
+                }`}
+                aria-label="ปิดหน้าต่างบันทึกงาน"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-3 py-3 sm:px-6 sm:py-5">
+              <EvidenceFormSection
+                theme={theme}
+                uiTheme={uiTheme}
+                cardClass="border-0 bg-transparent shadow-none"
+                subCardClass={subCardClass}
+                inputClass={inputClass}
+                softTextClass={softTextClass}
+                currentUser={currentUser}
+                formData={formData}
+                setFormData={setFormData}
+                selectedFiles={selectedFiles}
+                existingImages={existingImages}
+                fileInputRef={fileInputRef}
+                onFileSelect={handleFileSelect}
+                onRemoveFile={handleRemoveFile}
+                onRemoveExistingImage={handleRemoveExistingImage}
+                onReset={resetForm}
+                onSave={handleSave}
+                saving={saving}
+                schemaMissing={schemaMissing}
+                timerRunning={timerRunning}
+                durationLabel={formatDurationLabel(currentDurationMinutes)}
+                durationHours={durationParts.hours}
+                durationMinutes={durationParts.minutes}
+                onStartTimer={handleStartTimer}
+                onStopTimer={handleStopTimer}
+                onDurationHoursChange={handleDurationHoursChange}
+                onDurationMinutesChange={handleDurationMinutesChange}
+                isEditing={isEditing}
+                onCancelEdit={handleCancelEdit}
+                employeeOptions={employeeDirectory}
+                employeeLoading={employeeDirectoryLoading}
+                onEmployeeSelect={handleEmployeeSelect}
+                isModal
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {showScrollToTop && (
         <button
