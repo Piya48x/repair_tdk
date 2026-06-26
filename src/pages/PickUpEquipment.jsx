@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { insertTicketWithSchemaFallback } from '../lib/ticketSchemaCompat';
@@ -9,10 +9,17 @@ import {
   Server, FileText, Upload, X, CheckCircle,
   Loader2, ChevronRight, LayoutGrid, Search,
   Download, Laptop, MapPin, User, Building,
-  Phone, Mail, Calendar, Briefcase, ListChecks
+  Phone, Mail, Calendar, Briefcase, ListChecks,
+  Package, Image as ImageIcon, RefreshCw, AlertCircle,
+  SlidersHorizontal
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { generateITRequestPDF } from '../utils/pdfGenerator';
+import { loadStockItems, isStockPermissionDenied, isStockSchemaError } from './it-dashboard/services/stockManagementService';
+import {
+  buildStockRequestDescription,
+  stripStockRequestMetadata,
+} from '../lib/serviceRequestUtils';
 
 
 // --- Configuration: Service Catalog ---
@@ -23,10 +30,11 @@ const SERVICE_CATALOG = [
     subtitle: 'อุปกรณ์คอมพิวเตอร์และฮาร์ดแวร์',
     icon: <Monitor className="w-6 h-6 text-blue-600" />,
     actions: [
-      { id: 'req_new_device', label: 'เบิกอุปกรณ์ใหม่ (New Equipment)' },
-      { id: 'req_replacement', label: 'ขอเปลี่ยนเครื่องทดแทน (Replacement)' },
+      { id: 'req_stock_item', label: 'เบิกของจาก Stock IT', requiresStockSelection: true },
+      { id: 'req_new_device', label: 'เบิกอุปกรณ์ใหม่ (New Equipment)', requiresStockSelection: true },
+      { id: 'req_replacement', label: 'ขอเปลี่ยนเครื่องทดแทน (Replacement)', requiresStockSelection: true },
       { id: 'req_repair', label: 'แจ้งซ่อมอุปกรณ์ (Repair)' },
-      { id: 'req_peripherals', label: 'อุปกรณ์ต่อพ่วง (Mouse/Keyboard)' },
+      { id: 'req_peripherals', label: 'อุปกรณ์ต่อพ่วง (Mouse/Keyboard)', requiresStockSelection: true },
       { id: 'req_laptop_gps', label: '🔒 ขอยืมโน้ตบุ๊ค GPS Tracking' },
     ]
   },
@@ -295,6 +303,7 @@ function getLocalizedServiceCatalog(language) {
         ...action,
         displayLabel: {
           req_new_device: 'Request New Equipment',
+          req_stock_item: 'Pick From IT Stock',
           req_replacement: 'Request Replacement Device',
           req_repair: 'Repair Equipment',
           req_peripherals: 'Peripheral Devices (Mouse/Keyboard)',
@@ -341,6 +350,7 @@ function getLocalizedServiceCatalog(language) {
         ...action,
         displayLabel: {
           req_new_device: '신규 장비 요청',
+          req_stock_item: 'IT 재고에서 수령 요청',
           req_replacement: '대체 장비 요청',
           req_repair: '장비 수리 요청',
           req_peripherals: '주변기기 (마우스/키보드)',
@@ -382,6 +392,134 @@ function getLocalizedServiceCatalog(language) {
   }));
 }
 
+const STOCK_REQUEST_ACTION_IDS = new Set([
+  'req_stock_item',
+  'req_new_device',
+  'req_replacement',
+  'req_peripherals',
+]);
+
+function normalizeText(value) {
+  return String(value || '').trim();
+}
+
+function normalizeNumber(value, fallback = 0) {
+  const parsed = Number(String(value ?? '').replace(/,/g, '').trim());
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(Math.round(parsed), 0);
+}
+
+function formatQuantity(value) {
+  return new Intl.NumberFormat('th-TH').format(Number(value || 0));
+}
+
+function getStockQuantity(item) {
+  return normalizeNumber(item?.quantity_on_hand, 0);
+}
+
+function getStockUnit(item) {
+  return normalizeText(item?.unit) || 'ชิ้น';
+}
+
+function getStockAttachments(item) {
+  return Array.isArray(item?.stock_attachments)
+    ? item.stock_attachments
+    : Array.isArray(item?.it_stock_item_attachments)
+      ? item.it_stock_item_attachments
+      : [];
+}
+
+function isImageAttachment(attachment) {
+  const mime = normalizeText(attachment?.mime_type).toLowerCase();
+  const url = normalizeText(attachment?.file_url || attachment?.file_name).toLowerCase();
+  return mime.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|avif)(\?|#|$)/i.test(url);
+}
+
+function getPrimaryStockImage(item) {
+  const attachment = getStockAttachments(item).find(isImageAttachment);
+  return normalizeText(attachment?.file_url);
+}
+
+function getStockStatus(item) {
+  const quantity = getStockQuantity(item);
+  const minimum = normalizeNumber(item?.minimum_quantity, 0);
+  if (quantity <= 0) {
+    return {
+      key: 'OUT',
+      label: 'หมด stock',
+      className: 'border-rose-200 bg-rose-50 text-rose-700',
+      dotClass: 'bg-rose-500',
+    };
+  }
+  if (minimum > 0 && quantity <= minimum) {
+    return {
+      key: 'LOW',
+      label: 'ใกล้หมด',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+      dotClass: 'bg-amber-500',
+    };
+  }
+  return {
+    key: 'READY',
+    label: 'พร้อมเบิก',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    dotClass: 'bg-emerald-500',
+  };
+}
+
+function stockMatchesKeyword(item, keyword) {
+  if (!keyword) return true;
+  return [
+    item?.stock_code,
+    item?.item_name,
+    item?.item_category,
+    item?.reference_item_code,
+    item?.brand,
+    item?.model,
+    item?.location,
+    item?.notes,
+  ]
+    .map((value) => normalizeText(value).toLowerCase())
+    .join(' ')
+    .includes(keyword);
+}
+
+function isStockRequestAction(action) {
+  return Boolean(action?.requiresStockSelection || STOCK_REQUEST_ACTION_IDS.has(action?.id));
+}
+
+function buildStockRequestSummary(stockRequest) {
+  if (!stockRequest) return '';
+  const quantity = normalizeNumber(stockRequest.quantity, 1) || 1;
+  const unit = normalizeText(stockRequest.unit) || 'ชิ้น';
+  const code = normalizeText(stockRequest.stock_code);
+  const name = normalizeText(stockRequest.item_name) || 'รายการ stock';
+  return `ขอเบิกจาก stock: ${name}${code ? ` (${code})` : ''} x ${formatQuantity(quantity)} ${unit}`;
+}
+
+function buildStockRequestMetadata(item, quantity, selectedRequest) {
+  const safeQuantity = normalizeNumber(quantity, 1) || 1;
+  return {
+    stock_item_id: item?.id || '',
+    stock_code: normalizeText(item?.stock_code),
+    item_name: normalizeText(item?.item_name),
+    item_category: normalizeText(item?.item_category),
+    reference_item_code: normalizeText(item?.reference_item_code),
+    brand: normalizeText(item?.brand),
+    model: normalizeText(item?.model),
+    unit: getStockUnit(item),
+    quantity: safeQuantity,
+    available_at_request: getStockQuantity(item),
+    minimum_quantity: normalizeNumber(item?.minimum_quantity, 0),
+    location: normalizeText(item?.location),
+    image_url: getPrimaryStockImage(item),
+    approval_status: 'pending_it_approval',
+    requested_service_type: normalizeText(selectedRequest?.id),
+    requested_service_label: normalizeText(selectedRequest?.displayLabel || selectedRequest?.label),
+    requested_at: new Date().toISOString(),
+  };
+}
+
 const PickUpEquipment = () => {
   const navigate = useNavigate();
   const { language, tt } = useScopedI18n(PICK_UP_EQUIPMENT_TRANSLATIONS);
@@ -408,13 +546,55 @@ const PickUpEquipment = () => {
     borrowEndDate: '',
     purposeOfUse: '',
     laptopSerialNumber: '',
+    stockItemId: '',
+    stockQuantity: '1',
+    stockSearch: '',
   });
 
   // File Upload State
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [stockItems, setStockItems] = useState([]);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockError, setStockError] = useState('');
+  const [stockSearchQuery, setStockSearchQuery] = useState('');
+  const [stockFilter, setStockFilter] = useState('AVAILABLE');
   const localizedCatalog = getLocalizedServiceCatalog(language);
+  const selectedRequestRequiresStock = isStockRequestAction(selectedRequest);
+
+  const selectedStockItem = useMemo(
+    () => stockItems.find((item) => String(item?.id || '') === String(formData.stockItemId || '')) || null,
+    [formData.stockItemId, stockItems],
+  );
+
+  const stockSummary = useMemo(() => {
+    const total = stockItems.length;
+    const ready = stockItems.filter((item) => getStockStatus(item).key === 'READY').length;
+    const low = stockItems.filter((item) => getStockStatus(item).key === 'LOW').length;
+    const out = stockItems.filter((item) => getStockStatus(item).key === 'OUT').length;
+    return { total, ready, low, out };
+  }, [stockItems]);
+
+  const filteredStockItems = useMemo(() => {
+    const keyword = normalizeText(stockSearchQuery).toLowerCase();
+
+    return stockItems
+      .filter((item) => {
+        const statusKey = getStockStatus(item).key;
+        if (stockFilter === 'AVAILABLE' && statusKey === 'OUT') return false;
+        if (stockFilter !== 'ALL' && stockFilter !== 'AVAILABLE' && statusKey !== stockFilter) return false;
+        return stockMatchesKeyword(item, keyword);
+      })
+      .sort((left, right) => {
+        const leftQty = getStockQuantity(left);
+        const rightQty = getStockQuantity(right);
+        return Number(rightQty > 0) - Number(leftQty > 0) || rightQty - leftQty || normalizeText(left?.item_name).localeCompare(normalizeText(right?.item_name));
+      });
+  }, [stockFilter, stockItems, stockSearchQuery]);
+
+  const visibleStockItems = useMemo(() => filteredStockItems.slice(0, 9), [filteredStockItems]);
+  const modalStockItems = useMemo(() => filteredStockItems.slice(0, 6), [filteredStockItems]);
 
   // Load user profile from Supabase
   useEffect(() => {
@@ -484,23 +664,115 @@ const PickUpEquipment = () => {
     };
   }, [tt]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadStockCatalog = async () => {
+      try {
+        setStockLoading(true);
+        setStockError('');
+        const { data, error } = await loadStockItems();
+        if (error) throw error;
+        if (isMounted) {
+          setStockItems(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Load stock catalog error:', error);
+        if (!isMounted) return;
+        setStockItems([]);
+        if (isStockSchemaError(error)) {
+          setStockError('ยังไม่พบตาราง stock management กรุณาให้ IT อัปเดตฐานข้อมูลก่อน');
+        } else if (isStockPermissionDenied(error)) {
+          setStockError('บัญชีนี้ยังไม่มีสิทธิ์ดูรายการ stock กรุณาให้ IT เปิดสิทธิ์สำหรับผู้ใช้');
+        } else {
+          setStockError(error?.message || 'โหลดรายการ stock ไม่สำเร็จ');
+        }
+      } finally {
+        if (isMounted) setStockLoading(false);
+      }
+    };
+
+    void loadStockCatalog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleOpenForm = (category, action) => {
+    const stockItem = action?.stockItem || null;
+    const stockLabel = stockItem
+      ? `ขอเบิก ${stockItem.item_name || stockItem.stock_code || 'อุปกรณ์ IT'}`
+      : action.displayLabel || action.label;
+
     setSelectedRequest({
       ...action,
       categoryName: category.title,
       categoryDisplayName: category.displayTitle || category.title,
-      displayLabel: action.displayLabel || action.label,
+      displayLabel: stockLabel,
     });
     setFormData(prev => ({
       ...prev,
-      title: action.displayLabel || action.label,
+      title: stockLabel,
+      description: stockItem
+        ? `ต้องการเบิก ${stockItem.item_name || 'อุปกรณ์ IT'} สำหรับใช้งานในแผนก`
+        : prev.description,
       // Reset GPS-specific fields
       borrowStartDate: '',
       borrowEndDate: '',
       purposeOfUse: '',
       laptopSerialNumber: '',
+      stockItemId: stockItem?.id || '',
+      stockQuantity: '1',
+      stockSearch: stockItem ? `${stockItem.stock_code || '-'} • ${stockItem.item_name || '-'}` : '',
     }));
     setIsFormOpen(true);
+  };
+
+  const handleOpenStockRequest = (stockItem) => {
+    const stockCategory = localizedCatalog.find((category) => category.id === 'hardware') || {
+      title: 'Hardware & Equipment',
+      displayTitle: 'ฮาร์ดแวร์ / อุปกรณ์',
+    };
+    const stockAction = {
+      id: 'req_stock_item',
+      label: 'เบิกของจาก Stock IT',
+      displayLabel: `ขอเบิก ${stockItem?.item_name || stockItem?.stock_code || 'อุปกรณ์ IT'}`,
+      requiresStockSelection: true,
+      stockItem,
+    };
+    handleOpenForm(stockCategory, stockAction);
+  };
+
+  const handleSelectStockItem = (item) => {
+    setFormData((prev) => ({
+      ...prev,
+      stockItemId: item?.id || '',
+      stockSearch: `${item?.stock_code || '-'} • ${item?.item_name || '-'}`,
+      title: selectedRequestRequiresStock ? `ขอเบิก ${item?.item_name || item?.stock_code || 'อุปกรณ์ IT'}` : prev.title,
+    }));
+  };
+
+  const handleReloadStock = async () => {
+    try {
+      setStockLoading(true);
+      setStockError('');
+      const { data, error } = await loadStockItems();
+      if (error) throw error;
+      setStockItems(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Reload stock catalog error:', error);
+      setStockItems([]);
+      if (isStockSchemaError(error)) {
+        setStockError('ยังไม่พบตาราง stock management กรุณาให้ IT อัปเดตฐานข้อมูลก่อน');
+      } else if (isStockPermissionDenied(error)) {
+        setStockError('บัญชีนี้ยังไม่มีสิทธิ์ดูรายการ stock กรุณาให้ IT เปิดสิทธิ์สำหรับผู้ใช้');
+      } else {
+        setStockError(error?.message || 'โหลดรายการ stock ไม่สำเร็จ');
+      }
+    } finally {
+      setStockLoading(false);
+    }
   };
 
   const handleCloseForm = () => {
@@ -586,10 +858,42 @@ const PickUpEquipment = () => {
     setIsSubmitting(true);
 
     try {
+      const cleanDescription = stripStockRequestMetadata(formData.description).description;
+      let stockRequestMetadata = null;
+
+      if (selectedRequestRequiresStock) {
+        if (!selectedStockItem) {
+          throw new Error('กรุณาเลือกรายการอุปกรณ์จาก stock ก่อนส่งคำขอ');
+        }
+
+        const requestedQuantity = normalizeNumber(formData.stockQuantity, 1);
+        const availableQuantity = getStockQuantity(selectedStockItem);
+        if (requestedQuantity <= 0) {
+          throw new Error('จำนวนที่ต้องการเบิกต้องมากกว่า 0');
+        }
+        if (availableQuantity <= 0) {
+          throw new Error('รายการนี้หมด stock แล้ว กรุณาเลือกรายการอื่น');
+        }
+        if (requestedQuantity > availableQuantity) {
+          throw new Error(`จำนวนที่ขอเบิกเกิน stock คงเหลือ (${formatQuantity(availableQuantity)} ${getStockUnit(selectedStockItem)})`);
+        }
+
+        stockRequestMetadata = buildStockRequestMetadata(selectedStockItem, requestedQuantity, selectedRequest);
+      }
+
+      const requestDescription = stockRequestMetadata
+        ? buildStockRequestDescription(cleanDescription, stockRequestMetadata)
+        : cleanDescription;
+      const requestPurpose = selectedRequest?.id === 'req_laptop_gps'
+        ? formData.purposeOfUse || null
+        : stockRequestMetadata
+          ? buildStockRequestSummary(stockRequestMetadata)
+          : formData.purposeOfUse || null;
+
       // Prepare data for Supabase
       const ticketData = {
         title: formData.title,
-        description: formData.description,
+        description: requestDescription,
         department: formData.department,
         location: formData.location,
         priority: formData.priority.toLowerCase(),
@@ -607,7 +911,7 @@ const PickUpEquipment = () => {
         // GPS Laptop specific
         borrow_start_date: formData.borrowStartDate || null,
         borrow_end_date: formData.borrowEndDate || null,
-        purpose_of_use: formData.purposeOfUse || null,
+        purpose_of_use: requestPurpose,
         laptop_serial_number: formData.laptopSerialNumber || null,
         created_at: new Date().toISOString(),
       };
@@ -689,7 +993,7 @@ const PickUpEquipment = () => {
 
       {/* --- 1. Header (CreateTicket Style) --- */}
       <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/90 border-b border-slate-200/60 shadow-lg transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-24 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[72px] py-3 sm:h-20 sm:py-0 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               type="button"
@@ -758,17 +1062,17 @@ const PickUpEquipment = () => {
       </header>
 
       {/* --- 2. Main Content --- */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
 
         {/* Page Title with User Greeting */}
-        <div className="mb-12">
+        <div className="mb-6 sm:mb-10">
           <div className="flex items-center gap-3 mb-3">
             <div className="h-1 w-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full"></div>
-            <h2 className="text-4xl font-bold text-slate-900">
+            <h2 className="text-2xl font-bold text-slate-900 sm:text-4xl">
               {tt('greeting', { name: currentUser?.name?.split(' ')[0] || tt('employeeFallback') })}
             </h2>
           </div>
-          <p className="text-slate-600 max-w-3xl text-lg font-light ml-15">
+          <p className="max-w-3xl text-sm font-light text-slate-600 sm:text-lg">
             {tt('intro')}
           </p>
 
@@ -776,7 +1080,7 @@ const PickUpEquipment = () => {
             <button
               type="button"
               onClick={() => navigate('/my-borrow-requests')}
-              className="inline-flex items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-3 text-left text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+              className="inline-flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-left text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:w-auto sm:px-5"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm">
                 <ListChecks className="w-5 h-5" />
@@ -805,15 +1109,180 @@ const PickUpEquipment = () => {
           </div>
         </div>
 
+        {/* Stock Catalog */}
+        <section className="mb-8 overflow-hidden rounded-[2rem] border border-blue-100 bg-white/90 shadow-xl shadow-blue-100/50 backdrop-blur">
+          <div className="border-b border-slate-100 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 p-4 text-white sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-100">
+                  <Package className="h-3.5 w-3.5" />
+                  IT Stock Pickup
+                </span>
+                <h3 className="mt-3 text-2xl font-black sm:text-3xl">เลือกอุปกรณ์จาก Stock ที่มีจริง</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
+                  ผู้ใช้เลือกของที่ต้องการเบิกได้เอง ระบบจะส่งคำขอให้ทีม IT รับทราบและอนุมัติก่อนจ่ายของจริง
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleReloadStock()}
+                disabled={stockLoading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                <RefreshCw className={`h-4 w-4 ${stockLoading ? 'animate-spin' : ''}`} />
+                รีเฟรช stock
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-2 text-xs font-semibold sm:grid-cols-4">
+              <div className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
+                ทั้งหมด <span className="ml-1 text-lg font-black">{formatQuantity(stockSummary.total)}</span>
+              </div>
+              <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2">
+                พร้อมเบิก <span className="ml-1 text-lg font-black">{formatQuantity(stockSummary.ready)}</span>
+              </div>
+              <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2">
+                ใกล้หมด <span className="ml-1 text-lg font-black">{formatQuantity(stockSummary.low)}</span>
+              </div>
+              <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-3 py-2">
+                หมด <span className="ml-1 text-lg font-black">{formatQuantity(stockSummary.out)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-6">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={stockSearchQuery}
+                  onChange={(event) => setStockSearchQuery(event.target.value)}
+                  placeholder="ค้นหาชื่ออุปกรณ์, รหัส stock, หมวดหมู่, รุ่น..."
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+              <div className="relative">
+                <SlidersHorizontal className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={stockFilter}
+                  onChange={(event) => setStockFilter(event.target.value)}
+                  className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                >
+                  <option value="AVAILABLE">เฉพาะที่เบิกได้</option>
+                  <option value="READY">พร้อมเบิก</option>
+                  <option value="LOW">ใกล้หมด</option>
+                  <option value="OUT">หมด stock</option>
+                  <option value="ALL">ทั้งหมด</option>
+                </select>
+              </div>
+            </div>
+
+            {stockError && (
+              <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>{stockError}</span>
+              </div>
+            )}
+
+            {stockLoading ? (
+              <div className="mt-5 flex min-h-[180px] items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50">
+                <div className="flex items-center gap-3 text-sm font-semibold text-slate-500">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  กำลังโหลดรายการ stock...
+                </div>
+              </div>
+            ) : visibleStockItems.length === 0 ? (
+              <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <Package className="mx-auto h-10 w-10 text-slate-300" />
+                <p className="mt-3 text-sm font-semibold text-slate-600">ไม่พบรายการ stock ตามเงื่อนไขนี้</p>
+                <p className="mt-1 text-xs text-slate-400">ลองเปลี่ยนคำค้นหาหรือ filter อีกครั้ง</p>
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {visibleStockItems.map((item) => {
+                    const status = getStockStatus(item);
+                    const imageUrl = getPrimaryStockImage(item);
+                    const quantity = getStockQuantity(item);
+                    const disabled = quantity <= 0;
+
+                    return (
+                      <article
+                        key={item.id || item.stock_code}
+                        className="group flex min-w-0 gap-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-100/60"
+                      >
+                        <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 sm:h-28 sm:w-28">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={item.item_name || 'stock item'}
+                              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400">
+                              <ImageIcon className="h-8 w-8" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-bold ${status.className}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${status.dotClass}`} />
+                              {status.label}
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-400">{item.stock_code || '-'}</span>
+                          </div>
+                          <h4 className="mt-2 line-clamp-2 text-sm font-black text-slate-900">
+                            {item.item_name || 'Unnamed item'}
+                          </h4>
+                          <p className="mt-1 truncate text-xs text-slate-500">
+                            {item.item_category || 'IT Equipment'} {item.reference_item_code ? `• ${item.reference_item_code}` : ''}
+                          </p>
+                          <div className="mt-3 flex items-end justify-between gap-2">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">คงเหลือ</p>
+                              <p className="text-lg font-black text-slate-900">
+                                {formatQuantity(quantity)} <span className="text-xs font-semibold text-slate-500">{getStockUnit(item)}</span>
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenStockRequest(item)}
+                              disabled={disabled}
+                              className="rounded-2xl bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                            >
+                              ขอเบิก
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                {filteredStockItems.length > visibleStockItems.length && (
+                  <p className="mt-4 text-center text-xs font-semibold text-slate-500">
+                    แสดง {formatQuantity(visibleStockItems.length)} จาก {formatQuantity(filteredStockItems.length)} รายการ ใช้ช่องค้นหาเพื่อเจาะจงอุปกรณ์ที่ต้องการ
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+
         {/* Categories Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 sm:gap-6">
           {localizedCatalog.map((category) => (
             <div
               key={category.id}
               className="group flex flex-col bg-white/90 backdrop-blur-sm rounded-3xl border border-slate-200/80 shadow-lg hover:shadow-2xl hover:shadow-blue-200/50 hover:border-blue-300 transition-all duration-500 overflow-hidden hover:-translate-y-1"
             >
               {/* Card Header */}
-              <div className="p-6 pb-4 border-b border-slate-100 bg-gradient-to-br from-slate-50/50 to-white/50">
+              <div className="p-4 pb-4 border-b border-slate-100 bg-gradient-to-br from-slate-50/50 to-white/50 sm:p-6">
                 <div className="flex items-center justify-between mb-3">
                   <div className="p-3.5 bg-white rounded-2xl shadow-md border border-slate-100 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
                     {category.icon}
@@ -827,12 +1296,12 @@ const PickUpEquipment = () => {
               </div>
 
               {/* Action Buttons List */}
-              <div className="p-4 flex-1 flex flex-col gap-2 bg-gradient-to-b from-white to-slate-50/30">
+              <div className="p-3 flex-1 flex flex-col gap-2 bg-gradient-to-b from-white to-slate-50/30 sm:p-4">
                 {category.actions.map((action) => (
                   <button
                     key={action.id}
                     onClick={() => handleOpenForm(category, action)}
-                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium text-slate-700 transition-all flex items-center justify-between group/btn border border-transparent
+                    className={`w-full text-left px-3 py-3 rounded-xl text-sm font-medium text-slate-700 transition-all flex items-center justify-between group/btn border border-transparent sm:px-4 sm:py-3.5
                       ${action.id === 'req_laptop_gps'
                         ? 'bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 border-emerald-200 shadow-sm'
                         : 'hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-700 hover:border-blue-200'
@@ -859,15 +1328,15 @@ const PickUpEquipment = () => {
           />
 
           {/* Modal Container */}
-          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 overflow-hidden ring-1 ring-slate-900/10">
+          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[90vh] animate-in zoom-in-95 duration-300 overflow-hidden ring-1 ring-slate-900/10">
 
             {/* Modal Header */}
-            <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50">
+            <div className="px-4 py-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 sm:px-8 sm:py-6">
               <div>
                 <span className="text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-100 px-3 py-1.5 rounded-lg shadow-sm">
                   {selectedRequest?.categoryDisplayName || selectedRequest?.categoryName}
                 </span>
-                <h3 className="mt-3 text-2xl font-bold text-slate-900">{selectedRequest?.displayLabel || selectedRequest?.label}</h3>
+                <h3 className="mt-3 text-xl font-bold text-slate-900 sm:text-2xl">{selectedRequest?.displayLabel || selectedRequest?.label}</h3>
                 {selectedRequest?.id === 'req_laptop_gps' && (
                   <p className="mt-2 text-sm text-emerald-600 flex items-center gap-2">
                     <Laptop className="w-4 h-4" />
@@ -886,7 +1355,7 @@ const PickUpEquipment = () => {
             </div>
 
             {/* Scrollable Form Body */}
-            <div className="p-8 overflow-y-auto custom-scrollbar bg-white">
+            <div className="p-4 overflow-y-auto custom-scrollbar bg-white sm:p-8">
               <form id="requestForm" ref={requestFormRef} onSubmit={handleSubmit} className="space-y-6">
 
                 {/* User Info Display (Read-only) */}
@@ -914,6 +1383,129 @@ const PickUpEquipment = () => {
                     </div>
                   </div>
                 </div>
+
+                {selectedRequestRequiresStock && (
+                  <div className="rounded-2xl border-2 border-blue-100 bg-gradient-to-br from-blue-50 to-slate-50 p-4 sm:p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h4 className="flex items-center gap-2 text-sm font-bold text-blue-800">
+                          <Package className="h-4 w-4" />
+                          เลือกรายการจาก IT Stock
+                        </h4>
+                        <p className="mt-1 text-xs leading-5 text-blue-700">
+                          รายการนี้จะส่งให้ IT อนุมัติและจ่ายของจาก stock จริงก่อน จึงจะตัดจำนวนคงเหลือ
+                        </p>
+                      </div>
+                      <span className="inline-flex rounded-full border border-blue-200 bg-white px-3 py-1 text-[11px] font-bold text-blue-700">
+                        รอ IT อนุมัติ
+                      </span>
+                    </div>
+
+                    {selectedStockItem ? (
+                      <div className="mt-4 flex gap-3 rounded-2xl border border-blue-200 bg-white p-3 shadow-sm">
+                        <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                          {getPrimaryStockImage(selectedStockItem) ? (
+                            <img
+                              src={getPrimaryStockImage(selectedStockItem)}
+                              alt={selectedStockItem.item_name || 'selected stock'}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400">
+                              <ImageIcon className="h-7 w-7" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold ${getStockStatus(selectedStockItem).className}`}>
+                              {getStockStatus(selectedStockItem).label}
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-400">
+                              {selectedStockItem.stock_code || '-'}
+                            </span>
+                          </div>
+                          <p className="mt-2 truncate text-sm font-black text-slate-900">
+                            {selectedStockItem.item_name || 'Unnamed item'}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            คงเหลือ {formatQuantity(getStockQuantity(selectedStockItem))} {getStockUnit(selectedStockItem)}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-white/70 px-4 py-5 text-center text-sm font-semibold text-blue-700">
+                        กรุณาเลือกอุปกรณ์จากรายการ stock ด้านล่าง
+                      </div>
+                    )}
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={stockSearchQuery}
+                          onChange={(event) => setStockSearchQuery(event.target.value)}
+                          placeholder="ค้นหา stock เพื่อเลือกเบิก..."
+                          className="w-full rounded-2xl border border-blue-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="number"
+                          min="1"
+                          max={selectedStockItem ? getStockQuantity(selectedStockItem) : undefined}
+                          value={formData.stockQuantity}
+                          onChange={(event) => setFormData({ ...formData, stockQuantity: event.target.value })}
+                          className="w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          placeholder="จำนวน"
+                          required={selectedRequestRequiresStock}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                      {modalStockItems.map((item) => {
+                        const status = getStockStatus(item);
+                        const isSelected = String(item?.id || '') === String(formData.stockItemId || '');
+                        const disabled = getStockQuantity(item) <= 0;
+
+                        return (
+                          <button
+                            key={item.id || item.stock_code}
+                            type="button"
+                            onClick={() => handleSelectStockItem(item)}
+                            disabled={disabled}
+                            className={`flex items-center gap-3 rounded-2xl border p-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60'
+                            }`}
+                          >
+                            <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                              {getPrimaryStockImage(item) ? (
+                                <img src={getPrimaryStockImage(item)} alt={item.item_name || 'stock'} className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                  <Package className="h-5 w-5" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-bold text-slate-800">{item.item_name || '-'}</p>
+                              <p className="truncate text-xs text-slate-500">
+                                {item.stock_code || '-'} • {formatQuantity(getStockQuantity(item))} {getStockUnit(item)}
+                              </p>
+                            </div>
+                            <span className={`hidden rounded-full border px-2 py-1 text-[10px] font-bold sm:inline-flex ${status.className}`}>
+                              {status.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Section: Request Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1077,7 +1669,7 @@ const PickUpEquipment = () => {
 
                   <label
                     htmlFor="file-upload"
-                    className="border-2 border-dashed border-slate-300 rounded-2xl p-10 flex flex-col items-center justify-center text-center hover:bg-slate-50 hover:border-blue-400 transition-all cursor-pointer bg-slate-50/50 group block"
+                    className="border-2 border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 hover:border-blue-400 transition-all cursor-pointer bg-slate-50/50 group block sm:p-10"
                   >
                     <Upload className="w-10 h-10 text-slate-400 mb-3 group-hover:text-blue-500 transition-colors" />
                     <p className="text-sm text-slate-600 font-medium">{tt('uploadDrop')}</p>
@@ -1146,16 +1738,16 @@ const PickUpEquipment = () => {
             </div>
 
             {/* Modal Footer (Sticky Bottom) */}
-            <div className="p-6 border-t border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/30 flex items-center justify-between gap-3">
+            <div className="p-4 border-t border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/30 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:p-6">
               <div className="text-xs text-slate-500">
                 <span className="font-semibold">{tt('footerNoteLabel')}</span> {tt('footerNoteBody')}
               </div>
-              <div className="flex gap-3">
+              <div className="flex w-full flex-col-reverse gap-3 sm:w-auto sm:flex-row">
                 <button
                   type="button"
                   onClick={() => void handleManualPdfExport()}
                   disabled={isSubmitting || isExportingPdf || isUploading}
-                  className="px-6 py-3 rounded-xl text-sm font-semibold text-blue-700 hover:bg-blue-100 border-2 border-blue-200 bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-6 py-3 rounded-xl text-sm font-semibold text-blue-700 hover:bg-blue-100 border-2 border-blue-200 bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
                 >
                   {isExportingPdf ? tt('exportingPdf') : tt('exportPdf')}
                 </button>
@@ -1163,7 +1755,7 @@ const PickUpEquipment = () => {
                   type="button"
                   onClick={handleCloseForm}
                   disabled={isSubmitting}
-                  className="px-6 py-3 rounded-xl text-sm font-semibold text-slate-600 hover:bg-white hover:shadow-md border-2 border-slate-200 hover:border-slate-300 transition-all disabled:opacity-50"
+                  className="w-full px-6 py-3 rounded-xl text-sm font-semibold text-slate-600 hover:bg-white hover:shadow-md border-2 border-slate-200 hover:border-slate-300 transition-all disabled:opacity-50 sm:w-auto"
                 >
                   {tt('cancel')}
                 </button>
@@ -1171,7 +1763,7 @@ const PickUpEquipment = () => {
                   type="submit"
                   form="requestForm"
                   disabled={isSubmitting}
-                  className="min-w-[180px] px-6 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 active:scale-95 transition-all shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full min-w-[180px] px-6 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 active:scale-95 transition-all shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed sm:w-auto"
                 >
                   {isSubmitting ? (
                     <>

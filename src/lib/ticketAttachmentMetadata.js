@@ -125,17 +125,17 @@ export function getTicketAttachmentEntries(ticket) {
     entries.push({ url: normalizeText(ticket.image_after_url), type: "after", name: "" });
   }
 
+  metadataAttachments.forEach((entry) => {
+    const normalized = normalizeAttachmentEntry(entry);
+    if (normalized) entries.push(normalized);
+  });
+
   if (Array.isArray(ticket.attachments)) {
     ticket.attachments.forEach((entry) => {
       const normalized = normalizeAttachmentEntry(entry);
       if (normalized) entries.push(normalized);
     });
   }
-
-  metadataAttachments.forEach((entry) => {
-    const normalized = normalizeAttachmentEntry(entry);
-    if (normalized) entries.push(normalized);
-  });
 
   const seenUrls = new Set();
   return entries.reduce((accumulator, entry) => {

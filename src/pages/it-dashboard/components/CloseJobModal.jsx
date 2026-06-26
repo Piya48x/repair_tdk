@@ -70,12 +70,17 @@ const CloseJobModal = ({
   const [isReviewing, setIsReviewing] = useState(false);
 
   const existingAttachments = getTicketAttachmentEntries(ticket);
-  const existingBeforeCount = existingAttachments.filter((item) => item.type === "before").length;
-  const existingAfterCount = existingAttachments.filter((item) => item.type === "after").length;
+  const existingBeforeAttachments = existingAttachments.filter((item) => item.type === "before");
+  const existingAfterAttachments = existingAttachments.filter((item) => item.type === "after");
+  const existingBeforeCount = existingBeforeAttachments.length;
+  const existingAfterCount = existingAfterAttachments.length;
   const beforeAttachments = attachments.filter((item) => item.kind === "before");
   const afterAttachments = attachments.filter((item) => item.kind === "after");
   const activeKindAttachments = activeAttachmentKind === "after" ? afterAttachments : beforeAttachments;
+  const activeExistingAttachments =
+    activeAttachmentKind === "after" ? existingAfterAttachments : existingBeforeAttachments;
   const activePreviewAttachment = activeKindAttachments[activeKindAttachments.length - 1] || null;
+  const activeExistingPreviewAttachment = activeExistingAttachments[activeExistingAttachments.length - 1] || null;
   const remainingAttachmentSlots = Math.max(0, MAX_ATTACHMENTS - attachments.length);
 
   const resetAttachmentState = () => {
@@ -352,20 +357,49 @@ const CloseJobModal = ({
   const renderFieldError = (key) =>
     errors[key] ? <p className="mt-1 text-xs font-medium text-rose-600">{errors[key]}</p> : null;
 
-  const renderAttachmentGallery = (title, kind, items, existingCount) => (
-    <div className={`${surfaceClass} p-4 sm:p-5`}>
+  const renderAttachmentGallery = (title, kind, items, existingItems = []) => {
+    const totalCount = existingItems.length + items.length;
+    const groupLabel = kind === "after" ? "After" : "Before";
+
+    return (
+      <div className={`${surfaceClass} p-4 sm:p-5`}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <p className={`text-sm font-semibold ${labelClass}`}>{title}</p>
           <p className={`mt-1 text-xs ${mutedClass}`}>
-            ใหม่ {items.length} รูป{existingCount > 0 ? ` • เดิม ${existingCount} รูป` : ""}
+            Existing {existingItems.length} / New {items.length}
           </p>
         </div>
-        <span className={chipClass}>{kind === "after" ? "After" : "Before"}</span>
+        <span className={chipClass}>{groupLabel}</span>
       </div>
 
-      {items.length > 0 ? (
+      {totalCount > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {existingItems.map((item, index) => (
+            <button
+              key={`existing-${kind}-${item.url}-${index}`}
+              type="button"
+              onClick={() => window.open(item.url, "_blank", "noopener,noreferrer")}
+              className={`overflow-hidden rounded-2xl border text-left ${
+                isDark ? "border-slate-700 bg-slate-950/70" : "border-slate-200 bg-white"
+              }`}
+            >
+              <img
+                src={item.url}
+                alt={item.name || `Existing ${groupLabel}`}
+                className="h-28 w-full object-cover"
+              />
+              <div className="px-3 py-2">
+                <p className={`truncate text-xs font-medium ${labelClass}`}>
+                  {item.name || (kind === "before" ? "User problem photo" : "Existing evidence")}
+                </p>
+                <p className={`mt-0.5 text-[11px] font-semibold ${mutedClass}`}>
+                  Existing {groupLabel}
+                </p>
+              </div>
+            </button>
+          ))}
+
           {items.map((item) => (
             <div
               key={item.id}
@@ -375,12 +409,15 @@ const CloseJobModal = ({
             >
               <img src={item.previewUrl} alt={item.file.name} className="h-28 w-full object-cover" />
               <div className="flex items-center justify-between gap-2 px-3 py-2">
-                <p className={`min-w-0 truncate text-xs font-medium ${labelClass}`}>{item.file.name}</p>
+                <div className="min-w-0">
+                  <p className={`truncate text-xs font-medium ${labelClass}`}>{item.file.name}</p>
+                  <p className={`mt-0.5 text-[11px] font-semibold ${mutedClass}`}>New {groupLabel}</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => removeAttachment(item.id)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-                  aria-label="ลบรูป"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                  aria-label="remove image"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -401,8 +438,9 @@ const CloseJobModal = ({
           </div>
         </div>
       )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const leftPanel = (
     <div className="space-y-4">
@@ -468,8 +506,8 @@ const CloseJobModal = ({
         </div>
       </div>
 
-      {renderAttachmentGallery("Before", "before", beforeAttachments, existingBeforeCount)}
-      {renderAttachmentGallery("After", "after", afterAttachments, existingAfterCount)}
+      {renderAttachmentGallery("Before", "before", beforeAttachments, existingBeforeAttachments)}
+      {renderAttachmentGallery("After", "after", afterAttachments, existingAfterAttachments)}
     </div>
   );
 
@@ -640,6 +678,27 @@ const CloseJobModal = ({
                       aria-label="ลบรูป"
                     >
                       <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ) : activeExistingPreviewAttachment ? (
+                <div className={`mt-4 overflow-hidden rounded-2xl border ${isDark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white"}`}>
+                  <img src={activeExistingPreviewAttachment.url} alt="existing attachment preview" className="h-52 w-full object-cover" />
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className={`truncate text-sm font-semibold ${labelClass}`}>
+                        {activeExistingPreviewAttachment.name || (activeAttachmentKind === "before" ? "User problem photo" : "Existing evidence")}
+                      </p>
+                      <p className={`text-xs ${mutedClass}`}>
+                        Existing {activeAttachmentKind === "after" ? "After" : "Before"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => window.open(activeExistingPreviewAttachment.url, "_blank", "noopener,noreferrer")}
+                      className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:border-[#2b59b0]/30 hover:bg-[#2b59b0]/10 hover:text-[#2b59b0]"
+                    >
+                      Open
                     </button>
                   </div>
                 </div>

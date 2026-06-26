@@ -1,4 +1,5 @@
 export const PICK_UP_SERVICE_TYPE_IDS = new Set([
+  "req_stock_item",
   "req_new_device",
   "req_replacement",
   "req_peripherals",
@@ -74,4 +75,69 @@ export function splitTicketBuckets(rows) {
   });
 
   return { repairTickets, serviceRequests };
+}
+
+const STOCK_REQUEST_META_START = "\n[[stock-request-meta::";
+const STOCK_REQUEST_META_END = "]]";
+
+export function stripStockRequestMetadata(description) {
+  const rawDescription = String(description || "");
+  const startIndex = rawDescription.indexOf(STOCK_REQUEST_META_START);
+
+  if (startIndex === -1) {
+    return {
+      description: rawDescription.trim(),
+      stockRequest: null,
+    };
+  }
+
+  const metaStartIndex = startIndex + STOCK_REQUEST_META_START.length;
+  const metaEndIndex = rawDescription.indexOf(STOCK_REQUEST_META_END, metaStartIndex);
+
+  if (metaEndIndex === -1) {
+    return {
+      description: rawDescription.trim(),
+      stockRequest: null,
+    };
+  }
+
+  let stockRequest = null;
+  try {
+    const parsed = JSON.parse(rawDescription.slice(metaStartIndex, metaEndIndex));
+    if (parsed && typeof parsed === "object") {
+      stockRequest = parsed;
+    }
+  } catch {
+    stockRequest = null;
+  }
+
+  return {
+    description: rawDescription.slice(0, startIndex).trim(),
+    stockRequest,
+  };
+}
+
+export function buildStockRequestDescription(description, stockRequest = null) {
+  const cleanDescription = stripStockRequestMetadata(description).description;
+  if (!stockRequest || typeof stockRequest !== "object") return cleanDescription;
+
+  return `${cleanDescription}${cleanDescription ? "\n\n" : ""}${STOCK_REQUEST_META_START}${JSON.stringify(stockRequest)}${STOCK_REQUEST_META_END}`;
+}
+
+export function getStockRequestMetadata(request) {
+  if (!request || typeof request !== "object") return null;
+
+  const parsed = stripStockRequestMetadata(request.description).stockRequest;
+  if (parsed) return parsed;
+
+  if (request.stock_request && typeof request.stock_request === "object") {
+    return request.stock_request;
+  }
+
+  return null;
+}
+
+export function getServiceRequestDisplayDescription(request) {
+  const cleanDescription = stripStockRequestMetadata(request?.description).description;
+  return cleanDescription || String(request?.purpose_of_use || "").trim();
 }
