@@ -180,9 +180,8 @@ function ServiceRequestDetailModal({ request, theme, onClose }) {
       onClick={onClose}
     >
       <div
-        className={`max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border shadow-2xl ${
-          theme === "dark" ? "border-slate-700 bg-[#0f172a]" : "border-slate-200 bg-white"
-        }`}
+        className={`max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border shadow-2xl ${theme === "dark" ? "border-slate-700 bg-[#0f172a]" : "border-slate-200 bg-white"
+          }`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="p-5 sm:p-6">
@@ -193,11 +192,10 @@ function ServiceRequestDetailModal({ request, theme, onClose }) {
                   {statusMeta.label}
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${
-                    theme === "dark"
-                      ? "border-slate-600 bg-slate-800 text-slate-200"
-                      : "border-slate-200 bg-slate-50 text-slate-600"
-                  }`}
+                  className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${theme === "dark"
+                    ? "border-slate-600 bg-slate-800 text-slate-200"
+                    : "border-slate-200 bg-slate-50 text-slate-600"
+                    }`}
                 >
                   <Package size={12} />
                   {getRequestNo(request)}
@@ -214,11 +212,10 @@ function ServiceRequestDetailModal({ request, theme, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
-                theme === "dark"
-                  ? "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
-                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-              }`}
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${theme === "dark"
+                ? "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
+                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                }`}
               aria-label="close details"
             >
               <X size={18} />
@@ -228,9 +225,8 @@ function ServiceRequestDetailModal({ request, theme, onClose }) {
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.92fr)]">
             <div className="space-y-4">
               <section
-                className={`rounded-2xl border p-4 ${
-                  theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50"
-                }`}
+                className={`rounded-2xl border p-4 ${theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50"
+                  }`}
               >
                 <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                   รายละเอียดคำขอ
@@ -242,9 +238,8 @@ function ServiceRequestDetailModal({ request, theme, onClose }) {
 
               {stockRequest && (
                 <section
-                  className={`rounded-2xl border p-4 ${
-                    theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"
-                  }`}
+                  className={`rounded-2xl border p-4 ${theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"
+                    }`}
                 >
                   <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                     ข้อมูลรายการที่ขอเบิก
@@ -285,9 +280,8 @@ function ServiceRequestDetailModal({ request, theme, onClose }) {
                         key={`${url}-${index}`}
                         type="button"
                         onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-                        className={`overflow-hidden rounded-2xl border text-left ${
-                          theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"
-                        }`}
+                        className={`overflow-hidden rounded-2xl border text-left ${theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"
+                          }`}
                       >
                         {isImageAttachmentUrl(url) ? (
                           <img src={url} alt={`attachment-${index + 1}`} className="h-44 w-full object-cover" />
@@ -318,9 +312,8 @@ function ServiceRequestDetailModal({ request, theme, onClose }) {
 
             <div className="space-y-4">
               <section
-                className={`rounded-2xl border p-4 ${
-                  theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"
-                }`}
+                className={`rounded-2xl border p-4 ${theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"
+                  }`}
               >
                 <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                   ผู้ขอเบิก
@@ -349,9 +342,8 @@ function ServiceRequestDetailModal({ request, theme, onClose }) {
               </section>
 
               <section
-                className={`rounded-2xl border p-4 ${
-                  theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"
-                }`}
+                className={`rounded-2xl border p-4 ${theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-white"
+                  }`}
               >
                 <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                   ข้อมูลคำขอ
@@ -592,9 +584,8 @@ export default function ServiceRequestsPage({
 
           {!refreshing && filteredRequests.length === 0 && (
             <div
-              className={`rounded-xl border border-dashed p-8 text-center ${
-                theme === "dark" ? "border-slate-700 bg-[#0f172a]" : "border-slate-200 bg-slate-50"
-              }`}
+              className={`rounded-xl border border-dashed p-8 text-center ${theme === "dark" ? "border-slate-700 bg-[#0f172a]" : "border-slate-200 bg-slate-50"
+                }`}
             >
               <p className={`text-sm font-semibold ${theme === "dark" ? "text-slate-200" : "text-slate-700"}`}>
                 ไม่พบคำขอเบิกในเงื่อนไขที่เลือก
@@ -629,17 +620,15 @@ export default function ServiceRequestsPage({
                           {statusMeta.label}
                         </span>
                         <span
-                          className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold ${
-                            theme === "dark" ? "border-slate-600 bg-[#162136] text-slate-200" : "border-slate-200 bg-slate-50 text-slate-600"
-                          }`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold ${theme === "dark" ? "border-slate-600 bg-[#162136] text-slate-200" : "border-slate-200 bg-slate-50 text-slate-600"
+                            }`}
                         >
                           <Package size={11} />
                           {getRequestNo(request)}
                         </span>
                         <span
-                          className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold ${
-                            theme === "dark" ? "border-slate-600 bg-[#162136] text-slate-200" : "border-slate-200 bg-slate-50 text-slate-600"
-                          }`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold ${theme === "dark" ? "border-slate-600 bg-[#162136] text-slate-200" : "border-slate-200 bg-slate-50 text-slate-600"
+                            }`}
                         >
                           <Clock3 size={11} />
                           {formatDateTime(request.created_at)}
@@ -657,9 +646,8 @@ export default function ServiceRequestsPage({
                       </p>
 
                       <div
-                        className={`mt-4 rounded-2xl border p-3 ${
-                          theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50"
-                        }`}
+                        className={`mt-4 rounded-2xl border p-3 ${theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50"
+                          }`}
                       >
                         <div className="flex items-center gap-3">
                           <img
@@ -686,34 +674,30 @@ export default function ServiceRequestsPage({
 
                       <div className={`mt-3 flex flex-wrap items-center gap-2 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                         <span
-                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
-                            theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
-                          }`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
+                            }`}
                         >
                           <Briefcase size={12} />
                           {requesterDept}
                         </span>
                         <span
-                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
-                            theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
-                          }`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
+                            }`}
                         >
                           <MapPin size={12} />
                           {request.location || "-"}
                         </span>
                         <span
-                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
-                            theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
-                          }`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
+                            }`}
                         >
                           <Clock3 size={12} />
                           {getBorrowWindow(request)}
                         </span>
                         {stockRequest?.stock_code && (
                           <span
-                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
-                              theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
-                            }`}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
+                              }`}
                           >
                             <Package size={12} />
                             {stockRequest.stock_code}
@@ -721,18 +705,16 @@ export default function ServiceRequestsPage({
                           </span>
                         )}
                         <span
-                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
-                            theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
-                          }`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
+                            }`}
                         >
                           <ImageIcon size={12} />
                           หลักฐาน {attachmentUrls.length}
                         </span>
                         {request.assigned_name && (
                           <span
-                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
-                              theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
-                            }`}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${theme === "dark" ? "border-slate-600 bg-[#162136]" : "border-slate-200 bg-slate-50"
+                              }`}
                           >
                             <CheckCircle2 size={12} />
                             ผู้ดูแล: {request.assigned_name}
@@ -744,11 +726,10 @@ export default function ServiceRequestsPage({
                         <button
                           type="button"
                           onClick={() => setSelectedRequestDetail(request)}
-                          className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${
-                            theme === "dark"
-                              ? "border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700"
-                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                          }`}
+                          className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${theme === "dark"
+                            ? "border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
                         >
                           <Eye size={14} />
                           ดูรายละเอียด
@@ -781,9 +762,8 @@ export default function ServiceRequestsPage({
                     </div>
 
                     <div
-                      className={`overflow-hidden rounded-2xl border ${
-                        theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50"
-                      }`}
+                      className={`overflow-hidden rounded-2xl border ${theme === "dark" ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50"
+                        }`}
                     >
                       {primaryImage ? (
                         <button
@@ -793,9 +773,8 @@ export default function ServiceRequestsPage({
                         >
                           <img src={primaryImage} alt="request evidence" className="h-48 w-full object-cover xl:h-full" />
                           <div
-                            className={`flex items-center justify-between border-t px-3 py-2 text-xs font-semibold ${
-                              theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"
-                            }`}
+                            className={`flex items-center justify-between border-t px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"
+                              }`}
                           >
                             <span>หลักฐานแนบ {imageAttachments.length}</span>
                             <span className="inline-flex items-center gap-1 text-[#2b59b0]">

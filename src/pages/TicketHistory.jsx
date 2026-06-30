@@ -511,6 +511,14 @@ export default function TicketHistory() {
     () => getTicketAttachmentEntries(selectedTicket),
     [selectedTicket],
   );
+  const selectedTicketBeforeAttachments = useMemo(
+    () => selectedTicketAttachments.filter((entry) => entry?.type !== "after"),
+    [selectedTicketAttachments],
+  );
+  const selectedTicketAfterAttachments = useMemo(
+    () => selectedTicketAttachments.filter((entry) => entry?.type === "after"),
+    [selectedTicketAttachments],
+  );
   const selectedTicketSolution = useMemo(
     () => getTicketDisplayNote(selectedTicket),
     [selectedTicket],
@@ -1302,22 +1310,58 @@ export default function TicketHistory() {
                   {selectedTicketAttachments.length > 0 && (
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tt("detailAttachments")}</p>
-                      <div className="mt-3 flex flex-wrap gap-3">
-                        {selectedTicketAttachments.map((entry, index) => (
-                          <button
-                            key={`${entry.url}-${index}`}
-                            type="button"
-                            onClick={() => window.open(entry.url, "_blank", "noopener,noreferrer")}
-                            className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-                            title={tt("detailOpenAttach")}
-                          >
-                            <img
-                              src={entry.url}
-                              alt={`${entry.type === "after" ? "After" : "Before"} ${index + 1}`}
-                              className="h-24 w-24 object-cover transition hover:scale-105"
-                            />
-                          </button>
-                        ))}
+                      <div className="mt-3 space-y-4">
+                        {selectedTicketBeforeAttachments.length > 0 && (
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Before</p>
+                            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                              {selectedTicketBeforeAttachments.map((entry, index) => (
+                                <button
+                                  key={`before-${entry.url}-${index}`}
+                                  type="button"
+                                  onClick={() => window.open(entry.url, "_blank", "noopener,noreferrer")}
+                                  className="overflow-hidden rounded-xl border border-slate-200 bg-white text-left"
+                                  title={tt("detailOpenAttach")}
+                                >
+                                  <img
+                                    src={entry.url}
+                                    alt={`Before ${index + 1}`}
+                                    className="h-28 w-full object-cover transition hover:scale-105"
+                                  />
+                                  <div className="border-t border-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
+                                    Before {index + 1}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedTicketAfterAttachments.length > 0 && (
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">After</p>
+                            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                              {selectedTicketAfterAttachments.map((entry, index) => (
+                                <button
+                                  key={`after-${entry.url}-${index}`}
+                                  type="button"
+                                  onClick={() => window.open(entry.url, "_blank", "noopener,noreferrer")}
+                                  className="overflow-hidden rounded-xl border border-slate-200 bg-white text-left"
+                                  title={tt("detailOpenAttach")}
+                                >
+                                  <img
+                                    src={entry.url}
+                                    alt={`After ${index + 1}`}
+                                    className="h-28 w-full object-cover transition hover:scale-105"
+                                  />
+                                  <div className="border-t border-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
+                                    After {index + 1}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

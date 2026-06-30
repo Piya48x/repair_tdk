@@ -380,9 +380,6 @@ export async function uploadStockIssueAttachments({ issueLogId, userId, files = 
       if (Number(file.size || 0) > STOCK_ATTACHMENT_MAX_SIZE) {
         throw new Error(`ไฟล์ ${file.name} ต้องมีขนาดไม่เกิน 20 MB`);
       }
-      if (!String(file?.type || "").startsWith("image/")) {
-        throw new Error("หลักฐานการเบิกต้องเป็นไฟล์รูปภาพเท่านั้น");
-      }
 
       const safeUserId = sanitizePathSegment(userId || "unknown");
       const safeName = sanitizePathSegment(file?.name || `issue_attachment_${Date.now()}`);
@@ -451,10 +448,7 @@ export async function issueStockItem({
   }
 
   if (safeFiles.length === 0) {
-    throw new Error("กรุณาแนบรูปหลักฐานการเบิกอย่างน้อย 1 รูป");
-  }
-  if (safeFiles.some((file) => !String(file?.type || "").startsWith("image/"))) {
-    throw new Error("หลักฐานการเบิกต้องเป็นรูปภาพเท่านั้น");
+    throw new Error("Attachment evidence is required before confirming the issue");
   }
 
   const nextQuantity = currentQty - safeQuantity;

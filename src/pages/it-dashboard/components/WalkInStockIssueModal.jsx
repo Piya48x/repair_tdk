@@ -4,6 +4,7 @@ import Select from "react-select";
 import {
   Building2,
   Eye,
+  FileText,
   Loader2,
   Package,
   Search,
@@ -38,13 +39,14 @@ const normalizeText = (value) => String(value || "").trim();
 const normalizeLookupText = (value) => normalizeText(value).toLowerCase();
 const formatQuantity = (value) => new Intl.NumberFormat("th-TH").format(Number(value || 0));
 const MAX_LOOKUP_RESULTS = 8;
+const isImageFile = (file) => String(file?.type || "").startsWith("image/");
 const buildAvatarFallback = (name, color = "2b59b0") =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(String(name || "U"))}&background=${color}&color=fff&size=96`;
 
 const createPendingAttachmentEntry = (file) => ({
   id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
   file,
-  previewUrl: String(file?.type || "").startsWith("image/") ? URL.createObjectURL(file) : "",
+  previewUrl: URL.createObjectURL(file),
 });
 
 function revokePendingPreview(entry) {
@@ -95,7 +97,7 @@ function PendingAttachmentList({ entries, onRemove }) {
     <div className="space-y-2">
       {entries.map((entry) => (
         <div key={entry.id} className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-3 py-2">
-          {entry.previewUrl ? (
+          {isImageFile(entry.file) ? (
             <button
               type="button"
               onClick={() => window.open(entry.previewUrl, "_blank", "noopener,noreferrer")}
@@ -105,7 +107,7 @@ function PendingAttachmentList({ entries, onRemove }) {
             </button>
           ) : (
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500">
-              <Package size={16} />
+              <FileText size={16} />
             </span>
           )}
           <div className="min-w-0 flex-1">
@@ -113,15 +115,13 @@ function PendingAttachmentList({ entries, onRemove }) {
             <p className="text-xs text-slate-500">{formatFileSize(entry.file?.size || 0)}</p>
           </div>
           <div className="flex items-center gap-2">
-            {entry.previewUrl ? (
-              <button
-                type="button"
-                onClick={() => window.open(entry.previewUrl, "_blank", "noopener,noreferrer")}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600"
-              >
-                <Eye size={14} />
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => window.open(entry.previewUrl, "_blank", "noopener,noreferrer")}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600"
+            >
+              <Eye size={14} />
+            </button>
             <button
               type="button"
               onClick={() => onRemove(entry.id)}
@@ -474,8 +474,8 @@ export default function WalkInStockIssueModal({
   const handleSelectFiles = (files) => {
     const entries = Array.from(files || []);
     if (entries.length === 0) return;
-    if (entries.some((file) => !String(file?.type || "").startsWith("image/"))) {
-      toast.error("หลักฐานการเบิกต้องเป็นรูปภาพเท่านั้น");
+    if (entries.some((file) => Number(file?.size || 0) > 20 * 1024 * 1024)) {
+      toast.error("Evidence files must be 20 MB or smaller");
       return;
     }
     setPendingIssueFiles((prev) => [...prev, ...entries.map(createPendingAttachmentEntry)]);
@@ -1026,8 +1026,7 @@ export default function WalkInStockIssueModal({
                         ref={fileInputRef}
                         type="file"
                         multiple
-                        accept="image/*"
-                        capture="environment"
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
                         className="hidden"
                         onChange={(event) => {
                           handleSelectFiles(event.target.files);
