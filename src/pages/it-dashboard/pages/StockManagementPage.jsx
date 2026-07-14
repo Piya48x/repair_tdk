@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Building2, Eye, FileImage, LayoutGrid, List, Loader2, Package, Paperclip, PencilLine, Plus, RefreshCw, Save, Search, Trash2, Upload, UserRound, X } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, Eye, FileImage, LayoutGrid, List, Loader2, Package, Paperclip, PenLine, PencilLine, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, UserRound, X } from "lucide-react";
 import toast from "react-hot-toast";
 import AttachmentPreviewModal from "../../work-notes/AttachmentPreviewModal";
 import { formatFileSize, isImageAttachment } from "../../../services/workNotesService";
@@ -26,6 +26,19 @@ const isLowStock = (item) => Number(item?.minimum_quantity || 0) > 0 && Number(i
 const getAvailabilityLabel = (item) => Number(item?.quantity_on_hand || 0) <= 0 ? "หมด stock" : isLowStock(item) ? "ใกล้หมด" : "พร้อมเบิก";
 const getAvailabilityClass = (item) => Number(item?.quantity_on_hand || 0) <= 0 ? "border-rose-200 bg-rose-50 text-rose-700" : isLowStock(item) ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700";
 const createPendingAttachmentEntry = (file) => ({ id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`, file, previewUrl: String(file?.type || "").startsWith("image/") ? URL.createObjectURL(file) : "" });
+function dataUrlToFile(dataUrl, fileName) {
+  const [meta = "", base64 = ""] = String(dataUrl || "").split(",");
+  const mimeMatch = meta.match(/data:(.*?);base64/);
+  const mimeType = mimeMatch?.[1] || "image/png";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new File([bytes], fileName, { type: mimeType });
+}
 const revokePendingPreview = (entry) => { if (entry?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(entry.previewUrl); };
 const getSafeAttachments = (attachments) => Array.isArray(attachments) ? attachments : [];
 const getAttachmentRole = (attachment) => {
@@ -112,6 +125,9 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   const pendingStockImageFilesRef = useRef([]);
   const pendingStockFilesRef = useRef([]);
   const pendingIssueFilesRef = useRef([]);
+  const issueSignatureCanvasRef = useRef(null);
+  const issueSignatureDrawingRef = useRef(false);
+  const issueSignatureHasInkRef = useRef(false);
   const [stockItems, setStockItems] = useState([]);
   const [issueLogs, setIssueLogs] = useState([]);
   const [directoryMembers, setDirectoryMembers] = useState([]);
@@ -135,6 +151,8 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   const [pendingStockImageFiles, setPendingStockImageFiles] = useState([]);
   const [pendingStockFiles, setPendingStockFiles] = useState([]);
   const [pendingIssueFiles, setPendingIssueFiles] = useState([]);
+  const [hasIssueSignature, setHasIssueSignature] = useState(false);
+  const [issueSignatureError, setIssueSignatureError] = useState("");
   const [previewState, setPreviewState] = useState({ attachments: [], initialIndex: 0 });
   const [activeLookupField, setActiveLookupField] = useState("");
   const deferredRequesterName = useDeferredValue(issueForm.requester_name);
@@ -171,11 +189,115 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
     }
   };
 
+  const prepareIssueSignatureCanvas = () => {
+    const canvas = issueSignatureCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(rect.width || 320, 1);
+    const height = Math.max(rect.height || 160, 1);
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(width * ratio);
+    canvas.height = Math.floor(height * ratio);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.fillStyle = theme === "dark" ? "#0f172a" : "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.strokeStyle = theme === "dark" ? "#e2e8f0" : "#0f172a";
+    context.lineWidth = 2.4;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+  };
+
+  const clearIssueSignaturePad = () => {
+    issueSignatureDrawingRef.current = false;
+    issueSignatureHasInkRef.current = false;
+    prepareIssueSignatureCanvas();
+    setHasIssueSignature(false);
+    setIssueSignatureError("");
+  };
+
+  const getIssueSignaturePoint = (event) => {
+    const canvas = issueSignatureCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
+
+  const handleIssueSignaturePointerDown = (event) => {
+    if (issuingStock) return;
+    const canvas = issueSignatureCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    const point = getIssueSignaturePoint(event);
+    if (!canvas || !context || !point) return;
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some browsers may not allow pointer capture for this event; drawing still works.
+    }
+    issueSignatureDrawingRef.current = true;
+    issueSignatureHasInkRef.current = true;
+    setHasIssueSignature(true);
+    setIssueSignatureError("");
+    context.beginPath();
+    context.arc(point.x, point.y, 1.2, 0, Math.PI * 2);
+    context.fillStyle = theme === "dark" ? "#e2e8f0" : "#0f172a";
+    context.fill();
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  };
+
+  const handleIssueSignaturePointerMove = (event) => {
+    if (!issueSignatureDrawingRef.current) return;
+    const canvas = issueSignatureCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    const point = getIssueSignaturePoint(event);
+    if (!context || !point) return;
+    event.preventDefault();
+    issueSignatureHasInkRef.current = true;
+    setHasIssueSignature(true);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+  };
+
+  const handleIssueSignaturePointerUp = (event) => {
+    issueSignatureDrawingRef.current = false;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // The pointer may already be released when leaving the canvas.
+    }
+  };
+
+  const createIssueSignatureFile = () => {
+    const canvas = issueSignatureCanvasRef.current;
+    if (!canvas || !issueSignatureHasInkRef.current) return null;
+    return dataUrlToFile(canvas.toDataURL("image/png"), `stock-issue-signature-${Date.now()}.png`);
+  };
+
   useEffect(() => { void loadPageData(); }, []);
   useEffect(() => { pendingStockImageFilesRef.current = pendingStockImageFiles; }, [pendingStockImageFiles]);
   useEffect(() => { pendingStockFilesRef.current = pendingStockFiles; }, [pendingStockFiles]);
   useEffect(() => { pendingIssueFilesRef.current = pendingIssueFiles; }, [pendingIssueFiles]);
   useEffect(() => () => { pendingStockImageFilesRef.current.forEach(revokePendingPreview); pendingStockFilesRef.current.forEach(revokePendingPreview); pendingIssueFilesRef.current.forEach(revokePendingPreview); }, []);
+  useEffect(() => {
+    if (!issueModalOpen) {
+      issueSignatureDrawingRef.current = false;
+      issueSignatureHasInkRef.current = false;
+      setHasIssueSignature(false);
+      setIssueSignatureError("");
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => clearIssueSignaturePad());
+    return () => window.cancelAnimationFrame(frameId);
+  }, [issueModalOpen, theme]);
   const selectedIssueItem = useMemo(() => stockItems.find((item) => String(item?.id || "") === String(issueForm.stock_item_id || "")) || null, [issueForm.stock_item_id, stockItems]);
   const selectedCatalogItem = useMemo(() => findStockCatalogItem(stockForm.reference_item_code), [stockForm.reference_item_code]);
   const availableCatalogItems = useMemo(() => stockForm.category_key ? IT_STOCK_CATALOG.filter((item) => item.categoryKey === stockForm.category_key) : [], [stockForm.category_key]);
@@ -287,10 +409,30 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
     return nextEntries.length;
   };
   const removePendingFile = (entryId, setter) => setter((prev) => { const next = []; prev.forEach((entry) => { if (entry.id === entryId) revokePendingPreview(entry); else next.push(entry); }); return next; });
+  const getPastedImageFiles = (event, fileNamePrefix) => {
+    const itemFiles = Array.from(event.clipboardData?.items || [])
+      .filter((item) => String(item?.type || "").startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    const fileFallbacks = Array.from(event.clipboardData?.files || [])
+      .filter((file) => String(file?.type || "").startsWith("image/"));
+
+    return (itemFiles.length > 0 ? itemFiles : fileFallbacks).map((file, index) => (
+      file?.name
+        ? file
+        : new File([file], `${fileNamePrefix}-${Date.now()}-${index}.png`, { type: file?.type || "image/png" })
+    ));
+  };
+  const handlePasteStockImages = (event) => {
+    const imageFiles = getPastedImageFiles(event, "stock-device-image");
+    if (imageFiles.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const addedCount = handleSelectFiles(imageFiles, setPendingStockImageFiles, true);
+    if (addedCount > 0) toast.success(`วางรูปอุปกรณ์แล้ว ${addedCount} รูป`);
+  };
   const handlePasteIssueEvidence = (event) => {
-    const itemFiles = Array.from(event.clipboardData?.items || []).filter((item) => String(item?.type || "").startsWith("image/")).map((item) => item.getAsFile()).filter(Boolean);
-    const fileFallbacks = Array.from(event.clipboardData?.files || []).filter((file) => String(file?.type || "").startsWith("image/"));
-    const imageFiles = (itemFiles.length > 0 ? itemFiles : fileFallbacks).map((file, index) => file?.name ? file : new File([file], `stock-issue-evidence-${Date.now()}-${index}.png`, { type: file?.type || "image/png" }));
+    const imageFiles = getPastedImageFiles(event, "stock-issue-evidence");
     if (imageFiles.length === 0) return;
     event.preventDefault();
     event.stopPropagation();
@@ -311,7 +453,15 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
     setPendingStockImageFiles([]);
     setPendingStockFiles([]);
   };
-  const resetIssueForm = () => { pendingIssueFilesRef.current.forEach(revokePendingPreview); pendingIssueFilesRef.current = []; if (issueFileInputRef.current) issueFileInputRef.current.value = ""; setIssueForm(EMPTY_ISSUE_FORM); setPendingIssueFiles([]); setActiveLookupField(""); };
+  const resetIssueForm = () => {
+    pendingIssueFilesRef.current.forEach(revokePendingPreview);
+    pendingIssueFilesRef.current = [];
+    if (issueFileInputRef.current) issueFileInputRef.current.value = "";
+    setIssueForm(EMPTY_ISSUE_FORM);
+    setPendingIssueFiles([]);
+    setActiveLookupField("");
+    clearIssueSignaturePad();
+  };
   const handleRemoveExistingStockAttachment = (attachment) => { setRemovedStockAttachments((prev) => prev.some((item) => String(item?.id || "") === String(attachment?.id || "")) ? prev : [...prev, attachment]); setStockAttachments((prev) => prev.filter((item) => String(item?.id || "") !== String(attachment?.id || ""))); };
   const handleOpenIssueModal = () => {
     resetIssueForm();
@@ -409,10 +559,20 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   const handleSubmitIssue = async (event) => {
     event.preventDefault();
     if (issuingStock || !selectedIssueItem) return;
+    if (!issueSignatureHasInkRef.current) {
+      setIssueSignatureError("กรุณาให้ผู้รับเซ็นยืนยันรับอุปกรณ์ก่อนบันทึก");
+      return;
+    }
+    const signatureFile = createIssueSignatureFile();
+    if (!signatureFile) {
+      setIssueSignatureError("ไม่สามารถสร้างไฟล์ลายเซ็นได้ กรุณาเซ็นใหม่อีกครั้ง");
+      return;
+    }
     try {
       setIssuingStock(true);
       setErrorMessage("");
-      const result = await issueStockItem({ stockItem: selectedIssueItem, quantity: issueForm.quantity, requester: issueForm, purpose: issueForm.purpose, notes: issueForm.notes, currentUser, pendingFiles: pendingIssueFiles.map((entry) => entry.file).filter(Boolean) });
+      const issueEvidenceFiles = [...pendingIssueFiles.map((entry) => entry.file).filter(Boolean), signatureFile];
+      const result = await issueStockItem({ stockItem: selectedIssueItem, quantity: issueForm.quantity, requester: issueForm, purpose: issueForm.purpose, notes: issueForm.notes, currentUser, pendingFiles: issueEvidenceFiles });
       setStockItems((prev) => prev.map((item) => String(item?.id || "") === String(result.updatedItem?.id || "") ? result.updatedItem : item));
       setIssueLogs((prev) => [result.createdLog, ...prev].slice(0, 80));
       toast.success("บันทึกการเบิก stock แล้ว");
@@ -593,7 +753,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                 </div>
 
                 <aside className="space-y-4">
-                  <AttachmentField title="รูปภาพอุปกรณ์" hint="รูปแรกจะแสดงเป็นภาพอุปกรณ์ในรายการ stock" buttonLabel="เพิ่มรูป" emptyLabel="ยังไม่มีรูปภาพอุปกรณ์" accept={STOCK_IMAGE_ACCEPT} capture="environment" inputRef={stockImageInputRef} onSelect={(files) => handleSelectFiles(files, setPendingStockImageFiles, true)} existing={stockImageAttachments} pending={pendingStockImageFiles} onPreview={handleOpenAttachmentPreview} onRemoveExisting={handleRemoveExistingStockAttachment} onRemovePending={(entryId) => removePendingFile(entryId, setPendingStockImageFiles)} />
+                  <AttachmentField title="รูปภาพอุปกรณ์" hint="รูปแรกจะแสดงเป็นภาพอุปกรณ์ในรายการ stock" pasteHint="แคปจอหรือคัดลอกรูป คลิกกล่องนี้ แล้วกด Ctrl+V เพื่อวางรูปอุปกรณ์ได้ทันที" buttonLabel="เพิ่มรูป" emptyLabel="ยังไม่มีรูปภาพอุปกรณ์" accept={STOCK_IMAGE_ACCEPT} capture="environment" inputRef={stockImageInputRef} onSelect={(files) => handleSelectFiles(files, setPendingStockImageFiles, true)} onPaste={handlePasteStockImages} existing={stockImageAttachments} pending={pendingStockImageFiles} onPreview={handleOpenAttachmentPreview} onRemoveExisting={handleRemoveExistingStockAttachment} onRemovePending={(entryId) => removePendingFile(entryId, setPendingStockImageFiles)} />
                   <AttachmentField title="หลักฐานรับเข้า" hint="แนบ invoice, ใบส่งของ หรือไฟล์อ้างอิงของ lot นี้" buttonLabel="เพิ่มหลักฐาน" emptyLabel="ยังไม่มีไฟล์หลักฐานรับเข้า" accept={STOCK_ATTACHMENT_ACCEPT} inputRef={stockFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingStockFiles, false)} existing={stockEvidenceAttachments} pending={pendingStockFiles} onPreview={handleOpenAttachmentPreview} onRemoveExisting={handleRemoveExistingStockAttachment} onRemovePending={(entryId) => removePendingFile(entryId, setPendingStockFiles)} />
                 </aside>
               </div>
@@ -679,14 +839,47 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                   <input value={issueForm.purpose} onChange={(event) => handleIssueFieldChange("purpose", event.target.value)} className={`w-full rounded-lg border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`} placeholder="วัตถุประสงค์การเบิก" />
                   <textarea value={issueForm.notes} onChange={(event) => handleIssueFieldChange("notes", event.target.value)} className={`min-h-[92px] w-full rounded-lg border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`} placeholder="หมายเหตุเพิ่มเติม" />
                 </div>
-                <aside>
-                  <AttachmentField title="รูปหลักฐานการเบิก" hint="บังคับแนบอย่างน้อย 1 รูป เพื่อยืนยันการจ่ายของ" pasteHint="แคปจอแล้วคลิกกล่องนี้ จากนั้นกด Ctrl+V เพื่อวางรูปได้ทันที" buttonLabel="ถ่ายหรือเลือกรูป" emptyLabel="ยังไม่ได้แนบรูปหลักฐานการเบิก" accept={ISSUE_ATTACHMENT_ACCEPT} capture="environment" inputRef={issueFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingIssueFiles, true)} onPaste={handlePasteIssueEvidence} pending={pendingIssueFiles} onPreview={handleOpenAttachmentPreview} onRemovePending={(entryId) => removePendingFile(entryId, setPendingIssueFiles)} />
+                <aside className="space-y-4">
+                  <AttachmentField title="รูปหลักฐานการเบิก" hint="ถ่ายรูปเพิ่มเติมได้ เช่น อุปกรณ์หรือจุดส่งมอบ ส่วนลายเซ็นด้านล่างเป็นหลักฐานบังคับ" pasteHint="แคปจอแล้วคลิกกล่องนี้ จากนั้นกด Ctrl+V เพื่อวางรูปได้ทันที" buttonLabel="ถ่ายหรือเลือกรูป" emptyLabel="ยังไม่ได้แนบรูปหลักฐานการเบิกเพิ่มเติม" accept={ISSUE_ATTACHMENT_ACCEPT} capture="environment" inputRef={issueFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingIssueFiles, true)} onPaste={handlePasteIssueEvidence} pending={pendingIssueFiles} onPreview={handleOpenAttachmentPreview} onRemovePending={(entryId) => removePendingFile(entryId, setPendingIssueFiles)} />
+                  <div className={`rounded-2xl border p-3 ${theme === "dark" ? "border-emerald-500/30 bg-emerald-500/10" : "border-emerald-200 bg-emerald-50/80"}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className={`text-sm font-bold ${theme === "dark" ? "text-emerald-100" : "text-emerald-950"}`}>ลายเซ็นผู้รับของ *</p>
+                        <p className={`mt-1 text-[11px] ${theme === "dark" ? "text-emerald-100/75" : "text-emerald-800"}`}>ให้ผู้รับเซ็นเพื่อยืนยันการรับอุปกรณ์ IT</p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${hasIssueSignature ? "border-emerald-300 bg-white text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+                        {hasIssueSignature ? <CheckCircle2 size={13} /> : <PenLine size={13} />}
+                        {hasIssueSignature ? "เซ็นแล้ว" : "รอลายเซ็น"}
+                      </span>
+                    </div>
+                    <div className={`mt-3 rounded-2xl border p-2 ${theme === "dark" ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-white"}`}>
+                      <canvas
+                        ref={issueSignatureCanvasRef}
+                        className={`block h-40 w-full touch-none rounded-xl border border-dashed ${issuingStock ? "cursor-not-allowed opacity-70" : "cursor-crosshair"} ${theme === "dark" ? "border-slate-600 bg-slate-950" : "border-slate-300 bg-white"}`}
+                        aria-label="ช่องลายเซ็นผู้รับของ"
+                        onPointerDown={handleIssueSignaturePointerDown}
+                        onPointerMove={handleIssueSignaturePointerMove}
+                        onPointerUp={handleIssueSignaturePointerUp}
+                        onPointerCancel={handleIssueSignaturePointerUp}
+                        onPointerLeave={handleIssueSignaturePointerUp}
+                        style={{ touchAction: "none" }}
+                      />
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className={`text-[11px] ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ผู้รับ: {issueForm.requester_name || "กรอกชื่อผู้เบิกก่อน แล้วให้เซ็นบนช่องนี้"}</p>
+                        <button type="button" onClick={clearIssueSignaturePad} disabled={issuingStock || !hasIssueSignature} className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${theme === "dark" ? "border-slate-600 bg-slate-900 text-slate-200 hover:bg-slate-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
+                          <RotateCcw size={13} />
+                          ล้างลายเซ็น
+                        </button>
+                      </div>
+                    </div>
+                    {issueSignatureError ? <p className="mt-2 text-xs font-semibold text-rose-600">{issueSignatureError}</p> : <p className={`mt-2 text-xs ${theme === "dark" ? "text-emerald-100/70" : "text-emerald-700"}`}>ลายเซ็นจะถูกแนบเป็นรูปหลักฐานพร้อมรายการเบิกโดยอัตโนมัติ</p>}
+                  </div>
                 </aside>
               </div>
               <div className={`mt-5 flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-end ${theme === "dark" ? "border-slate-800" : "border-slate-200"}`}>
                 <button type="button" onClick={handleCloseIssueModal} disabled={issuingStock} className={`inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${uiTheme.statusButton}`}>ยกเลิก</button>
                 <button type="button" onClick={resetIssueForm} disabled={issuingStock} className={`inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${uiTheme.statusButton}`}>ล้างฟอร์ม</button>
-                <button type="submit" disabled={issuingStock || !selectedIssueItem} className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="submit" disabled={issuingStock || !selectedIssueItem || !hasIssueSignature} className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
                   {issuingStock ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                   {issuingStock ? "กำลังบันทึก..." : "ยืนยันการเบิก"}
                 </button>
@@ -739,6 +932,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
               const issueSummary = stockIssueSummaryById.get(String(item.id || ""));
               const latestIssueLog = issueSummary?.latestLog || null;
               const latestIssueLabel = latestIssueLog ? `${formatQuantity(latestIssueLog.quantity)} ${latestIssueLog.unit_snapshot || item.unit || "ชิ้น"} • ${formatDateTime(latestIssueLog.issued_at || latestIssueLog.created_at)}` : "ยังไม่มีประวัติเบิก";
+              const stockCreatedLabel = formatDateTime(item.created_at);
               return (
                 <article key={item.id} className={`rounded-lg border p-4 ${theme === "dark" ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
                   <div className="flex gap-3">
@@ -762,6 +956,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                       <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                         <div className={`rounded-lg border px-3 py-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>ประเภท: {itemCategoryLabel}</div>
                         <div className={`rounded-lg border px-3 py-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>รหัสอุปกรณ์: {itemCodeLabel}</div>
+                        <div className={`rounded-lg border px-3 py-2 sm:col-span-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>วันที่นำ stock เข้าระบบ: {stockCreatedLabel}</div>
                         <div className={`rounded-lg border px-3 py-2 sm:col-span-2 ${theme === "dark" ? "border-blue-500/30 bg-blue-500/10 text-blue-100" : "border-blue-100 bg-blue-50 text-blue-800"}`}>
                           <p className="font-semibold">เบิกล่าสุด: {latestIssueLabel}</p>
                           <p className={`mt-1 ${theme === "dark" ? "text-blue-200/80" : "text-blue-700"}`}>เบิกสะสม: {formatQuantity(issueSummary?.totalIssued || 0)} {item.unit || "ชิ้น"}{issueSummary?.issueCount ? ` • ${formatQuantity(issueSummary.issueCount)} ครั้ง` : ""}</p>

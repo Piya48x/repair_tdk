@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { PencilLine, RefreshCw, Save, Search, Trash2, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabaseClient";
+import { useScopedI18n } from "../../i18n/useScopedI18n";
 import {
   NOTEBOOK_STATUS,
   isNotebookPermissionDenied,
@@ -10,21 +11,194 @@ import {
   uploadNotebookAssetImage,
 } from "../../services/notebookBorrowService";
 
-const NUMBER_FORMATTER = new Intl.NumberFormat("th-TH");
-const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("th-TH", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const NOTEBOOK_INVENTORY_TRANSLATIONS = {
+  th: {
+    status: {
+      available: "พร้อมให้ยืม",
+      borrowed: "ถูกยืม",
+      repair: "ซ่อม",
+      stale: "สถานะค้าง",
+    },
+    form: {
+      addTitle: "เพิ่ม notebook",
+      editTitle: "แก้ไข notebook",
+      subtitle: "สถานะที่แก้ที่นี่จะถูกใช้ต่อในหน้า Notebook Center",
+      cancel: "ยกเลิก",
+      readOnly:
+        "สิทธิ์ปัจจุบันเป็นแบบดูอย่างเดียว การเพิ่ม แก้ไข ลบ และอัปโหลดรูป notebook เปิดให้เฉพาะ admin / IT Support / IT Manager",
+      assetCode: "รหัส notebook",
+      model: "รุ่น / รายละเอียด",
+      workflowLocked:
+        "เครื่องนี้กำลังอยู่ใน workflow ยืม-คืนจริง สถานะถูกยืมจะแก้ได้จากหน้าอนุมัติของ IT เท่านั้น",
+      borrowedAuto: "สถานะ 'ถูกยืม' จะถูกตั้งอัตโนมัติเมื่อ IT อนุมัติคำขอยืม",
+      staleHelp:
+        "รายการนี้ค้างสถานะถูกยืม แต่ไม่พบผู้ยืมในระบบ ให้เปลี่ยนเป็น พร้อมให้ยืม หรือ ซ่อม เพื่อปลดล็อกหน้า Notebook Center",
+      showInCenter: "แสดงใน Notebook Center",
+      showHint: "ถ้าต้องการให้มี notebook ให้ยืม 3 เครื่อง ให้เปิดตัวเลือกนี้ไว้ 3 รายการที่ต้องการแสดง",
+      notes: "หมายเหตุเพิ่มเติม",
+      noImage: "ยังไม่มีรูป notebook",
+      uploadImage: "อัปโหลดรูป",
+      changeImage: "เปลี่ยนรูป",
+      deleteImage: "ลบรูป",
+      saving: "กำลังบันทึก...",
+      addSubmit: "เพิ่ม notebook",
+      editSubmit: "บันทึกการแก้ไข",
+    },
+    list: {
+      title: "รายการ notebook ({{count}})",
+      subtitle: "ใช้ร่วมกับหน้า /notebook-center และอัปเดตแบบ realtime โดยแสดงเฉพาะรายการที่เปิดใน Notebook Center",
+      search: "ค้นหารหัส รุ่น หรือหมายเหตุ...",
+      refresh: "รีเฟรช",
+      total: "ทั้งหมด",
+      visible: "แสดงใน Center",
+      available: "พร้อมให้ยืม",
+      borrowed: "ถูกยืม",
+      repair: "ซ่อม",
+      staleWarning:
+        "พบ notebook สถานะค้าง {{count}} เครื่อง (ถูกยืมแต่ไม่ผูกผู้ยืม) ให้แก้เป็น พร้อมให้ยืม หรือ ซ่อม เพื่อปลดล็อกการใช้งาน",
+      allStatuses: "ทุกสถานะ",
+      resetFilters: "ล้างตัวกรอง",
+      tableNotebook: "Notebook",
+      tableStatus: "สถานะ",
+      tableImage: "ภาพ",
+      tableUpdated: "อัปเดตล่าสุด",
+      tableActions: "การทำงาน",
+      loading: "กำลังโหลด notebook...",
+      noData: "ไม่พบ notebook",
+      centerLabel: "Notebook Center",
+      visibleText: "แสดง",
+      hiddenText: "ซ่อน",
+      staleText: "สถานะค้าง: ไม่พบ current user ในระบบ",
+      noImage: "ไม่มีรูป",
+      updating: "กำลังอัปเดต...",
+      hideFromCenter: "ไม่พร้อมให้ยืม",
+      showInCenter: "พร้อมให้ยืม",
+      edit: "แก้ไข",
+      deleting: "กำลังลบ...",
+      delete: "ลบ",
+    },
+    toast: {
+      schemaMissing: "schema notebook ยังไม่อัปเดต กรุณารัน migration ล่าสุด",
+      permissionView: "ไม่มีสิทธิ์เข้าถึง notebook inventory",
+      loadError: "โหลดรายการ notebook ไม่สำเร็จ",
+      manageOnly: "เฉพาะ admin / IT Support / IT Manager เท่านั้นที่จัดการ notebook inventory ได้",
+      deleteOnly: "เฉพาะ admin / IT Support / IT Manager เท่านั้นที่ลบ notebook ได้",
+      enabled: "เปิด {{code}} ให้แสดงใน Notebook Center แล้ว",
+      disabled: "ตั้ง {{code}} เป็นไม่พร้อมให้ยืมแล้ว",
+      schemaInventoryMissing: "schema notebook inventory ยังไม่อัปเดต",
+      permissionEdit: "สิทธิ์ของบัญชีนี้ไม่พอสำหรับแก้ไข notebook",
+      availabilityError: "อัปเดตสถานะการให้ยืมไม่สำเร็จ",
+      required: "กรุณากรอกรหัส notebook และรุ่น",
+      borrowedWorkflowOnly: "สถานะ 'ถูกยืม' จะถูกตั้งจาก workflow ยืม-คืนเท่านั้น",
+      updated: "อัปเดต notebook แล้ว",
+      created: "เพิ่ม notebook แล้ว",
+      duplicate: "รหัส {{code}} ถูกใช้งานแล้ว",
+      saveError: "บันทึก notebook ไม่สำเร็จ",
+      deleteConfirm:
+        "ยืนยันลบ notebook {{code}} ?{{borrowedMessage}}\nระบบจะลบประวัติการยืมที่ผูกกับเครื่องนี้ด้วย",
+      borrowedDeleteNote: "\nรายการนี้อาจมีประวัติการยืมค้างอยู่",
+      deleted: "ลบ notebook แล้ว",
+      permissionDelete: "ไม่มีสิทธิ์ลบ notebook",
+      deleteError: "ลบ notebook ไม่สำเร็จ",
+    },
+  },
+  en: {
+    status: {
+      available: "Available",
+      borrowed: "Borrowed",
+      repair: "Repair",
+      stale: "Stale status",
+    },
+    form: {
+      addTitle: "Add notebook",
+      editTitle: "Edit notebook",
+      subtitle: "Changes here are used by the Notebook Center page.",
+      cancel: "Cancel",
+      readOnly:
+        "Your current role is view-only. Adding, editing, deleting, and image uploads are limited to admin / IT Support / IT Manager.",
+      assetCode: "Notebook code",
+      model: "Model / details",
+      workflowLocked:
+        "This notebook is in an active borrow-return workflow. Borrowed status can only be changed from IT approval.",
+      borrowedAuto: "Borrowed status is set automatically when IT approves a borrow request.",
+      staleHelp:
+        "This notebook is marked borrowed but has no linked borrower. Change it to Available or Repair to unlock Notebook Center.",
+      showInCenter: "Show in Notebook Center",
+      showHint: "If you want 3 notebooks available for borrowing, keep this enabled on the 3 records you want to show.",
+      notes: "Additional notes",
+      noImage: "No notebook image yet",
+      uploadImage: "Upload image",
+      changeImage: "Change image",
+      deleteImage: "Delete image",
+      saving: "Saving...",
+      addSubmit: "Add notebook",
+      editSubmit: "Save changes",
+    },
+    list: {
+      title: "Notebook list ({{count}})",
+      subtitle: "Shared with /notebook-center and updated in real time. Only records enabled for Notebook Center are shown there.",
+      search: "Search code, model, or notes...",
+      refresh: "Refresh",
+      total: "Total",
+      visible: "Shown in Center",
+      available: "Available",
+      borrowed: "Borrowed",
+      repair: "Repair",
+      staleWarning:
+        "{{count}} notebook has a stale borrowed status with no linked borrower. Change it to Available or Repair to unlock usage.",
+      allStatuses: "All statuses",
+      resetFilters: "Reset filters",
+      tableNotebook: "Notebook",
+      tableStatus: "Status",
+      tableImage: "Image",
+      tableUpdated: "Last updated",
+      tableActions: "Actions",
+      loading: "Loading notebooks...",
+      noData: "No notebooks found",
+      centerLabel: "Notebook Center",
+      visibleText: "Shown",
+      hiddenText: "Hidden",
+      staleText: "Stale status: current user is missing",
+      noImage: "No image",
+      updating: "Updating...",
+      hideFromCenter: "Make unavailable",
+      showInCenter: "Make available",
+      edit: "Edit",
+      deleting: "Deleting...",
+      delete: "Delete",
+    },
+    toast: {
+      schemaMissing: "Notebook schema is not updated. Please run the latest migration.",
+      permissionView: "You do not have access to notebook inventory",
+      loadError: "Unable to load notebooks",
+      manageOnly: "Only admin / IT Support / IT Manager can manage notebook inventory",
+      deleteOnly: "Only admin / IT Support / IT Manager can delete notebooks",
+      enabled: "{{code}} is now shown in Notebook Center",
+      disabled: "{{code}} is now unavailable for borrowing",
+      schemaInventoryMissing: "Notebook inventory schema is not updated",
+      permissionEdit: "This account cannot edit notebooks",
+      availabilityError: "Unable to update borrowing availability",
+      required: "Please enter a notebook code and model",
+      borrowedWorkflowOnly: "Borrowed status is set by the borrow-return workflow only",
+      updated: "Notebook updated",
+      created: "Notebook added",
+      duplicate: "Code {{code}} is already in use",
+      saveError: "Unable to save notebook",
+      deleteConfirm:
+        "Delete notebook {{code}}?{{borrowedMessage}}\nBorrow history linked to this notebook will also be removed.",
+      borrowedDeleteNote: "\nThis item may have pending borrow history",
+      deleted: "Notebook deleted",
+      permissionDelete: "You do not have permission to delete notebooks",
+      deleteError: "Unable to delete notebook",
+    },
+  },
+};
 
 const NOTEBOOK_STATUS_OPTIONS = [
   { value: NOTEBOOK_STATUS.AVAILABLE, label: "พร้อมให้ยืม" },
   { value: NOTEBOOK_STATUS.BORROWED, label: "ถูกยืม" },
   { value: NOTEBOOK_STATUS.REPAIR, label: "ซ่อม" },
 ];
-
-const NOTEBOOK_MANUAL_STATUS_OPTIONS = NOTEBOOK_STATUS_OPTIONS.filter(
-  (item) => item.value !== NOTEBOOK_STATUS.BORROWED,
-);
 
 const NOTEBOOK_MANAGER_ROLES = new Set(["admin", "it_support", "it_manager"]);
 
@@ -82,19 +256,23 @@ function getNotebookStatusChipClass(notebook) {
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
-function getNotebookStatusLabel(notebook) {
+function getNotebookStatusLabel(notebook, statusLabels = {}) {
   if (isNotebookBorrowStateInconsistent(notebook)) {
-    return "สถานะค้าง";
+    return statusLabels.stale || "Stale status";
   }
 
-  return NOTEBOOK_STATUS_OPTIONS.find((statusItem) => statusItem.value === normalizeNotebookStatus(notebook?.status))?.label || "-";
+  const normalized = normalizeNotebookStatus(notebook?.status);
+  return statusLabels[normalized] || NOTEBOOK_STATUS_OPTIONS.find((statusItem) => statusItem.value === normalized)?.label || "-";
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, locale = "th-TH") {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return DATE_TIME_FORMATTER.format(date);
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function isBlobUrl(value) {
@@ -108,6 +286,7 @@ function revokePreviewUrl(value) {
 }
 
 export default function NotebookInventoryManagementPanel({ userRole = "" }) {
+  const { language, tt } = useScopedI18n(NOTEBOOK_INVENTORY_TRANSLATIONS);
   const imageInputRef = useRef(null);
   const canManageNotebooks = NOTEBOOK_MANAGER_ROLES.has(normalizeText(userRole).toLowerCase());
   const [notebooks, setNotebooks] = useState([]);
@@ -122,6 +301,31 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [removeImage, setRemoveImage] = useState(false);
+  const locale = language === "th" ? "th-TH" : "en-US";
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  const formatNumber = useCallback(
+    (value) => numberFormatter.format(Number(value || 0)),
+    [numberFormatter],
+  );
+  const notebookStatusOptions = useMemo(
+    () =>
+      NOTEBOOK_STATUS_OPTIONS.map((item) => ({
+        ...item,
+        label: tt(`status.${item.value}`),
+      })),
+    [tt],
+  );
+  const notebookManualStatusOptions = useMemo(
+    () => notebookStatusOptions.filter((item) => item.value !== NOTEBOOK_STATUS.BORROWED),
+    [notebookStatusOptions],
+  );
+  const notebookStatusLabels = useMemo(
+    () => ({
+      ...Object.fromEntries(notebookStatusOptions.map((item) => [item.value, item.label])),
+      stale: tt("status.stale"),
+    }),
+    [notebookStatusOptions, tt],
+  );
 
   const editingNotebook = useMemo(
     () => notebooks.find((item) => String(item?.id || "") === String(editingId || "")) || null,
@@ -139,17 +343,17 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
     } catch (error) {
       console.error("Load notebooks error:", error);
       if (isNotebookSchemaError(error)) {
-        toast.error("schema notebook ยังไม่อัปเดต กรุณารัน migration ล่าสุด");
+        toast.error(tt("toast.schemaMissing"));
       } else if (isNotebookPermissionDenied(error)) {
-        toast.error("ไม่มีสิทธิ์เข้าถึง notebook inventory");
+        toast.error(tt("toast.permissionView"));
       } else {
-        toast.error(error?.message || "โหลดรายการ notebook ไม่สำเร็จ");
+        toast.error(error?.message || tt("toast.loadError"));
       }
       setNotebooks([]);
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [tt]);
 
   useEffect(() => {
     void loadNotebooks();
@@ -269,7 +473,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
   const handleToggleNotebookCenterVisibility = useCallback(
     async (item) => {
       if (!canManageNotebooks) {
-        toast.error("เฉพาะ admin / IT Support / IT Manager เท่านั้นที่จัดการ notebook inventory ได้");
+        toast.error(tt("toast.manageOnly"));
         return;
       }
 
@@ -297,30 +501,30 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
         }
         toast.success(
           nextVisible
-            ? `เปิด ${item?.asset_code || "notebook"} ให้แสดงใน Notebook Center แล้ว`
-            : `ตั้ง ${item?.asset_code || "notebook"} เป็นไม่พร้อมให้ยืมแล้ว`,
+            ? tt("toast.enabled", { code: item?.asset_code || "notebook" })
+            : tt("toast.disabled", { code: item?.asset_code || "notebook" }),
         );
       } catch (error) {
         console.error("Toggle notebook center visibility error:", error);
         if (isNotebookSchemaError(error)) {
-          toast.error("schema notebook inventory ยังไม่อัปเดต");
+          toast.error(tt("toast.schemaInventoryMissing"));
         } else if (isNotebookPermissionDenied(error)) {
-          toast.error("สิทธิ์ของบัญชีนี้ไม่พอสำหรับแก้ไข notebook");
+          toast.error(tt("toast.permissionEdit"));
         } else {
-          toast.error(error?.message || "อัปเดตสถานะการให้ยืมไม่สำเร็จ");
+          toast.error(error?.message || tt("toast.availabilityError"));
         }
       } finally {
         setAvailabilityActionId("");
       }
     },
-    [availabilityActionId, canManageNotebooks, editingId],
+    [availabilityActionId, canManageNotebooks, editingId, tt],
   );
 
   const handleSaveNotebook = useCallback(
     async (event) => {
       event.preventDefault();
       if (!canManageNotebooks) {
-        toast.error("เฉพาะ admin / IT Support / IT Manager เท่านั้นที่จัดการ notebook inventory ได้");
+        toast.error(tt("toast.manageOnly"));
         return;
       }
       if (saving) return;
@@ -328,7 +532,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
       const assetCode = normalizeText(formData.asset_code).toUpperCase();
       const model = normalizeText(formData.model);
       if (!assetCode || !model) {
-        toast.error("กรุณากรอกรหัส notebook และรุ่น");
+        toast.error(tt("toast.required"));
         return;
       }
 
@@ -336,7 +540,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
       const nextStatus = normalizeNotebookStatus(formData.status);
       const canUseBorrowedStatus = isNotebookBorrowWorkflowLocked(currentRow);
       if (nextStatus === NOTEBOOK_STATUS.BORROWED && !canUseBorrowedStatus) {
-        toast.error("สถานะ 'ถูกยืม' จะถูกตั้งจาก workflow ยืม-คืนเท่านั้น");
+        toast.error(tt("toast.borrowedWorkflowOnly"));
         return;
       }
       let uploadedAsset = null;
@@ -370,11 +574,11 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
         if (editingId) {
           const { error } = await supabase.from("notebooks").update(payload).eq("id", editingId);
           if (error) throw error;
-          toast.success("อัปเดต notebook แล้ว");
+          toast.success(tt("toast.updated"));
         } else {
           const { error } = await supabase.from("notebooks").insert(payload);
           if (error) throw error;
-          toast.success("เพิ่ม notebook แล้ว");
+          toast.success(tt("toast.created"));
         }
 
         const previousImageUrl = normalizeText(currentRow?.asset_image_url);
@@ -390,35 +594,38 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
         }
         console.error("Save notebook inventory error:", error);
         if (String(error?.code || "") === "23505") {
-          toast.error(`รหัส ${assetCode} ถูกใช้งานแล้ว`);
+          toast.error(tt("toast.duplicate", { code: assetCode }));
         } else if (isNotebookSchemaError(error)) {
-          toast.error("schema notebook inventory ยังไม่อัปเดต");
+          toast.error(tt("toast.schemaInventoryMissing"));
         } else if (isNotebookPermissionDenied(error)) {
-          toast.error("สิทธิ์ของบัญชีนี้ไม่พอสำหรับแก้ไข notebook");
+          toast.error(tt("toast.permissionEdit"));
         } else {
-          toast.error(error?.message || "บันทึก notebook ไม่สำเร็จ");
+          toast.error(error?.message || tt("toast.saveError"));
         }
       } finally {
         setSaving(false);
       }
     },
-    [canManageNotebooks, editingId, formData, imageFile, loadNotebooks, notebooks, removeImage, resetForm, saving],
+    [canManageNotebooks, editingId, formData, imageFile, loadNotebooks, notebooks, removeImage, resetForm, saving, tt],
   );
 
   const handleDeleteNotebook = useCallback(
     async (item) => {
       if (!canManageNotebooks) {
-        toast.error("เฉพาะ admin / IT Support / IT Manager เท่านั้นที่ลบ notebook ได้");
+        toast.error(tt("toast.deleteOnly"));
         return;
       }
       if (actionId && actionId === item.id) return;
 
       const borrowedMessage =
         normalizeNotebookStatus(item?.status) === NOTEBOOK_STATUS.BORROWED
-          ? "\nรายการนี้อาจมีประวัติการยืมค้างอยู่"
+          ? tt("toast.borrowedDeleteNote")
           : "";
       const confirmed = window.confirm(
-        `ยืนยันลบ notebook ${item?.asset_code || "-"} ?${borrowedMessage}\nระบบจะลบประวัติการยืมที่ผูกกับเครื่องนี้ด้วย`,
+        tt("toast.deleteConfirm", {
+          code: item?.asset_code || "-",
+          borrowedMessage,
+        }),
       );
       if (!confirmed) return;
 
@@ -436,19 +643,19 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
         if (String(editingId || "") === String(item.id)) {
           resetForm();
         }
-        toast.success("ลบ notebook แล้ว");
+        toast.success(tt("toast.deleted"));
       } catch (error) {
         console.error("Delete notebook inventory error:", error);
         if (isNotebookPermissionDenied(error)) {
-          toast.error("ไม่มีสิทธิ์ลบ notebook");
+          toast.error(tt("toast.permissionDelete"));
         } else {
-          toast.error(error?.message || "ลบ notebook ไม่สำเร็จ");
+          toast.error(error?.message || tt("toast.deleteError"));
         }
       } finally {
         setActionId("");
       }
     },
-    [actionId, canManageNotebooks, editingId, resetForm],
+    [actionId, canManageNotebooks, editingId, resetForm, tt],
   );
 
   return (
@@ -457,9 +664,9 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-black text-slate-900">
-              {editingId ? "แก้ไข notebook inventory" : "เพิ่ม notebook"}
+              {editingId ? tt("form.editTitle") : tt("form.addTitle")}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">สถานะที่แก้ที่นี่จะถูกใช้ต่อในหน้า Notebook Center</p>
+            <p className="mt-1 text-sm text-slate-500">{tt("form.subtitle")}</p>
           </div>
           {editingId ? (
             <button
@@ -468,14 +675,14 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
             >
               <X size={14} />
-              ยกเลิก
+              {tt("form.cancel")}
             </button>
           ) : null}
         </div>
 
         {!canManageNotebooks ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-            สิทธิ์ปัจจุบันเป็นแบบดูอย่างเดียว การเพิ่ม แก้ไข ลบ และอัปโหลดรูป notebook เปิดให้เฉพาะ admin / IT Support / IT Manager
+            {tt("form.readOnly")}
           </div>
         ) : null}
 
@@ -485,7 +692,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
               value={formData.asset_code}
               onChange={(event) => setFormData((prev) => ({ ...prev, asset_code: event.target.value }))}
               className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              placeholder="รหัส notebook *"
+              placeholder={`${tt("form.assetCode")} *`}
               required
               disabled={!canManageNotebooks}
             />
@@ -493,7 +700,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
               value={formData.model}
               onChange={(event) => setFormData((prev) => ({ ...prev, model: event.target.value }))}
               className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              placeholder="รุ่น / รายละเอียด *"
+              placeholder={`${tt("form.model")} *`}
               required
               disabled={!canManageNotebooks}
             />
@@ -507,8 +714,8 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
               disabled={!canManageNotebooks || isEditingBorrowedFromWorkflow}
             >
               {((isEditingBorrowedFromWorkflow || isEditingStaleBorrowed)
-                ? NOTEBOOK_STATUS_OPTIONS
-                : NOTEBOOK_MANUAL_STATUS_OPTIONS).map((item) => (
+                ? notebookStatusOptions
+                : notebookManualStatusOptions).map((item) => (
                 <option
                   key={item.value}
                   value={item.value}
@@ -520,12 +727,12 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             </select>
             <p className="mt-2 text-xs text-slate-500">
               {isEditingBorrowedFromWorkflow
-                ? "เครื่องนี้กำลังอยู่ใน workflow ยืม-คืนจริง สถานะถูกยืมจะแก้ได้จากหน้าอนุมัติของ IT เท่านั้น"
-                : "สถานะ 'ถูกยืม' จะถูกตั้งอัตโนมัติเมื่อ IT อนุมัติคำขอยืม"}
+                ? tt("form.workflowLocked")
+                : tt("form.borrowedAuto")}
             </p>
             {isEditingStaleBorrowed ? (
               <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
-                รายการนี้ค้างสถานะถูกยืม แต่ไม่พบผู้ยืมในระบบ ให้เปลี่ยนเป็น พร้อมให้ยืม หรือ ซ่อม เพื่อปลดล็อกหน้า Notebook Center
+                {tt("form.staleHelp")}
               </div>
             ) : null}
           </div>
@@ -539,9 +746,9 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
               disabled={!canManageNotebooks}
             />
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-slate-800">แสดงใน Notebook Center</span>
+              <span className="block text-sm font-semibold text-slate-800">{tt("form.showInCenter")}</span>
               <span className="mt-1 block text-xs text-slate-500">
-                ถ้าต้องการให้มี notebook ให้ยืม 3 เครื่อง ให้เปิดตัวเลือกนี้ไว้ 3 รายการที่ต้องการแสดง
+                {tt("form.showHint")}
               </span>
             </span>
           </label>
@@ -550,7 +757,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             value={formData.notes}
             onChange={(event) => setFormData((prev) => ({ ...prev, notes: event.target.value }))}
             className="min-h-[96px] w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-            placeholder="หมายเหตุเพิ่มเติม"
+            placeholder={tt("form.notes")}
             disabled={!canManageNotebooks}
           />
 
@@ -560,7 +767,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                 <img src={imagePreview} alt={formData.asset_code || "Notebook"} className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-400">
-                  ยังไม่มีรูป notebook
+                  {tt("form.noImage")}
                 </div>
               )}
             </div>
@@ -573,7 +780,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Upload size={16} />
-                {imagePreview ? "เปลี่ยนรูป" : "อัปโหลดรูป"}
+                {imagePreview ? tt("form.changeImage") : tt("form.uploadImage")}
               </button>
               <button
                 type="button"
@@ -582,7 +789,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                 className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Trash2 size={16} />
-                ลบรูป
+                {tt("form.deleteImage")}
               </button>
             </div>
 
@@ -601,7 +808,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {editingId ? <PencilLine size={16} /> : <Save size={16} />}
-            {saving ? "กำลังบันทึก..." : editingId ? "บันทึกการแก้ไข" : "เพิ่ม notebook"}
+            {saving ? tt("form.saving") : editingId ? tt("form.editSubmit") : tt("form.addSubmit")}
           </button>
         </form>
       </article>
@@ -610,9 +817,9 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-black text-slate-900">
-              รายการ notebook ({NUMBER_FORMATTER.format(filteredNotebooks.length)})
+              {tt("list.title", { count: formatNumber(filteredNotebooks.length) })}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">ใช้ร่วมกับหน้า /notebook-center และอัปเดตแบบ realtime โดยแสดงเฉพาะรายการที่เปิดใน Notebook Center</p>
+            <p className="mt-1 text-sm text-slate-500">{tt("list.subtitle")}</p>
           </div>
 
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -622,7 +829,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 className="w-full rounded-xl border border-slate-300 py-2 pl-9 pr-3 text-sm"
-                placeholder="ค้นหารหัส รุ่น หรือหมายเหตุ..."
+                placeholder={tt("list.search")}
               />
             </div>
             <button
@@ -632,37 +839,37 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-              รีเฟรช
+              {tt("list.refresh")}
             </button>
           </div>
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-5">
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-[11px] font-semibold text-slate-500">ทั้งหมด</p>
-            <p className="text-lg font-black text-slate-900">{NUMBER_FORMATTER.format(summary.total)}</p>
+            <p className="text-[11px] font-semibold text-slate-500">{tt("list.total")}</p>
+            <p className="text-lg font-black text-slate-900">{formatNumber(summary.total)}</p>
           </div>
           <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
-            <p className="text-[11px] font-semibold text-indigo-700">แสดงใน Center</p>
-            <p className="text-lg font-black text-indigo-900">{NUMBER_FORMATTER.format(summary.visibleInCenter)}</p>
+            <p className="text-[11px] font-semibold text-indigo-700">{tt("list.visible")}</p>
+            <p className="text-lg font-black text-indigo-900">{formatNumber(summary.visibleInCenter)}</p>
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-            <p className="text-[11px] font-semibold text-emerald-700">พร้อมให้ยืม</p>
-            <p className="text-lg font-black text-emerald-900">{NUMBER_FORMATTER.format(summary.available)}</p>
+            <p className="text-[11px] font-semibold text-emerald-700">{tt("list.available")}</p>
+            <p className="text-lg font-black text-emerald-900">{formatNumber(summary.available)}</p>
           </div>
           <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2">
-            <p className="text-[11px] font-semibold text-blue-700">ถูกยืม</p>
-            <p className="text-lg font-black text-blue-900">{NUMBER_FORMATTER.format(summary.borrowed)}</p>
+            <p className="text-[11px] font-semibold text-blue-700">{tt("list.borrowed")}</p>
+            <p className="text-lg font-black text-blue-900">{formatNumber(summary.borrowed)}</p>
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-            <p className="text-[11px] font-semibold text-amber-700">ซ่อม</p>
-            <p className="text-lg font-black text-amber-900">{NUMBER_FORMATTER.format(summary.repair)}</p>
+            <p className="text-[11px] font-semibold text-amber-700">{tt("list.repair")}</p>
+            <p className="text-lg font-black text-amber-900">{formatNumber(summary.repair)}</p>
           </div>
         </div>
 
         {staleBorrowedCount > 0 ? (
           <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
-            พบ notebook สถานะค้าง {NUMBER_FORMATTER.format(staleBorrowedCount)} เครื่อง (ถูกยืมแต่ไม่ผูกผู้ยืม) ให้แก้เป็น พร้อมให้ยืม หรือ ซ่อม เพื่อปลดล็อกการใช้งาน
+            {tt("list.staleWarning", { count: formatNumber(staleBorrowedCount) })}
           </div>
         ) : null}
 
@@ -672,8 +879,8 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             onChange={(event) => setStatusFilter(event.target.value)}
             className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
           >
-            <option value="all">ทุกสถานะ</option>
-            {NOTEBOOK_STATUS_OPTIONS.map((item) => (
+            <option value="all">{tt("list.allStatuses")}</option>
+            {notebookStatusOptions.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
@@ -687,7 +894,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             }}
             className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
           >
-            ล้างตัวกรอง
+            {tt("list.resetFilters")}
           </button>
         </div>
 
@@ -695,24 +902,24 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50">
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-3 py-2">Notebook</th>
-                <th className="px-3 py-2">สถานะ</th>
-                <th className="px-3 py-2">ภาพ</th>
-                <th className="px-3 py-2">อัปเดตล่าสุด</th>
-                <th className="px-3 py-2 text-right">การทำงาน</th>
+                <th className="px-3 py-2">{tt("list.tableNotebook")}</th>
+                <th className="px-3 py-2">{tt("list.tableStatus")}</th>
+                <th className="px-3 py-2">{tt("list.tableImage")}</th>
+                <th className="px-3 py-2">{tt("list.tableUpdated")}</th>
+                <th className="px-3 py-2 text-right">{tt("list.tableActions")}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-8 text-center text-slate-500">
-                    กำลังโหลด notebook...
+                    {tt("list.loading")}
                   </td>
                 </tr>
               ) : filteredNotebooks.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-8 text-center text-slate-500">
-                    ไม่พบ notebook
+                    {tt("list.noData")}
                   </td>
                 </tr>
               ) : (
@@ -727,17 +934,17 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                         <div className="text-xs text-slate-500">{item?.model || "-"}</div>
                         {item?.notes ? <div className="mt-1 text-xs text-slate-500">{item.notes}</div> : null}
                         <div className={`mt-1 text-xs font-semibold ${showInNotebookCenter ? "text-indigo-600" : "text-slate-400"}`}>
-                          Notebook Center: {showInNotebookCenter ? "แสดง" : "ซ่อน"}
+                          {tt("list.centerLabel")}: {showInNotebookCenter ? tt("list.visibleText") : tt("list.hiddenText")}
                         </div>
                         {isStaleBorrowed ? (
                           <div className="mt-1 text-xs font-semibold text-rose-600">
-                            สถานะค้าง: ไม่พบ current user ในระบบ
+                            {tt("list.staleText")}
                           </div>
                         ) : null}
                       </td>
                       <td className="px-3 py-3">
                         <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getNotebookStatusChipClass(item)}`}>
-                          {getNotebookStatusLabel(item)}
+                          {getNotebookStatusLabel(item, notebookStatusLabels)}
                         </span>
                       </td>
                       <td className="px-3 py-3">
@@ -746,12 +953,12 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                             <img src={imageUrl} alt={item?.asset_code || "Notebook"} className="h-full w-full object-cover" />
                           ) : (
                             <div className="flex h-full items-center justify-center text-[11px] font-semibold text-slate-400">
-                              ไม่มีรูป
+                              {tt("list.noImage")}
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-xs text-slate-500">{formatDateTime(item?.updated_at || item?.created_at)}</td>
+                      <td className="px-3 py-3 text-xs text-slate-500">{formatDateTime(item?.updated_at || item?.created_at, locale)}</td>
                       <td className="px-3 py-3">
                         <div className="flex justify-end gap-2">
                           <button
@@ -765,10 +972,10 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                             }`}
                           >
                             {availabilityActionId === String(item.id || "")
-                              ? "กำลังอัปเดต..."
+                              ? tt("list.updating")
                               : showInNotebookCenter
-                                ? "ไม่พร้อมให้ยืม"
-                                : "พร้อมให้ยืม"}
+                                ? tt("list.hideFromCenter")
+                                : tt("list.showInCenter")}
                           </button>
                           <button
                             type="button"
@@ -777,7 +984,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <PencilLine size={13} />
-                            แก้ไข
+                            {tt("list.edit")}
                           </button>
                           <button
                             type="button"
@@ -786,7 +993,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                             className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <Trash2 size={13} />
-                            {actionId === item.id ? "กำลังลบ..." : "ลบ"}
+                            {actionId === item.id ? tt("list.deleting") : tt("list.delete")}
                           </button>
                         </div>
                       </td>

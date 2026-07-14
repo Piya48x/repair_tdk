@@ -530,13 +530,23 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
       : "w-full rounded-2xl border border-[#d8e4f8] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/10";
   const readOnlyInputClass =
     theme === "dark" ? `${inputClass} cursor-not-allowed bg-slate-800 text-slate-400` : `${inputClass} cursor-not-allowed bg-slate-100 text-slate-500`;
-  const primaryButton = "inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2b59b0] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[#2b59b0]/25 transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:opacity-60";
   const secondaryButton = `inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${uiTheme.statusButton}`;
   const ghostButton =
     theme === "dark"
-      ? "inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-[#111b2d] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-[#5f86d8] hover:bg-[#162136]"
-      : "inline-flex items-center justify-center gap-2 rounded-2xl border border-[#c8d8f2] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#2b59b0]/30 hover:bg-[#f4f8ff]";
-  const dangerButton = "inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200 dark:disabled:border-slate-700 dark:disabled:bg-slate-800/60 dark:disabled:text-slate-500";
+      ? "inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-[#111b2d] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-[#5f86d8] hover:bg-[#162136] disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:hover:border-slate-700 disabled:hover:bg-slate-800"
+      : "inline-flex items-center justify-center gap-2 rounded-2xl border border-[#c8d8f2] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#2b59b0]/30 hover:bg-[#f4f8ff] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:border-slate-200 disabled:hover:bg-slate-100";
+  const primaryButton =
+    theme === "dark"
+      ? "inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2b59b0] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[#2b59b0]/25 transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none disabled:hover:bg-slate-800"
+      : "inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2b59b0] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[#2b59b0]/25 transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:hover:bg-slate-200";
+  const actionSecondaryButton =
+    theme === "dark"
+      ? `${secondaryButton} disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:hover:border-slate-700 disabled:hover:bg-slate-800`
+      : `${secondaryButton} disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:border-slate-200 disabled:hover:bg-slate-100`;
+  const dangerButton =
+    theme === "dark"
+      ? "inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:hover:bg-slate-800"
+      : "inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-slate-100";
   const heroClass = isDarkTheme
     ? "bg-[linear-gradient(135deg,#111827_0%,#0f172a_58%,#13264a_100%)]"
     : "bg-[linear-gradient(135deg,#ffffff_0%,#f9fbff_58%,#eef5ff_100%)]";
@@ -612,6 +622,7 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
     [members, selectedMemberId],
   );
   const isSelectedCurrentUser = normalizeText(selectedMember?.id) === currentUserId;
+  const hasSelectedMemberAvatar = Boolean(memberForm.avatar_url || selectedMember?.avatar_url);
 
   useEffect(() => {
     setMemberForm(createProfileForm(selectedMember));
@@ -888,8 +899,8 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   <button type="button" onClick={() => memberAvatarRef.current?.click()} disabled={avatarBusy === "member"} className={ghostButton}><Camera size={15} />{tt("selected.changePhoto")}</button>
-                  <button type="button" onClick={() => void mutateAvatar({ scope: "member", clear: true })} disabled={!memberForm.avatar_url || avatarBusy === "member"} className={dangerButton}><Trash2 size={15} />{tt("selected.removePhoto")}</button>
-                  <button type="button" onClick={async () => { if (!selectedMember.email) return; try { setSendingReset(true); setErrorMessage(""); setSuccessMessage(""); await sendManagedPasswordReset(selectedMember.email); setSuccessMessage(`Password reset instructions were sent to ${selectedMember.email}.`); } catch (error) { console.error("Send reset error:", error); setErrorMessage(error.message || "Unable to send a password reset email."); } finally { setSendingReset(false); } }} disabled={sendingReset || !selectedMember.email} className={secondaryButton}>{sendingReset ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}{tt("selected.sendResetLink")}</button>
+                  <button type="button" onClick={() => void mutateAvatar({ scope: "member", clear: true })} disabled={!hasSelectedMemberAvatar || avatarBusy === "member"} className={dangerButton}><Trash2 size={15} />{tt("selected.removePhoto")}</button>
+                  <button type="button" onClick={async () => { if (!selectedMember.email) return; try { setSendingReset(true); setErrorMessage(""); setSuccessMessage(""); await sendManagedPasswordReset(selectedMember.email); setSuccessMessage(`Password reset instructions were sent to ${selectedMember.email}.`); } catch (error) { console.error("Send reset error:", error); setErrorMessage(error.message || "Unable to send a password reset email."); } finally { setSendingReset(false); } }} disabled={sendingReset || !selectedMember.email} className={actionSecondaryButton}>{sendingReset ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}{tt("selected.sendResetLink")}</button>
                   <button type="button" onClick={() => void confirmMemberAction(selectedMember.is_active === false ? "restore" : "pause")} disabled={isSelectedCurrentUser} className={selectedMember.is_active === false ? primaryButton : dangerButton}><Power size={15} />{selectedMember.is_active === false ? tt("selected.restoreAccess") : tt("selected.pauseAccess")}</button>
                   <input ref={memberAvatarRef} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void mutateAvatar({ scope: "member", file }); }} />
                 </div>

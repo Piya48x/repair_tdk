@@ -76,6 +76,10 @@ function formatPercent(value) {
   return `${Math.round(Number(value || 0))}%`;
 }
 
+function formatCount(value) {
+  return Number(value || 0).toLocaleString("th-TH");
+}
+
 function toSafeDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -437,6 +441,59 @@ export default function ITWorkReportPanel({
     evidenceJobs: filteredRecords.filter((record) => record.imageCount > 0).length,
   }), [filteredRecords, totalMinutes]);
 
+  const workSourceSummary = useMemo(() => {
+    const total = filteredRecords.length;
+    const walkIn = filteredRecords.filter((record) => record.typeValue === WALK_IN_TYPE_OPTION.value).length;
+    const normal = Math.max(total - walkIn, 0);
+
+    return {
+      total,
+      normal,
+      walkIn,
+      normalPercent: total > 0 ? (normal / total) * 100 : 0,
+      walkInPercent: total > 0 ? (walkIn / total) * 100 : 0,
+    };
+  }, [filteredRecords]);
+
+  const workSourceCards = useMemo(
+    () => [
+      {
+        key: "total",
+        label: "งานรวมทั้งหมด",
+        value: workSourceSummary.total,
+        helper: "รวมงานปกติและ Walk-in ตามตัวกรองปัจจุบัน",
+        percentLabel: "100%",
+        icon: LayoutDashboard,
+        accent: "from-slate-700 to-[#2b59b0]",
+        iconWrapClass: isDarkTheme ? "bg-slate-700/50 text-cyan-100" : "bg-slate-100 text-slate-700",
+        valueClass: isDarkTheme ? "text-slate-50" : "text-slate-900",
+      },
+      {
+        key: "normal",
+        label: "งานปกติ",
+        value: workSourceSummary.normal,
+        helper: "งานที่บันทึกผ่านฟอร์ม Work Log ปกติ",
+        percentLabel: formatPercent(workSourceSummary.normalPercent),
+        icon: ListChecks,
+        accent: "from-[#2b59b0] to-cyan-500",
+        iconWrapClass: isDarkTheme ? "bg-[#2b59b0]/15 text-cyan-200" : "bg-[#2b59b0]/10 text-[#2b59b0]",
+        valueClass: isDarkTheme ? "text-cyan-100" : "text-[#2b59b0]",
+      },
+      {
+        key: "walk-in",
+        label: "งาน Walk-in",
+        value: workSourceSummary.walkIn,
+        helper: "งานที่รับหน้างานหรือบันทึกจาก ticket Walk-in",
+        percentLabel: formatPercent(workSourceSummary.walkInPercent),
+        icon: Sparkles,
+        accent: "from-amber-500 to-orange-500",
+        iconWrapClass: isDarkTheme ? "bg-amber-500/10 text-amber-200" : "bg-amber-50 text-amber-700",
+        valueClass: isDarkTheme ? "text-amber-100" : "text-amber-600",
+      },
+    ],
+    [isDarkTheme, workSourceSummary],
+  );
+
   const evidenceCoverage = reportKpis.jobCount > 0
     ? Math.round((reportKpis.evidenceJobs / reportKpis.jobCount) * 100)
     : 0;
@@ -553,9 +610,9 @@ export default function ITWorkReportPanel({
       valueClass: isDarkTheme ? "text-violet-100" : "text-violet-600",
     },
     {
-      label: "บันทึกงาน IT",
+      label: "งานในรายงาน",
       value: reportKpis.jobCount.toLocaleString("th-TH"),
-      helper: "จำนวน work logs ที่ถูกดึงมาสรุปรายงาน",
+      helper: "รวมงานปกติและ Walk-in ที่ถูกดึงมาสรุปรายงาน",
       icon: Wrench,
       accent: "from-[#2b59b0] to-cyan-500",
       iconWrapClass: isDarkTheme ? "bg-[#2b59b0]/15 text-cyan-200" : "bg-[#2b59b0]/10 text-[#2b59b0]",
@@ -572,7 +629,10 @@ export default function ITWorkReportPanel({
     },
   ]), [isDarkTheme, repairTickets.length, reportKpis.jobCount, reportKpis.totalMinutes, serviceRequestTickets.length]);
 
-  const selectedTypeLabel = filters.type === "ALL" ? "ทุกประเภทงาน" : getTypeMeta(filters.type).label;
+  const selectedTypeLabel =
+    filters.type === "ALL"
+      ? "ทุกประเภทงาน"
+      : reportTypeOptions.find((option) => option.value === filters.type)?.label || getTypeMeta(filters.type).label;
   const reportPeriodLabel = PERIOD_OPTIONS.find((option) => option.value === reportPeriod)?.label || reportPeriod;
   const activeFilterSummary = [
     `แผนก: ${filters.department === "ALL" ? "ทั้งหมด" : filters.department}`,
@@ -782,6 +842,79 @@ export default function ITWorkReportPanel({
           </div>
         </div>
       </article>
+
+      <article className={`${cardClass} overflow-hidden`}>
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-stretch lg:justify-between">
+          <div className="min-w-0 lg:max-w-[360px]">
+            <p className={`text-xs font-bold uppercase tracking-[0.18em] ${mutedTextClass}`}>Work type summary</p>
+            <h4 className={`mt-2 text-xl font-black ${titleTextClass}`}>สรุปงานปกติ / Walk-in / รวมทั้งหมด</h4>
+            <p className={`mt-2 text-sm leading-6 ${bodyTextClass}`}>
+              แยกประเภทให้เห็นทันทีว่างานทั้งหมดมาจากงานที่บันทึกปกติเท่าไร และ Walk-in เท่าไร ตามตัวกรองด้านบน
+            </p>
+          </div>
+
+          <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-3">
+            {workSourceCards.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <div key={item.key} className={`${subCardClass} overflow-hidden p-4`}>
+                  <div className={`mb-4 h-1 rounded-full bg-gradient-to-r ${item.accent}`} />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold ${bodyTextClass}`}>{item.label}</p>
+                      <p className={`mt-2 text-3xl font-black ${item.valueClass}`}>{formatCount(item.value)}</p>
+                    </div>
+                    <div className={`shrink-0 rounded-2xl p-3 ${item.iconWrapClass}`}>
+                      <Icon size={19} />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className={`min-w-0 text-xs leading-5 ${mutedTextClass}`}>{item.helper}</p>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${isDarkTheme ? "bg-slate-950 text-slate-200" : "bg-white text-slate-700"}`}>
+                      {item.percentLabel}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={`border-t px-5 py-4 sm:px-6 ${isDarkTheme ? "border-slate-800 bg-slate-950/35" : "border-slate-200 bg-slate-50/80"}`}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
+              <span className={isDarkTheme ? "text-slate-300" : "text-slate-700"}>สัดส่วนงานรวม</span>
+              <span className="inline-flex items-center gap-2 text-[#2b59b0]">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#2b59b0]" />
+                งานปกติ {formatPercent(workSourceSummary.normalPercent)}
+              </span>
+              <span className="inline-flex items-center gap-2 text-amber-600">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                Walk-in {formatPercent(workSourceSummary.walkInPercent)}
+              </span>
+            </div>
+
+            <div className={`h-3 w-full overflow-hidden rounded-full lg:max-w-[460px] ${isDarkTheme ? "bg-slate-800" : "bg-white"}`}>
+              {workSourceSummary.total > 0 ? (
+                <div className="flex h-full w-full">
+                  <div
+                    className="h-full bg-[#2b59b0]"
+                    style={{ width: `${workSourceSummary.normalPercent}%` }}
+                  />
+                  <div
+                    className="h-full bg-amber-500"
+                    style={{ width: `${workSourceSummary.walkInPercent}%` }}
+                  />
+                </div>
+              ) : (
+                <div className={`h-full w-full ${isDarkTheme ? "bg-slate-800" : "bg-slate-200"}`} />
+              )}
+            </div>
+          </div>
+        </div>
+      </article>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((item) => {
           const Icon = item.icon;

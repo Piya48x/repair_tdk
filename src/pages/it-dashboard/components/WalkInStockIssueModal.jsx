@@ -3,10 +3,13 @@ import { motion } from "framer-motion";
 import Select from "react-select";
 import {
   Building2,
+  CheckCircle2,
   Eye,
   FileText,
   Loader2,
   Package,
+  PenLine,
+  RotateCcw,
   Search,
   Trash2,
   Upload,
@@ -48,6 +51,20 @@ const createPendingAttachmentEntry = (file) => ({
   file,
   previewUrl: URL.createObjectURL(file),
 });
+
+function dataUrlToFile(dataUrl, fileName) {
+  const [meta = "", base64 = ""] = String(dataUrl || "").split(",");
+  const mimeMatch = meta.match(/data:(.*?);base64/);
+  const mimeType = mimeMatch?.[1] || "image/png";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new File([bytes], fileName, { type: mimeType });
+}
 
 function revokePendingPreview(entry) {
   if (entry?.previewUrl?.startsWith("blob:")) {
@@ -146,6 +163,9 @@ export default function WalkInStockIssueModal({
 }) {
   const fileInputRef = useRef(null);
   const pendingFilesRef = useRef([]);
+  const signatureCanvasRef = useRef(null);
+  const signatureDrawingRef = useRef(false);
+  const signatureHasInkRef = useRef(false);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -155,6 +175,8 @@ export default function WalkInStockIssueModal({
   const [issueForm, setIssueForm] = useState(() => buildInitialForm(initialRequest));
   const [pendingIssueFiles, setPendingIssueFiles] = useState([]);
   const [activeLookupField, setActiveLookupField] = useState("");
+  const [hasSignature, setHasSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState("");
 
   const deferredRequesterName = useDeferredValue(issueForm.requester_name);
   const deferredRequesterEmpId = useDeferredValue(issueForm.requester_emp_id);
@@ -369,6 +391,107 @@ export default function WalkInStockIssueModal({
     [isDark],
   );
 
+  const prepareSignatureCanvas = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(Math.floor(rect.width), 1);
+    const height = Math.max(Math.floor(rect.height), 1);
+    const scale = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(width * scale);
+    canvas.height = Math.floor(height * scale);
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.setTransform(scale, 0, 0, scale, 0, 0);
+    context.fillStyle = isDark ? "#0f172a" : "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = 2.8;
+    context.strokeStyle = isDark ? "#e2e8f0" : "#0f172a";
+  };
+
+  const clearSignaturePad = () => {
+    prepareSignatureCanvas();
+    signatureDrawingRef.current = false;
+    signatureHasInkRef.current = false;
+    setHasSignature(false);
+    setSignatureError("");
+  };
+
+  const getSignaturePoint = (event) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
+
+  const handleSignaturePointerDown = (event) => {
+    if (saving || loading) return;
+
+    const canvas = signatureCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+
+    event.preventDefault();
+    try {
+      canvas.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Some browsers skip pointer capture for non-primary inputs; drawing can still continue.
+    }
+    const point = getSignaturePoint(event);
+    signatureDrawingRef.current = true;
+    const previousFillStyle = context.fillStyle;
+    context.fillStyle = context.strokeStyle;
+    context.beginPath();
+    context.arc(point.x, point.y, 1.2, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = previousFillStyle;
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    signatureHasInkRef.current = true;
+    setHasSignature(true);
+    setSignatureError("");
+  };
+
+  const handleSignaturePointerMove = (event) => {
+    if (!signatureDrawingRef.current) return;
+
+    const context = signatureCanvasRef.current?.getContext("2d");
+    if (!context) return;
+
+    event.preventDefault();
+    const point = getSignaturePoint(event);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    signatureHasInkRef.current = true;
+    setHasSignature(true);
+  };
+
+  const handleSignaturePointerUp = (event) => {
+    signatureDrawingRef.current = false;
+    try {
+      if (event?.pointerId != null) {
+        signatureCanvasRef.current?.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {
+      // Pointer capture may already be released.
+    }
+  };
+
+  const createSignatureFile = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas || !signatureHasInkRef.current) return null;
+    return dataUrlToFile(canvas.toDataURL("image/png"), `stock-issue-signature-${Date.now()}.png`);
+  };
+
   useEffect(() => {
     pendingFilesRef.current = pendingIssueFiles;
   }, [pendingIssueFiles]);
@@ -393,6 +516,10 @@ export default function WalkInStockIssueModal({
       setSaving(false);
       setLoading(false);
       setErrorMessage("");
+      setHasSignature(false);
+      setSignatureError("");
+      signatureDrawingRef.current = false;
+      signatureHasInkRef.current = false;
       return;
     }
 
@@ -400,6 +527,10 @@ export default function WalkInStockIssueModal({
     setPendingIssueFiles([]);
     setActiveLookupField("");
     setErrorMessage("");
+    setHasSignature(false);
+    setSignatureError("");
+    signatureDrawingRef.current = false;
+    signatureHasInkRef.current = false;
 
     let cancelled = false;
     const loadModalData = async () => {
@@ -435,6 +566,16 @@ export default function WalkInStockIssueModal({
     };
   }, [initialRequest, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || loading) return undefined;
+
+    const frameId = window.requestAnimationFrame(() => {
+      clearSignaturePad();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isDark, isOpen, loading]);
+
   const setField = (field, value) => {
     setIssueForm((prev) => ({
       ...prev,
@@ -464,6 +605,7 @@ export default function WalkInStockIssueModal({
     setPendingIssueFiles([]);
     setActiveLookupField("");
     setErrorMessage("");
+    clearSignaturePad();
   };
 
   const closeModal = () => {
@@ -640,6 +782,17 @@ export default function WalkInStockIssueModal({
     event.preventDefault();
     if (saving || !selectedIssueItem) return;
 
+    if (!signatureHasInkRef.current) {
+      setSignatureError("กรุณาให้ผู้รับเซ็นยืนยันรับอุปกรณ์ก่อนบันทึก");
+      return;
+    }
+
+    const signatureFile = createSignatureFile();
+    if (!signatureFile) {
+      setSignatureError("ไม่สามารถสร้างไฟล์ลายเซ็นได้ กรุณาเซ็นใหม่อีกครั้ง");
+      return;
+    }
+
     try {
       setSaving(true);
       setErrorMessage("");
@@ -650,7 +803,10 @@ export default function WalkInStockIssueModal({
         purpose: issueForm.purpose,
         notes: issueForm.notes,
         currentUser,
-        pendingFiles: pendingIssueFiles.map((entry) => entry.file).filter(Boolean),
+        pendingFiles: [
+          ...pendingIssueFiles.map((entry) => entry.file).filter(Boolean),
+          signatureFile,
+        ],
       });
       setStockItems((prev) =>
         prev.map((item) =>
@@ -1016,7 +1172,7 @@ export default function WalkInStockIssueModal({
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div>
                         <p className={`text-sm font-semibold ${labelClass}`}>รูปหลักฐานการเบิก</p>
-                        <p className={`mt-1 text-xs ${mutedClass}`}>บังคับแนบอย่างน้อย 1 รูป เพื่อยืนยันการจ่ายของให้ผู้รับ</p>
+                        <p className={`mt-1 text-xs ${mutedClass}`}>แนบรูปเพิ่มเติมได้ เช่น รูปอุปกรณ์หรือรูปผู้รับของ ส่วนลายเซ็นด้านล่างเป็นหลักฐานบังคับ</p>
                       </div>
                       <button type="button" onClick={() => fileInputRef.current?.click()} disabled={saving} className={secondaryButtonClass}>
                         <Upload size={15} />
@@ -1038,6 +1194,69 @@ export default function WalkInStockIssueModal({
                     <PendingAttachmentList entries={pendingIssueFiles} onRemove={handleRemovePendingFile} />
                   </div>
 
+                  <div className={`${surfaceClass} p-4 sm:p-5`}>
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className={`text-sm font-semibold ${labelClass}`}>ลายเซ็นผู้รับของ *</p>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                              hasSignature
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            {hasSignature ? <CheckCircle2 size={12} /> : <PenLine size={12} />}
+                            {hasSignature ? "เซ็นแล้ว" : "รอลายเซ็น"}
+                          </span>
+                        </div>
+                        <p className={`mt-1 text-xs ${mutedClass}`}>
+                          ให้ผู้รับเซ็นยืนยันว่าได้รับอุปกรณ์ IT แล้ว ลายเซ็นจะถูกบันทึกเป็นรูปหลักฐานแนบกับรายการเบิก
+                        </p>
+                        <p className={`mt-1 text-xs ${mutedClass}`}>
+                          ผู้รับ: {issueForm.requester_name || "-"} {issueForm.requester_emp_id ? `• ${issueForm.requester_emp_id}` : ""}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={clearSignaturePad}
+                        disabled={saving || loading}
+                        className={secondaryButtonClass}
+                      >
+                        <RotateCcw size={15} />
+                        <span>ล้างลายเซ็น</span>
+                      </button>
+                    </div>
+
+                    <div
+                      className={`overflow-hidden rounded-2xl border ${
+                        signatureError
+                          ? "border-rose-300"
+                          : isDark
+                            ? "border-slate-700"
+                            : "border-slate-300"
+                      }`}
+                    >
+                      <canvas
+                        ref={signatureCanvasRef}
+                        className="block h-44 w-full cursor-crosshair touch-none"
+                        style={{ touchAction: "none" }}
+                        onPointerDown={handleSignaturePointerDown}
+                        onPointerMove={handleSignaturePointerMove}
+                        onPointerUp={handleSignaturePointerUp}
+                        onPointerCancel={handleSignaturePointerUp}
+                        onLostPointerCapture={handleSignaturePointerUp}
+                      />
+                    </div>
+
+                    {signatureError ? (
+                      <p className="mt-2 text-xs font-semibold text-rose-600">{signatureError}</p>
+                    ) : (
+                      <p className={`mt-2 text-xs ${mutedClass}`}>ใช้เมาส์ นิ้ว หรือปากกา stylus เซ็นในกรอบนี้</p>
+                    )}
+                  </div>
+
                   <div className={`${surfaceClass} p-4 text-sm`}>
                     <p className={`font-semibold ${isDark ? "text-slate-100" : "text-slate-800"}`}>ผู้บันทึก: {currentUser?.name || "IT Admin"}</p>
                     <p className={`mt-1 text-xs ${mutedClass}`}>{currentUser?.employeeId ? `รหัส ${currentUser.employeeId}` : "บัญชี IT"}</p>
@@ -1054,7 +1273,7 @@ export default function WalkInStockIssueModal({
               </button>
               <button
                 type="submit"
-                disabled={saving || loading || !selectedIssueItem}
+                disabled={saving || loading || !selectedIssueItem || !hasSignature}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} />}

@@ -24,6 +24,7 @@ const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS = 8;
 const FIELD_CLASS_BASE =
   "w-full rounded-xl border px-3 py-2 text-sm outline-none transition focus:ring-2 sm:py-2.5";
+const CUSTOM_CATEGORY_VALUE = "__custom__";
 const LEGACY_WALK_IN_CATEGORY_OPTIONS = [
   { value: "Hardware", label: "คอมพิวเตอร์ / อุปกรณ์" },
   { value: "Network", label: "เครือข่าย / Wi-Fi" },
@@ -40,6 +41,8 @@ const WALK_IN_CATEGORY_OPTIONS = [
   { value: "Printer", label: "เครื่องพิมพ์ / สแกน" },
   { value: "Email", label: "อีเมลองค์กร" },
   { value: "System", label: "ระบบงาน / ซอฟต์แวร์" },
+  { value: "CCTV", label: "CCTV" },
+  { value: CUSTOM_CATEGORY_VALUE, label: "อื่นๆ (พิมพ์เอง)" },
 ];
 
 function toLocalDatetimeValue(date = new Date()) {
@@ -61,6 +64,7 @@ function buildInitialForm(currentUser = null) {
     department: "",
     location: String(currentUser?.location || "").trim(),
     category: "",
+    custom_category: "",
     issue_title: "",
     issue_description: "",
     priority: "medium",
@@ -170,6 +174,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       "department",
       "location",
       "category",
+      "custom_category",
       "issue_title",
       "issue_description",
       "priority",
@@ -293,11 +298,16 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   }, [isOpen]);
 
   const setField = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    if (errors[key]) {
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+      ...(key === "category" && value !== CUSTOM_CATEGORY_VALUE ? { custom_category: "" } : {}),
+    }));
+    if (errors[key] || (key === "category" && errors.custom_category)) {
       setErrors((prev) => {
         const next = { ...prev };
         delete next[key];
+        if (key === "category") delete next.custom_category;
         return next;
       });
     }
@@ -310,17 +320,17 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     normalizedLookupQuery.length === 0
       ? []
       : directoryMembers
-          .filter((member) => {
-            const fullName = normalizeLookupText(member.full_name);
-            const employeeCode = normalizeLookupText(member.employee_code);
-            const email = normalizeLookupText(member.email);
-            return (
-              fullName.includes(normalizedLookupQuery) ||
-              employeeCode.includes(normalizedLookupQuery) ||
-              email.includes(normalizedLookupQuery)
-            );
-          })
-          .slice(0, 6);
+        .filter((member) => {
+          const fullName = normalizeLookupText(member.full_name);
+          const employeeCode = normalizeLookupText(member.employee_code);
+          const email = normalizeLookupText(member.email);
+          return (
+            fullName.includes(normalizedLookupQuery) ||
+            employeeCode.includes(normalizedLookupQuery) ||
+            email.includes(normalizedLookupQuery)
+          );
+        })
+        .slice(0, 6);
 
   const handleRequesterFieldChange = (field, value) => {
     setField(field, value);
@@ -513,6 +523,10 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       nextErrors.category = "กรุณาเลือกหมวดหมู่งาน";
     }
 
+    if (form.category === CUSTOM_CATEGORY_VALUE && !String(form.custom_category || "").trim()) {
+      nextErrors.custom_category = "กรุณาพิมพ์หมวดหมู่งาน";
+    }
+
     if (form.end_time && form.start_time) {
       const start = new Date(form.start_time);
       const end = new Date(form.end_time);
@@ -535,13 +549,19 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
 
     setIsSubmitting(true);
     try {
+      const submittedCategory =
+        form.category === CUSTOM_CATEGORY_VALUE
+          ? String(form.custom_category || "").trim()
+          : String(form.category || "").trim();
+
       await onSubmit?.({
         ...form,
         requester_name: String(form.requester_name || "").trim(),
         requester_emp_id: String(form.requester_emp_id || "").trim(),
         department: String(form.department || "").trim(),
         location: String(form.location || "").trim(),
-        category: String(form.category || "").trim(),
+        category: submittedCategory,
+        custom_category: String(form.custom_category || "").trim(),
         issue_title: String(form.issue_title || "").trim(),
         issue_description: String(form.issue_description || "").trim(),
         resolution_note: String(form.resolution_note || "").trim(),
@@ -687,9 +707,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
           {items.map((item, index) => (
             <div
               key={item.id}
-              className={`overflow-hidden rounded-2xl border ${
-                isDark ? "border-slate-700 bg-slate-950/80" : "border-slate-200 bg-white"
-              }`}
+              className={`overflow-hidden rounded-2xl border ${isDark ? "border-slate-700 bg-slate-950/80" : "border-slate-200 bg-white"
+                }`}
             >
               <div className="relative">
                 <img src={item.previewUrl} alt={`${title} ${index + 1}`} className="h-28 w-full object-cover sm:h-32" />
@@ -758,9 +777,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                     setActiveLookupField((current) => (current === "requester_name" ? null : current));
                   }, 120);
                 }}
-                className={`${inputClass} pl-10 ${
-                  errors.requester_name ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
-                }`}
+                className={`${inputClass} pl-10 ${errors.requester_name ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
+                  }`}
                 placeholder="ชื่อผู้แจ้ง"
                 autoComplete="off"
               />
@@ -843,6 +861,23 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                 ))}
               </select>
             </div>
+            {form.category === CUSTOM_CATEGORY_VALUE ? (
+              <div className="mt-2">
+                <input
+                  value={form.custom_category}
+                  onChange={(event) => setField("custom_category", event.target.value)}
+                  className={`${inputClass} ${errors.custom_category ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
+                    }`}
+                  placeholder="พิมพ์หมวดหมู่อื่นๆ เช่น ขอเปิดไฟล์ย้อนหลัง / ตรวจสอบระบบ"
+                  autoComplete="off"
+                />
+                {errors.custom_category ? (
+                  <p className="mt-1 text-xs font-medium text-rose-600">{errors.custom_category}</p>
+                ) : (
+                  <p className={`mt-1 text-xs ${mutedClass}`}>ระบบจะบันทึกหมวดหมู่ตามข้อความที่พิมพ์</p>
+                )}
+              </div>
+            ) : null}
             {errors.category && (
               <p className="mt-1 text-xs font-medium text-rose-600">{errors.category}</p>
             )}
@@ -856,9 +891,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               <input
                 value={form.issue_title}
                 onChange={(event) => setField("issue_title", event.target.value)}
-                className={`${inputClass} pl-10 ${
-                  errors.issue_title ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
-                }`}
+                className={`${inputClass} pl-10 ${errors.issue_title ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
+                  }`}
                 placeholder="หัวข้อปัญหา"
                 autoComplete="off"
               />
@@ -916,9 +950,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               value={form.end_time}
               min={form.start_time || undefined}
               onChange={(event) => setField("end_time", event.target.value)}
-              className={`${inputClass} ${
-                errors.end_time ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
-              }`}
+              className={`${inputClass} ${errors.end_time ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
+                }`}
             />
             {errors.end_time && (
               <p className="mt-1 text-xs font-medium text-rose-600">{errors.end_time}</p>
@@ -1048,9 +1081,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
         >
           <div className="flex items-start gap-3">
             <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-                isDark ? "bg-[#2b59b0]/15 text-[#c8d9ff]" : "bg-[#2b59b0]/10 text-[#2b59b0]"
-              }`}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${isDark ? "bg-[#2b59b0]/15 text-[#c8d9ff]" : "bg-[#2b59b0]/10 text-[#2b59b0]"
+                }`}
             >
               <FileImage size={18} />
             </div>
@@ -1067,9 +1099,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
         </div>
 
         <div
-          className={`mt-4 overflow-hidden rounded-2xl border ${
-            isDark ? "border-slate-700 bg-slate-950/80" : "border-slate-200 bg-white"
-          }`}
+          className={`mt-4 overflow-hidden rounded-2xl border ${isDark ? "border-slate-700 bg-slate-950/80" : "border-slate-200 bg-white"
+            }`}
         >
           {isCameraOpen ? (
             <div className="relative p-3">
@@ -1080,9 +1111,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                 screenshotQuality={0.92}
                 mirrored={facingMode === "user"}
                 videoConstraints={{ facingMode }}
-                className={`aspect-video w-full rounded-2xl object-cover transition duration-200 ${
-                  isReviewing ? "opacity-25" : "opacity-100"
-                }`}
+                className={`aspect-video w-full rounded-2xl object-cover transition duration-200 ${isReviewing ? "opacity-25" : "opacity-100"
+                  }`}
               />
               {isReviewing && tempImage && (
                 <img
@@ -1166,9 +1196,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                 </div>
               ) : (
                 <div
-                  className={`mt-4 flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed px-4 text-center ${
-                    isDark ? "border-slate-700 bg-slate-900/60 text-slate-400" : "border-slate-300 bg-slate-50 text-slate-500"
-                  }`}
+                  className={`mt-4 flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed px-4 text-center ${isDark ? "border-slate-700 bg-slate-900/60 text-slate-400" : "border-slate-300 bg-slate-50 text-slate-500"
+                    }`}
                 >
                   <div>
                     <FileImage size={24} className="mx-auto mb-2" />
@@ -1186,11 +1215,10 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       {renderAttachmentGallery("After", "after", afterAttachments)}
 
       <div
-        className={`rounded-2xl border px-4 py-3 text-sm ${
-          isDark
-            ? "border-slate-700 bg-slate-800/60 text-slate-300"
-            : "border-slate-200 bg-slate-50 text-slate-600"
-        }`}
+        className={`rounded-2xl border px-4 py-3 text-sm ${isDark
+          ? "border-slate-700 bg-slate-800/60 text-slate-300"
+          : "border-slate-200 bg-slate-50 text-slate-600"
+          }`}
       >
         บันทึกโดย: <span className="font-semibold">{currentUser?.name || "IT Support"}</span>
         {currentUser?.employeeId ? ` • ${currentUser.employeeId}` : ""}
@@ -1220,9 +1248,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
         transition={{ type: "spring", damping: 30, stiffness: 320 }}
       >
         <div
-          className={`border-b border-inherit px-4 py-4 backdrop-blur sm:px-6 ${
-            isDark ? "bg-[#0f172a]/95" : "bg-white/95"
-          }`}
+          className={`border-b border-inherit px-4 py-4 backdrop-blur sm:px-6 ${isDark ? "bg-[#0f172a]/95" : "bg-white/95"
+            }`}
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -1242,11 +1269,10 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             <button
               type="button"
               onClick={requestClose}
-              className={`rounded-xl p-2 transition-colors ${
-                isDark
-                  ? "text-slate-300 hover:bg-slate-800 hover:text-white"
-                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              }`}
+              className={`rounded-xl p-2 transition-colors ${isDark
+                ? "text-slate-300 hover:bg-slate-800 hover:text-white"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                }`}
               aria-label="ปิดหน้าต่าง"
             >
               <X size={20} />
@@ -1269,9 +1295,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
           </div>
 
           <div
-            className={`border-t px-4 py-3 backdrop-blur sm:px-6 ${
-              isDark ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/95"
-            }`}
+            className={`border-t px-4 py-3 backdrop-blur sm:px-6 ${isDark ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/95"
+              }`}
             style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
           >
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
@@ -1305,9 +1330,8 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
             >
               <div className="flex items-start gap-3">
                 <div
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
-                    isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-600"
-                  }`}
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-600"
+                    }`}
                 >
                   <AlertTriangle size={20} />
                 </div>
