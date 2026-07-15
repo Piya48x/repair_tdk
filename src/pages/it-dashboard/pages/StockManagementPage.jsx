@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Building2, CheckCircle2, Eye, FileImage, LayoutGrid, List, Loader2, Package, Paperclip, PenLine, PencilLine, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, UserRound, X } from "lucide-react";
+import { AlertCircle, Building2, Camera, CheckCircle2, Eye, FileImage, LayoutGrid, List, Loader2, Package, Paperclip, PenLine, PencilLine, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, UserRound, X } from "lucide-react";
 import toast from "react-hot-toast";
 import AttachmentPreviewModal from "../../work-notes/AttachmentPreviewModal";
 import { formatFileSize, isImageAttachment } from "../../../services/workNotesService";
@@ -80,7 +80,7 @@ const findCatalogItemForStock = (item = {}) => {
   }) || null;
 };
 
-function AttachmentField({ title, hint, buttonLabel, emptyLabel, accept, capture, inputRef, onSelect, existing = [], pending = [], onPreview, onRemoveExisting, onRemovePending, onPaste, pasteHint }) {
+function AttachmentField({ title, hint, buttonLabel, emptyLabel, accept, capture, inputRef, onSelect, existing = [], pending = [], onPreview, onRemoveExisting, onRemovePending, onPaste, pasteHint, captureInputRef, captureButtonLabel, onCaptureSelect }) {
   return (
     <div
       className={`rounded-2xl border bg-slate-50 p-3 ${onPaste ? "border-dashed border-blue-300 outline-none transition focus-within:ring-2 focus-within:ring-blue-200 focus:ring-2 focus:ring-blue-200" : "border-slate-200"}`}
@@ -89,8 +89,16 @@ function AttachmentField({ title, hint, buttonLabel, emptyLabel, accept, capture
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div><p className="text-sm font-bold text-slate-800">{title}</p><p className="text-[11px] text-slate-500">{hint}</p></div>
-        <button type="button" onClick={() => inputRef.current?.click()} className="app-btn-secondary inline-flex items-center gap-2"><Upload size={14} />{buttonLabel}</button>
-        <input ref={inputRef} type="file" multiple accept={accept} capture={capture} className="hidden" onChange={(event) => { onSelect(event.target.files); event.target.value = ""; }} />
+        <div className="flex flex-wrap items-center gap-2">
+          {captureInputRef ? (
+            <>
+              <button type="button" onClick={() => captureInputRef.current?.click()} className="app-btn-secondary inline-flex items-center gap-2"><Camera size={14} />{captureButtonLabel || "ถ่ายรูป"}</button>
+              <input ref={captureInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { (onCaptureSelect || onSelect)(event.target.files); event.target.value = ""; }} />
+            </>
+          ) : null}
+          <button type="button" onClick={() => inputRef.current?.click()} className="app-btn-secondary inline-flex items-center gap-2"><Upload size={14} />{buttonLabel}</button>
+          <input ref={inputRef} type="file" multiple accept={accept} capture={capture} className="hidden" onChange={(event) => { onSelect(event.target.files); event.target.value = ""; }} />
+        </div>
       </div>
       {pasteHint ? <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">{pasteHint}</div> : null}
       <div className="mt-3 space-y-2">
@@ -121,6 +129,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   const stockImageInputRef = useRef(null);
   const stockFileInputRef = useRef(null);
   const issueFileInputRef = useRef(null);
+  const issueCameraInputRef = useRef(null);
   const issueFormRef = useRef(null);
   const pendingStockImageFilesRef = useRef([]);
   const pendingStockFilesRef = useRef([]);
@@ -457,6 +466,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
     pendingIssueFilesRef.current.forEach(revokePendingPreview);
     pendingIssueFilesRef.current = [];
     if (issueFileInputRef.current) issueFileInputRef.current.value = "";
+    if (issueCameraInputRef.current) issueCameraInputRef.current.value = "";
     setIssueForm(EMPTY_ISSUE_FORM);
     setPendingIssueFiles([]);
     setActiveLookupField("");
@@ -840,7 +850,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                   <textarea value={issueForm.notes} onChange={(event) => handleIssueFieldChange("notes", event.target.value)} className={`min-h-[92px] w-full rounded-lg border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`} placeholder="หมายเหตุเพิ่มเติม" />
                 </div>
                 <aside className="space-y-4">
-                  <AttachmentField title="รูปหลักฐานการเบิก" hint="ถ่ายรูปเพิ่มเติมได้ เช่น อุปกรณ์หรือจุดส่งมอบ ส่วนลายเซ็นด้านล่างเป็นหลักฐานบังคับ" pasteHint="แคปจอแล้วคลิกกล่องนี้ จากนั้นกด Ctrl+V เพื่อวางรูปได้ทันที" buttonLabel="ถ่ายหรือเลือกรูป" emptyLabel="ยังไม่ได้แนบรูปหลักฐานการเบิกเพิ่มเติม" accept={ISSUE_ATTACHMENT_ACCEPT} capture="environment" inputRef={issueFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingIssueFiles, true)} onPaste={handlePasteIssueEvidence} pending={pendingIssueFiles} onPreview={handleOpenAttachmentPreview} onRemovePending={(entryId) => removePendingFile(entryId, setPendingIssueFiles)} />
+                  <AttachmentField title="รูปหลักฐานการเบิก" hint="แนบรูปเพิ่มเติมได้ เช่น อุปกรณ์หรือจุดส่งมอบ ส่วนลายเซ็นด้านล่างเป็นหลักฐานบังคับ" pasteHint="แคปจอแล้วคลิกกล่องนี้ จากนั้นกด Ctrl+V เพื่อวางรูปได้ทันที" captureInputRef={issueCameraInputRef} captureButtonLabel="ถ่ายรูป" buttonLabel="เลือกรูป" emptyLabel="ยังไม่ได้แนบรูปหลักฐานการเบิกเพิ่มเติม" accept={ISSUE_ATTACHMENT_ACCEPT} inputRef={issueFileInputRef} onSelect={(files) => handleSelectFiles(files, setPendingIssueFiles, true)} onCaptureSelect={(files) => handleSelectFiles(files, setPendingIssueFiles, true)} onPaste={handlePasteIssueEvidence} pending={pendingIssueFiles} onPreview={handleOpenAttachmentPreview} onRemovePending={(entryId) => removePendingFile(entryId, setPendingIssueFiles)} />
                   <div className={`rounded-2xl border p-3 ${theme === "dark" ? "border-emerald-500/30 bg-emerald-500/10" : "border-emerald-200 bg-emerald-50/80"}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>

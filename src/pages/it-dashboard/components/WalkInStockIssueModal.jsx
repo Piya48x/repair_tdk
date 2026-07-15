@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import Select from "react-select";
 import {
   Building2,
+  Camera,
   CheckCircle2,
   Eye,
   FileText,
@@ -162,6 +163,7 @@ export default function WalkInStockIssueModal({
   initialRequest = null,
 }) {
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const pendingFilesRef = useRef([]);
   const signatureCanvasRef = useRef(null);
   const signatureDrawingRef = useRef(false);
@@ -510,6 +512,9 @@ export default function WalkInStockIssueModal({
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = "";
+      }
       setIssueForm(buildInitialForm(initialRequest));
       setPendingIssueFiles([]);
       setActiveLookupField("");
@@ -600,6 +605,9 @@ export default function WalkInStockIssueModal({
     pendingFilesRef.current = [];
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = "";
     }
     setIssueForm(buildInitialForm(initialRequest));
     setPendingIssueFiles([]);
@@ -1174,10 +1182,27 @@ export default function WalkInStockIssueModal({
                         <p className={`text-sm font-semibold ${labelClass}`}>รูปหลักฐานการเบิก</p>
                         <p className={`mt-1 text-xs ${mutedClass}`}>แนบรูปเพิ่มเติมได้ เช่น รูปอุปกรณ์หรือรูปผู้รับของ ส่วนลายเซ็นด้านล่างเป็นหลักฐานบังคับ</p>
                       </div>
-                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={saving} className={secondaryButtonClass}>
-                        <Upload size={15} />
-                        <span>ถ่ายหรือเลือกรูป</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={saving} className={secondaryButtonClass}>
+                          <Camera size={15} />
+                          <span>ถ่ายรูป</span>
+                        </button>
+                        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={saving} className={secondaryButtonClass}>
+                          <Upload size={15} />
+                          <span>เลือกรูป/ไฟล์</span>
+                        </button>
+                      </div>
+                      <input
+                        ref={cameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(event) => {
+                          handleSelectFiles(event.target.files);
+                          event.target.value = "";
+                        }}
+                      />
                       <input
                         ref={fileInputRef}
                         type="file"
