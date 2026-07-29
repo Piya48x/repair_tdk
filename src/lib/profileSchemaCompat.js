@@ -6,6 +6,7 @@ const OPTIONAL_PROFILE_COLUMNS = new Set([
   "avatar_url",
   "id_card_url",
   "email",
+  "is_active",
 ]);
 
 const PROFILE_COMPAT_SESSION_KEY = "__profile_compat_missing_columns__";

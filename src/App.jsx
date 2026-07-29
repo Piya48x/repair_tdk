@@ -22,6 +22,7 @@ import ExecutiveReportPage from "./pages/reports/ExecutiveReportPage.jsx";
 import ExecutiveAssetOverviewPage from "./pages/reports/ExecutiveAssetOverviewPage.jsx";
 import ExecutiveAssetsManagementPage from "./pages/reports/ExecutiveAssetsManagementPage.jsx";
 import ExecutiveNotebookApprovalsPage from "./pages/reports/ExecutiveNotebookApprovalsPage.jsx";
+import AssetQrDetailPage from "./pages/AssetQrDetailPage.jsx";
 import { REPORT_ROUTE_PERMISSIONS } from "./lib/roleAccess";
 import { Toaster } from "react-hot-toast";
 import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
@@ -110,6 +111,11 @@ function AppInner() {
           <ExecutiveAssetsManagementPage />
         </ProtectedRoute>
       } />
+      <Route path="/asset-qr/:assetTag" element={
+        <ProtectedRoute allowedRoles={["it_support", "it_manager", "executive", "admin", "auditor"]}>
+          <AssetQrDetailPage />
+        </ProtectedRoute>
+      } />
       <Route path="/it-service-dashboard" element={<Navigate to="/admin-dashboard" replace />} />
 
       <Route path="/audit-view" element={
@@ -142,6 +148,7 @@ function AppChrome() {
     location.pathname === "/notebook-center" ||
     location.pathname === "/create-ticket" ||
     location.pathname === "/admin-dashboard" ||
+    location.pathname.startsWith("/asset-qr/") ||
     location.pathname.startsWith("/reports");
   const isAuthSurface =
     location.pathname === "/" ||

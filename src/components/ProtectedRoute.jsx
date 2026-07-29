@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { canAccessRoute } from "../lib/roleAccess";
@@ -20,6 +20,8 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   const { tt } = useScopedI18n(PROTECTED_ROUTE_TRANSLATIONS);
   const [loading, setLoading] = useState(true);
   const [isAllowed, setIsAllowed] = useState(false);
+  const [hasAuthenticatedUser, setHasAuthenticatedUser] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     let isMounted = true;
@@ -27,6 +29,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     const checkAuth = async () => {
       try {
         setLoading(true);
+        setHasAuthenticatedUser(false);
 
         const {
           data: { session },
@@ -48,6 +51,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
         const user = session?.user || (await supabase.auth.getUser()).data.user;
 
         if (user) {
+          if (isMounted) setHasAuthenticatedUser(true);
           const { data: profile } = await supabase
             .from("profiles")
             .select("role, is_active")
@@ -78,6 +82,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT" && isMounted) {
         setIsAllowed(false);
+        setHasAuthenticatedUser(false);
         setLoading(false);
       }
     });
@@ -99,5 +104,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     );
   }
 
-  return isAllowed ? children : <Navigate to="/" replace />;
+  const returnTo = `${location.pathname}${location.search}`;
+  const loginTarget = `/?returnTo=${encodeURIComponent(returnTo)}`;
+  return isAllowed ? children : <Navigate to={hasAuthenticatedUser ? "/" : loginTarget} replace />;
 }

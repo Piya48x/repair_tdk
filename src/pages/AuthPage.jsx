@@ -4,7 +4,7 @@ import Register from "./Register";
 import { supabase } from "../lib/supabaseClient";
 import { resolveEmailFromIdentifier } from "../lib/authHelpers";
 import { resolveHomeRoute } from "../lib/roleAccess";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScopedI18n } from "../i18n/useScopedI18n";
 import MessageAlert from "../components/MessageAlert";
@@ -151,6 +151,11 @@ export default function AuthPage() {
   const isFinalSlide = currentImageIndex === HERO_IMAGES.length - 1;
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedReturnTo = searchParams.get("returnTo") || "";
+  const safeReturnTo = requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//")
+    ? requestedReturnTo
+    : "";
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 
@@ -226,12 +231,12 @@ export default function AuthPage() {
         }
 
         if (profile) {
-          navigate(resolveHomeRoute(profile.role), { replace: true });
+          navigate(safeReturnTo || resolveHomeRoute(profile.role), { replace: true });
         }
       }
     };
     checkSession();
-  }, [navigate]);
+  }, [navigate, safeReturnTo]);
 
   const onLogin = async () => {
     if (!employeeCode || !password) {
@@ -268,7 +273,7 @@ export default function AuthPage() {
         throw new Error(INACTIVE_ACCOUNT_MESSAGE);
       }
 
-      navigate(resolveHomeRoute(profile.role), { replace: true });
+      navigate(safeReturnTo || resolveHomeRoute(profile.role), { replace: true });
     } catch (err) {
       setMessage({ type: "error", text: tt("loginFailed", { message: err.message }) });
     } finally {
