@@ -13,6 +13,7 @@ import {
   Factory,
   FileImage,
   Laptop,
+  ListFilter,
   MapPin,
   Monitor,
   PackagePlus,
@@ -407,6 +408,10 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
   const [loading, setLoading] = useState(true);
   const [schemaReady, setSchemaReady] = useState(true);
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [qrFilter, setQrFilter] = useState("");
   const [scanValue, setScanValue] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [editingAsset, setEditingAsset] = useState(undefined);
@@ -430,12 +435,58 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
 
   useEffect(() => { void loadData(); }, []);
 
+  const filterOptions = useMemo(() => {
+    const uniqueSorted = (values) => [...new Set(values.map(cleanText).filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right, "th", { sensitivity: "base" }));
+
+    return {
+      categories: uniqueSorted(assets.map((asset) => asset.asset_category)),
+      locations: uniqueSorted(assets.map((asset) => asset.factory || asset.location)),
+    };
+  }, [assets]);
+
   const filteredAssets = useMemo(() => {
     const query = cleanText(search).toLowerCase();
-    if (!query) return assets;
-    return assets.filter((asset) => [asset.asset_tag, asset.asset_name, asset.asset_category, asset.brand, asset.model, asset.serial_number, asset.factory, asset.building, asset.room, asset.department, asset.owner_name, asset.owner_employee_code, asset.po_number]
-      .some((value) => cleanText(value).toLowerCase().includes(query)));
-  }, [assets, search]);
+    return assets.filter((asset) => {
+      const matchesSearch = !query || [
+        asset.asset_tag,
+        asset.asset_name,
+        asset.asset_category,
+        asset.brand,
+        asset.model,
+        asset.serial_number,
+        asset.factory,
+        asset.location,
+        asset.building,
+        asset.floor,
+        asset.room,
+        asset.department,
+        asset.owner_name,
+        asset.owner_employee_code,
+        asset.po_number,
+        asset.notes,
+        STATUS_META[asset.status]?.label,
+      ].some((value) => cleanText(value).toLowerCase().includes(query));
+      const matchesCategory = !categoryFilter || cleanText(asset.asset_category) === categoryFilter;
+      const matchesStatus = !statusFilter || cleanText(asset.status) === statusFilter;
+      const matchesLocation = !locationFilter || cleanText(asset.factory || asset.location) === locationFilter;
+      const matchesQr = !qrFilter
+        || (qrFilter === "created" && Boolean(asset.qr_created_at))
+        || (qrFilter === "not_created" && !asset.qr_created_at);
+
+      return matchesSearch && matchesCategory && matchesStatus && matchesLocation && matchesQr;
+    });
+  }, [assets, categoryFilter, locationFilter, qrFilter, search, statusFilter]);
+
+  const hasActiveFilters = Boolean(search || categoryFilter || statusFilter || locationFilter || qrFilter);
+
+  const clearFilters = () => {
+    setSearch("");
+    setCategoryFilter("");
+    setStatusFilter("");
+    setLocationFilter("");
+    setQrFilter("");
+  };
 
   const summary = useMemo(() => ({
     total: assets.length,
@@ -509,7 +560,70 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
       </section>
 
       <section className={`overflow-hidden rounded-2xl border ${shell}`}>
-        <header className={`flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 ${isDark ? "border-slate-700" : "border-slate-200"}`}><div><h2 className="font-black">ทะเบียน Asset และ QR</h2><p className={`mt-1 text-xs ${muted}`}>QR เดิมใช้ต่อได้เมื่อแก้ข้อมูล Brand, ผู้ใช้, สถานที่ หรือสถานะ</p></div><label className="relative min-w-[280px]"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหา Asset Tag, S/N, ผู้ใช้..." className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm outline-none focus:border-violet-500 ${input}`} /></label></header>
+        <header className={`border-b p-4 sm:p-5 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <h2 className="font-black">ทะเบียน Asset และ QR</h2>
+              <p className={`mt-1 text-xs ${muted}`}>ค้นหาด้วย Asset Tag, Serial, ชื่อพนักงาน หรือกรองรายการตามข้อมูลที่ต้องการ</p>
+            </div>
+            <label className="relative w-full xl:max-w-md">
+              <span className="sr-only">ค้นหาทะเบียน Asset</span>
+              <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="ค้นหา Asset Tag, S/N, ชื่อ/รหัสพนักงาน..."
+                className={`w-full rounded-xl border py-2.5 pl-9 pr-9 text-sm outline-none focus:border-violet-500 ${input}`}
+              />
+              {search ? (
+                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="ล้างคำค้นหา">
+                  <X size={15} />
+                </button>
+              ) : null}
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(170px,1fr)_minmax(180px,1.2fr)_minmax(160px,1fr)_auto]">
+            <label>
+              <span className="sr-only">กรองประเภทอุปกรณ์</span>
+              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:border-violet-500 ${input}`}>
+                <option value="">ทุกประเภทอุปกรณ์</option>
+                {filterOptions.categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">กรองสถานะอุปกรณ์</span>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:border-violet-500 ${input}`}>
+                <option value="">ทุกสถานะอุปกรณ์</option>
+                {STATUS_OPTIONS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">กรองโรงงานหรือสถานที่</span>
+              <select value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:border-violet-500 ${input}`}>
+                <option value="">ทุกโรงงาน/สถานที่</option>
+                {filterOptions.locations.map((location) => <option key={location} value={location}>{location}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">กรองสถานะ QR</span>
+              <select value={qrFilter} onChange={(event) => setQrFilter(event.target.value)} className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:border-violet-500 ${input}`}>
+                <option value="">QR ทั้งหมด</option>
+                <option value="created">สร้าง QR แล้ว</option>
+                <option value="not_created">ยังไม่ได้สร้าง QR</option>
+              </select>
+            </label>
+            <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className={`inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${input}`}>
+              <ListFilter size={16} />
+              ล้างตัวกรอง
+            </button>
+          </div>
+
+          <div className={`mt-3 flex flex-wrap items-center justify-between gap-2 text-xs ${muted}`}>
+            <p>แสดง <strong className={isDark ? "text-white" : "text-slate-900"}>{filteredAssets.length}</strong> จาก {assets.length} รายการ</p>
+            {hasActiveFilters ? <p className="font-semibold text-violet-600">กำลังใช้ตัวกรอง</p> : <p>QR เดิมยังใช้ต่อได้เมื่อแก้ไขข้อมูล Asset</p>}
+          </div>
+        </header>
         {loading ? <div className={`flex items-center justify-center py-16 ${muted}`}><RefreshCw className="mr-2 animate-spin" />กำลังโหลดข้อมูล...</div> : filteredAssets.length ? <div className={`divide-y ${isDark ? "divide-slate-700" : "divide-slate-100"}`}>{filteredAssets.map((asset) => {
           const image = Array.isArray(asset.it_asset_attachments) ? asset.it_asset_attachments.find((attachment) => attachment?.file_url) : null;
           return <article key={asset.id} className={`grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(280px,1.2fr)_minmax(220px,1fr)_190px_auto] lg:items-center ${isDark ? "hover:bg-slate-800/50" : "hover:bg-slate-50"}`}>
