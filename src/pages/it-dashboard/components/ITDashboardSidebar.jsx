@@ -45,6 +45,7 @@ const SIDEBAR_TRANSLATIONS = {
       stockHistory: "ประวัติการเบิกจาก stock",
       active: "กำลังดำเนินการ",
       history: "ประวัติ",
+      assetManagementGroup: "อุปกรณ์ IT",
       executiveAssets: "จัดการอุปกรณ์",
       assetQrCenter: "สร้างและสแกน Asset QR",
       assetStockAudit: "ตรวจ Stock PC / Monitor",
@@ -75,6 +76,7 @@ const SIDEBAR_TRANSLATIONS = {
       stockHistory: "Stock issue history",
       active: "In progress",
       history: "History",
+      assetManagementGroup: "IT assets",
       executiveAssets: "Assets management",
       assetQrCenter: "Create & scan Asset QR",
       assetStockAudit: "PC / Monitor stock audit",
@@ -105,6 +107,7 @@ const SIDEBAR_TRANSLATIONS = {
       stockHistory: "재고 출고 이력",
       active: "진행 중",
       history: "이력",
+      assetManagementGroup: "IT 자산",
       executiveAssets: "자산 관리",
       assetQrCenter: "Asset QR 생성 및 스캔",
       assetStockAudit: "PC / Monitor 재고 실사",
@@ -120,6 +123,11 @@ const STOCK_SECTION_PAGE_IDS = [
   DASHBOARD_PAGE_IDS.STOCK_WALK_IN,
   DASHBOARD_PAGE_IDS.STOCK_RECEIVE,
   DASHBOARD_PAGE_IDS.STOCK_HISTORY,
+];
+
+const ASSET_SECTION_PAGE_IDS = [
+  DASHBOARD_PAGE_IDS.ASSET_QR_CENTER,
+  DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT,
 ];
 
 function NotificationBadge({ count, tone = "rose" }) {
@@ -260,6 +268,9 @@ const ITDashboardSidebar = ({
   const [stockMenuExpanded, setStockMenuExpanded] = useState(
     STOCK_SECTION_PAGE_IDS.includes(currentPage),
   );
+  const [assetMenuExpanded, setAssetMenuExpanded] = useState(
+    ASSET_SECTION_PAGE_IDS.includes(currentPage),
+  );
 
   const repairSubItems = useMemo(() => [
     { id: DASHBOARD_PAGE_IDS.ACTIVE, label: tt("nav.active"), icon: Activity },
@@ -272,6 +283,12 @@ const ITDashboardSidebar = ({
     { id: "history", pageId: DASHBOARD_PAGE_IDS.STOCK_HISTORY, label: tt("nav.stockHistory"), icon: History },
   ], [tt]);
 
+  const assetSubItems = useMemo(() => [
+    { id: "EXECUTIVE_ASSETS", label: tt("nav.executiveAssets"), icon: HardDrive },
+    { id: DASHBOARD_PAGE_IDS.ASSET_QR_CENTER, label: tt("nav.assetQrCenter"), icon: QrCode },
+    { id: DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT, label: tt("nav.assetStockAudit"), icon: ClipboardCheck },
+  ], [tt]);
+
   const primaryItems = useMemo(() => [
     { id: DASHBOARD_PAGE_IDS.TICKETS, label: tt("nav.tickets"), icon: Ticket, group: "repair", badge: notificationCount, badgeTone: "rose" },
     { id: DASHBOARD_PAGE_IDS.SERVICE_REQUESTS, label: tt("nav.serviceRequests"), icon: Package, badge: serviceRequestNotificationCount, badgeTone: "violet" },
@@ -282,9 +299,7 @@ const ITDashboardSidebar = ({
   ], [notebookNotificationCount, notificationCount, serviceRequestNotificationCount, tt]);
 
   const managementItems = useMemo(() => [
-    { id: "EXECUTIVE_ASSETS", label: tt("nav.executiveAssets"), icon: HardDrive },
-    { id: DASHBOARD_PAGE_IDS.ASSET_QR_CENTER, label: tt("nav.assetQrCenter"), icon: QrCode },
-    { id: DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT, label: tt("nav.assetStockAudit"), icon: ClipboardCheck },
+    { id: "ASSET_MANAGEMENT_GROUP", label: tt("nav.assetManagementGroup"), icon: HardDrive, group: "assets" },
     { id: DASHBOARD_PAGE_IDS.CALENDAR, label: tt("nav.calendar"), icon: CalendarDays },
     { id: DASHBOARD_PAGE_IDS.REPORTS, label: tt("nav.reports"), icon: BarChart3 },
     { id: DASHBOARD_PAGE_IDS.SETTINGS, label: tt("nav.settings"), icon: Settings },
@@ -297,12 +312,16 @@ const ITDashboardSidebar = ({
     if (STOCK_SECTION_PAGE_IDS.includes(currentPage)) {
       setStockMenuExpanded(true);
     }
+    if (ASSET_SECTION_PAGE_IDS.includes(currentPage)) {
+      setAssetMenuExpanded(true);
+    }
   }, [currentPage]);
 
   const isRepairActive = currentPage === DASHBOARD_PAGE_IDS.TICKETS ||
     currentPage === DASHBOARD_PAGE_IDS.ACTIVE ||
     currentPage === DASHBOARD_PAGE_IDS.HISTORY;
   const isStockActive = STOCK_SECTION_PAGE_IDS.includes(currentPage);
+  const isAssetActive = ASSET_SECTION_PAGE_IDS.includes(currentPage);
 
   const navigate = (pageId) => {
     if (pageId === "EXECUTIVE_ASSETS") {
@@ -326,6 +345,7 @@ const ITDashboardSidebar = ({
   const isItemActive = (item) => {
     if (item.group === "repair") return isRepairActive;
     if (item.group === "stock") return isStockActive;
+    if (item.group === "assets") return isAssetActive;
     return currentPage === item.id;
   };
 
@@ -382,6 +402,28 @@ const ITDashboardSidebar = ({
       );
     }
 
+    if (item.group === "assets" && !sidebarCollapsed) {
+      return (
+        <li key={item.id}>
+          <NavButton
+            item={item}
+            active={isAssetActive}
+            isDarkTheme={isDarkTheme}
+            expandable
+            expanded={assetMenuExpanded}
+            onClick={() => setAssetMenuExpanded((previous) => !previous)}
+          />
+          <SubMenu
+            open={assetMenuExpanded}
+            items={assetSubItems}
+            isDarkTheme={isDarkTheme}
+            isActive={(subItem) => currentPage === subItem.id}
+            onSelect={(subItem) => navigate(subItem.id)}
+          />
+        </li>
+      );
+    }
+
     return (
       <li key={item.id}>
         <NavButton
@@ -394,6 +436,10 @@ const ITDashboardSidebar = ({
           onClick={() => {
             if (item.group === "stock") {
               navigateStock(stockManagementSection || "issue");
+              return;
+            }
+            if (item.group === "assets") {
+              navigate("EXECUTIVE_ASSETS");
               return;
             }
             navigate(item.id);
