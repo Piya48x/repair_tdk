@@ -1,14 +1,15 @@
 import React from "react";
 import {
+  ChevronDown,
   Clock3,
   KeyRound,
   Package,
   RefreshCw,
-  ShieldAlert,
   Ticket,
   Wrench,
 } from "lucide-react";
 import ReportMetricCard from "./ReportMetricCard";
+import ReportPageHero from "./ReportPageHero";
 import ReportSectionCard from "./ReportSectionCard";
 import BenchmarkInsightsPanel from "./BenchmarkInsightsPanel";
 import { buildReportBenchmark } from "../../services/reportBenchmarkService";
@@ -22,6 +23,21 @@ const EXECUTIVE_ASSET_OVERVIEW_TRANSLATIONS = {
     heroDescription:
       "รวมงานซ่อม, เบิกของ, access request, สถานะทรัพย์สิน และสัญญาณหลักที่ผู้บริหารควรเห็นในหน้าเดียว",
     benchmarkTitle: "Benchmark Summary / Executive Readiness",
+    sections: {
+      overviewEyebrow: "Executive Snapshot",
+      overviewTitle: "ภาพรวมงานและสัญญาณสำคัญ",
+      overviewSubtitle: "ตัวเลขหลัก ปริมาณงาน และความพร้อมของทรัพย์สินที่ควรตรวจสอบก่อน",
+      activityEyebrow: "Operational Activity",
+      activityTitle: "งานที่เกิดขึ้นและรายการเคลื่อนไหวล่าสุด",
+      activitySubtitle: "ดูประเภทคำขอหลักควบคู่กับความเปลี่ยนแปลงล่าสุดในระบบ",
+      healthEyebrow: "Asset & License Health",
+      healthTitle: "ความพร้อมของทรัพย์สินและไลเซนส์",
+      healthSubtitle: "สรุปสถานะใช้งาน ความเสี่ยง และรายการที่ต้องติดตาม",
+      benchmarkEyebrow: "Advanced Insights",
+      benchmarkTitle: "Benchmark และความพร้อมเชิงบริหาร",
+      benchmarkSubtitle: "เปิดดูเมื่อต้องการวิเคราะห์เชิงลึกเทียบกับเป้าหมาย",
+      showBenchmark: "เปิดการวิเคราะห์ขั้นสูง",
+    },
     metrics: {
       tickets: "Tickets",
       ticketsHint: "งานทั้งหมดในระบบ",
@@ -99,6 +115,7 @@ const EXECUTIVE_ASSET_OVERVIEW_TRANSLATIONS = {
         "รายงานนี้ออกแบบให้เป็นภาพรวมสำหรับผู้บริหาร เพื่อดูทั้งงานซ่อม, เบิกของ, คำขอสิทธิ์ และสัญญาณด้านทรัพย์สินในหน้าเดียว",
     },
     refresh: "รีเฟรช",
+    updated: "อัปเดตล่าสุด",
   },
   en: {
     heroBadge: "Asset & Operations Overview",
@@ -106,6 +123,21 @@ const EXECUTIVE_ASSET_OVERVIEW_TRANSLATIONS = {
     heroDescription:
       "Pull repairs, procurement, access requests, asset status, and leadership signals into one page.",
     benchmarkTitle: "Benchmark Summary / Executive Readiness",
+    sections: {
+      overviewEyebrow: "Executive Snapshot",
+      overviewTitle: "Workload and priority signals",
+      overviewSubtitle: "Start with the core volume, risk, and asset-readiness indicators.",
+      activityEyebrow: "Operational Activity",
+      activityTitle: "Service demand and latest movement",
+      activitySubtitle: "Review the leading request areas alongside the newest system activity.",
+      healthEyebrow: "Asset & License Health",
+      healthTitle: "Asset and license readiness",
+      healthSubtitle: "Track serviceability, risk, utilization, and upcoming renewals.",
+      benchmarkEyebrow: "Advanced Insights",
+      benchmarkTitle: "Benchmark and executive readiness",
+      benchmarkSubtitle: "Expand when deeper comparison against operating targets is needed.",
+      showBenchmark: "Open advanced analysis",
+    },
     metrics: {
       tickets: "Tickets",
       ticketsHint: "All service records",
@@ -183,6 +215,7 @@ const EXECUTIVE_ASSET_OVERVIEW_TRANSLATIONS = {
         "This report is designed as an executive summary spanning repairs, procurement, access requests, and asset signals in one place.",
     },
     refresh: "Refresh",
+    updated: "Last updated",
   },
   ko: {
     heroBadge: "자산 및 운영 개요",
@@ -190,6 +223,21 @@ const EXECUTIVE_ASSET_OVERVIEW_TRANSLATIONS = {
     heroDescription:
       "수리, 조달, 접근 요청, 자산 상태, 핵심 운영 신호를 한 페이지에 모았습니다.",
     benchmarkTitle: "Benchmark Summary / Executive Readiness",
+    sections: {
+      overviewEyebrow: "Executive Snapshot",
+      overviewTitle: "업무량 및 우선 신호",
+      overviewSubtitle: "핵심 업무량, 위험 및 자산 준비 상태를 먼저 확인합니다.",
+      activityEyebrow: "Operational Activity",
+      activityTitle: "서비스 수요 및 최근 활동",
+      activitySubtitle: "주요 요청 영역과 시스템의 최신 변화를 함께 확인합니다.",
+      healthEyebrow: "Asset & License Health",
+      healthTitle: "자산 및 라이선스 준비 상태",
+      healthSubtitle: "사용 가능성, 위험, 활용도 및 갱신 일정을 추적합니다.",
+      benchmarkEyebrow: "Advanced Insights",
+      benchmarkTitle: "벤치마크 및 경영 준비도",
+      benchmarkSubtitle: "운영 목표와의 심층 비교가 필요할 때 펼쳐 봅니다.",
+      showBenchmark: "고급 분석 열기",
+    },
     metrics: {
       tickets: "Tickets",
       ticketsHint: "전체 서비스 기록",
@@ -267,6 +315,7 @@ const EXECUTIVE_ASSET_OVERVIEW_TRANSLATIONS = {
         "이 보고서는 수리, 조달, 접근 요청, 자산 신호를 함께 보는 임원용 요약 화면입니다.",
     },
     refresh: "새로고침",
+    updated: "마지막 업데이트",
   },
 };
 
@@ -302,6 +351,16 @@ function WorkstreamBar({ label, value, total, tone = "indigo", valueLabel }) {
   );
 }
 
+function DashboardSectionHeading({ eyebrow, title, subtitle }) {
+  return (
+    <div className="mb-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{eyebrow}</p>
+      <h2 className="mt-1 text-lg font-bold text-slate-950">{title}</h2>
+      {subtitle ? <p className="mt-1 text-xs leading-5 text-slate-500">{subtitle}</p> : null}
+    </div>
+  );
+}
+
 function ActivityRow({ item }) {
   const tone =
     item.kind === "access"
@@ -322,26 +381,24 @@ function ActivityRow({ item }) {
           : tone === "cyan"
             ? "border-cyan-200 bg-cyan-50 text-cyan-700"
             : "border-indigo-200 bg-indigo-50 text-indigo-700";
+  const Icon = item.kind === "asset" ? Package : item.kind === "license" ? KeyRound : Ticket;
 
   return (
-    <article className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${toneClass}`}>
-              {item.kindLabel}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-              <Clock3 size={12} />
-              {item.dateLabel}
-            </span>
-          </div>
-          <h4 className="mt-2 text-sm font-black text-slate-900">{item.title}</h4>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{item.detail}</p>
-        </div>
-        <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-          {item.statusLabel}
+    <article className="flex items-start gap-3 border-b border-slate-100 py-3 first:pt-0 last:border-b-0 last:pb-0">
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${toneClass}`}>
+        <Icon size={17} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.kindLabel}</p>
+        <h4 className="mt-0.5 truncate text-sm font-semibold text-slate-900">{item.title}</h4>
+        <p className="mt-1 truncate text-xs text-slate-500">{item.detail}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
+          <Clock3 size={11} />
+          {item.dateLabel}
         </span>
+        <p className="mt-1 max-w-[110px] truncate text-[11px] font-semibold text-slate-600">{item.statusLabel}</p>
       </div>
     </article>
   );
@@ -414,159 +471,196 @@ export default function ExecutiveAssetOverviewDashboard({ data, onRefresh, loadi
   ];
 
   const requestMixTotal = Math.max(requestMix.reduce((sum, item) => sum + item.value, 0), 1);
+  const availabilityRate = assetSummary.totalAssets > 0
+    ? Math.round((assetSummary.activeAssets / assetSummary.totalAssets) * 100)
+    : 0;
+  const maxTrendValue = Math.max(...trend.map((item) => Number(item.value || 0)), 1);
+  const maxIssueValue = Math.max(...topIssues.map((item) => Number(item.value || 0)), 1);
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white shadow-2xl">
-        <div className="flex flex-col gap-6 p-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white/90">
-              <ShieldAlert size={14} />
-              {tt("heroBadge")}
-            </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-4xl">
-              {tt("heroTitle")}
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75 sm:text-base">
-              {tt("heroDescription")}
-            </p>
-          </div>
-
+    <div className="space-y-5">
+      <ReportPageHero
+        eyebrow={tt("heroBadge")}
+        title={tt("heroTitle")}
+        description={tt("heroDescription")}
+        status={`${tt("updated")}: ${new Date(data?.generatedAt || Date.now()).toLocaleString(locale)}`}
+        action={(
           <button
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             {tt("refresh")}
           </button>
+        )}
+      />
+
+      <section>
+        <DashboardSectionHeading
+          eyebrow={tt("sections.overviewEyebrow")}
+          title={tt("sections.overviewTitle")}
+          subtitle={tt("sections.overviewSubtitle")}
+        />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <ReportMetricCard title={tt("metrics.tickets")} value={numberFormatter.format(Number(kpi.totalTickets || 0))} hint={tt("metrics.ticketsHint")} icon={Ticket} tone="indigo" />
+          <ReportMetricCard title={tt("metrics.openIssues")} value={numberFormatter.format(Number(kpi.openTickets || 0))} hint={tt("metrics.openIssuesHint")} icon={Wrench} tone="amber" />
+          <ReportMetricCard title={tt("metrics.overdue")} value={numberFormatter.format(Number(kpi.overdueTickets || 0))} hint={tt("metrics.overdueHint")} icon={Clock3} tone="rose" />
+          <ReportMetricCard title={tt("metrics.assets")} value={numberFormatter.format(Number(assetSummary.totalAssets || 0))} hint={tt("metrics.assetsHint")} icon={Package} tone="emerald" />
         </div>
-      </section>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <ReportMetricCard title={tt("metrics.tickets")} value={numberFormatter.format(Number(kpi.totalTickets || 0))} hint={tt("metrics.ticketsHint")} icon={Ticket} tone="indigo" />
-        <ReportMetricCard title={tt("metrics.openIssues")} value={numberFormatter.format(Number(kpi.openTickets || 0))} hint={tt("metrics.openIssuesHint")} icon={Wrench} tone="amber" />
-        <ReportMetricCard title={tt("metrics.overdue")} value={numberFormatter.format(Number(kpi.overdueTickets || 0))} hint={tt("metrics.overdueHint")} icon={Clock3} tone="rose" />
-        <ReportMetricCard title={tt("metrics.assets")} value={numberFormatter.format(Number(assetSummary.totalAssets || 0))} hint={tt("metrics.assetsHint")} icon={Package} tone="emerald" />
-        <ReportMetricCard title={tt("metrics.accessRequests")} value={numberFormatter.format(Number(accessRequestSummary.total || 0))} hint={tt("metrics.accessRequestsHint")} icon={KeyRound} tone="cyan" />
-      </section>
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <ReportSectionCard
+            title={tt("requestMix.title")}
+            subtitle={tt("requestMix.subtitle")}
+            actions={
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                {tt("requestMix.totalCases", { count: numberFormatter.format(totalCases) })}
+              </span>
+            }
+          >
+            <div className="space-y-4">
+              {requestMix.map((item) => (
+                <WorkstreamBar
+                  key={item.label}
+                  label={item.label}
+                  value={item.value}
+                  total={requestMixTotal}
+                  tone={item.tone}
+                  valueLabel={numberFormatter.format(item.value)}
+                />
+              ))}
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+              <div>
+                <p className="text-[11px] font-medium text-slate-500">{tt("requestMix.pending")}</p>
+                <p className="mt-1 text-xl font-bold text-slate-950">{numberFormatter.format(accessRequestSummary.pending || 0)}</p>
+              </div>
+              <div className="border-l border-slate-100 pl-3">
+                <p className="text-[11px] font-medium text-slate-500">{tt("requestMix.approved")}</p>
+                <p className="mt-1 text-xl font-bold text-slate-950">{numberFormatter.format(accessRequestSummary.approved || 0)}</p>
+              </div>
+              <div className="border-l border-slate-100 pl-3">
+                <p className="text-[11px] font-medium text-slate-500">{tt("requestMix.completed")}</p>
+                <p className="mt-1 text-xl font-bold text-slate-950">{numberFormatter.format(accessRequestSummary.completed || 0)}</p>
+              </div>
+            </div>
+          </ReportSectionCard>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <ReportSectionCard
-          title={tt("requestMix.title")}
-          subtitle={tt("requestMix.subtitle")}
-          actions={
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-              {tt("requestMix.totalCases", { count: numberFormatter.format(totalCases) })}
-            </span>
-          }
-        >
-          <div className="space-y-4">
-            {requestMix.map((item) => (
-              <WorkstreamBar
-                key={item.label}
-                label={item.label}
-                value={item.value}
-                total={requestMixTotal}
-                tone={item.tone}
-                valueLabel={numberFormatter.format(item.value)}
-              />
-            ))}
-          </div>
-          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-500">{tt("requestMix.pending")}</p>
-              <p className="mt-2 text-2xl font-black text-amber-700">{numberFormatter.format(accessRequestSummary.pending || 0)}</p>
+          <ReportSectionCard title={tt("signals.title")} subtitle={tt("signals.subtitle")}>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-600">{tt("signals.availability")}</p>
+                  <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{availabilityRate}%</p>
+                  <p className="mt-1 text-xs text-slate-500">{tt("signals.availabilityHint")}</p>
+                </div>
+                <p className="text-xs font-semibold text-emerald-700">
+                  {numberFormatter.format(Number(assetSummary.activeAssets || 0))}/{numberFormatter.format(Number(assetSummary.totalAssets || 0))}
+                </p>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(availabilityRate, 100)}%` }} />
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-500">{tt("requestMix.approved")}</p>
-              <p className="mt-2 text-2xl font-black text-emerald-700">{numberFormatter.format(accessRequestSummary.approved || 0)}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-500">{tt("requestMix.completed")}</p>
-              <p className="mt-2 text-2xl font-black text-slate-900">{numberFormatter.format(accessRequestSummary.completed || 0)}</p>
-            </div>
-          </div>
-        </ReportSectionCard>
 
-        <ReportSectionCard title={tt("signals.title")} subtitle={tt("signals.subtitle")}>
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{tt("signals.availability")}</p>
-              <p className="mt-2 text-3xl font-black text-slate-900">
-                {assetSummary.totalAssets > 0 ? Math.round((assetSummary.activeAssets / assetSummary.totalAssets) * 100) : 0}%
-              </p>
-              <p className="mt-1 text-sm text-slate-500">{tt("signals.availabilityHint")}</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-slate-100 p-3">
+                <p className="text-[11px] font-medium text-slate-500">{tt("signals.licenses")}</p>
+                <p className="mt-1 text-2xl font-bold text-slate-950">{numberFormatter.format(Number(licenseSummary.totalLicenses || 0))}</p>
+                <p className="mt-1 text-[11px] text-slate-400">{tt("signals.licensesHint")}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 p-3">
+                <p className="text-[11px] font-medium text-slate-500">{tt("metrics.accessRequests")}</p>
+                <p className="mt-1 text-2xl font-bold text-slate-950">{numberFormatter.format(Number(accessRequestSummary.total || 0))}</p>
+                <p className="mt-1 text-[11px] text-slate-400">{tt("metrics.accessRequestsHint")}</p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{tt("signals.licenses")}</p>
-              <p className="mt-2 text-3xl font-black text-slate-900">{numberFormatter.format(Number(licenseSummary.totalLicenses || 0))}</p>
-              <p className="mt-1 text-sm text-slate-500">{tt("signals.licensesHint")}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{tt("signals.trend")}</p>
-              <div className="mt-3 flex items-end gap-2">
+
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{tt("signals.trend")}</p>
+              <div className="mt-3 flex h-24 items-end gap-2 border-b border-slate-200 px-1">
                 {trend.slice(-6).map((item) => (
-                  <div key={item.key} className="flex flex-1 flex-col items-center gap-2">
-                    <div className="flex h-24 w-full items-end rounded-2xl bg-white p-2">
-                      <div
-                        className="w-full rounded-xl bg-gradient-to-t from-indigo-500 to-cyan-400"
-                        style={{ height: `${Math.max(18, Math.round(((item.value || 0) / Math.max(...trend.map((row) => row.value || 0), 1)) * 72))}px` }}
-                      />
-                    </div>
-                    <p className="text-[10px] font-semibold text-slate-500">{item.label}</p>
+                  <div key={item.key} className="flex h-full flex-1 flex-col justify-end gap-1.5">
+                    <div
+                      className="mx-auto w-full max-w-8 rounded-t bg-blue-700"
+                      style={{ height: `${Math.max(8, Math.round((Number(item.value || 0) / maxTrendValue) * 70))}px` }}
+                    />
+                    <p className="truncate text-center text-[9px] font-medium text-slate-400">{item.label}</p>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        </ReportSectionCard>
+          </ReportSectionCard>
+        </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <ReportSectionCard title={tt("topService.title")} subtitle={tt("topService.subtitle")}>
-          <div className="space-y-3">
+      <section>
+        <DashboardSectionHeading
+          eyebrow={tt("sections.activityEyebrow")}
+          title={tt("sections.activityTitle")}
+          subtitle={tt("sections.activitySubtitle")}
+        />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <ReportSectionCard title={tt("topService.title")} subtitle={tt("topService.subtitle")}>
             {topIssues.length ? (
-              topIssues.map((item, index) => (
-                <div key={`${item.label}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-                    <p className="text-xs text-slate-500">{tt("topService.helper")}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-slate-900">{numberFormatter.format(item.value)}</p>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{tt("topService.records")}</p>
-                  </div>
-                </div>
-              ))
+              <div>
+                {topIssues.map((item, index) => {
+                  const issuePercent = Math.round((Number(item.value || 0) / maxIssueValue) * 100);
+                  return (
+                    <div key={`${item.label}-${index}`} className="border-b border-slate-100 py-3 first:pt-0 last:border-b-0 last:pb-0">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-900">{item.label}</p>
+                          <p className="text-[11px] text-slate-400">{tt("topService.helper")}</p>
+                        </div>
+                        <p className="shrink-0 text-lg font-bold text-slate-950">
+                          {numberFormatter.format(item.value)}
+                          <span className="ml-1 text-[10px] font-medium uppercase text-slate-400">{tt("topService.records")}</span>
+                        </p>
+                      </div>
+                      <div className="ml-11 mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-blue-700" style={{ width: `${Math.max(issuePercent, 3)}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
                 {tt("topService.empty")}
               </div>
             )}
-          </div>
-        </ReportSectionCard>
+          </ReportSectionCard>
 
-        <ReportSectionCard title={tt("latest.title")} subtitle={tt("latest.subtitle")}>
-          <div className="space-y-3">
+          <ReportSectionCard title={tt("latest.title")} subtitle={tt("latest.subtitle")}>
             {combinedActivity.length ? (
-              combinedActivity.map((item) => (
-                <ActivityRow key={`${item.kind}-${item.title}-${item.timestamp}`} item={item} />
-              ))
+              <div>
+                {combinedActivity.map((item) => (
+                  <ActivityRow key={`${item.kind}-${item.title}-${item.timestamp}`} item={item} />
+                ))}
+              </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
                 {tt("latest.empty")}
               </div>
             )}
-          </div>
-        </ReportSectionCard>
+          </ReportSectionCard>
+        </div>
       </section>
 
-      <BenchmarkInsightsPanel analysis={benchmark} title={tt("benchmarkTitle")} />
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <ReportSectionCard title={tt("assetHealth.title")} subtitle={tt("assetHealth.subtitle")}>
+      <section>
+        <DashboardSectionHeading
+          eyebrow={tt("sections.healthEyebrow")}
+          title={tt("sections.healthTitle")}
+          subtitle={tt("sections.healthSubtitle")}
+        />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <ReportSectionCard title={tt("assetHealth.title")} subtitle={tt("assetHealth.subtitle")}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <p className="text-xs font-semibold text-slate-500">{tt("assetHealth.active")}</p>
@@ -601,9 +695,9 @@ export default function ExecutiveAssetOverviewDashboard({ data, onRefresh, loadi
               </tbody>
             </table>
           </div>
-        </ReportSectionCard>
+          </ReportSectionCard>
 
-        <ReportSectionCard title={tt("licenseHealth.title")} subtitle={tt("licenseHealth.subtitle")}>
+          <ReportSectionCard title={tt("licenseHealth.title")} subtitle={tt("licenseHealth.subtitle")}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <p className="text-xs font-semibold text-slate-500">{tt("licenseHealth.seatsUsed")}</p>
@@ -618,7 +712,25 @@ export default function ExecutiveAssetOverviewDashboard({ data, onRefresh, loadi
             <p className="text-sm font-semibold text-slate-700">{tt("licenseHealth.descriptionTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">{tt("licenseHealth.description")}</p>
           </div>
-        </ReportSectionCard>
+          </ReportSectionCard>
+        </div>
+      </section>
+
+      <section>
+        <DashboardSectionHeading
+          eyebrow={tt("sections.benchmarkEyebrow")}
+          title={tt("sections.benchmarkTitle")}
+          subtitle={tt("sections.benchmarkSubtitle")}
+        />
+        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_5px_22px_rgba(15,23,42,0.04)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:px-6">
+            <span>{tt("sections.showBenchmark")}</span>
+            <ChevronDown size={17} className="shrink-0 text-slate-400 transition group-open:rotate-180" />
+          </summary>
+          <div className="border-t border-slate-200 bg-slate-50/60 p-3 sm:p-4">
+            <BenchmarkInsightsPanel analysis={benchmark} title={tt("benchmarkTitle")} />
+          </div>
+        </details>
       </section>
     </div>
   );

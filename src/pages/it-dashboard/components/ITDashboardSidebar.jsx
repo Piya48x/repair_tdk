@@ -45,10 +45,10 @@ const SIDEBAR_TRANSLATIONS = {
       stockHistory: "ประวัติการเบิกจาก stock",
       active: "กำลังดำเนินการ",
       history: "ประวัติ",
-      assetManagementGroup: "อุปกรณ์ IT",
-      executiveAssets: "จัดการอุปกรณ์",
-      assetQrCenter: "สร้างและสแกน Asset QR",
-      assetStockAudit: "ตรวจ Stock PC / Monitor",
+      assetManagementGroup: "IT Asset Operations",
+      assetManagement: "Asset Management / จัดการทรัพย์สิน",
+      assetQrCenter: "Asset QR Center / สร้างและสแกน",
+      assetStockAudit: "Stock Audit / ตรวจ PC & Monitor",
       calendar: "ปฏิทิน",
       reports: "รายงาน",
       settings: "ตั้งค่า",
@@ -77,7 +77,7 @@ const SIDEBAR_TRANSLATIONS = {
       active: "In progress",
       history: "History",
       assetManagementGroup: "IT assets",
-      executiveAssets: "Assets management",
+      assetManagement: "Asset management",
       assetQrCenter: "Create & scan Asset QR",
       assetStockAudit: "PC / Monitor stock audit",
       calendar: "Calendar",
@@ -108,7 +108,7 @@ const SIDEBAR_TRANSLATIONS = {
       active: "진행 중",
       history: "이력",
       assetManagementGroup: "IT 자산",
-      executiveAssets: "자산 관리",
+      assetManagement: "자산 관리",
       assetQrCenter: "Asset QR 생성 및 스캔",
       assetStockAudit: "PC / Monitor 재고 실사",
       calendar: "캘린더",
@@ -126,6 +126,7 @@ const STOCK_SECTION_PAGE_IDS = [
 ];
 
 const ASSET_SECTION_PAGE_IDS = [
+  DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT,
   DASHBOARD_PAGE_IDS.ASSET_QR_CENTER,
   DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT,
 ];
@@ -237,7 +238,6 @@ const ITDashboardSidebar = ({
   onNavigatePage,
   stockManagementSection = "issue",
   onNavigateStockSection,
-  onOpenExecutiveAssets,
   notificationCount = 0,
   serviceRequestNotificationCount = 0,
   notebookNotificationCount = 0,
@@ -284,7 +284,7 @@ const ITDashboardSidebar = ({
   ], [tt]);
 
   const assetSubItems = useMemo(() => [
-    { id: "EXECUTIVE_ASSETS", label: tt("nav.executiveAssets"), icon: HardDrive },
+    { id: DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT, label: tt("nav.assetManagement"), icon: HardDrive },
     { id: DASHBOARD_PAGE_IDS.ASSET_QR_CENTER, label: tt("nav.assetQrCenter"), icon: QrCode },
     { id: DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT, label: tt("nav.assetStockAudit"), icon: ClipboardCheck },
   ], [tt]);
@@ -324,11 +324,7 @@ const ITDashboardSidebar = ({
   const isAssetActive = ASSET_SECTION_PAGE_IDS.includes(currentPage);
 
   const navigate = (pageId) => {
-    if (pageId === "EXECUTIVE_ASSETS") {
-      onOpenExecutiveAssets?.();
-    } else {
-      onNavigatePage?.(pageId);
-    }
+    onNavigatePage?.(pageId);
     setSidebarOpen(false);
   };
 
@@ -439,7 +435,7 @@ const ITDashboardSidebar = ({
               return;
             }
             if (item.group === "assets") {
-              navigate("EXECUTIVE_ASSETS");
+              navigate(DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT);
               return;
             }
             navigate(item.id);

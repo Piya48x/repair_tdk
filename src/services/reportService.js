@@ -821,6 +821,7 @@ export async function fetchExecutiveAssetOverviewData() {
     licenseRows: licenses,
     accessRequestSummary: buildAccessRequestSummary(accessRequests),
     accessRequestRows: accessRequests,
+    ticketRows: tickets,
     ticketStatusBreakdown,
     generatedAt: new Date().toISOString(),
   };

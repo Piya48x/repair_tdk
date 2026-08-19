@@ -4,7 +4,6 @@ import {
   BarChart3,
   ChevronLeft,
   ClipboardCheck,
-  ClipboardList,
   Home,
   LayoutDashboard,
   LogOut,
@@ -31,7 +30,6 @@ const REPORTS_TOPBAR_TRANSLATIONS = {
     executive: "Executive Overview",
     notebookApprovals: "อนุมัติยืม Notebook",
     assetsOverview: "Asset Overview",
-    assetsManagement: "จัดการสินทรัพย์",
     signOut: "ออกจากระบบ",
     signingOut: "กำลังออกจากระบบ...",
     signedOut: "ออกจากระบบแล้ว",
@@ -45,7 +43,6 @@ const REPORTS_TOPBAR_TRANSLATIONS = {
     executive: "Executive Overview",
     notebookApprovals: "Notebook Approvals",
     assetsOverview: "Assets Overview",
-    assetsManagement: "Assets Management",
     signOut: "Sign out",
     signingOut: "Signing out...",
     signedOut: "Signed out",
@@ -59,7 +56,6 @@ const REPORTS_TOPBAR_TRANSLATIONS = {
     executive: "임원 개요",
     notebookApprovals: "노트북 승인",
     assetsOverview: "자산 개요",
-    assetsManagement: "자산 관리",
     signOut: "로그아웃",
     signingOut: "로그아웃 중...",
     signedOut: "로그아웃되었습니다",
@@ -86,13 +82,14 @@ function NavigationPill({ active, badgeCount = 0, icon: Icon, label, to }) {
   return (
     <Link
       to={to}
-      className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
+      aria-current={active ? "page" : undefined}
+      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
         active
-          ? "border-slate-900 bg-slate-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.18)]"
-          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+          ? "bg-blue-700 text-white shadow-sm"
+          : "text-slate-600 hover:bg-white hover:text-slate-950"
       }`}
     >
-      <Icon size={16} />
+      <Icon size={16} aria-hidden="true" />
       <span className="whitespace-nowrap">{label}</span>
       {badgeCount > 0 ? (
         <span
@@ -117,6 +114,8 @@ export default function ReportsTopbar({
   notebookApprovalBadgeCount: notebookApprovalBadgeCountProp = null,
   messengerClassName = "bottom-4 left-4 sm:bottom-6 sm:left-6",
   messengerLauncherMode = "pill",
+  messengerOpenSignal = 0,
+  messengerOpenSignalTarget = "support",
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -178,10 +177,17 @@ export default function ReportsTopbar({
   const messengerCurrentUser = useMemo(() => currentUser, [currentUser]);
   const currentRole = String(currentUser?.role || "").trim().toLowerCase();
   const homeRoute = resolveWorkspaceRoute(currentRole || "user");
-  const showHubPill = showHub && backTo !== "/reports";
+  const showHubPill = showHub;
+  const showBackButton = Boolean(backTo && (!showHub || backTo !== "/reports"));
+  const showHomeButton = !showBackButton || backTo !== homeRoute;
+  const isExecutiveReportSurface = [
+    "/reports/executive",
+    "/reports/executive/notebook-approvals",
+    "/reports/executive/assets-overview",
+  ].includes(location.pathname);
   const canSeeNotebookApprovals =
     canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.notebookApprovals) ||
-    location.pathname === "/reports/executive/notebook-approvals";
+    isExecutiveReportSurface;
   const {
     pendingCount: fetchedNotebookApprovalBadgeCount,
   } = useNotebookApprovalRealtime({
@@ -218,7 +224,7 @@ export default function ReportsTopbar({
       icon: LayoutDashboard,
       visible:
         canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.executive) ||
-        location.pathname === "/reports/executive",
+        isExecutiveReportSurface,
     },
     {
       key: "notebook-approvals",
@@ -228,7 +234,7 @@ export default function ReportsTopbar({
       badgeCount: notebookApprovalBadgeCount,
       visible:
         canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.notebookApprovals) ||
-        location.pathname === "/reports/executive/notebook-approvals",
+        isExecutiveReportSurface,
     },
     {
       key: "assets-overview",
@@ -237,16 +243,7 @@ export default function ReportsTopbar({
       icon: PackageSearch,
       visible:
         canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.executive) ||
-        location.pathname === "/reports/executive/assets-overview",
-    },
-    {
-      key: "assets-management",
-      to: "/reports/executive/assets-management",
-      label: tt("assetsManagement"),
-      icon: ClipboardList,
-      visible:
-        ["it_support", "it_manager", "admin"].includes(currentRole) ||
-        location.pathname === "/reports/executive/assets-management",
+        isExecutiveReportSurface,
     },
   ]
     .filter(Boolean)
@@ -274,90 +271,95 @@ export default function ReportsTopbar({
 
   return (
     <>
-      <div className="app-safe-top relative z-20 mb-5 overflow-visible rounded-[2rem] border border-slate-200/80 bg-white/90 p-3 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {backTo ? (
+      <header className="app-safe-top relative z-20 mb-5 rounded-2xl border border-slate-200 bg-white/95 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-xl">
+        <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2">
+            {showBackButton ? (
               <Link
                 to={backTo}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                title={backLabel || tt("backFallback")}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
-                <ChevronLeft size={16} />
-                {backLabel || tt("backFallback")}
+                <ChevronLeft size={16} aria-hidden="true" />
+                <span className="hidden sm:inline">{backLabel || tt("backFallback")}</span>
               </Link>
             ) : null}
-            <Link
-              to={homeRoute}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              <Home size={16} />
-              {tt("dashboard")}
-            </Link>
+            {showHomeButton ? (
+              <Link
+                to={homeRoute}
+                title={tt("dashboard")}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+                <Home size={16} aria-hidden="true" />
+                <span className="hidden sm:inline">{tt("dashboard")}</span>
+              </Link>
+            ) : null}
           </div>
 
-          <div className="relative z-30 flex w-full flex-wrap items-center justify-between gap-2 sm:justify-end lg:w-auto">
+          <div className="relative z-30 flex min-w-0 items-center justify-end gap-2">
             {currentUser?.name ? (
               <div
-                className="inline-flex min-w-0 flex-1 max-w-[220px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 sm:flex-none"
+                className="inline-flex h-10 min-w-0 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-1.5 sm:px-2.5"
                 title={currentUser.name}
               >
                 {isRenderableAvatar(currentUser?.avatar) ? (
                   <img
                     src={currentUser.avatar}
                     alt={currentUser.name}
-                    className="h-9 w-9 rounded-full border border-slate-200 object-cover"
+                    className="h-7 w-7 rounded-lg border border-slate-200 object-cover"
                   />
                 ) : (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-[#2b59b0] text-xs font-black text-white">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-[#2b59b0] text-[10px] font-black text-white">
                     {getUserInitials(currentUser.name)}
                   </div>
                 )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-800">
-                    {currentUser.name}
-                  </p>
-                </div>
+                <span className="hidden max-w-[150px] truncate text-sm font-semibold text-slate-700 md:block">
+                  {currentUser.name}
+                </span>
               </div>
             ) : null}
 
-            <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1">
-              <LanguageSwitcher mode="nav" />
-            </div>
+            <LanguageSwitcher mode="nav" />
 
             <button
               type="button"
               onClick={handleLogout}
               disabled={isLoggingOut}
+              title={isLoggingOut ? tt("signingOut") : tt("signOut")}
               aria-label={isLoggingOut ? tt("signingOut") : tt("signOut")}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <LogOut size={16} />
-              <span className="hidden sm:inline">{isLoggingOut ? tt("signingOut") : tt("signOut")}</span>
+              <LogOut size={16} aria-hidden="true" />
+              <span className="hidden lg:inline">{isLoggingOut ? tt("signingOut") : tt("signOut")}</span>
             </button>
           </div>
         </div>
 
-        <div className="mt-3 border-t border-slate-200/80 pt-3">
-          <nav className="app-horizontal-scroll items-center gap-2">
-            {navItems.map((item) => (
-              <NavigationPill
-                key={item.key}
-                active={isActiveRoute(item.to)}
-                badgeCount={item.badgeCount}
-                icon={item.icon}
-                label={item.label}
-                to={item.to}
-              />
-            ))}
-          </nav>
-        </div>
-      </div>
+        {navItems.length > 0 ? (
+          <div className="rounded-b-2xl border-t border-slate-200 bg-slate-50/80 px-2 py-2 sm:px-3">
+            <nav aria-label={tt("reportHub")} className="app-horizontal-scroll items-center gap-1">
+              {navItems.map((item) => (
+                <NavigationPill
+                  key={item.key}
+                  active={isActiveRoute(item.to)}
+                  badgeCount={item.badgeCount}
+                  icon={item.icon}
+                  label={item.label}
+                  to={item.to}
+                />
+              ))}
+            </nav>
+          </div>
+        ) : null}
+      </header>
 
       {messengerCurrentUser ? (
         <CentralChatDock
           currentUser={messengerCurrentUser}
           className={messengerClassName}
           launcherMode={messengerLauncherMode}
+          openSignal={messengerOpenSignal}
+          openSignalTarget={messengerOpenSignalTarget}
         />
       ) : null}
     </>

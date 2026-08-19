@@ -223,7 +223,11 @@ const ITDashboard = () => {
   const [tickets, setTickets] = useState([]);
   const [serviceRequests, setServiceRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(DASHBOARD_PAGE_IDS.DASHBOARD);
+  const [currentPage, setCurrentPage] = useState(() =>
+    location.state?.dashboardPage === DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT
+      ? DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT
+      : DASHBOARD_PAGE_IDS.DASHBOARD,
+  );
   const [activeTab, setActiveTab] = useState("INCOMING");
   const [isOnline, setIsOnline] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -431,6 +435,11 @@ const ITDashboard = () => {
 
   useEffect(() => {
     const state = location.state;
+    if (state?.dashboardPage === DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT) {
+      setCurrentPage(DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT);
+      navigate(location.pathname, { replace: true, state: null });
+      return;
+    }
     if (!state?.fromServiceDashboard) return;
 
     if (state.targetTab) {
@@ -1730,7 +1739,6 @@ const ITDashboard = () => {
         onNavigatePage={handleNavigatePage}
         stockManagementSection={stockManagementSection}
         onNavigateStockSection={handleNavigateStockSection}
-        onOpenExecutiveAssets={() => navigate("/reports/executive/assets-management")}
         notificationCount={notificationCount}
         serviceRequestNotificationCount={serviceRequestNotificationCount}
         notebookNotificationCount={notebookNotificationCount}

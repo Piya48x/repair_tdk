@@ -4,6 +4,7 @@ import {
   ArrowUp,
   CheckCircle2,
   Clock3,
+  Cctv,
   LayoutDashboard,
   ListChecks,
   Plus,
@@ -26,8 +27,11 @@ import { DASHBOARD_PAGE_IDS } from "../constants/dashboardPages";
 import EvidenceFormSection from "./it-work-evidence/EvidenceFormSection";
 import EvidenceRecordsSection from "./it-work-evidence/EvidenceRecordsSection";
 import {
+  CAMERA_APPROVAL_OPTIONS,
+  CAMERA_VIEW_JOB_TYPE,
   STATUS_OPTIONS,
   TYPE_OPTIONS,
+  buildCameraViewForm,
   buildReferenceCode,
   buildEndTimeFromDuration,
   buildForm,
@@ -126,6 +130,7 @@ export default function ITWorkEvidencePage({
 
   const deferredQuery = useDeferredValue(filters.query);
   const isEditing = editingRecordId !== null;
+  const isCameraViewRequest = formData.job_type === CAMERA_VIEW_JOB_TYPE;
   const cardClass = `${uiTheme.surfaceCard} rounded-2xl border sm:rounded-3xl`;
   const subCardClass = theme === "dark"
     ? "rounded-xl border border-slate-700 bg-[#162136] sm:rounded-2xl"
@@ -307,6 +312,13 @@ export default function ITWorkEvidencePage({
     setRecordModalOpen(true);
   };
 
+  const openCameraViewRecordModal = () => {
+    if (saving) return;
+    clearFormState();
+    setFormData(buildCameraViewForm());
+    setRecordModalOpen(true);
+  };
+
   const closeRecordModal = () => {
     if (saving) return;
     clearFormState();
@@ -314,7 +326,11 @@ export default function ITWorkEvidencePage({
   };
 
   const resetForm = () => {
+    const resetAsCameraViewRequest = isCameraViewRequest;
     clearFormState();
+    if (resetAsCameraViewRequest) {
+      setFormData(buildCameraViewForm());
+    }
   };
 
   const handleCancelEdit = () => {
@@ -473,6 +489,7 @@ export default function ITWorkEvidencePage({
       setFormData((prev) => ({
         ...prev,
         requester_profile_id: "",
+        requester_employee_code: "",
       }));
       return;
     }
@@ -484,6 +501,7 @@ export default function ITWorkEvidencePage({
       ...prev,
       requester_profile_id: member.id,
       requester_name: member.full_name || member.employee_code || member.email || prev.requester_name,
+      requester_employee_code: member.employee_code || "",
       department: member.department || "",
     }));
   };
@@ -503,6 +521,10 @@ export default function ITWorkEvidencePage({
       const typeMeta = getTypeMeta(record.job_type);
       const statusMeta = getStatusMeta(record.work_status);
       const images = normalizeEvidenceImages(record.evidence_images);
+      const approvalStatus = normalizeText(record.approval_status) || "pending";
+      const approvalMeta = CAMERA_APPROVAL_OPTIONS.find((item) => item.value === approvalStatus)
+        || CAMERA_APPROVAL_OPTIONS[0];
+      const isCameraView = record.job_type === CAMERA_VIEW_JOB_TYPE;
 
       return {
         id: record.id,
@@ -520,6 +542,7 @@ export default function ITWorkEvidencePage({
             startTime: startValue || new Date(),
           }),
         requesterName: normalizeText(record.requester_name),
+        requesterEmployeeCode: normalizeText(record.requester_employee_code),
         userName: normalizeText(record.created_by_name),
         startValue,
         startLabel: formatDateTime(startValue),
@@ -535,6 +558,12 @@ export default function ITWorkEvidencePage({
         typeLabel: typeMeta.label,
         statusLabel: statusMeta.label,
         statusTone: getStatusTone(theme, record.work_status),
+        isCameraView,
+        footageStartLabel: formatDateTime(record.footage_start_at),
+        footageEndLabel: formatDateTime(record.footage_end_at),
+        approvalStatus,
+        approvalLabel: approvalMeta.label,
+        approvedByName: normalizeText(record.approved_by_name),
         images,
         imageCount: images.length,
       };
@@ -564,6 +593,11 @@ export default function ITWorkEvidencePage({
         record.userName,
         record.deviceDetails,
         record.requesterName,
+        record.requesterEmployeeCode,
+        record.approvedByName,
+        record.approvalLabel,
+        record.footageStartLabel,
+        record.footageEndLabel,
       ]
         .map((value) => normalizeText(value).toLowerCase())
         .join(" ");
@@ -599,6 +633,9 @@ export default function ITWorkEvidencePage({
   const buildPayload = (uploadedImages) => {
     const startIso = new Date(formData.start_time).toISOString();
     const endIso = formData.end_time ? new Date(formData.end_time).toISOString() : null;
+    const cameraRequest = formData.job_type === CAMERA_VIEW_JOB_TYPE;
+    const shouldWriteCameraFields = cameraRequest
+      || editingRecordSnapshot?.job_type === CAMERA_VIEW_JOB_TYPE;
     const durationMinutes = endIso
       ? calculateDurationMinutes(formData.start_time, formData.end_time)
       : 0;
@@ -607,7 +644,9 @@ export default function ITWorkEvidencePage({
       title: normalizeText(formData.title),
       description: normalizeText(formData.description),
       job_type: normalizeText(formData.job_type) || "other",
-      work_status: endIso ? normalizeText(formData.work_status || "completed") : "in_progress",
+      work_status: cameraRequest
+        ? normalizeText(formData.work_status) || "pending"
+        : endIso ? normalizeText(formData.work_status || "completed") : "in_progress",
       location: normalizeText(formData.location),
       requester_name: normalizeText(formData.requester_name),
       department: normalizeText(formData.department),
@@ -619,6 +658,14 @@ export default function ITWorkEvidencePage({
           startTime: formData.start_time || new Date(),
         }),
       result_summary: normalizeText(formData.result_summary),
+      ...(shouldWriteCameraFields ? {
+        requester_profile_id: cameraRequest ? normalizeText(formData.requester_profile_id) || null : null,
+        requester_employee_code: cameraRequest ? normalizeText(formData.requester_employee_code) : "",
+        footage_start_at: cameraRequest ? new Date(formData.footage_start_at).toISOString() : null,
+        footage_end_at: cameraRequest ? new Date(formData.footage_end_at).toISOString() : null,
+        approval_status: cameraRequest ? normalizeText(formData.approval_status) || "pending" : "not_required",
+        approved_by_name: cameraRequest ? normalizeText(formData.approved_by_name) : "",
+      } : {}),
       start_time: startIso,
       end_time: endIso,
       duration_minutes: durationMinutes,
@@ -643,6 +690,31 @@ export default function ITWorkEvidencePage({
     if (!normalizeText(formData.title) || !normalizeText(formData.description)) {
       toast.error("กรุณากรอกชื่อเรื่องและรายละเอียดงาน");
       return;
+    }
+    if (isCameraViewRequest) {
+      if (!normalizeText(formData.requester_name)) {
+        toast.error("กรุณาระบุชื่อผู้ขอดูภาพกล้อง");
+        return;
+      }
+      if (!normalizeText(formData.location) || !normalizeText(formData.device_details)) {
+        toast.error("กรุณาระบุพื้นที่เกิดเหตุและจุดกล้องที่ขอดู");
+        return;
+      }
+      if (!formData.footage_start_at || !formData.footage_end_at) {
+        toast.error("กรุณาระบุช่วงเวลาภาพที่ขอดูให้ครบ");
+        return;
+      }
+      if (new Date(formData.footage_end_at) < new Date(formData.footage_start_at)) {
+        toast.error("เวลาสิ้นสุดของภาพต้องไม่น้อยกว่าเวลาเริ่ม");
+        return;
+      }
+      if (
+        ["approved", "rejected"].includes(formData.approval_status)
+        && !normalizeText(formData.approved_by_name)
+      ) {
+        toast.error("กรุณาระบุผู้อนุมัติหรือผู้พิจารณา");
+        return;
+      }
     }
     if (!formData.start_time) {
       toast.error("กรุณาระบุเวลาเริ่ม");
@@ -682,13 +754,13 @@ export default function ITWorkEvidencePage({
           void removeITWorkEvidenceFiles(removedImages);
         }
 
-        toast.success("แก้ไขบันทึกงาน IT สำเร็จ");
+        toast.success(isCameraViewRequest ? "แก้ไขประวัติการขอดูกล้องสำเร็จ" : "แก้ไขบันทึกงาน IT สำเร็จ");
       } else {
         const { data, error } = await createITWorkRecord(payload);
         if (error) throw error;
 
         setRecords((prev) => upsertRecord(prev, data));
-        toast.success("บันทึกงาน IT สำเร็จ");
+        toast.success(isCameraViewRequest ? "บันทึกประวัติการขอดูกล้องสำเร็จ" : "บันทึกงาน IT สำเร็จ");
       }
 
       clearFormState();
@@ -699,9 +771,14 @@ export default function ITWorkEvidencePage({
       }
       if (isITWorkRecordSchemaError(error)) {
         setSchemaMissing(true);
-        setLoadError("ยังไม่พบโครงสร้างฐานข้อมูลสำหรับบันทึกงาน IT กรุณารัน SQL migration ก่อนใช้งาน");
+        const schemaMessage = isCameraViewRequest
+          ? "ฐานข้อมูลยังไม่รองรับประวัติการขอดูกล้อง กรุณารัน database/20260813_camera_view_history.sql ใน Supabase"
+          : "ยังไม่พบโครงสร้างฐานข้อมูลสำหรับบันทึกงาน IT กรุณารัน SQL migration ก่อนใช้งาน";
+        setLoadError(schemaMessage);
+        toast.error(schemaMessage);
+      } else {
+        toast.error(error?.message || "ไม่สามารถบันทึกงาน IT ได้");
       }
-      toast.error(error?.message || "ไม่สามารถบันทึกงาน IT ได้");
     } finally {
       setSaving(false);
     }
@@ -755,13 +832,16 @@ export default function ITWorkEvidencePage({
       if (!record.startValue) return false;
       return toDateTimeLocalValue(record.startValue).slice(0, 10) === todayKey;
     }).length;
+    const cameraViewCount = recordViews.filter((record) => record.isCameraView).length;
 
     return [
       {
         key: "total",
         title: "ประวัติทั้งหมด",
         value: recordViews.length,
-        hint: "งานติดตั้ง/ปรับปรุงที่บันทึกไว้",
+        hint: cameraViewCount > 0
+          ? `รวมคำขอดูกล้อง ${cameraViewCount} รายการ`
+          : "งานติดตั้ง/ปรับปรุงที่บันทึกไว้",
         icon: ListChecks,
         tone: theme === "dark" ? "bg-cyan-500/10 text-cyan-200" : "bg-cyan-50 text-cyan-700",
       },
@@ -834,6 +914,19 @@ export default function ITWorkEvidencePage({
               >
                 <Plus size={18} />
                 เพิ่มบันทึกงาน
+              </button>
+              <button
+                type="button"
+                onClick={openCameraViewRecordModal}
+                disabled={schemaMissing}
+                className={`col-span-2 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 sm:col-span-1 sm:rounded-2xl sm:px-4 sm:py-3 ${
+                  schemaMissing
+                    ? "cursor-not-allowed bg-slate-400 shadow-none"
+                    : "bg-cyan-700 shadow-cyan-700/20 hover:bg-cyan-800"
+                }`}
+              >
+                <Cctv size={18} />
+                บันทึกประวัติการขอดูกล้อง
               </button>
               <button
                 type="button"
@@ -923,6 +1016,7 @@ export default function ITWorkEvidencePage({
         onScrollToTop={scrollToTop}
         onStartFreshView={handleStartFreshView}
         onCreateRecord={openCreateRecordModal}
+        onCreateCameraViewRecord={openCameraViewRecordModal}
       />
 
       {recordModalOpen && (
@@ -944,13 +1038,19 @@ export default function ITWorkEvidencePage({
             }`}>
               <div>
                 <p className={`text-[11px] font-bold uppercase tracking-[0.16em] sm:text-xs sm:tracking-[0.18em] ${softTextClass}`}>
-                  {isEditing ? "Edit work record" : "New work record"}
+                  {isCameraViewRequest
+                    ? isEditing ? "Edit CCTV viewing history" : "New CCTV viewing history"
+                    : isEditing ? "Edit work record" : "New work record"}
                 </p>
                 <h3 className={`mt-0.5 text-base font-black sm:mt-1 sm:text-lg ${uiTheme.textPrimary}`}>
-                  {isEditing ? "แก้ไขบันทึกงาน" : "เพิ่มบันทึกงาน"}
+                  {isCameraViewRequest
+                    ? isEditing ? "แก้ไขประวัติการขอดูกล้อง" : "บันทึกประวัติการขอดูกล้อง"
+                    : isEditing ? "แก้ไขบันทึกงาน" : "เพิ่มบันทึกงาน"}
                 </h3>
                 <p className={`mt-1 hidden text-sm sm:block ${uiTheme.textSecondary}`}>
-                  กรอกข้อมูลและแนบรูปหลักฐานได้ในหน้าต่างนี้ บันทึกเสร็จแล้วรายการจะอัปเดตในประวัติทันที
+                  {isCameraViewRequest
+                    ? "บันทึกผู้ขอ เหตุผล จุดกล้อง ช่วงเวลาภาพ และผู้อนุมัติ เพื่อใช้ตรวจสอบย้อนหลัง"
+                    : "กรอกข้อมูลและแนบรูปหลักฐานได้ในหน้าต่างนี้ บันทึกเสร็จแล้วรายการจะอัปเดตในประวัติทันที"}
                 </p>
               </div>
 

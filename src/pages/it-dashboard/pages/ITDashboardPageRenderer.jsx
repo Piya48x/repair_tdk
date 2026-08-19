@@ -4,6 +4,7 @@ import DashboardPage from "./DashboardPage";
 import TicketsPage from "./TicketsPage";
 import ServiceRequestsPage from "./ServiceRequestsPage";
 import StockManagementPage from "./StockManagementPage";
+import AssetsManagementPage from "./AssetsManagementPage";
 import AssetQrCenterPage from "./AssetQrCenterPage";
 import AssetStockAuditPage from "./AssetStockAuditPage";
 import ActivePage from "./ActivePage";
@@ -35,6 +36,8 @@ const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
       return renderStockPage("receive");
     case DASHBOARD_PAGE_IDS.STOCK_HISTORY:
       return renderStockPage("history");
+    case DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT:
+      return <AssetsManagementPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.ASSET_QR_CENTER:
       return <AssetQrCenterPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT:

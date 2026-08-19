@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
+  Cctv,
   FileText,
   Hash,
   ImagePlus,
@@ -12,12 +13,19 @@ import {
   Pencil,
   Play,
   Square,
+  ShieldCheck,
   TimerReset,
   Trash2,
   Upload,
   UserRound,
 } from "lucide-react";
-import { MAX_FILES, STATUS_OPTIONS, TYPE_OPTIONS } from "./shared";
+import {
+  CAMERA_APPROVAL_OPTIONS,
+  CAMERA_VIEW_JOB_TYPE,
+  MAX_FILES,
+  STATUS_OPTIONS,
+  TYPE_OPTIONS,
+} from "./shared";
 
 function FieldLabel({ children, softTextClass, required = false }) {
   return (
@@ -154,6 +162,7 @@ export default function EvidenceFormSection({
       .slice(0, 6);
   }, [employeeOptions, requesterLookupQuery]);
   const evidenceCount = (existingImages?.length || 0) + selectedFiles.length;
+  const isCameraViewRequest = formData.job_type === CAMERA_VIEW_JOB_TYPE;
 
   const handleRequesterSuggestionSelect = (member) => {
     onEmployeeSelect?.(member.id);
@@ -176,10 +185,14 @@ export default function EvidenceFormSection({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className={`text-base font-black sm:text-lg ${uiTheme.textPrimary}`}>
-            {isEditing ? "แก้ไขบันทึกงาน" : "เพิ่มบันทึกงาน"}
+            {isEditing
+              ? isCameraViewRequest ? "แก้ไขประวัติการขอดูกล้อง" : "แก้ไขบันทึกงาน"
+              : isCameraViewRequest ? "บันทึกประวัติการขอดูกล้อง" : "เพิ่มบันทึกงาน"}
           </h3>
           <p className={`mt-1 hidden text-sm leading-6 sm:block ${softTextClass}`}>
-            กรอกตามลำดับเลข 1-5 เพื่อลดการสลับช่องผิด รายชื่อพนักงานเลือกจาก dropdown แล้วระบบจะเติมชื่อและแผนกให้
+            {isCameraViewRequest
+              ? "เก็บชื่อผู้ขอ เหตุผล จุดกล้อง ช่วงเวลาภาพ และผู้อนุมัติไว้ตรวจสอบย้อนหลัง"
+              : "กรอกตามลำดับเลข 1-5 เพื่อลดการสลับช่องผิด รายชื่อพนักงานเลือกจาก dropdown แล้วระบบจะเติมชื่อและแผนกให้"}
           </p>
         </div>
 
@@ -210,8 +223,10 @@ export default function EvidenceFormSection({
       <form className="mt-3 space-y-3 sm:mt-5 sm:space-y-4" onSubmit={onSave}>
         <StepCard
           step="1"
-          title="กำหนดเวลาและชั่วโมงงาน"
-          helper="ใช้ Start/Stop เมื่อทำงานสด หรือกรอกชั่วโมงย้อนหลังเองได้"
+          title={isCameraViewRequest ? "เวลารับคำขอและเวลาดำเนินการ" : "กำหนดเวลาและชั่วโมงงาน"}
+          helper={isCameraViewRequest
+            ? "บันทึกเวลาที่ IT รับคำขอและเวลาที่ดำเนินการเสร็จ โดยใช้ Start/Stop หรือกรอกย้อนหลังได้"
+            : "ใช้ Start/Stop เมื่อทำงานสด หรือกรอกชั่วโมงย้อนหลังเองได้"}
           icon={Clock3}
           theme={theme}
           uiTheme={uiTheme}
@@ -306,9 +321,11 @@ export default function EvidenceFormSection({
 
         <StepCard
           step="2"
-          title="ระบุหัวข้องานและประเภท"
-          helper="เลือกประเภทให้ถูก เพราะเลขอ้างอิงจะสร้างตามประเภทงานและเวลาเริ่ม"
-          icon={FileText}
+          title={isCameraViewRequest ? "ข้อมูลรายการขอดูกล้อง" : "ระบุหัวข้องานและประเภท"}
+          helper={isCameraViewRequest
+            ? "เลขอ้างอิง CTV จะช่วยค้นประวัติคำขอดูกล้องได้รวดเร็ว"
+            : "เลือกประเภทให้ถูก เพราะเลขอ้างอิงจะสร้างตามประเภทงานและเวลาเริ่ม"}
+          icon={isCameraViewRequest ? Cctv : FileText}
           theme={theme}
           uiTheme={uiTheme}
           subCardClass={subCardClass}
@@ -319,7 +336,9 @@ export default function EvidenceFormSection({
               value={formData.title}
               onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
               className={inputClass}
-              placeholder="เช่น ติดตั้งเครื่องใหม่ / เปลี่ยนอุปกรณ์ / แก้ปัญหาหน้างาน"
+              placeholder={isCameraViewRequest
+                ? "เช่น ขอดูภาพกล้องเหตุการณ์สินค้าเสียหาย"
+                : "เช่น ติดตั้งเครื่องใหม่ / เปลี่ยนอุปกรณ์ / แก้ปัญหาหน้างาน"}
               maxLength={180}
             />
           </label>
@@ -378,20 +397,22 @@ export default function EvidenceFormSection({
             </label>
           </div>
 
-          <div className="mt-3 grid gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-4">
-            <label className="block">
-              <FieldLabel softTextClass={softTextClass}>สถานที่</FieldLabel>
-              <div className="relative">
-                <MapPin size={16} className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${softTextClass}`} />
-                <input
-                  value={formData.location}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
-                  className={`${inputClass} pl-10`}
-                  placeholder="เช่น อาคาร A, ไลน์ผลิต, ห้องผู้บริหาร"
-                  maxLength={120}
-                />
-              </div>
-            </label>
+          <div className={`mt-3 grid gap-3 sm:mt-4 sm:gap-4 ${isCameraViewRequest ? "" : "sm:grid-cols-2"}`}>
+            {!isCameraViewRequest ? (
+              <label className="block">
+                <FieldLabel softTextClass={softTextClass}>สถานที่</FieldLabel>
+                <div className="relative">
+                  <MapPin size={16} className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${softTextClass}`} />
+                  <input
+                    value={formData.location}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
+                    className={`${inputClass} pl-10`}
+                    placeholder="เช่น อาคาร A, ไลน์ผลิต, ห้องผู้บริหาร"
+                    maxLength={120}
+                  />
+                </div>
+              </label>
+            ) : null}
 
             <div className={`overflow-hidden border ${referencePanelClass}`}>
               <div className={`flex items-center justify-between gap-3 border-b px-3 py-2.5 sm:px-4 sm:py-3 ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`}>
@@ -426,8 +447,10 @@ export default function EvidenceFormSection({
 
         <StepCard
           step="3"
-          title="เลือกพนักงานและแผนก"
-          helper="เลือกจาก dropdown เพื่อลดชื่อซ้ำ/สะกดผิด ถ้าไม่มีรายชื่อยังพิมพ์เองได้"
+          title={isCameraViewRequest ? "ผู้ขอดูภาพกล้อง" : "เลือกพนักงานและแผนก"}
+          helper={isCameraViewRequest
+            ? "ค้นหาจากรายชื่อพนักงาน ระบบจะเติมรหัสและแผนกให้อัตโนมัติ"
+            : "เลือกจาก dropdown เพื่อลดชื่อซ้ำ/สะกดผิด ถ้าไม่มีรายชื่อยังพิมพ์เองได้"}
           icon={UserRound}
           theme={theme}
           uiTheme={uiTheme}
@@ -435,7 +458,9 @@ export default function EvidenceFormSection({
         >
           <div className="space-y-3 sm:space-y-4">
             <label className="block">
-              <FieldLabel softTextClass={softTextClass}>ผู้แจ้ง / ผู้ประสานงาน</FieldLabel>
+              <FieldLabel softTextClass={softTextClass} required={isCameraViewRequest}>
+                {isCameraViewRequest ? "ชื่อผู้ขอดูภาพ" : "ผู้แจ้ง / ผู้ประสานงาน"}
+              </FieldLabel>
               <div>
                 <input
                   value={formData.requester_name}
@@ -448,6 +473,7 @@ export default function EvidenceFormSection({
                       ...prev,
                       requester_name: nextRequesterName,
                       requester_profile_id: "",
+                      requester_employee_code: prev.requester_profile_id ? "" : prev.requester_employee_code,
                       department: prev.requester_profile_id ? "" : prev.department,
                     }));
                   }}
@@ -516,60 +542,185 @@ export default function EvidenceFormSection({
               </div>
             </label>
 
-            <label className="block">
-              <FieldLabel softTextClass={softTextClass}>แผนก</FieldLabel>
-              <input
-                value={formData.department}
-                onChange={(event) => setFormData((prev) => ({ ...prev, department: event.target.value }))}
-                className={inputClass}
-                placeholder="เช่น IT, QA, Production"
-                maxLength={100}
-              />
-            </label>
+            <div className={`grid gap-3 sm:gap-4 ${isCameraViewRequest ? "sm:grid-cols-2" : ""}`}>
+              {isCameraViewRequest ? (
+                <label className="block">
+                  <FieldLabel softTextClass={softTextClass}>รหัสพนักงาน</FieldLabel>
+                  <input
+                    value={formData.requester_employee_code}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, requester_employee_code: event.target.value }))}
+                    className={inputClass}
+                    placeholder="เช่น 012345"
+                    maxLength={60}
+                  />
+                </label>
+              ) : null}
+
+              <label className="block">
+                <FieldLabel softTextClass={softTextClass}>แผนก</FieldLabel>
+                <input
+                  value={formData.department}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, department: event.target.value }))}
+                  className={inputClass}
+                  placeholder="เช่น IT, QA, Production"
+                  maxLength={100}
+                />
+              </label>
+            </div>
           </div>
         </StepCard>
 
         <StepCard
           step="4"
-          title="รายละเอียดงานและผลลัพธ์"
-          helper="แยกรายละเอียดงานกับผลลัพธ์ชัดเจน เพื่อย้อนดูประวัติและทำรายงานได้ง่าย"
-          icon={Pencil}
+          title={isCameraViewRequest ? "ช่วงภาพ เหตุผล และการอนุมัติ" : "รายละเอียดงานและผลลัพธ์"}
+          helper={isCameraViewRequest
+            ? "ระบุช่วงเวลาของภาพที่ต้องการดูให้ชัด พร้อมผู้อนุมัติและผลการดำเนินการ"
+            : "แยกรายละเอียดงานกับผลลัพธ์ชัดเจน เพื่อย้อนดูประวัติและทำรายงานได้ง่าย"}
+          icon={isCameraViewRequest ? ShieldCheck : Pencil}
           theme={theme}
           uiTheme={uiTheme}
           subCardClass={subCardClass}
         >
-          <label className="block">
-            <FieldLabel softTextClass={softTextClass}>อุปกรณ์ / รายการที่ทำ</FieldLabel>
-            <input
-              value={formData.device_details}
-              onChange={(event) => setFormData((prev) => ({ ...prev, device_details: event.target.value }))}
-              className={inputClass}
-              placeholder="เช่น PC Dell, Printer, CCTV, Network Point"
-              maxLength={180}
-            />
-          </label>
+          {isCameraViewRequest ? (
+            <div className="space-y-3 sm:space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                <label className="block">
+                  <FieldLabel softTextClass={softTextClass} required>พื้นที่ / จุดเกิดเหตุ</FieldLabel>
+                  <div className="relative">
+                    <MapPin size={16} className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${softTextClass}`} />
+                    <input
+                      value={formData.location}
+                      onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
+                      className={`${inputClass} pl-10`}
+                      placeholder="เช่น Warehouse A ประตูทางออก"
+                      maxLength={120}
+                    />
+                  </div>
+                </label>
 
-          <label className="mt-3 block sm:mt-4">
-            <FieldLabel softTextClass={softTextClass} required>รายละเอียดงาน</FieldLabel>
-            <textarea
-              rows={3}
-              value={formData.description}
-              onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
-              className={inputClass}
-              placeholder="สรุปสิ่งที่ทำ ปัญหาที่พบ และขั้นตอนที่ดำเนินการ"
-            />
-          </label>
+                <label className="block">
+                  <FieldLabel softTextClass={softTextClass} required>กล้อง / จุดกล้องที่ขอดู</FieldLabel>
+                  <input
+                    value={formData.device_details}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, device_details: event.target.value }))}
+                    className={inputClass}
+                    placeholder="เช่น CAM-WH-01, CAM-WH-02"
+                    maxLength={180}
+                  />
+                </label>
+              </div>
 
-          <label className="mt-3 block sm:mt-4">
-            <FieldLabel softTextClass={softTextClass}>ผลลัพธ์ / หมายเหตุเพิ่มเติม</FieldLabel>
-            <textarea
-              rows={2}
-              value={formData.result_summary}
-              onChange={(event) => setFormData((prev) => ({ ...prev, result_summary: event.target.value }))}
-              className={inputClass}
-              placeholder="เช่น ใช้งานได้ปกติ, รออะไหล่, นัดติดตามต่อ"
-            />
-          </label>
+              <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                <label className="block">
+                  <FieldLabel softTextClass={softTextClass} required>เริ่มช่วงภาพที่ขอดู</FieldLabel>
+                  <input
+                    type="datetime-local"
+                    value={formData.footage_start_at}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, footage_start_at: event.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className="block">
+                  <FieldLabel softTextClass={softTextClass} required>สิ้นสุดช่วงภาพที่ขอดู</FieldLabel>
+                  <input
+                    type="datetime-local"
+                    value={formData.footage_end_at}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, footage_end_at: event.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <FieldLabel softTextClass={softTextClass} required>เหตุผลที่ขอดูภาพ</FieldLabel>
+                <textarea
+                  rows={3}
+                  value={formData.description}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
+                  className={inputClass}
+                  placeholder="อธิบายเหตุการณ์และวัตถุประสงค์ที่ต้องการตรวจสอบภาพ"
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                <label className="block">
+                  <FieldLabel softTextClass={softTextClass}>สถานะการอนุมัติ</FieldLabel>
+                  <select
+                    value={formData.approval_status}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, approval_status: event.target.value }))}
+                    className={inputClass}
+                  >
+                    {CAMERA_APPROVAL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <FieldLabel
+                    softTextClass={softTextClass}
+                    required={formData.approval_status === "approved" || formData.approval_status === "rejected"}
+                  >
+                    ผู้อนุมัติ / ผู้พิจารณา
+                  </FieldLabel>
+                  <input
+                    value={formData.approved_by_name}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, approved_by_name: event.target.value }))}
+                    className={inputClass}
+                    placeholder="ชื่อผู้อนุมัติหรือผู้ไม่อนุมัติ"
+                    maxLength={120}
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <FieldLabel softTextClass={softTextClass}>ผลการให้ดูภาพ / หมายเหตุ</FieldLabel>
+                <textarea
+                  rows={2}
+                  value={formData.result_summary}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, result_summary: event.target.value }))}
+                  className={inputClass}
+                  placeholder="เช่น เปิดให้ดูภาพแล้ว ไม่พบเหตุการณ์ หรือไม่อนุมัติพร้อมเหตุผล"
+                />
+              </label>
+            </div>
+          ) : (
+            <>
+              <label className="block">
+                <FieldLabel softTextClass={softTextClass}>อุปกรณ์ / รายการที่ทำ</FieldLabel>
+                <input
+                  value={formData.device_details}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, device_details: event.target.value }))}
+                  className={inputClass}
+                  placeholder="เช่น PC Dell, Printer, CCTV, Network Point"
+                  maxLength={180}
+                />
+              </label>
+
+              <label className="mt-3 block sm:mt-4">
+                <FieldLabel softTextClass={softTextClass} required>รายละเอียดงาน</FieldLabel>
+                <textarea
+                  rows={3}
+                  value={formData.description}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
+                  className={inputClass}
+                  placeholder="สรุปสิ่งที่ทำ ปัญหาที่พบ และขั้นตอนที่ดำเนินการ"
+                />
+              </label>
+
+              <label className="mt-3 block sm:mt-4">
+                <FieldLabel softTextClass={softTextClass}>ผลลัพธ์ / หมายเหตุเพิ่มเติม</FieldLabel>
+                <textarea
+                  rows={2}
+                  value={formData.result_summary}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, result_summary: event.target.value }))}
+                  className={inputClass}
+                  placeholder="เช่น ใช้งานได้ปกติ, รออะไหล่, นัดติดตามต่อ"
+                />
+              </label>
+            </>
+          )}
         </StepCard>
 
         <StepCard
@@ -583,7 +734,9 @@ export default function EvidenceFormSection({
         >
           <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
             <div>
-              <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>รูปหลักฐานงาน</p>
+              <p className={`text-sm font-bold ${uiTheme.textPrimary}`}>
+                {isCameraViewRequest ? "เอกสารอนุมัติ / หลักฐานประกอบ" : "รูปหลักฐานงาน"}
+              </p>
               <p className={`mt-1 text-xs ${softTextClass}`}>
                 เลือกแล้ว {evidenceCount}/{MAX_FILES} รูป • ผู้บันทึก {currentUser?.name || "-"}
               </p>
@@ -673,8 +826,12 @@ export default function EvidenceFormSection({
             saving || !currentUser?.id || schemaMissing ? "cursor-not-allowed bg-slate-400" : "bg-[#2b59b0] hover:bg-[#244a95]"
           }`}
         >
-          {isEditing ? <Pencil size={16} /> : <TimerReset size={16} />}
-          {saving ? "กำลังบันทึก..." : isEditing ? "บันทึกการแก้ไข" : "บันทึกงาน IT"}
+          {isEditing ? <Pencil size={16} /> : isCameraViewRequest ? <Cctv size={16} /> : <TimerReset size={16} />}
+          {saving
+            ? "กำลังบันทึก..."
+            : isEditing
+              ? "บันทึกการแก้ไข"
+              : isCameraViewRequest ? "บันทึกประวัติการขอดูกล้อง" : "บันทึกงาน IT"}
         </button>
       </form>
     </aside>

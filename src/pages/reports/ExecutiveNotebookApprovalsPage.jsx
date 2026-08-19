@@ -1,26 +1,35 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
-import CentralChatDock from "../../components/CentralChatDock.jsx";
+import ReportPageHero from "../../components/reports/ReportPageHero";
+import ReportsPageShell from "../../components/reports/ReportsPageShell";
+import ReportsTopbar from "../../components/reports/ReportsTopbar";
 import useNotebookApprovalRealtime from "../../hooks/useNotebookApprovalRealtime";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
 import { supabase } from "../../lib/supabaseClient";
 import NotebookBorrowRequestsPage from "../it-dashboard/pages/NotebookBorrowRequestsPage";
 import { getITDashboardTheme } from "../it-dashboard/theme/itDashboardTheme";
 
+const LIGHT_THEME = getITDashboardTheme("light");
+
 const EXECUTIVE_NOTEBOOK_APPROVALS_TRANSLATIONS = {
   th: {
-    backLabel: "กลับ Reports Hub",
+    eyebrow: "Executive Workflow",
+    title: "อนุมัติยืม Notebook",
+    description: "ตรวจคำขอยืม การคืน และหลักฐานที่รอการพิจารณาจากหน้ากลางเดียว",
+    pending: "รายการรออนุมัติ",
   },
   en: {
-    backLabel: "Back to Reports Hub",
+    eyebrow: "Executive Workflow",
+    title: "Notebook Approvals",
+    description: "Review borrowing requests, returns, and supporting evidence from one consistent workspace.",
+    pending: "Pending approvals",
   },
   ko: {
-    backLabel: "리포트 허브로",
+    eyebrow: "Executive Workflow",
+    title: "노트북 승인",
+    description: "대여 요청, 반납 및 검토 대기 증빙을 하나의 일관된 화면에서 확인합니다.",
+    pending: "승인 대기",
   },
 };
-
-const LIGHT_THEME = getITDashboardTheme("light");
 
 export default function ExecutiveNotebookApprovalsPage() {
   const { tt } = useScopedI18n(EXECUTIVE_NOTEBOOK_APPROVALS_TRANSLATIONS);
@@ -72,7 +81,7 @@ export default function ExecutiveNotebookApprovalsPage() {
     };
   }, []);
 
-  useNotebookApprovalRealtime({
+  const { pendingCount: notebookApprovalBadgeCount } = useNotebookApprovalRealtime({
     enabled: Boolean(currentUser?.id),
     onNewPendingRequest: () => {
       setChatOpenSignal((value) => value + 1);
@@ -80,34 +89,27 @@ export default function ExecutiveNotebookApprovalsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef4ff_48%,_#f8fafc_100%)] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        <div className="mb-4">
-          <Link
-            to="/reports"
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
-            <ArrowLeft size={16} />
-            {tt("backLabel")}
-          </Link>
-        </div>
-
+    <ReportsPageShell>
+      <ReportsTopbar
+        currentUser={currentUser}
+        notebookApprovalBadgeCount={notebookApprovalBadgeCount}
+        messengerOpenSignal={chatOpenSignal}
+        messengerOpenSignalTarget="list"
+      />
+      <main className="space-y-5">
+        <ReportPageHero
+          eyebrow={tt("eyebrow")}
+          title={tt("title")}
+          description={tt("description")}
+          status={`${tt("pending")}: ${notebookApprovalBadgeCount.toLocaleString()}`}
+        />
         <NotebookBorrowRequestsPage
           theme="light"
           uiTheme={LIGHT_THEME}
           currentUser={currentUser}
           embedded
         />
-      </div>
-
-      {currentUser ? (
-        <CentralChatDock
-          currentUser={currentUser}
-          openSignal={chatOpenSignal}
-          openSignalTarget="list"
-          className="bottom-4 left-4 sm:bottom-6 sm:left-6"
-        />
-      ) : null}
-    </div>
+      </main>
+    </ReportsPageShell>
   );
 }

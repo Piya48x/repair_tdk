@@ -949,9 +949,14 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
         </section>
       ) : null}
 
-      <DashboardSummaryGrid items={summaryCards} theme={theme} uiTheme={uiTheme} />
+      <DashboardSummaryGrid
+        items={summaryCards}
+        theme={theme}
+        uiTheme={uiTheme}
+        cardClassName={embedded ? "rounded-2xl shadow-[0_4px_18px_rgba(15,23,42,0.04)]" : "rounded-lg"}
+      />
 
-      <section className={`rounded-lg border p-4 ${isMobile ? "" : "shadow-[0_20px_45px_-28px_rgba(15,23,42,0.22)] sm:rounded-[1.6rem]"} ${uiTheme.surfaceCard}`}>
+      <section className={`rounded-xl border p-4 ${isMobile ? "" : embedded ? "shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:rounded-2xl" : "shadow-[0_20px_45px_-28px_rgba(15,23,42,0.22)] sm:rounded-[1.6rem]"} ${uiTheme.surfaceCard}`}>
         {isMobile ? (
           <div className="space-y-3">
             <div className="relative">
@@ -960,7 +965,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="ค้นหาจาก asset code, model, ผู้ยืม, เหตุผล"
-                className={`w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm ${uiTheme.searchInputMobile}`}
+                className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm ${uiTheme.searchInputMobile}`}
               />
             </div>
 
@@ -969,7 +974,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className={`w-full appearance-none rounded-lg border py-2.5 pl-3 pr-8 text-sm ${uiTheme.searchInputMobile}`}
+                  className={`w-full appearance-none rounded-xl border py-2.5 pl-3 pr-8 text-sm ${uiTheme.searchInputMobile}`}
                 >
                   <option value="ALL">ทุกสถานะ</option>
                   <option value={NOTEBOOK_LOG_STATUS.PENDING}>รออนุมัติ</option>
@@ -979,7 +984,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
               </div>
 
-              <span className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold ${uiTheme.statusBadge}`}>
+              <span className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-semibold ${uiTheme.statusBadge}`}>
                 <Laptop size={12} />
                 {filteredQueue.length.toLocaleString("th-TH")} รายการ
               </span>
@@ -989,7 +994,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
               <button
                 type="button"
                 onClick={() => loadQueue()}
-                className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold ${uiTheme.statusButton}`}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${uiTheme.statusButton}`}
               >
                 <RefreshCw size={14} />
                 รีเฟรช
@@ -999,7 +1004,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                 type="button"
                 onClick={() => void handleExportExcel()}
                 disabled={filteredQueue.length === 0 || exporting}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-3 py-2.5 text-sm font-semibold text-[#2b59b0] disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-700 disabled:opacity-50"
               >
                 {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                 Export
@@ -1015,7 +1020,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="ค้นหาจาก asset code, model, ผู้ยืม, เหตุผล, สถานที่"
-                  className={`w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm sm:rounded-2xl ${uiTheme.searchInputMobile}`}
+                  className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm ${uiTheme.searchInputMobile}`}
                 />
               </div>
 
@@ -1023,7 +1028,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className={`rounded-lg border px-3 py-2.5 text-sm sm:rounded-2xl ${uiTheme.searchInputMobile}`}
+                  className={`rounded-xl border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`}
                 >
                   <option value="ALL">ทุกสถานะ</option>
                   <option value={NOTEBOOK_LOG_STATUS.PENDING}>รออนุมัติ</option>
@@ -1033,7 +1038,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
 
                 {currentUser?.name ? (
                   <div
-                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold sm:rounded-2xl ${
+                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${
                       isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700"
                     }`}
                   >
@@ -1043,7 +1048,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                 ) : null}
 
                 <div
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold sm:rounded-2xl ${
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${
                     isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600"
                   }`}
                 >
@@ -1055,7 +1060,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                   type="button"
                   onClick={() => void handleExportExcel()}
                   disabled={filteredQueue.length === 0 || exporting}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#06b6d4_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_18px_32px_-20px_rgba(29,78,216,0.65)] transition hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                   Export Excel
@@ -1064,7 +1069,7 @@ const NotebookBorrowRequestsPage = ({ theme, uiTheme, currentUser, embedded = fa
                 <button
                   type="button"
                   onClick={() => loadQueue()}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold sm:rounded-2xl ${uiTheme.statusButton}`}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold ${uiTheme.statusButton}`}
                 >
                   <RefreshCw size={14} />
                   รีเฟรช

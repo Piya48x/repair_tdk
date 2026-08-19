@@ -55,6 +55,44 @@ const ROLE_META = {
   admin: { label: "Admin", chip: "border-rose-200 bg-rose-50 text-rose-700" },
 };
 
+const DEPARTMENT_OPTIONS = [
+  "ASSY - 2",
+  "ASSY HANON",
+  "ASSY REAR FRAME",
+  "DIE-SET",
+  "HR-ACCOUNT",
+  "KOREAN",
+  "MAINTENANCE",
+  "MKT/DV",
+  "PRODUCTION COATING 1",
+  "PRODUCTION COATING 2",
+  "PRODUCTION PLAN",
+  "PRODUCTION PRESS",
+  "PURCHASE",
+  "QUALITY CONTROL 1",
+];
+
+const POSITION_OPTIONS = [
+  "Staff",
+  "Senior Manager",
+  "Supervisor",
+  "Executive Director",
+  "MD",
+  "Assistant Manager",
+  "General Manager",
+  "Leader",
+];
+
+const WORK_LOCATION_OPTIONS = [
+  "MAINOFFICE",
+  "DIE-SET OFFICE",
+  "DV/MK OFFICE",
+  "STORE OFFICE",
+  "DOKE 1",
+  "DOKE 2",
+  "DOKE 3",
+];
+
 const SETTINGS_PAGE_TRANSLATIONS = {
   th: {
     statusOptions: {
@@ -342,9 +380,14 @@ const SETTINGS_CREATE_TRANSLATIONS = {
     firstNameEn: "ชื่อภาษาอังกฤษ",
     lastNameEn: "นามสกุลภาษาอังกฤษ",
     department: "แผนก",
+    selectDepartment: "เลือกแผนก",
     position: "ตำแหน่ง",
+    selectPosition: "เลือกตำแหน่ง",
+    customPosition: "อื่น ๆ / กรอกเอง",
+    customPositionPlaceholder: "กรอกชื่อตำแหน่ง",
     phone: "เบอร์โทร",
     location: "สถานที่ทำงาน",
+    selectLocation: "เลือกสถานที่ทำงาน",
     footerHint: "ถ้า Supabase เปิดการยืนยันอีเมล ผู้ใช้อาจต้องยืนยันอีเมลก่อนเข้าสู่ระบบครั้งแรก",
     submit: "สร้างบัญชีพนักงาน",
     newMember: "สมาชิกใหม่",
@@ -368,9 +411,14 @@ const SETTINGS_CREATE_TRANSLATIONS = {
     firstNameEn: "First Name EN",
     lastNameEn: "Last Name EN",
     department: "Department",
+    selectDepartment: "Select department",
     position: "Position",
+    selectPosition: "Select position",
+    customPosition: "Other / enter manually",
+    customPositionPlaceholder: "Enter position name",
     phone: "Phone",
     location: "Location",
+    selectLocation: "Select work location",
     footerHint: "If email confirmation is enabled in Supabase, the user may still need to verify their mailbox before first sign-in.",
     submit: "Create member account",
     newMember: "New member",
@@ -394,9 +442,14 @@ const SETTINGS_CREATE_TRANSLATIONS = {
     firstNameEn: "영문 이름",
     lastNameEn: "영문 성",
     department: "부서",
+    selectDepartment: "부서 선택",
     position: "직책",
+    selectPosition: "직책 선택",
+    customPosition: "기타 / 직접 입력",
+    customPositionPlaceholder: "직책명 입력",
     phone: "전화번호",
     location: "근무 위치",
+    selectLocation: "근무 위치 선택",
     footerHint: "Supabase 이메일 확인이 활성화된 경우 첫 로그인 전에 메일 인증이 필요할 수 있습니다.",
     submit: "구성원 계정 생성",
     newMember: "새 구성원",
@@ -464,6 +517,76 @@ function Field({ icon: Icon, label, hint = "", children }) {
       {children}
       {hint ? <p className="mt-2 text-xs text-slate-500">{hint}</p> : null}
     </label>
+  );
+}
+
+const CUSTOM_PROFILE_OPTION = "__custom_profile_option__";
+
+function ProfileOptionSelect({
+  value,
+  options,
+  placeholder,
+  onChange,
+  className,
+  required = false,
+  allowCustom = false,
+  customLabel = "Other / enter manually",
+  customPlaceholder = "Enter a custom value",
+}) {
+  const currentValue = normalizeText(value);
+  const hasCustomValue = Boolean(currentValue && !options.includes(currentValue));
+  const availableOptions = !allowCustom && hasCustomValue
+    ? [currentValue, ...options]
+    : options;
+  const [isCustomMode, setIsCustomMode] = useState(allowCustom && hasCustomValue);
+
+  useEffect(() => {
+    if (allowCustom && hasCustomValue) {
+      setIsCustomMode(true);
+    } else if (currentValue) {
+      setIsCustomMode(false);
+    }
+  }, [allowCustom, currentValue, hasCustomValue]);
+
+  const handleSelectChange = (event) => {
+    const nextValue = event.target.value;
+
+    if (nextValue === CUSTOM_PROFILE_OPTION) {
+      setIsCustomMode(true);
+      onChange("");
+      return;
+    }
+
+    setIsCustomMode(false);
+    onChange(nextValue);
+  };
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={isCustomMode ? CUSTOM_PROFILE_OPTION : currentValue}
+        onChange={handleSelectChange}
+        className={className}
+        required={required}
+        aria-label={placeholder}
+      >
+        <option value="">{placeholder}</option>
+        {availableOptions.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+        {allowCustom ? <option value={CUSTOM_PROFILE_OPTION}>{customLabel}</option> : null}
+      </select>
+      {allowCustom && isCustomMode ? (
+        <input
+          value={currentValue}
+          onChange={(event) => onChange(event.target.value)}
+          className={className}
+          placeholder={customPlaceholder}
+          required={required}
+          aria-label={customPlaceholder}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -858,9 +981,9 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
                   <Field label="Last Name EN"><input value={selfForm.last_name_en} onChange={(event) => setSelfForm((prev) => ({ ...prev, last_name_en: event.target.value }))} className={inputClass} /></Field>
                   <Field icon={BadgeInfo} label="Employee Code"><input value={selfForm.employee_code} onChange={(event) => setSelfForm((prev) => ({ ...prev, employee_code: event.target.value.toUpperCase() }))} className={inputClass} /></Field>
                   <Field icon={Phone} label="Phone"><input value={selfForm.phone} onChange={(event) => setSelfForm((prev) => ({ ...prev, phone: event.target.value }))} className={inputClass} /></Field>
-                  <Field icon={Building2} label="Department"><input value={selfForm.department} onChange={(event) => setSelfForm((prev) => ({ ...prev, department: event.target.value }))} className={inputClass} /></Field>
-                  <Field icon={Briefcase} label="Position"><input value={selfForm.position} onChange={(event) => setSelfForm((prev) => ({ ...prev, position: event.target.value }))} className={inputClass} /></Field>
-                  <Field icon={MapPin} label="Location"><input value={selfForm.location} onChange={(event) => setSelfForm((prev) => ({ ...prev, location: event.target.value }))} className={inputClass} /></Field>
+                  <Field icon={Building2} label="Department"><ProfileOptionSelect value={selfForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => setSelfForm((prev) => ({ ...prev, department: value }))} className={inputClass} /></Field>
+                  <Field icon={Briefcase} label="Position"><ProfileOptionSelect key={`self-position-${currentUser?.id || "current"}`} value={selfForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => setSelfForm((prev) => ({ ...prev, position: value }))} className={inputClass} allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} /></Field>
+                  <Field icon={MapPin} label="Location"><ProfileOptionSelect value={selfForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => setSelfForm((prev) => ({ ...prev, location: value }))} className={inputClass} /></Field>
                   <div className={`md:col-span-2 flex flex-col gap-3 rounded-[1.35rem] border px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${subCardClass}`}><div><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("self.currentRole")}: {getRoleMeta(selfForm.role || currentUser?.role).label}</p><p className={`mt-1 text-xs ${uiTheme.textMuted}`}>{tt("self.syncHint")}</p></div><button type="submit" disabled={savingSelf} className={primaryButton}>{savingSelf ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}{tt("self.saveProfile")}</button></div>
                 </form>
               </section>
@@ -935,10 +1058,10 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
                       <Field label="Last Name EN"><input value={memberForm.last_name_en} onChange={(event) => setMemberForm((prev) => ({ ...prev, last_name_en: event.target.value }))} className={inputClass} /></Field>
                       <Field icon={BadgeInfo} label="Employee Code"><input value={memberForm.employee_code} onChange={(event) => setMemberForm((prev) => ({ ...prev, employee_code: event.target.value.toUpperCase() }))} className={inputClass} /></Field>
                       <Field icon={ShieldCheck} label="Role"><select value={memberForm.role} onChange={(event) => setMemberForm((prev) => ({ ...prev, role: event.target.value }))} className={inputClass}>{ACCOUNT_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-                      <Field icon={Building2} label="Department"><input value={memberForm.department} onChange={(event) => setMemberForm((prev) => ({ ...prev, department: event.target.value }))} className={inputClass} /></Field>
-                      <Field icon={Briefcase} label="Position"><input value={memberForm.position} onChange={(event) => setMemberForm((prev) => ({ ...prev, position: event.target.value }))} className={inputClass} /></Field>
+                      <Field icon={Building2} label="Department"><ProfileOptionSelect value={memberForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => setMemberForm((prev) => ({ ...prev, department: value }))} className={inputClass} /></Field>
+                      <Field icon={Briefcase} label="Position"><ProfileOptionSelect key={`member-position-${selectedMember?.id || "none"}`} value={memberForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => setMemberForm((prev) => ({ ...prev, position: value }))} className={inputClass} allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} /></Field>
                       <Field icon={Phone} label="Phone"><input value={memberForm.phone} onChange={(event) => setMemberForm((prev) => ({ ...prev, phone: event.target.value }))} className={inputClass} /></Field>
-                      <Field icon={MapPin} label="Location"><input value={memberForm.location} onChange={(event) => setMemberForm((prev) => ({ ...prev, location: event.target.value }))} className={inputClass} /></Field>
+                      <Field icon={MapPin} label="Location"><ProfileOptionSelect value={memberForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => setMemberForm((prev) => ({ ...prev, location: value }))} className={inputClass} /></Field>
                     </div>
                   </div>
                   <div className={`rounded-[1.45rem] border p-4 ${subCardClass}`}><div className="flex items-start gap-3"><div className="rounded-2xl bg-[#2b59b0]/10 p-3 text-[#2b59b0]"><Clock3 size={18} /></div><div className="min-w-0"><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>Record details</p><div className={`mt-3 grid gap-2 text-sm ${uiTheme.textSecondary} sm:grid-cols-2`}><p className="truncate">Created: {formatDateTime(selectedMember.created_at)}</p><p className="truncate">Last seen: {selectedMember.last_seen_at ? formatDateTime(selectedMember.last_seen_at) : "-"}</p><p className="truncate">User ID: {selectedMember.id || "-"}</p><p className="truncate">Access state: {selectedMember.is_active === false ? "Paused" : "Active"}</p></div></div></div></div>
@@ -975,7 +1098,7 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
                 <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}><div className="flex items-center justify-between gap-3"><div><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.profileImage")}</p><p className={`mt-1 text-xs ${uiTheme.textMuted}`}>{tt("create.imageHint")}</p></div><div className="rounded-2xl bg-[#2b59b0]/10 p-3 text-[#2b59b0]"><Camera size={18} /></div></div><div className="mt-5 flex justify-center"><Avatar src={createAvatarPreview} name={createForm.full_name || createForm.email || tt("create.newMember")} size="h-32 w-32" text="text-3xl" /></div><div className="mt-5 grid gap-3"><button type="button" onClick={() => createAvatarRef.current?.click()} className={ghostButton}><Plus size={15} />{tt("create.chooseImage")}</button><button type="button" onClick={() => { if (createAvatarPreview) URL.revokeObjectURL(createAvatarPreview); setCreateAvatarFile(null); setCreateAvatarPreview(""); }} disabled={!createAvatarPreview} className={dangerButton}><Trash2 size={15} />{tt("create.removeImage")}</button><input ref={createAvatarRef} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (!String(file.type || "").startsWith("image/")) { setErrorMessage("Profile image must be an image file."); return; } if (file.size > PROFILE_AVATAR_MAX_SIZE_BYTES) { setErrorMessage("Profile image must be 3 MB or smaller."); return; } if (createAvatarPreview) URL.revokeObjectURL(createAvatarPreview); setCreateAvatarFile(file); setCreateAvatarPreview(URL.createObjectURL(file)); setErrorMessage(""); }} /></div></div>
                 <div className="space-y-5">
                   <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.identityAccess")}</p><div className="mt-4 grid gap-4 md:grid-cols-2"><Field icon={UserRound} label={tt("create.fullName")}><input value={createForm.full_name} onChange={(event) => setCreateForm((prev) => ({ ...prev, full_name: event.target.value }))} className={inputClass} required /></Field><Field icon={Mail} label={tt("create.email")}><input type="email" value={createForm.email} onChange={(event) => setCreateForm((prev) => ({ ...prev, email: event.target.value.toLowerCase() }))} className={inputClass} required /></Field><Field icon={BadgeInfo} label={tt("create.employeeCode")}><input value={createForm.employee_code} onChange={(event) => setCreateForm((prev) => ({ ...prev, employee_code: event.target.value.toUpperCase() }))} className={inputClass} required /></Field><Field icon={ShieldCheck} label={tt("create.role")}><select value={createForm.role} onChange={(event) => setCreateForm((prev) => ({ ...prev, role: event.target.value }))} className={inputClass}>{ACCOUNT_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field><Field icon={KeyRound} label={tt("create.temporaryPassword")}><input type="password" value={createForm.nextPassword} onChange={(event) => setCreateForm((prev) => ({ ...prev, nextPassword: event.target.value }))} className={inputClass} required /></Field><Field icon={KeyRound} label={tt("create.confirmPassword")} hint={tt("password.minimumChars", { count: PASSWORD_MIN_LENGTH })}><input type="password" value={createForm.confirmPassword} onChange={(event) => setCreateForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} className={inputClass} required /></Field></div></div>
-                  <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.workProfile")}</p><div className="mt-4 grid gap-4 md:grid-cols-2"><Field label={tt("create.firstNameEn")}><input value={createForm.first_name_en} onChange={(event) => setCreateForm((prev) => ({ ...prev, first_name_en: event.target.value }))} className={inputClass} /></Field><Field label={tt("create.lastNameEn")}><input value={createForm.last_name_en} onChange={(event) => setCreateForm((prev) => ({ ...prev, last_name_en: event.target.value }))} className={inputClass} /></Field><Field icon={Building2} label={tt("create.department")}><input value={createForm.department} onChange={(event) => setCreateForm((prev) => ({ ...prev, department: event.target.value }))} className={inputClass} /></Field><Field icon={Briefcase} label={tt("create.position")}><input value={createForm.position} onChange={(event) => setCreateForm((prev) => ({ ...prev, position: event.target.value }))} className={inputClass} /></Field><Field icon={Phone} label={tt("create.phone")}><input value={createForm.phone} onChange={(event) => setCreateForm((prev) => ({ ...prev, phone: event.target.value }))} className={inputClass} /></Field><Field icon={MapPin} label={tt("create.location")}><input value={createForm.location} onChange={(event) => setCreateForm((prev) => ({ ...prev, location: event.target.value }))} className={inputClass} /></Field></div></div>
+                  <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.workProfile")}</p><div className="mt-4 grid gap-4 md:grid-cols-2"><Field label={tt("create.firstNameEn")}><input value={createForm.first_name_en} onChange={(event) => setCreateForm((prev) => ({ ...prev, first_name_en: event.target.value }))} className={inputClass} /></Field><Field label={tt("create.lastNameEn")}><input value={createForm.last_name_en} onChange={(event) => setCreateForm((prev) => ({ ...prev, last_name_en: event.target.value }))} className={inputClass} /></Field><Field icon={Building2} label={tt("create.department")}><ProfileOptionSelect value={createForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => setCreateForm((prev) => ({ ...prev, department: value }))} className={inputClass} /></Field><Field icon={Briefcase} label={tt("create.position")}><ProfileOptionSelect value={createForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => setCreateForm((prev) => ({ ...prev, position: value }))} className={inputClass} allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} /></Field><Field icon={Phone} label={tt("create.phone")}><input value={createForm.phone} onChange={(event) => setCreateForm((prev) => ({ ...prev, phone: event.target.value }))} className={inputClass} /></Field><Field icon={MapPin} label={tt("create.location")}><ProfileOptionSelect value={createForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => setCreateForm((prev) => ({ ...prev, location: value }))} className={inputClass} /></Field></div></div>
                 </div>
               </div>
               <div className={`mt-6 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between ${dividerClass}`}><p className={`text-sm ${uiTheme.textSecondary}`}>{tt("create.footerHint")}</p><button type="submit" disabled={creatingMember} className={primaryButton}>{creatingMember ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}{tt("create.submit")}</button></div>

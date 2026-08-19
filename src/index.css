@@ -363,6 +363,172 @@
     border-color: rgba(100, 116, 139, 0.5);
     color: #cbd5e1;
   }
+
+  .asset-management-workspace {
+    min-width: 0;
+  }
+
+  .asset-management-workspace.is-dark {
+    color-scheme: dark;
+  }
+
+  .asset-management-workspace.is-dark .bg-white,
+  .asset-management-workspace.is-dark .bg-white\/85 {
+    background-color: #0f172a !important;
+  }
+
+  .asset-management-workspace.is-dark .bg-slate-50,
+  .asset-management-workspace.is-dark .bg-slate-50\/70,
+  .asset-management-workspace.is-dark .bg-slate-100 {
+    background-color: #162136 !important;
+  }
+
+  .asset-management-workspace.is-dark .bg-slate-200 {
+    background-color: #334155 !important;
+  }
+
+  .asset-management-workspace.is-dark .from-white {
+    --tw-gradient-from: #0f172a var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgba(15, 23, 42, 0) var(--tw-gradient-to-position) !important;
+  }
+
+  .asset-management-workspace.is-dark .via-white {
+    --tw-gradient-to: rgba(15, 23, 42, 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), #0f172a var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+  }
+
+  .asset-management-workspace.is-dark .to-blue-50\/70 {
+    --tw-gradient-to: rgba(43, 89, 176, 0.16) var(--tw-gradient-to-position) !important;
+  }
+
+  .asset-management-workspace.is-dark .border-slate-100,
+  .asset-management-workspace.is-dark .border-slate-200,
+  .asset-management-workspace.is-dark .border-slate-300 {
+    border-color: #334155 !important;
+  }
+
+  .asset-management-workspace.is-dark .border-emerald-200,
+  .asset-management-workspace.is-dark .border-rose-100,
+  .asset-management-workspace.is-dark .border-rose-200,
+  .asset-management-workspace.is-dark .border-amber-200,
+  .asset-management-workspace.is-dark .border-indigo-200,
+  .asset-management-workspace.is-dark .border-blue-200,
+  .asset-management-workspace.is-dark .border-sky-100,
+  .asset-management-workspace.is-dark .border-sky-200,
+  .asset-management-workspace.is-dark .border-cyan-200 {
+    border-color: #475569 !important;
+  }
+
+  .asset-management-workspace.is-dark .text-slate-900,
+  .asset-management-workspace.is-dark .text-slate-800 {
+    color: #f1f5f9 !important;
+  }
+
+  .asset-management-workspace.is-dark .text-slate-700,
+  .asset-management-workspace.is-dark .text-slate-600 {
+    color: #cbd5e1 !important;
+  }
+
+  .asset-management-workspace.is-dark .text-slate-500,
+  .asset-management-workspace.is-dark .text-slate-400 {
+    color: #94a3b8 !important;
+  }
+
+  .asset-management-workspace.is-dark input:not([type="file"]),
+  .asset-management-workspace.is-dark textarea,
+  .asset-management-workspace.is-dark select {
+    border-color: #475569 !important;
+    background-color: #162136;
+    color: #e2e8f0;
+  }
+
+  .asset-management-workspace.is-dark input::placeholder,
+  .asset-management-workspace.is-dark textarea::placeholder {
+    color: #64748b;
+  }
+
+  .asset-management-workspace.is-dark .bg-emerald-50,
+  .asset-management-workspace.is-dark .bg-emerald-100 {
+    background-color: rgba(16, 185, 129, 0.14) !important;
+  }
+
+  .asset-management-workspace.is-dark .bg-rose-50,
+  .asset-management-workspace.is-dark .bg-rose-100 {
+    background-color: rgba(244, 63, 94, 0.14) !important;
+  }
+
+  .asset-management-workspace.is-dark .bg-amber-50 {
+    background-color: rgba(245, 158, 11, 0.14) !important;
+  }
+
+  .asset-management-workspace.is-dark .bg-indigo-50,
+  .asset-management-workspace.is-dark .bg-indigo-100,
+  .asset-management-workspace.is-dark .bg-blue-50,
+  .asset-management-workspace.is-dark .bg-sky-50,
+  .asset-management-workspace.is-dark .bg-sky-100,
+  .asset-management-workspace.is-dark .bg-cyan-50,
+  .asset-management-workspace.is-dark .bg-cyan-100 {
+    background-color: rgba(43, 89, 176, 0.18) !important;
+  }
+
+  .asset-management-workspace.is-dark .text-emerald-900,
+  .asset-management-workspace.is-dark .text-emerald-600,
+  .asset-management-workspace.is-dark .text-emerald-700 {
+    color: #6ee7b7 !important;
+  }
+
+  .asset-management-workspace.is-dark .text-rose-900,
+  .asset-management-workspace.is-dark .text-rose-700,
+  .asset-management-workspace.is-dark .text-rose-600 {
+    color: #fda4af !important;
+  }
+
+  .asset-management-workspace.is-dark .text-amber-800,
+  .asset-management-workspace.is-dark .text-amber-900,
+  .asset-management-workspace.is-dark .text-amber-700 {
+    color: #fcd34d !important;
+  }
+
+  .asset-management-workspace.is-dark .text-indigo-900,
+  .asset-management-workspace.is-dark .text-indigo-700,
+  .asset-management-workspace.is-dark .text-indigo-600,
+  .asset-management-workspace.is-dark .text-sky-700,
+  .asset-management-workspace.is-dark .text-sky-600,
+  .asset-management-workspace.is-dark .text-cyan-700 {
+    color: #9bbcff !important;
+  }
+
+  .asset-management-workspace.is-dark .bg-white\/90,
+  .asset-management-workspace.is-dark .bg-slate-50\/80,
+  .asset-management-workspace.is-dark .bg-blue-50\/40 {
+    background-color: rgba(15, 23, 42, 0.92) !important;
+  }
+
+  .asset-management-workspace.is-dark .from-blue-50\/80 {
+    --tw-gradient-from: rgba(43, 89, 176, 0.16) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgba(43, 89, 176, 0) var(--tw-gradient-to-position) !important;
+  }
+
+  .asset-management-workspace.is-dark .to-blue-50\/80,
+  .asset-management-workspace.is-dark .to-violet-50\/80,
+  .asset-management-workspace.is-dark .to-cyan-50\/60 {
+    --tw-gradient-to: rgba(43, 89, 176, 0.14) var(--tw-gradient-to-position) !important;
+  }
+
+  .asset-management-workspace.is-dark .border-blue-100,
+  .asset-management-workspace.is-dark .border-violet-100 {
+    border-color: #334155 !important;
+  }
+
+  .asset-management-workspace.is-dark .bg-violet-50,
+  .asset-management-workspace.is-dark .bg-violet-100 {
+    background-color: rgba(139, 92, 246, 0.15) !important;
+  }
+
+  .asset-management-workspace.is-dark .text-violet-600,
+  .asset-management-workspace.is-dark .text-violet-700 {
+    color: #c4b5fd !important;
+  }
 }
 
 @media (max-width: 640px) {

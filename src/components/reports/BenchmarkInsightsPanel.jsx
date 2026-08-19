@@ -198,7 +198,7 @@ function priorityTone(priority) {
 
 function SectionCard({ title, subtitle, icon: Icon, children, action }) {
   return (
-    <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_12px_35px_rgba(15,23,42,0.06)]">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)]">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
@@ -216,7 +216,7 @@ function SectionCard({ title, subtitle, icon: Icon, children, action }) {
 
 function HighlightCard({ item, toneLabel }) {
   return (
-    <article className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_10px_25px_rgba(15,23,42,0.05)]">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
@@ -256,7 +256,7 @@ export default function BenchmarkInsightsPanel({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <SectionCard title={title} subtitle={tt("subtitle")} icon={TrendingUp}>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
           {highlights.map((item) => (
@@ -269,7 +269,7 @@ export default function BenchmarkInsightsPanel({
         </div>
       </SectionCard>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <SectionCard
           title={tt("chart.gapTitle")}
           subtitle={tt("chart.gapSubtitle")}
@@ -297,7 +297,7 @@ export default function BenchmarkInsightsPanel({
             </div>
           }
         >
-          <div className="h-[360px] min-w-0 rounded-[1.5rem] border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-4">
+          <div className="h-[360px] min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-4">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
               {chartMode === "radar" ? (
                 <RadarChart data={gapAnalysis}>
@@ -342,7 +342,7 @@ export default function BenchmarkInsightsPanel({
         >
           <div className="space-y-4">
             {actionPlan.map((item) => (
-              <div key={item.topic} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/80 p-4">
+              <div key={item.topic} className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">{item.topic}</h3>
@@ -371,7 +371,7 @@ export default function BenchmarkInsightsPanel({
         </SectionCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <SectionCard
           title={tt("strategic.title")}
           subtitle={tt("strategic.subtitle")}
@@ -414,7 +414,7 @@ export default function BenchmarkInsightsPanel({
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {expectedImpact.map((item) => (
-              <div key={item.label} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/80 p-4">
+              <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
                   {item.label}
                 </p>

@@ -38,6 +38,12 @@ export function isITWorkRecordSchemaError(error) {
     text.includes('column "start_time"') ||
     text.includes('column "end_time"') ||
     text.includes('column "duration_minutes"') ||
+    text.includes('column "requester_profile_id"') ||
+    text.includes('column "requester_employee_code"') ||
+    text.includes('column "footage_start_at"') ||
+    text.includes('column "footage_end_at"') ||
+    text.includes('column "approval_status"') ||
+    text.includes('column "approved_by_name"') ||
     text.includes('bucket "it-work-evidence" not found') ||
     text.includes("bucket not found")
   );

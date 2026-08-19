@@ -1,17 +1,41 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
+  Archive,
+  Barcode,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  CircleUserRound,
+  ClipboardList,
+  Cpu,
+  Database,
   Download,
   Eye,
   FileSpreadsheet,
+  Filter,
+  HardDrive,
   History,
   ImagePlus,
   KeyRound,
+  Laptop,
+  LayoutGrid,
+  MapPin,
+  Monitor,
+  PackageCheck,
   PencilLine,
+  Plus,
+  Printer,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Tag,
   Trash2,
   Upload,
+  UserRound,
   X,
 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -26,41 +50,50 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
   th: {
     page: {
       backLabel: "แดชบอร์ดแอดมิน",
-      eyebrow: "Asset Management",
-      title: "จัดการสินทรัพย์ IT",
+      eyebrow: "IT OPERATIONS · ASSET CONTROL",
+      title: "IT Asset Management / จัดการสินทรัพย์",
       subtitle:
-        "เพิ่ม แก้ไข นำเข้า และตรวจสอบอุปกรณ์กับไลเซนส์ในหน้าเดียว ใช้ข้อมูลนี้ต่อกับรายงานผู้บริหาร",
-      importAssets: "นำเข้าอุปกรณ์",
-      importLicenses: "นำเข้าไลเซนส์",
-      importing: "กำลังนำเข้า...",
-      refresh: "รีเฟรช",
-      importGuide: "คู่มือนำเข้า Excel/CSV",
+        "ศูนย์กลาง Asset Registry และ Software License สำหรับเพิ่ม แก้ไข นำเข้า และตรวจสอบข้อมูลที่ใช้ในงาน IT Operations",
+      importAssets: "Import Assets",
+      importLicenses: "Import Licenses",
+      importing: "Importing...",
+      refresh: "Refresh",
+      importGuide: "Excel / CSV Import Guide",
       requiredAssetColumns: "อุปกรณ์ต้องมี: asset_tag, asset_name",
       categoryHint: "หมวดหมู่หลัก: PC, Notebook, Monitor, Printer",
       assetColumns: "คอลัมน์อุปกรณ์",
       licenseColumns: "คอลัมน์ไลเซนส์",
     },
     summary: {
-      totalAssets: "อุปกรณ์ทั้งหมด",
-      usableAssets: "ใช้งานได้",
-      issueAssets: "ต้องดูแล",
+      totalAssets: "Total Assets / ทั้งหมด",
+      usableAssets: "Operational / พร้อมใช้",
+      issueAssets: "Needs Attention / ต้องดูแล",
       pc: "PC",
       notebook: "Notebook",
       monitor: "Monitor",
       printer: "Printer",
-      totalLicenses: "ไลเซนส์ทั้งหมด",
-      usableLicenses: "ไลเซนส์ใช้งานได้",
-      issueLicenses: "ไลเซนส์ใช้ไม่ได้",
+      totalLicenses: "Total Licenses / ไลเซนส์",
+      usableLicenses: "Active Licenses / ใช้งานได้",
+      issueLicenses: "License Issues / ใช้ไม่ได้",
       visible: "จำนวนที่แสดง",
       usable: "ใช้งานได้",
       unusable: "ใช้ไม่ได้",
     },
+    ux: {
+      liveData: "ข้อมูลล่าสุด",
+      ready: "พร้อมใช้งาน",
+      needsAttention: "ควรตรวจสอบ",
+      noIssues: "ไม่พบรายการผิดปกติ",
+      records: "รายการ",
+      assetRegistry: "ทะเบียนสินทรัพย์",
+      listHelper: "ค้นหา กรอง และจัดการสินทรัพย์ IT ได้จากจุดเดียว",
+    },
     sections: {
-      assets: "อุปกรณ์",
-      licenses: "ไลเซนส์",
+      assets: "Assets / อุปกรณ์",
+      licenses: "Licenses / ไลเซนส์",
       notebooks: "Notebook Center",
-      activity: "ประวัติอัปเดต",
-      userRole: "สิทธิ์ผู้ใช้",
+      activity: "Activity Log / ประวัติ",
+      userRole: "Access Role",
       unknownRole: "ไม่ทราบ",
       deleteModePermanent: "โหมดลบ: ลบถาวร",
       deleteModeArchive: "โหมดลบ: จัดเก็บ",
@@ -88,19 +121,19 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       Printer: "เครื่องพิมพ์ (Printer)",
     },
     common: {
-      allCategories: "ทุกหมวดหมู่",
-      allStatuses: "ทุกสถานะ",
-      resetFilters: "ล้างตัวกรอง",
-      view: "ดู",
-      edit: "แก้ไข",
-      delete: "ลบ",
-      archive: "จัดเก็บ",
+      allCategories: "All Categories / ทุกหมวด",
+      allStatuses: "All Statuses / ทุกสถานะ",
+      resetFilters: "Reset Filters",
+      view: "View / ดู",
+      edit: "Edit / แก้ไข",
+      delete: "Delete / ลบ",
+      archive: "Archive / จัดเก็บ",
       processing: "กำลังดำเนินการ...",
-      save: "บันทึก",
+      save: "Save / บันทึก",
       saving: "กำลังบันทึก...",
-      cancelEdit: "ยกเลิก",
-      close: "ปิด",
-      exportExcel: "ส่งออก Excel",
+      cancelEdit: "Cancel",
+      close: "Close / ปิด",
+      exportExcel: "Export Excel",
       loading: "กำลังโหลดข้อมูล...",
       noAssetData: "ไม่พบข้อมูลอุปกรณ์",
       noLicenseData: "ไม่พบข้อมูลไลเซนส์",
@@ -108,26 +141,26 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       remove: "ลบออก",
     },
     assets: {
-      formAdd: "เพิ่มอุปกรณ์",
-      formEdit: "แก้ไขอุปกรณ์",
-      listTitle: "รายการอุปกรณ์ ({{count}})",
+      formAdd: "Add New Asset / เพิ่มอุปกรณ์",
+      formEdit: "Edit Asset / แก้ไขอุปกรณ์",
+      listTitle: "Asset Registry ({{count}})",
       showArchived: "แสดงรายการที่จัดเก็บแล้ว",
-      searchPlaceholder: "ค้นหารหัส ชื่อ หมวดหมู่ หรือผู้ใช้...",
+      searchPlaceholder: "Search asset code, name, category or owner...",
       statusHint: "สถานะที่นับเป็นต้องดูแล: เสีย, ซ่อม, ปลดระวาง, สูญหาย",
       autoArchiveNotice: "ตัวกรองกำลังรวมรายการที่จัดเก็บแล้วให้โดยอัตโนมัติ",
       selected: "เลือกแล้ว: {{selected}} / {{total}}",
       clearSelected: "ล้างรายการที่เลือก",
       selectAllAria: "เลือกอุปกรณ์ทั้งหมดที่แสดง",
       selectRowAria: "เลือก {{asset}}",
-      submitAdd: "เพิ่มข้อมูล",
-      submitEdit: "บันทึกการแก้ไข",
-      tableCode: "รหัส",
-      tableName: "อุปกรณ์",
-      tableCategory: "หมวดหมู่",
-      tableStatus: "สถานะ",
-      tableOwner: "ผู้ใช้/ที่ตั้ง",
-      tablePurchaseDate: "วันที่ซื้อ",
-      tableActions: "การทำงาน",
+      submitAdd: "Add Asset",
+      submitEdit: "Save Changes",
+      tableCode: "Asset Code",
+      tableName: "Asset / อุปกรณ์",
+      tableCategory: "Category",
+      tableStatus: "Status",
+      tableOwner: "Owner / Location",
+      tablePurchaseDate: "Purchase Date",
+      tableActions: "Actions",
       detailTitle: "รายละเอียดอุปกรณ์",
       detailCode: "รหัสทรัพย์สิน",
       tableEvidence: "หลักฐาน",
@@ -155,47 +188,47 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       changes: "รายการเปลี่ยนแปลง",
     },
     licenses: {
-      formAdd: "เพิ่มไลเซนส์",
-      formEdit: "แก้ไขไลเซนส์",
-      listTitle: "รายการไลเซนส์ ({{count}})",
+      formAdd: "Add License / เพิ่มไลเซนส์",
+      formEdit: "Edit License / แก้ไขไลเซนส์",
+      listTitle: "License Registry ({{count}})",
       showArchived: "แสดงรายการที่จัดเก็บแล้ว",
-      searchPlaceholder: "ค้นหาชื่อไลเซนส์ ผู้ให้บริการ หรือประเภท...",
-      submitAdd: "เพิ่มไลเซนส์",
-      submitEdit: "บันทึกการแก้ไข",
-      tableLicense: "ไลเซนส์",
-      tableStatus: "สถานะ",
-      tableTotal: "ทั้งหมด",
-      tableAssigned: "ใช้งานแล้ว",
-      tableAvailable: "คงเหลือ",
-      tableExpiry: "วันหมดอายุ",
-      tableActions: "การทำงาน",
+      searchPlaceholder: "Search license, vendor or type...",
+      submitAdd: "Add License",
+      submitEdit: "Save Changes",
+      tableLicense: "License",
+      tableStatus: "Status",
+      tableTotal: "Total",
+      tableAssigned: "Assigned",
+      tableAvailable: "Available",
+      tableExpiry: "Expiry Date",
+      tableActions: "Actions",
       loading: "กำลังโหลดข้อมูลไลเซนส์...",
       detailTitle: "รายละเอียดไลเซนส์",
     },
     assetFields: {
-      asset_tag: "รหัสทรัพย์สิน",
-      asset_name: "ชื่ออุปกรณ์",
-      asset_category: "หมวดหมู่",
-      brand: "ยี่ห้อ",
-      model: "รุ่น",
-      serial_number: "เลขซีเรียล",
-      status: "สถานะ",
-      location: "ตำแหน่งที่ตั้ง",
-      owner_name: "ผู้ใช้งาน",
-      purchase_date: "วันที่ซื้อ",
-      warranty_end_date: "วันหมดประกัน",
-      notes: "หมายเหตุ",
+      asset_tag: "Asset Code / รหัสทรัพย์สิน",
+      asset_name: "Asset Name / ชื่ออุปกรณ์",
+      asset_category: "Category / หมวดหมู่",
+      brand: "Brand / ยี่ห้อ",
+      model: "Model / รุ่น",
+      serial_number: "Serial Number",
+      status: "Status / สถานะ",
+      location: "Location / ที่ตั้ง",
+      owner_name: "Owner / ผู้ใช้งาน",
+      purchase_date: "Purchase Date",
+      warranty_end_date: "Warranty End",
+      notes: "Notes / หมายเหตุ",
     },
     licenseFields: {
-      license_name: "ชื่อไลเซนส์",
-      vendor: "ผู้ให้บริการ",
-      license_type: "ประเภทไลเซนส์",
-      status: "สถานะ",
-      quantity_total: "จำนวนทั้งหมด",
-      quantity_assigned: "จำนวนที่ใช้งาน",
-      expiry_date: "วันหมดอายุ",
-      renewal_date: "วันต่ออายุ",
-      notes: "หมายเหตุ",
+      license_name: "License Name",
+      vendor: "Vendor / ผู้ให้บริการ",
+      license_type: "License Type",
+      status: "Status / สถานะ",
+      quantity_total: "Total Seats",
+      quantity_assigned: "Assigned Seats",
+      expiry_date: "Expiry Date",
+      renewal_date: "Renewal Date",
+      notes: "Notes / หมายเหตุ",
     },
     toast: {
       loadAssetsError: "โหลดข้อมูลอุปกรณ์ไม่สำเร็จ",
@@ -272,6 +305,15 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       visible: "Visible items",
       usable: "Usable",
       unusable: "Unavailable",
+    },
+    ux: {
+      liveData: "Live data",
+      ready: "ready",
+      needsAttention: "Needs attention",
+      noIssues: "No issue found",
+      records: "records",
+      assetRegistry: "Asset registry",
+      listHelper: "Search, filter, and manage every IT asset from one place",
     },
     sections: {
       assets: "Assets",
@@ -1077,11 +1119,12 @@ function getLicenseStatusChipClass(status) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-export default function ExecutiveAssetsManagementPage() {
+export default function AssetsManagementWorkspace({ embedded = false, theme = "light" }) {
   const { language, tt } = useScopedI18n(EXECUTIVE_ASSETS_TRANSLATIONS);
   const fileInputRef = useRef(null);
   const licenseFileInputRef = useRef(null);
   const assetEvidenceInputRef = useRef(null);
+  const assetFormRef = useRef(null);
   const pendingAssetEvidenceRef = useRef([]);
   const [activeSection, setActiveSection] = useState("assets");
   const [userRole, setUserRole] = useState("");
@@ -1122,6 +1165,7 @@ export default function ExecutiveAssetsManagementPage() {
     (value) => numberFormatter.format(Number(value || 0)),
     [numberFormatter],
   );
+  const assetInputClass = "min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-[#2b59b0] focus:ring-4 focus:ring-blue-100/70";
   const assetStatusOptions = useMemo(
     () => STATUS_OPTIONS.map((item) => ({ ...item, label: tt(`status.${item.value}`) })),
     [tt],
@@ -1801,6 +1845,9 @@ export default function ExecutiveAssetsManagementPage() {
     setRemovedAssetEvidence([]);
     setPendingAssetEvidence([]);
     setActiveSection("assets");
+    window.requestAnimationFrame(() => {
+      assetFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   const handleOpenDetail = (item) => {
@@ -2198,62 +2245,84 @@ export default function ExecutiveAssetsManagementPage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Assets");
 
     const dateStamp = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(workbook, `executive-assets-${dateStamp}.xlsx`);
+    XLSX.writeFile(workbook, `it-assets-${dateStamp}.xlsx`);
     toast.success(tt("toast.exportSuccess", { count: formatNumber(exportRows.length) }));
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <ReportsTopbar backTo="/admin-dashboard" backLabel={tt("page.backLabel")} showHub={false} />
+    <div
+      className={embedded
+        ? `asset-management-workspace ${theme === "dark" ? "is-dark" : ""}`
+        : "min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8"}
+    >
+      <div className={embedded ? "space-y-5" : "mx-auto max-w-[1600px] space-y-6"}>
+        {!embedded ? (
+          <ReportsTopbar backTo="/admin-dashboard" backLabel={tt("page.backLabel")} showHub={false} />
+        ) : null}
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                {tt("page.eyebrow")}
-              </p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-                {tt("page.title")}
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                {tt("page.subtitle")}
-              </p>
-            </div>
+        <section className="relative overflow-hidden rounded-[1.75rem] border border-blue-100 bg-white shadow-[0_24px_70px_-45px_rgba(30,64,175,0.5)]">
+          <div className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl" />
+          <div className="pointer-events-none absolute left-1/3 top-0 h-40 w-40 rounded-full bg-cyan-200/20 blur-3xl" />
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Upload size={16} />
-                {importing ? tt("page.importing") : tt("page.importAssets")}
-              </button>
+          <div className="relative border-b border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-cyan-50/60 p-5 sm:p-7">
+            <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 items-start gap-4 sm:items-center">
+                <span className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2b59b0] to-[#173b80] text-white shadow-[0_14px_35px_-16px_rgba(43,89,176,0.9)] sm:h-16 sm:w-16">
+                  <HardDrive size={28} aria-hidden="true" />
+                  <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-400" />
+                </span>
+                <div className="max-w-3xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#2b59b0]">
+                      {tt("page.eyebrow")}
+                    </p>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {tt("ux.liveData")}
+                    </span>
+                  </div>
+                  <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl lg:text-[2rem]">
+                    {tt("page.title")}
+                  </h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                    {tt("page.subtitle")}
+                  </p>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => licenseFileInputRef.current?.click()}
-                disabled={licenseImporting}
-                className="inline-flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Upload size={16} />
-                {licenseImporting ? tt("page.importing") : tt("page.importLicenses")}
-              </button>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:max-w-xl xl:justify-end">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                  className="col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#2b59b0] px-4 text-sm font-bold text-white shadow-[0_12px_28px_-14px_rgba(43,89,176,0.8)] transition hover:-translate-y-0.5 hover:bg-[#244a95] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-1"
+                >
+                  <Upload size={16} />
+                  {importing ? tt("page.importing") : tt("page.importAssets")}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  void loadAssets();
-                  void loadLicenses();
-                }}
-                disabled={loading || licenseLoading}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <RefreshCw size={16} className={loading || licenseLoading ? "animate-spin" : ""} />
-                {tt("page.refresh")}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => licenseFileInputRef.current?.click()}
+                  disabled={licenseImporting}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white/90 px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#2b59b0]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <KeyRound size={16} className="text-[#2b59b0]" />
+                  {licenseImporting ? tt("page.importing") : tt("page.importLicenses")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadAssets();
+                    void loadLicenses();
+                  }}
+                  disabled={loading || licenseLoading}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshCw size={16} className={loading || licenseLoading ? "animate-spin text-[#2b59b0]" : "text-slate-500"} />
+                  {tt("page.refresh")}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2272,143 +2341,118 @@ export default function ExecutiveAssetsManagementPage() {
             onChange={handleImportLicenseFile}
           />
 
-          <div className="hidden mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <div className="flex items-center gap-2 font-semibold text-slate-800">
-              <FileSpreadsheet size={16} />
-              {tt("page.importGuide")}
-            </div>
-            <p className="mt-2">
-              {TABLE_COLUMNS.join(", ")}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {tt("page.requiredAssetColumns")}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {tt("page.categoryHint")}
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              {tt("page.licenseColumns")}: <span className="font-semibold">{LICENSE_TABLE_COLUMNS.join(", ")}</span>
-            </p>
+          <div className="relative grid grid-cols-2 gap-3 bg-slate-50/70 p-4 sm:p-5 lg:grid-cols-4">
+            <AssetMetricCard
+              icon={Database}
+              label={tt("summary.totalAssets")}
+              value={formatNumber(liveSummary.total)}
+              helper={`${tt("summary.pc")} ${formatNumber(liveSummary.pc)} • ${tt("summary.notebook")} ${formatNumber(liveSummary.notebook)}`}
+            />
+            <AssetMetricCard
+              icon={PackageCheck}
+              label={tt("summary.usableAssets")}
+              value={formatNumber(liveSummary.usable)}
+              helper={`${liveSummary.total > 0 ? Math.round((liveSummary.usable / liveSummary.total) * 100) : 0}% ${tt("ux.ready")}`}
+              tone="emerald"
+            />
+            <AssetMetricCard
+              icon={AlertTriangle}
+              label={tt("summary.issueAssets")}
+              value={formatNumber(liveSummary.broken)}
+              helper={liveSummary.broken > 0 ? tt("ux.needsAttention") : tt("ux.noIssues")}
+              tone="rose"
+            />
+            <AssetMetricCard
+              icon={ShieldCheck}
+              label={tt("summary.usableLicenses")}
+              value={formatNumber(liveLicenseSummary.usable)}
+              helper={`${tt("summary.totalLicenses")} ${formatNumber(liveLicenseSummary.total)}`}
+              tone="violet"
+            />
           </div>
 
-          <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-slate-800">
-              <FileSpreadsheet size={16} />
-              {tt("page.importGuide")}
-            </summary>
-            <div className="mt-3 space-y-1 text-xs text-slate-500">
-              <p>{tt("page.requiredAssetColumns")}</p>
-              <p>{tt("page.categoryHint")}</p>
-              <p>{tt("page.assetColumns")}: {TABLE_COLUMNS.join(", ")}</p>
-              <p>{tt("page.licenseColumns")}: {LICENSE_TABLE_COLUMNS.join(", ")}</p>
+          <div className="relative flex flex-col gap-3 border-t border-slate-200 bg-white px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              {[
+                [Monitor, tt("summary.pc"), liveSummary.pc, "text-blue-600 bg-blue-50"],
+                [Laptop, tt("summary.notebook"), liveSummary.notebook, "text-indigo-600 bg-indigo-50"],
+                [Monitor, tt("summary.monitor"), liveSummary.monitor, "text-cyan-600 bg-cyan-50"],
+                [Printer, tt("summary.printer"), liveSummary.printer, "text-amber-600 bg-amber-50"],
+                [KeyRound, tt("summary.issueLicenses"), liveLicenseSummary.broken, "text-rose-600 bg-rose-50"],
+              ].map(([Icon, label, value, className]) => (
+                <span key={label} className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 font-semibold ${className}`}>
+                  <Icon size={13} />
+                  {label} <strong>{formatNumber(value)}</strong>
+                </span>
+              ))}
             </div>
-          </details>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{tt("summary.totalAssets")}</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{formatNumber(liveSummary.total)}</p>
-            </div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-700">{tt("summary.usableAssets")}</p>
-              <p className="mt-1 text-2xl font-black text-emerald-900">{formatNumber(liveSummary.usable)}</p>
-            </div>
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-rose-700">{tt("summary.issueAssets")}</p>
-              <p className="mt-1 text-2xl font-black text-rose-900">{formatNumber(liveSummary.broken)}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{tt("summary.pc")}</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{formatNumber(liveSummary.pc)}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{tt("summary.notebook")}</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{formatNumber(liveSummary.notebook)}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{tt("summary.monitor")}</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{formatNumber(liveSummary.monitor)}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{tt("summary.printer")}</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{formatNumber(liveSummary.printer)}</p>
-            </div>
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-indigo-700">{tt("summary.totalLicenses")}</p>
-              <p className="mt-1 text-2xl font-black text-indigo-900">{formatNumber(liveLicenseSummary.total)}</p>
-            </div>
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-indigo-700">{tt("summary.usableLicenses")}</p>
-              <p className="mt-1 text-2xl font-black text-indigo-900">{formatNumber(liveLicenseSummary.usable)}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{tt("summary.issueLicenses")}</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{formatNumber(liveLicenseSummary.broken)}</p>
-            </div>
+            <details className="group text-sm text-slate-600 lg:text-right">
+              <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-slate-800">
+                <FileSpreadsheet size={16} />
+                {tt("page.importGuide")}
+              </summary>
+              <div className="mt-3 space-y-1 rounded-xl border border-slate-200 bg-white p-3 text-left text-xs text-slate-500 lg:max-w-[620px]">
+                <p>{tt("page.requiredAssetColumns")}</p>
+                <p>{tt("page.categoryHint")}</p>
+                <p>{tt("page.assetColumns")}: {TABLE_COLUMNS.join(", ")}</p>
+                <p>{tt("page.licenseColumns")}: {LICENSE_TABLE_COLUMNS.join(", ")}</p>
+              </div>
+            </details>
           </div>
         </section>
 
-        <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="inline-flex flex-wrap rounded-2xl border border-slate-200 bg-slate-50 p-1">
-              <button
-                type="button"
-                onClick={() => setActiveSection("assets")}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                  activeSection === "assets"
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-white"
-                }`}
-              >
-                {tt("sections.assets")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveSection("licenses")}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                  activeSection === "licenses"
-                    ? "bg-indigo-700 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-white"
-                }`}
-              >
-                {tt("sections.licenses")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveSection("notebooks")}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                  activeSection === "notebooks"
-                    ? "bg-blue-700 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-white"
-                }`}
-              >
-                {tt("sections.notebooks")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveSection("activity")}
-                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                  activeSection === "activity"
-                    ? "bg-sky-700 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-white"
-                }`}
-              >
-                <History size={14} />
-                {tt("sections.activity")}
-              </button>
+        <section className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-[0_16px_45px_-38px_rgba(15,23,42,0.6)] sm:p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap">
+              {[
+                { id: "assets", label: tt("sections.assets"), icon: HardDrive, count: liveSummary.total },
+                { id: "licenses", label: tt("sections.licenses"), icon: KeyRound, count: liveLicenseSummary.records },
+                { id: "notebooks", label: tt("sections.notebooks"), icon: Laptop },
+                { id: "activity", label: tt("sections.activity"), icon: History, count: recentAssetActivities.length },
+              ].map((item) => {
+                const Icon = item.icon;
+                const active = activeSection === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveSection(item.id)}
+                    className={`group inline-flex min-h-12 items-center gap-3 rounded-2xl border px-3 py-2 text-left transition duration-200 lg:min-w-[150px] ${
+                      active
+                        ? "border-[#2b59b0] bg-[#2b59b0] text-white shadow-[0_12px_26px_-16px_rgba(43,89,176,0.85)]"
+                        : "border-slate-200 bg-slate-50/80 text-slate-600 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50"
+                    }`}
+                  >
+                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${active ? "bg-white/15 text-white" : "bg-white text-[#2b59b0] shadow-sm"}`}>
+                      <Icon size={16} strokeWidth={2.25} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-bold sm:text-sm">{item.label}</span>
+                      {item.count !== undefined ? (
+                        <span className={`mt-0.5 block text-[10px] font-semibold ${active ? "text-blue-100" : "text-slate-400"}`}>
+                          {formatNumber(item.count)} {tt("ux.records")}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-600">
+                <CircleUserRound size={13} className="text-[#2b59b0]" />
                 {tt("sections.userRole")}: {userRole || tt("sections.unknownRole")}
               </span>
               <span
-                className={`rounded-full border px-3 py-1 font-semibold ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold ${
                   canHardDelete
                     ? "border-rose-200 bg-rose-50 text-rose-700"
                     : "border-amber-200 bg-amber-50 text-amber-700"
                 }`}
               >
+                {canHardDelete ? <Trash2 size={13} /> : <Archive size={13} />}
                 {canHardDelete ? tt("sections.deleteModePermanent") : tt("sections.deleteModeArchive")}
               </span>
             </div>
@@ -2416,17 +2460,25 @@ export default function ExecutiveAssetsManagementPage() {
         </section>
 
         {activeSection === "assets" ? (
-          <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.4fr]">
-          <article className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-black text-slate-900">
-                {editingId ? tt("assets.formEdit") : tt("assets.formAdd")}
-              </h2>
+          <section className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.55fr)]">
+          <article ref={assetFormRef} className="scroll-mt-4 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_20px_55px_-42px_rgba(15,23,42,0.7)] xl:sticky xl:top-4">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-blue-50/80 to-white px-5 py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${editingId ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-[#2b59b0]"}`}>
+                  {editingId ? <PencilLine size={18} /> : <Plus size={18} />}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{tt("ux.assetRegistry")}</p>
+                  <h2 className="truncate text-lg font-black text-slate-900">
+                    {editingId ? tt("assets.formEdit") : tt("assets.formAdd")}
+                  </h2>
+                </div>
+              </div>
               {editingId ? (
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm transition hover:bg-slate-50"
                 >
                   <X size={14} />
                   {tt("common.cancelEdit")}
@@ -2434,130 +2486,87 @@ export default function ExecutiveAssetsManagementPage() {
               ) : null}
             </div>
 
-            <form className="mt-4 space-y-3" onSubmit={handleSaveAsset}>
+            <form className="space-y-4 p-5" onSubmit={handleSaveAsset}>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <input
-                  value={formData.asset_tag}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, asset_tag: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={`${tt("assetFields.asset_tag")} *`}
-                  required
-                />
-                <input
-                  value={formData.asset_name}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, asset_name: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={`${tt("assetFields.asset_name")} *`}
-                  required
-                />
+                <AssetFormField icon={Tag} label={tt("assetFields.asset_tag")} required>
+                  <input value={formData.asset_tag} onChange={(event) => setFormData((prev) => ({ ...prev, asset_tag: event.target.value }))} className={assetInputClass} placeholder="IT-PC-001" required />
+                </AssetFormField>
+                <AssetFormField icon={HardDrive} label={tt("assetFields.asset_name")} required>
+                  <input value={formData.asset_name} onChange={(event) => setFormData((prev) => ({ ...prev, asset_name: event.target.value }))} className={assetInputClass} placeholder={tt("assetFields.asset_name")} required />
+                </AssetFormField>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <select
-                  value={formData.asset_category}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, asset_category: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  required
-                >
-                  {categoryOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={formData.status}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {assetStatusOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                <AssetFormField icon={LayoutGrid} label={tt("assetFields.asset_category")} required>
+                  <select value={formData.asset_category} onChange={(event) => setFormData((prev) => ({ ...prev, asset_category: event.target.value }))} className={assetInputClass} required>
+                    {categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </AssetFormField>
+                <AssetFormField icon={CheckCircle2} label={tt("assetFields.status")}>
+                  <select value={formData.status} onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.value }))} className={assetInputClass}>
+                    {assetStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </AssetFormField>
               </div>
-              <p className="text-xs text-slate-500">
-                {tt("assets.statusHint")}
+              <p className="flex items-start gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
+                <ShieldCheck size={14} className="mt-0.5 shrink-0" /> {tt("assets.statusHint")}
               </p>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <input
-                  value={formData.brand}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, brand: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={tt("assetFields.brand")}
-                />
-                <input
-                  value={formData.model}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, model: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={tt("assetFields.model")}
-                />
+                <AssetFormField icon={Cpu} label={tt("assetFields.brand")}>
+                  <input value={formData.brand} onChange={(event) => setFormData((prev) => ({ ...prev, brand: event.target.value }))} className={assetInputClass} placeholder={tt("assetFields.brand")} />
+                </AssetFormField>
+                <AssetFormField icon={SlidersHorizontal} label={tt("assetFields.model")}>
+                  <input value={formData.model} onChange={(event) => setFormData((prev) => ({ ...prev, model: event.target.value }))} className={assetInputClass} placeholder={tt("assetFields.model")} />
+                </AssetFormField>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <input
-                  value={formData.serial_number}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, serial_number: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={tt("assetFields.serial_number")}
-                />
-                <input
-                  value={formData.location}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={tt("assetFields.location")}
-                />
+                <AssetFormField icon={Barcode} label={tt("assetFields.serial_number")}>
+                  <input value={formData.serial_number} onChange={(event) => setFormData((prev) => ({ ...prev, serial_number: event.target.value }))} className={assetInputClass} placeholder={tt("assetFields.serial_number")} />
+                </AssetFormField>
+                <AssetFormField icon={MapPin} label={tt("assetFields.location")}>
+                  <input value={formData.location} onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))} className={assetInputClass} placeholder={tt("assetFields.location")} />
+                </AssetFormField>
               </div>
+
+              <AssetFormField icon={UserRound} label={tt("assetFields.owner_name")}>
+                <input value={formData.owner_name} onChange={(event) => setFormData((prev) => ({ ...prev, owner_name: event.target.value }))} className={assetInputClass} placeholder={tt("assetFields.owner_name")} />
+              </AssetFormField>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <input
-                  value={formData.owner_name}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, owner_name: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={tt("assetFields.owner_name")}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    value={formData.purchase_date}
-                    onChange={(event) => setFormData((prev) => ({ ...prev, purchase_date: event.target.value }))}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                    type="date"
-                    title={tt("assetFields.purchase_date")}
-                  />
-                  <input
-                    value={formData.warranty_end_date}
-                    onChange={(event) => setFormData((prev) => ({ ...prev, warranty_end_date: event.target.value }))}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                    type="date"
-                    title={tt("assetFields.warranty_end_date")}
-                  />
-                </div>
+                <AssetFormField icon={CalendarDays} label={tt("assetFields.purchase_date")}>
+                  <input value={formData.purchase_date} onChange={(event) => setFormData((prev) => ({ ...prev, purchase_date: event.target.value }))} className={assetInputClass} type="date" />
+                </AssetFormField>
+                <AssetFormField icon={ShieldCheck} label={tt("assetFields.warranty_end_date")}>
+                  <input value={formData.warranty_end_date} onChange={(event) => setFormData((prev) => ({ ...prev, warranty_end_date: event.target.value }))} className={assetInputClass} type="date" />
+                </AssetFormField>
               </div>
 
-              <textarea
-                value={formData.notes}
-                onChange={(event) => setFormData((prev) => ({ ...prev, notes: event.target.value }))}
-                className="min-h-[90px] w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                placeholder={tt("assetFields.notes")}
-              />
+              <AssetFormField icon={ClipboardList} label={tt("assetFields.notes")}>
+                <textarea value={formData.notes} onChange={(event) => setFormData((prev) => ({ ...prev, notes: event.target.value }))} className={`${assetInputClass} min-h-[90px] resize-y`} placeholder={tt("assetFields.notes")} />
+              </AssetFormField>
 
               <section
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-3 outline-none transition focus-within:ring-2 focus-within:ring-sky-200 focus:ring-2 focus:ring-sky-200"
+                className="rounded-2xl border border-dashed border-sky-200 bg-gradient-to-br from-sky-50/80 to-white p-3 outline-none transition focus-within:ring-4 focus-within:ring-sky-100 focus:ring-4 focus:ring-sky-100"
                 tabIndex={0}
                 onPaste={handlePasteAssetEvidence}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-black text-slate-800">{tt("assets.evidenceTitle")}</h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{tt("assets.evidenceHint")}</p>
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                      <ImagePlus size={17} />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800">{tt("assets.evidenceTitle")}</h3>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">{tt("assets.evidenceHint")}</p>
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => assetEvidenceInputRef.current?.click()}
                     disabled={!assetEvidenceReady || saving}
-                    className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <ImagePlus size={14} />
                     {tt("assets.evidenceButton")}
@@ -2651,7 +2660,7 @@ export default function ExecutiveAssetsManagementPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2b59b0] to-[#1f478f] px-4 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-16px_rgba(43,89,176,0.85)] transition hover:-translate-y-0.5 hover:from-[#244a95] hover:to-[#173b80] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {editingId ? <PencilLine size={16} /> : <Save size={16} />}
                 {saving ? tt("common.saving") : editingId ? tt("assets.submitEdit") : tt("assets.submitAdd")}
@@ -2659,81 +2668,87 @@ export default function ExecutiveAssetsManagementPage() {
             </form>
           </article>
 
-          <article className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <h2 className="text-lg font-black text-slate-900">
-                  {tt("assets.listTitle", { count: formatNumber(filteredAssets.length) })}
-                </h2>
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={showArchivedAssets}
-                    onChange={(event) => setShowArchivedAssets(event.target.checked)}
-                    className="rounded border-slate-300"
-                  />
-                  {tt("assets.showArchived")}
-                </label>
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                <div className="relative w-full sm:w-[300px]">
-                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="w-full rounded-xl border border-slate-300 py-2 pl-9 pr-3 text-sm"
-                  placeholder={tt("assets.searchPlaceholder")}
-                />
+          <article className="min-w-0 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_20px_55px_-42px_rgba(15,23,42,0.7)]">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-white to-slate-50/80 p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                    <Database size={18} />
+                  </span>
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-black text-slate-900">
+                      {tt("assets.listTitle", { count: formatNumber(filteredAssets.length) })}
+                    </h2>
+                    <p className="text-xs text-slate-500">{tt("ux.listHelper")}</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleExportAssetsExcel}
                   disabled={filteredAssets.length === 0}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-bold text-emerald-700 transition hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Download size={15} />
                   {tt("common.exportExcel")}
                 </button>
               </div>
+
+              <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(240px,1fr)_170px_170px_auto]">
+                <label className="relative block min-w-0">
+                  <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    className={`${assetInputClass} pl-10`}
+                    placeholder={tt("assets.searchPlaceholder")}
+                  />
+                </label>
+                <label className="relative block">
+                  <LayoutGrid size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <select value={assetCategoryFilter} onChange={(event) => setAssetCategoryFilter(event.target.value)} className={`${assetInputClass} pl-9`}>
+                    <option value="all">{tt("common.allCategories")}</option>
+                    {categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </label>
+                <label className="relative block">
+                  <Filter size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <select value={assetStatusFilter} onChange={(event) => setAssetStatusFilter(event.target.value)} className={`${assetInputClass} pl-9`}>
+                    <option value="all">{tt("common.allStatuses")}</option>
+                    {assetStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setAssetCategoryFilter("all");
+                    setAssetStatusFilter("all");
+                  }}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-100"
+                >
+                  <RotateCcw size={15} />
+                  {tt("common.resetFilters")}
+                </button>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={showArchivedAssets}
+                    onChange={(event) => setShowArchivedAssets(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-[#2b59b0]"
+                  />
+                  <Archive size={13} />
+                  {tt("assets.showArchived")}
+                </label>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">
+                  <SlidersHorizontal size={12} /> {formatNumber(filteredAssets.length)} / {formatNumber(assets.length)}
+                </span>
+              </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <select
-                value={assetCategoryFilter}
-                onChange={(event) => setAssetCategoryFilter(event.target.value)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="all">{tt("common.allCategories")}</option>
-                {categoryOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={assetStatusFilter}
-                onChange={(event) => setAssetStatusFilter(event.target.value)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="all">{tt("common.allStatuses")}</option>
-                {assetStatusOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setAssetCategoryFilter("all");
-                  setAssetStatusFilter("all");
-                }}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
-              >
-                {tt("common.resetFilters")}
-              </button>
-            </div>
+            <div className="p-5 pt-4">
 
             {autoIncludedArchivedAssets ? (
               <p className="mt-2 text-xs font-medium text-amber-700">
@@ -2741,18 +2756,18 @@ export default function ExecutiveAssetsManagementPage() {
               </p>
             ) : null}
 
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-[11px] font-semibold text-slate-500">{tt("summary.visible")}</p>
-                <p className="text-lg font-black text-slate-900">{formatNumber(filteredAssetSummary.total)}</p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><Eye size={12} />{tt("summary.visible")}</p>
+                <p className="mt-1 text-lg font-black text-slate-900">{formatNumber(filteredAssetSummary.total)}</p>
               </div>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-                <p className="text-[11px] font-semibold text-emerald-700">{tt("summary.usable")}</p>
-                <p className="text-lg font-black text-emerald-900">{formatNumber(filteredAssetSummary.usable)}</p>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700"><CheckCircle2 size={12} />{tt("summary.usable")}</p>
+                <p className="mt-1 text-lg font-black text-emerald-900">{formatNumber(filteredAssetSummary.usable)}</p>
               </div>
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
-                <p className="text-[11px] font-semibold text-rose-700">{tt("summary.unusable")}</p>
-                <p className="text-lg font-black text-rose-900">{formatNumber(filteredAssetSummary.broken)}</p>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-bold text-rose-700"><AlertTriangle size={12} />{tt("summary.unusable")}</p>
+                <p className="mt-1 text-lg font-black text-rose-900">{formatNumber(filteredAssetSummary.broken)}</p>
               </div>
             </div>
 
@@ -2773,11 +2788,62 @@ export default function ExecutiveAssetsManagementPage() {
               </button>
             </div>
 
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+            <div className="mt-4 space-y-3 lg:hidden">
+              {loading ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">{tt("common.loading")}</div>
+              ) : filteredAssets.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
+                  <Database size={24} className="mx-auto text-slate-400" />
+                  <p className="mt-2 text-sm font-bold text-slate-600">{tt("common.noAssetData")}</p>
+                </div>
+              ) : filteredAssets.map((item) => {
+                const evidenceCount = getAssetEvidenceAttachments(item).length;
+                return (
+                  <article key={`mobile-${item.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" onClick={() => handleOpenDetail(item)}>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedAssetIdSet.has(item.id)}
+                        onChange={(event) => handleToggleAssetSelection(item.id, event.target.checked)}
+                        onClick={(event) => event.stopPropagation()}
+                        className="mt-1 h-4 w-4 rounded border-slate-300"
+                        aria-label={tt("assets.selectRowAria", { asset: item.asset_tag || tt("sections.assets") })}
+                      />
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#2b59b0]">
+                        <HardDrive size={18} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="truncate text-sm font-black text-slate-900">{item.asset_name || "-"}</p>
+                          <ChevronRight size={16} className="text-slate-400" />
+                        </div>
+                        <p className="mt-0.5 font-mono text-xs font-bold text-[#2b59b0]">{item.asset_tag || "-"}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">{item.asset_category || "-"}</span>
+                          <span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${getAssetStatusChipClass(item.status)}`}>{formatAssetStatusLabel(item.status, assetStatusLabels)}</span>
+                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-700"><ImagePlus size={11} />{formatNumber(evidenceCount)}</span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                          <span className="inline-flex items-center gap-1.5 truncate"><UserRound size={12} />{item.owner_name || "-"}</span>
+                          <span className="inline-flex items-center gap-1.5 truncate"><MapPin size={12} />{item.location || "-"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3" onClick={(event) => event.stopPropagation()}>
+                      <button type="button" onClick={() => handleOpenDetail(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-cyan-50 px-2 py-2 text-xs font-bold text-cyan-700"><Eye size={13} />{tt("common.view")}</button>
+                      <button type="button" onClick={() => handleEditAsset(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-2 py-2 text-xs font-bold text-slate-700"><PencilLine size={13} />{tt("common.edit")}</button>
+                      <button type="button" disabled={assetActionId === item.id} onClick={() => handleDeleteAsset(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-rose-50 px-2 py-2 text-xs font-bold text-rose-700 disabled:opacity-60"><Trash2 size={13} />{canHardDelete ? tt("common.delete") : tt("common.archive")}</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 lg:block">
               <div className="max-h-[560px] overflow-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="sticky top-0 z-10 bg-white">
-                    <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <table className="min-w-[980px] w-full text-left text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
+                    <tr className="border-b border-slate-200 text-[11px] uppercase tracking-[0.08em] text-slate-500">
                     <th className="px-2 py-2">
                       <input
                         type="checkbox"
@@ -2816,7 +2882,7 @@ export default function ExecutiveAssetsManagementPage() {
                       return (
                         <tr
                           key={item.id}
-                          className="cursor-pointer border-b border-slate-100 align-top transition hover:bg-slate-50/70"
+                          className="cursor-pointer border-b border-slate-100 align-middle transition hover:bg-blue-50/45"
                           onClick={() => handleOpenDetail(item)}
                         >
                         <td className="px-2 py-3">
@@ -2910,13 +2976,14 @@ export default function ExecutiveAssetsManagementPage() {
                 </table>
               </div>
             </div>
+            </div>
           </article>
         </section>
         ) : null}
 
         {activeSection === "licenses" ? (
           <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.4fr]">
-          <article className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <KeyRound size={18} className="text-indigo-600" />
@@ -3031,7 +3098,7 @@ export default function ExecutiveAssetsManagementPage() {
             </form>
           </article>
 
-          <article className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -3213,7 +3280,7 @@ export default function ExecutiveAssetsManagementPage() {
         {activeSection === "notebooks" ? <NotebookInventoryManagementPanel userRole={userRole} /> : null}
 
         {activeSection === "activity" ? (
-          <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-black text-slate-900">{tt("activity.title")}</h2>
@@ -3490,5 +3557,48 @@ export default function ExecutiveAssetsManagementPage() {
         />
       </div>
     </div>
+  );
+}
+
+function AssetMetricCard({ icon: Icon, label, value, helper, tone = "blue" }) {
+  const tones = {
+    blue: "border-blue-100 bg-gradient-to-br from-white to-blue-50/80 text-[#2b59b0]",
+    emerald: "border-emerald-100 bg-gradient-to-br from-white to-emerald-50/80 text-emerald-600",
+    rose: "border-rose-100 bg-gradient-to-br from-white to-rose-50/80 text-rose-600",
+    violet: "border-violet-100 bg-gradient-to-br from-white to-violet-50/80 text-violet-600",
+  };
+  const iconTones = {
+    blue: "bg-blue-100 text-[#2b59b0]",
+    emerald: "bg-emerald-100 text-emerald-700",
+    rose: "bg-rose-100 text-rose-700",
+    violet: "bg-violet-100 text-violet-700",
+  };
+
+  return (
+    <article className={`group rounded-2xl border p-4 shadow-[0_12px_35px_-28px_rgba(15,23,42,0.55)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-26px_rgba(43,89,176,0.35)] ${tones[tone]}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">{value}</p>
+          {helper ? <p className="mt-1 truncate text-xs font-medium text-slate-500">{helper}</p> : null}
+        </div>
+        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition group-hover:scale-105 ${iconTones[tone]}`}>
+          <Icon size={20} strokeWidth={2.25} />
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function AssetFormField({ icon: Icon, label, required = false, children, className = "" }) {
+  return (
+    <label className={`block min-w-0 ${className}`}>
+      <span className="mb-1.5 flex items-center gap-2 text-xs font-bold text-slate-600">
+        {Icon ? <Icon size={14} className="text-[#2b59b0]" /> : null}
+        {label}
+        {required ? <span className="text-rose-500">*</span> : null}
+      </span>
+      {children}
+    </label>
   );
 }

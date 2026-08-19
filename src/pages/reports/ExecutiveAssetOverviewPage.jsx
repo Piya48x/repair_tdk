@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { RefreshCw, TriangleAlert } from "lucide-react";
 import toast from "react-hot-toast";
-import ReportsTopbar from "../../components/reports/ReportsTopbar";
 import ExecutiveAssetOverviewDashboard from "../../components/reports/ExecutiveAssetOverviewDashboard";
+import ReportPageState from "../../components/reports/ReportPageState";
+import ReportsPageShell from "../../components/reports/ReportsPageShell";
+import ReportsTopbar from "../../components/reports/ReportsTopbar";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
 import { supabase } from "../../lib/supabaseClient";
 import { fetchExecutiveAssetOverviewData } from "../../services/reportService";
@@ -42,40 +43,6 @@ const EXECUTIVE_ASSET_OVERVIEW_PAGE_TRANSLATIONS = {
     },
   },
 };
-
-function PageState({ title, subtitle, error, onRetry, loading, retryLabel, backLabel }) {
-  return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        <ReportsTopbar backTo="/reports" backLabel={backLabel} />
-
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mx-auto max-w-2xl text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-              {error ? (
-                <TriangleAlert size={24} />
-              ) : (
-                <RefreshCw size={24} className={loading ? "animate-spin" : ""} />
-              )}
-            </div>
-            <h1 className="mt-4 text-2xl font-black text-slate-900">{title}</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{subtitle}</p>
-            {error ? <p className="mt-4 text-sm font-medium text-rose-600">{error}</p> : null}
-            {error ? (
-              <button
-                type="button"
-                onClick={onRetry}
-                className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                {retryLabel}
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function ExecutiveAssetOverviewPage() {
   const { tt } = useScopedI18n(EXECUTIVE_ASSET_OVERVIEW_PAGE_TRANSLATIONS);
@@ -142,39 +109,35 @@ export default function ExecutiveAssetOverviewPage() {
 
   if (loading && !data) {
     return (
-      <PageState
+      <ReportPageState
         title={tt("loadingTitle")}
         subtitle={tt("loadingSubtitle")}
         loading
         retryLabel={tt("retry")}
-        backLabel={tt("backLabel")}
       />
     );
   }
 
   if (error && !data) {
     return (
-      <PageState
+      <ReportPageState
         title={tt("unavailableTitle")}
         subtitle={tt("unavailableSubtitle")}
         error={error}
         onRetry={loadData}
         retryLabel={tt("retry")}
-        backLabel={tt("backLabel")}
       />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_45%,_#f8fafc_100%)] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        <ReportsTopbar backTo="/reports" backLabel={tt("backLabel")} />
-        <ExecutiveAssetOverviewDashboard
-          data={data}
-          onRefresh={loadData}
-          loading={loading}
-        />
-      </div>
-    </div>
+    <ReportsPageShell>
+      <ReportsTopbar />
+      <ExecutiveAssetOverviewDashboard
+        data={data}
+        onRefresh={loadData}
+        loading={loading}
+      />
+    </ReportsPageShell>
   );
 }

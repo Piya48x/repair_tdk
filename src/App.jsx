@@ -20,7 +20,6 @@ import ReportsHomePage from "./pages/reports/ReportsHomePage.jsx";
 import ITManagerReportPage from "./pages/reports/ITManagerReportPage.jsx";
 import ExecutiveReportPage from "./pages/reports/ExecutiveReportPage.jsx";
 import ExecutiveAssetOverviewPage from "./pages/reports/ExecutiveAssetOverviewPage.jsx";
-import ExecutiveAssetsManagementPage from "./pages/reports/ExecutiveAssetsManagementPage.jsx";
 import ExecutiveNotebookApprovalsPage from "./pages/reports/ExecutiveNotebookApprovalsPage.jsx";
 import AssetQrDetailPage from "./pages/AssetQrDetailPage.jsx";
 import { REPORT_ROUTE_PERMISSIONS } from "./lib/roleAccess";
@@ -81,6 +80,16 @@ function AppInner() {
           <ITDashboard />
         </ProtectedRoute>
       } />
+      <Route
+        path="/admin-dashboard/assets-management"
+        element={(
+          <Navigate
+            to="/admin-dashboard"
+            replace
+            state={{ dashboardPage: "ASSET_MANAGEMENT" }}
+          />
+        )}
+      />
       <Route path="/reports" element={
         <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.index}>
           <ReportsHomePage />
@@ -106,11 +115,16 @@ function AppInner() {
           <ExecutiveAssetOverviewPage />
         </ProtectedRoute>
       } />
-      <Route path="/reports/executive/assets-management" element={
-        <ProtectedRoute allowedRoles={["it_support", "it_manager", "admin"]}>
-          <ExecutiveAssetsManagementPage />
-        </ProtectedRoute>
-      } />
+      <Route
+        path="/reports/executive/assets-management"
+        element={(
+          <Navigate
+            to="/admin-dashboard"
+            replace
+            state={{ dashboardPage: "ASSET_MANAGEMENT" }}
+          />
+        )}
+      />
       <Route path="/asset-qr/:assetTag" element={
         <ProtectedRoute allowedRoles={["it_support", "it_manager", "executive", "admin", "auditor"]}>
           <AssetQrDetailPage />

@@ -1,5 +1,6 @@
 import {
   Camera,
+  Cctv,
   FileText,
   Monitor,
   Printer,
@@ -7,9 +8,17 @@ import {
 } from "lucide-react";
 
 export const MAX_FILES = 8;
+export const CAMERA_VIEW_JOB_TYPE = "camera_view_request";
+
+export const CAMERA_APPROVAL_OPTIONS = [
+  { value: "pending", label: "รออนุมัติ" },
+  { value: "approved", label: "อนุมัติ" },
+  { value: "rejected", label: "ไม่อนุมัติ" },
+];
 
 export const TYPE_OPTIONS = [
   { value: "camera_install", label: "ติดตั้งกล้อง", icon: Camera },
+  { value: CAMERA_VIEW_JOB_TYPE, label: "ขอดูภาพกล้องวงจรปิด", icon: Cctv },
   { value: "pc_install", label: "ติดตั้ง PC", icon: Monitor },
   { value: "notebook_install", label: "ติดตั้ง Notebook", icon: Monitor },
   { value: "printer_install", label: "ติดตั้ง Printer", icon: Printer },
@@ -32,6 +41,7 @@ export const PERIOD_OPTIONS = [
 ];
 
 const JOB_TYPE_REFERENCE_CODES = {
+  [CAMERA_VIEW_JOB_TYPE]: "CTV",
   camera_install: "CAM",
   pc_install: "PC",
   notebook_install: "NB",
@@ -68,6 +78,7 @@ export function buildForm(department = "") {
     location: "",
     requester_profile_id: "",
     requester_name: "",
+    requester_employee_code: "",
     department,
     device_details: "",
     reference_code: buildReferenceCode({
@@ -78,6 +89,23 @@ export function buildForm(department = "") {
     end_time: "",
     duration_minutes: 0,
     result_summary: "",
+    footage_start_at: "",
+    footage_end_at: "",
+    approval_status: "pending",
+    approved_by_name: "",
+  };
+}
+
+export function buildCameraViewForm(department = "") {
+  return {
+    ...buildForm(department),
+    title: "คำขอดูภาพกล้องวงจรปิด",
+    job_type: CAMERA_VIEW_JOB_TYPE,
+    work_status: "pending",
+    reference_code: buildReferenceCode({
+      jobType: CAMERA_VIEW_JOB_TYPE,
+      startTime: new Date(),
+    }),
   };
 }
 
@@ -96,8 +124,9 @@ export function buildFormFromRecord(record, fallbackDepartment = "") {
     job_type: normalizeText(record?.job_type) || TYPE_OPTIONS[0].value,
     work_status: normalizeText(record?.work_status) || "pending",
     location: normalizeText(record?.location),
-    requester_profile_id: "",
+    requester_profile_id: normalizeText(record?.requester_profile_id),
     requester_name: normalizeText(record?.requester_name),
+    requester_employee_code: normalizeText(record?.requester_employee_code),
     department: normalizeText(record?.department) || fallbackDepartment,
     device_details: normalizeText(record?.device_details),
     reference_code:
@@ -110,6 +139,10 @@ export function buildFormFromRecord(record, fallbackDepartment = "") {
     end_time: endValue ? toDateTimeLocalValue(endValue) : derivedEndValue,
     duration_minutes: Math.max(durationMinutes, 0),
     result_summary: normalizeText(record?.result_summary),
+    footage_start_at: record?.footage_start_at ? toDateTimeLocalValue(record.footage_start_at) : "",
+    footage_end_at: record?.footage_end_at ? toDateTimeLocalValue(record.footage_end_at) : "",
+    approval_status: normalizeText(record?.approval_status) || "pending",
+    approved_by_name: normalizeText(record?.approved_by_name),
   };
 }
 

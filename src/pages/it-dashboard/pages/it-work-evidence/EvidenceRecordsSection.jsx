@@ -3,11 +3,13 @@ import {
   ArrowUp,
   CalendarDays,
   Clock3,
+  Cctv,
   MapPin,
   Pencil,
   Plus,
   RotateCcw,
   Search,
+  ShieldCheck,
   Trash2,
   User,
 } from "lucide-react";
@@ -36,6 +38,7 @@ export default function EvidenceRecordsSection({
   onScrollToTop,
   onStartFreshView,
   onCreateRecord,
+  onCreateCameraViewRecord,
 }) {
   const chipClass = theme === "dark"
     ? "border-slate-600 bg-[#162136] text-slate-300"
@@ -66,6 +69,14 @@ export default function EvidenceRecordsSection({
             >
               <Plus size={15} />
               เพิ่มบันทึกงาน
+            </button>
+            <button
+              type="button"
+              onClick={onCreateCameraViewRecord}
+              className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-3 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-cyan-800"
+            >
+              <Cctv size={15} />
+              บันทึกขอดูกล้อง
             </button>
             <button
               type="button"
@@ -190,6 +201,23 @@ export default function EvidenceRecordsSection({
                       {record.requesterName}
                     </span>
                   ) : null}
+                  {record.requesterEmployeeCode ? (
+                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${chipClass}`}>
+                      รหัส {record.requesterEmployeeCode}
+                    </span>
+                  ) : null}
+                  {record.isCameraView ? (
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
+                      record.approvalStatus === "approved"
+                        ? theme === "dark" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : record.approvalStatus === "rejected"
+                          ? theme === "dark" ? "border-rose-500/20 bg-rose-500/10 text-rose-200" : "border-rose-200 bg-rose-50 text-rose-700"
+                          : theme === "dark" ? "border-amber-500/20 bg-amber-500/10 text-amber-200" : "border-amber-200 bg-amber-50 text-amber-700"
+                    }`}>
+                      <ShieldCheck size={13} />
+                      {record.approvalLabel}
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm ${uiTheme.textSecondary}`}>
@@ -250,25 +278,55 @@ export default function EvidenceRecordsSection({
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-              <div className={`${subCardClass} p-4`}>
-                <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>รายละเอียดงาน</p>
-                <p className={`mt-2 line-clamp-5 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.description || "-"}</p>
-              </div>
-              <div className="space-y-4">
+            {record.isCameraView ? (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <div className={`${subCardClass} p-4`}>
-                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>อุปกรณ์ / รายการที่ทำ</p>
-                  <p className={`mt-2 line-clamp-3 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.deviceDetails || "-"}</p>
+                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ช่วงภาพที่ขอดู</p>
+                  <p className={`mt-2 text-sm font-semibold leading-6 ${uiTheme.textPrimary}`}>
+                    {record.footageStartLabel}<br />ถึง {record.footageEndLabel}
+                  </p>
                 </div>
                 <div className={`${subCardClass} p-4`}>
-                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ผลลัพธ์ / หมายเหตุ</p>
-                  <p className={`mt-2 line-clamp-3 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.resultSummary || "-"}</p>
+                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>กล้อง / จุดกล้อง</p>
+                  <p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.deviceDetails || "-"}</p>
+                </div>
+                <div className={`${subCardClass} p-4`}>
+                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ผู้อนุมัติ / ผู้พิจารณา</p>
+                  <p className={`mt-2 text-sm font-semibold ${uiTheme.textPrimary}`}>{record.approvedByName || "-"}</p>
+                  <p className={`mt-1 text-xs ${uiTheme.textSecondary}`}>สถานะ: {record.approvalLabel}</p>
+                </div>
+                <div className={`${subCardClass} p-4 sm:col-span-2`}>
+                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>เหตุผลที่ขอดูภาพ</p>
+                  <p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.description || "-"}</p>
+                </div>
+                <div className={`${subCardClass} p-4`}>
+                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ผลการให้ดูภาพ / หมายเหตุ</p>
+                  <p className={`mt-2 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.resultSummary || "-"}</p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                <div className={`${subCardClass} p-4`}>
+                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>รายละเอียดงาน</p>
+                  <p className={`mt-2 line-clamp-5 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.description || "-"}</p>
+                </div>
+                <div className="space-y-4">
+                  <div className={`${subCardClass} p-4`}>
+                    <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>อุปกรณ์ / รายการที่ทำ</p>
+                    <p className={`mt-2 line-clamp-3 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.deviceDetails || "-"}</p>
+                  </div>
+                  <div className={`${subCardClass} p-4`}>
+                    <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ผลลัพธ์ / หมายเหตุ</p>
+                    <p className={`mt-2 line-clamp-3 whitespace-pre-line text-sm leading-6 ${uiTheme.textSecondary}`}>{record.resultSummary || "-"}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-5">
-              <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>ภาพประกอบ</p>
+              <p className={`text-xs font-bold uppercase tracking-[0.16em] ${softTextClass}`}>
+                {record.isCameraView ? "เอกสารอนุมัติ / หลักฐานประกอบ" : "ภาพประกอบ"}
+              </p>
               {record.images.length > 0 ? (
                 <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
                   {record.images.slice(0, 4).map((image, index) => (
