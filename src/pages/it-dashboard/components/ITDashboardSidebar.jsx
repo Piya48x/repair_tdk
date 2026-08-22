@@ -3,9 +3,9 @@ import {
   Activity,
   BarChart3,
   CalendarDays,
-  Camera,
   ChevronDown,
   ClipboardCheck,
+  ClipboardList,
   HardDrive,
   History,
   KeyRound,
@@ -16,6 +16,7 @@ import {
   QrCode,
   Settings,
   Ticket,
+  Truck,
   X as XIcon,
 } from "lucide-react";
 import { useScopedI18n } from "../../../i18n/useScopedI18n";
@@ -39,6 +40,9 @@ const SIDEBAR_TRANSLATIONS = {
       accessRequests: "ขอสิทธิ์ระบบ",
       notebookBorrow: "ยืม-คืนโน้ตบุ๊ก",
       workLogs: "บันทึกงาน IT",
+      workGeneral: "บันทึกงานทั่วไป",
+      workMovement: "บันทึกการเคลื่อนย้ายอุปกรณ์",
+      workHistory: "ประวัติรวม",
       stockManagement: "จัดการ stock IT",
       stockWalkIn: "บันทึกการเบิกแบบ walk-in",
       stockReceive: "รับเข้า stock จากจัดซื้อ",
@@ -70,6 +74,9 @@ const SIDEBAR_TRANSLATIONS = {
       accessRequests: "Access requests",
       notebookBorrow: "Notebook lending",
       workLogs: "IT work logs",
+      workGeneral: "General work record",
+      workMovement: "Asset movement record",
+      workHistory: "Combined history",
       stockManagement: "IT stock management",
       stockWalkIn: "Walk-in issue record",
       stockReceive: "Receive stock from purchase",
@@ -101,6 +108,9 @@ const SIDEBAR_TRANSLATIONS = {
       accessRequests: "권한 요청",
       notebookBorrow: "노트북 대여/반납",
       workLogs: "IT 작업 기록",
+      workGeneral: "일반 작업 기록",
+      workMovement: "장비 이동 기록",
+      workHistory: "통합 이력",
       stockManagement: "IT 재고 관리",
       stockWalkIn: "워크인 출고 기록",
       stockReceive: "구매 입고 등록",
@@ -129,6 +139,13 @@ const ASSET_SECTION_PAGE_IDS = [
   DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT,
   DASHBOARD_PAGE_IDS.ASSET_QR_CENTER,
   DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT,
+];
+
+const WORK_LOG_SECTION_PAGE_IDS = [
+  DASHBOARD_PAGE_IDS.IT_WORK_LOGS,
+  DASHBOARD_PAGE_IDS.IT_WORK_GENERAL,
+  DASHBOARD_PAGE_IDS.IT_ASSET_MOVEMENTS,
+  DASHBOARD_PAGE_IDS.IT_WORK_HISTORY,
 ];
 
 function NotificationBadge({ count, tone = "rose" }) {
@@ -218,7 +235,7 @@ function SubMenu({ open, items, isActive, onSelect, isDarkTheme = false }) {
                 className={`group flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm font-semibold transition-all duration-200 ${active ? isDarkTheme ? "bg-[#2b59b0] text-white" : "bg-[#2b59b0] text-white" : isDarkTheme ? "text-slate-400 hover:bg-[#162136] hover:text-[#9bbcff]" : "text-slate-600 hover:bg-[#f4f8ff] hover:text-[#2b59b0]"}`}
               >
                 <Icon size={14} strokeWidth={2.25} className={active ? "text-white" : isDarkTheme ? "text-slate-500 group-hover:text-[#9bbcff]" : "text-slate-400 group-hover:text-[#2b59b0]"} />
-                <span className="truncate">{item.label}</span>
+                <span className="min-w-0 leading-5">{item.label}</span>
               </button>
             </li>
           );
@@ -271,6 +288,9 @@ const ITDashboardSidebar = ({
   const [assetMenuExpanded, setAssetMenuExpanded] = useState(
     ASSET_SECTION_PAGE_IDS.includes(currentPage),
   );
+  const [workLogMenuExpanded, setWorkLogMenuExpanded] = useState(
+    WORK_LOG_SECTION_PAGE_IDS.includes(currentPage),
+  );
 
   const repairSubItems = useMemo(() => [
     { id: DASHBOARD_PAGE_IDS.ACTIVE, label: tt("nav.active"), icon: Activity },
@@ -289,13 +309,19 @@ const ITDashboardSidebar = ({
     { id: DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT, label: tt("nav.assetStockAudit"), icon: ClipboardCheck },
   ], [tt]);
 
+  const workLogSubItems = useMemo(() => [
+    { id: DASHBOARD_PAGE_IDS.IT_WORK_GENERAL, label: tt("nav.workGeneral"), icon: ClipboardList },
+    { id: DASHBOARD_PAGE_IDS.IT_ASSET_MOVEMENTS, label: tt("nav.workMovement"), icon: Truck },
+    { id: DASHBOARD_PAGE_IDS.IT_WORK_HISTORY, label: tt("nav.workHistory"), icon: History },
+  ], [tt]);
+
   const primaryItems = useMemo(() => [
     { id: DASHBOARD_PAGE_IDS.TICKETS, label: tt("nav.tickets"), icon: Ticket, group: "repair", badge: notificationCount, badgeTone: "rose" },
     { id: DASHBOARD_PAGE_IDS.SERVICE_REQUESTS, label: tt("nav.serviceRequests"), icon: Package, badge: serviceRequestNotificationCount, badgeTone: "violet" },
     { id: DASHBOARD_PAGE_IDS.STOCK_MANAGEMENT, label: tt("nav.stockManagement"), icon: Package, group: "stock" },
     { id: DASHBOARD_PAGE_IDS.ACCESS_REQUESTS, label: tt("nav.accessRequests"), icon: KeyRound },
     { id: DASHBOARD_PAGE_IDS.NOTEBOOK_BORROW, label: tt("nav.notebookBorrow"), icon: Laptop, badge: notebookNotificationCount, badgeTone: "amber" },
-    { id: DASHBOARD_PAGE_IDS.IT_WORK_LOGS, label: tt("nav.workLogs"), icon: Camera },
+    { id: DASHBOARD_PAGE_IDS.IT_WORK_LOGS, label: tt("nav.workLogs"), icon: ClipboardCheck, group: "workLogs" },
   ], [notebookNotificationCount, notificationCount, serviceRequestNotificationCount, tt]);
 
   const managementItems = useMemo(() => [
@@ -315,6 +341,9 @@ const ITDashboardSidebar = ({
     if (ASSET_SECTION_PAGE_IDS.includes(currentPage)) {
       setAssetMenuExpanded(true);
     }
+    if (WORK_LOG_SECTION_PAGE_IDS.includes(currentPage)) {
+      setWorkLogMenuExpanded(true);
+    }
   }, [currentPage]);
 
   const isRepairActive = currentPage === DASHBOARD_PAGE_IDS.TICKETS ||
@@ -322,6 +351,7 @@ const ITDashboardSidebar = ({
     currentPage === DASHBOARD_PAGE_IDS.HISTORY;
   const isStockActive = STOCK_SECTION_PAGE_IDS.includes(currentPage);
   const isAssetActive = ASSET_SECTION_PAGE_IDS.includes(currentPage);
+  const isWorkLogActive = WORK_LOG_SECTION_PAGE_IDS.includes(currentPage);
 
   const navigate = (pageId) => {
     onNavigatePage?.(pageId);
@@ -342,6 +372,7 @@ const ITDashboardSidebar = ({
     if (item.group === "repair") return isRepairActive;
     if (item.group === "stock") return isStockActive;
     if (item.group === "assets") return isAssetActive;
+    if (item.group === "workLogs") return isWorkLogActive;
     return currentPage === item.id;
   };
 
@@ -420,6 +451,34 @@ const ITDashboardSidebar = ({
       );
     }
 
+    if (item.group === "workLogs" && !sidebarCollapsed) {
+      return (
+        <li key={item.id}>
+          <NavButton
+            item={item}
+            active={isWorkLogActive}
+            isDarkTheme={isDarkTheme}
+            expandable
+            expanded={workLogMenuExpanded}
+            onClick={() => {
+              setWorkLogMenuExpanded((previous) => !previous);
+              if (!isWorkLogActive) onNavigatePage?.(DASHBOARD_PAGE_IDS.IT_WORK_GENERAL);
+            }}
+          />
+          <SubMenu
+            open={workLogMenuExpanded}
+            items={workLogSubItems}
+            isDarkTheme={isDarkTheme}
+            isActive={(subItem) => (
+              currentPage === subItem.id
+              || (currentPage === DASHBOARD_PAGE_IDS.IT_WORK_LOGS && subItem.id === DASHBOARD_PAGE_IDS.IT_WORK_GENERAL)
+            )}
+            onSelect={(subItem) => navigate(subItem.id)}
+          />
+        </li>
+      );
+    }
+
     return (
       <li key={item.id}>
         <NavButton
@@ -436,6 +495,10 @@ const ITDashboardSidebar = ({
             }
             if (item.group === "assets") {
               navigate(DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT);
+              return;
+            }
+            if (item.group === "workLogs") {
+              navigate(DASHBOARD_PAGE_IDS.IT_WORK_GENERAL);
               return;
             }
             navigate(item.id);

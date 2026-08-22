@@ -3,7 +3,6 @@ import {
   ArrowUp,
   CalendarDays,
   Clock3,
-  Cctv,
   MapPin,
   Pencil,
   Plus,
@@ -38,7 +37,6 @@ export default function EvidenceRecordsSection({
   onScrollToTop,
   onStartFreshView,
   onCreateRecord,
-  onCreateCameraViewRecord,
 }) {
   const chipClass = theme === "dark"
     ? "border-slate-600 bg-[#162136] text-slate-300"
@@ -69,14 +67,6 @@ export default function EvidenceRecordsSection({
             >
               <Plus size={15} />
               เพิ่มบันทึกงาน
-            </button>
-            <button
-              type="button"
-              onClick={onCreateCameraViewRecord}
-              className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-3 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-cyan-800"
-            >
-              <Cctv size={15} />
-              บันทึกขอดูกล้อง
             </button>
             <button
               type="button"
@@ -239,23 +229,32 @@ export default function EvidenceRecordsSection({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onEdit(record)}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${theme === "dark" ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20" : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"}`}
-                >
-                  <Pencil size={15} />
-                  {editingId === record.id ? "กำลังแก้ไข" : "แก้ไขรายการ"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDelete(record.raw)}
-                  disabled={deletingId === record.id}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${theme === "dark" ? "border-rose-500/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20" : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"} ${deletingId === record.id ? "cursor-not-allowed opacity-70" : ""}`}
-                >
-                  <Trash2 size={15} />
-                  {deletingId === record.id ? "กำลังลบ..." : "ลบรายการ"}
-                </button>
+                {record.isCameraView ? (
+                  <span className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${chipClass}`}>
+                    <ShieldCheck size={15} />
+                    ประวัติ CCTV เดิม · อ่านอย่างเดียว
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(record)}
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${theme === "dark" ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20" : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"}`}
+                    >
+                      <Pencil size={15} />
+                      {editingId === record.id ? "กำลังแก้ไข" : "แก้ไขรายการ"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(record.raw)}
+                      disabled={deletingId === record.id}
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${theme === "dark" ? "border-rose-500/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20" : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"} ${deletingId === record.id ? "cursor-not-allowed opacity-70" : ""}`}
+                    >
+                      <Trash2 size={15} />
+                      {deletingId === record.id ? "กำลังลบ..." : "ลบรายการ"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 

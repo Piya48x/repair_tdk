@@ -1524,6 +1524,11 @@ const ITDashboard = () => {
   const handleCreateWalkInTicket = async (payload) => {
     const record = await createWalkInTicket(payload);
     await fetchTickets();
+    setSearchQuery("");
+    setQuickFilter(String(payload?.category || "").trim().toUpperCase() === "CCTV" ? "CCTV" : "ALL");
+    setSortBy("latest");
+    setFilterState({ status: "ALL", priority: "ALL", department: "ALL", assigned: "ALL" });
+    setDateRange({ start: "", end: "" });
     setCurrentPage(DASHBOARD_PAGE_IDS.HISTORY);
     setActiveTab("HISTORY");
     toast.success(`บันทึก Walk-in เข้าประวัติแล้ว${record?.ticket_no ? ` #${record.ticket_no}` : ""}`);
@@ -1551,6 +1556,12 @@ const ITDashboard = () => {
     ),
   ];
 
+  const getTicketReferenceDate = (ticket) => (
+    activeTab === "HISTORY"
+      ? ticket?.closed_at || ticket?.updated_at || ticket?.created_at
+      : ticket?.created_at || ticket?.updated_at
+  );
+
   const filteredTickets = tickets.filter((ticket) => {
     const matchesTab =
       activeTab === "INCOMING"
@@ -1563,14 +1574,22 @@ const ITDashboard = () => {
             : true;
 
     const searchValue = debouncedSearchQuery.toLowerCase();
-    const matchesSearch =
-      !searchValue ||
-      ticket.title?.toLowerCase().includes(searchValue) ||
-      ticket.reporter_name?.toLowerCase().includes(searchValue) ||
-      ticket.reporter_dept?.toLowerCase().includes(searchValue) ||
-      ticket.location?.toLowerCase().includes(searchValue) ||
-      ticket.category?.toLowerCase().includes(searchValue) ||
-      ticket.id?.toString().includes(searchValue);
+    const matchesSearch = !searchValue || [
+      ticket.ticket_no,
+      ticket.id,
+      ticket.title,
+      ticket.description,
+      ticket.reporter_name,
+      ticket.reporter_email,
+      ticket.reporter_emp_id,
+      ticket.reporter_dept,
+      ticket.location,
+      ticket.category,
+      ticket.device_type,
+      ticket.assigned_name,
+      ticket.solution_note,
+      ticket.close_note,
+    ].some((value) => String(value || "").toLowerCase().includes(searchValue));
 
     const matchesFilterStatus =
       filterState.status === "ALL" || ticket.status === filterState.status;
@@ -1583,12 +1602,12 @@ const ITDashboard = () => {
       filterState.assigned === "ALL" ||
       ticket.assigned_name === filterState.assigned;
 
-    let matchesDate = true;
-    if (dateRange.start && dateRange.end) {
-      const ticketDate = ticket.created_at.split("T")[0];
-      matchesDate =
-        ticketDate >= dateRange.start && ticketDate <= dateRange.end;
-    }
+    const ticketReferenceDate = getTicketReferenceDate(ticket);
+    const ticketDate = String(ticketReferenceDate || "").split("T")[0];
+    const matchesDate = (
+      (!dateRange.start || (ticketDate && ticketDate >= dateRange.start)) &&
+      (!dateRange.end || (ticketDate && ticketDate <= dateRange.end))
+    );
 
     let matchesQuickFilter = true;
     if (quickFilter === "URGENT") {
@@ -1597,13 +1616,16 @@ const ITDashboard = () => {
       matchesQuickFilter = ticket.assigned_to === currentUser?.id;
     } else if (quickFilter === "TODAY") {
       const todayText = new Date().toISOString().split("T")[0];
-      matchesQuickFilter = ticket.created_at?.startsWith(todayText);
+      matchesQuickFilter = ticketDate === todayText;
     } else if (quickFilter === "HARDWARE") {
       const text = `${ticket.category || ""} ${ticket.device_type || ""}`.toLowerCase();
       matchesQuickFilter = /(hardware|laptop|computer|printer|router|monitor)/.test(text);
     } else if (quickFilter === "SYSTEM") {
       const text = `${ticket.category || ""} ${ticket.device_type || ""}`.toLowerCase();
       matchesQuickFilter = /(system|network|server|software|account|email|wifi)/.test(text);
+    } else if (quickFilter === "CCTV") {
+      const text = `${ticket.category || ""} ${ticket.title || ""} ${ticket.description || ""}`.toLowerCase();
+      matchesQuickFilter = /\bcctv\b|\bcamera\b|กล้อง/.test(text);
     }
 
     return (
@@ -1619,8 +1641,10 @@ const ITDashboard = () => {
   });
 
   const sortedTickets = [...filteredTickets].sort((a, b) => {
+    const leftReferenceTime = new Date(getTicketReferenceDate(a) || 0).getTime();
+    const rightReferenceTime = new Date(getTicketReferenceDate(b) || 0).getTime();
     if (sortBy === "oldest") {
-      return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      return leftReferenceTime - rightReferenceTime;
     }
     if (sortBy === "priority") {
       const rank = { urgent: 3, normal: 2, low: 1 };
@@ -1633,7 +1657,7 @@ const ITDashboard = () => {
     if (sortBy === "updated") {
       return new Date(b.updated_at || 0) - new Date(a.updated_at || 0);
     }
-    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    return rightReferenceTime - leftReferenceTime;
   });
 
   const activeFilterCount = [
@@ -1641,7 +1665,7 @@ const ITDashboard = () => {
     filterState.priority !== "ALL",
     filterState.department !== "ALL",
     filterState.assigned !== "ALL",
-    Boolean(dateRange.start && dateRange.end),
+    Boolean(dateRange.start || dateRange.end),
   ].filter(Boolean).length;
 
   const statCards = [
@@ -1783,6 +1807,18 @@ const ITDashboard = () => {
             onSearchQueryChange={setSearchQuery}
             activeFilterCount={activeFilterCount}
             onOpenDateFilter={() => setShowDateFilter(true)}
+            onResetTicketFilters={() => {
+              setSearchQuery("");
+              setQuickFilter("ALL");
+              setSortBy("latest");
+              setFilterState({
+                status: "ALL",
+                priority: "ALL",
+                department: "ALL",
+                assigned: "ALL",
+              });
+              setDateRange({ start: "", end: "" });
+            }}
             sortBy={sortBy}
             onSortByChange={setSortBy}
             onCreateTicket={() => navigate("/create-ticket")}

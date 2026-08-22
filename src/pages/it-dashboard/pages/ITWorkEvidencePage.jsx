@@ -3,10 +3,11 @@ import { toast } from "react-hot-toast";
 import {
   ArrowUp,
   CheckCircle2,
+  ClipboardList,
   Clock3,
-  Cctv,
-  LayoutDashboard,
+  History,
   ListChecks,
+  MoveRight,
   Plus,
   X,
 } from "lucide-react";
@@ -24,14 +25,15 @@ import {
   uploadITWorkEvidenceFiles,
 } from "../../../services/itWorkRecordService";
 import { DASHBOARD_PAGE_IDS } from "../constants/dashboardPages";
+import AssetMoveCenter from "./it-work-evidence/AssetMoveCenter";
 import EvidenceFormSection from "./it-work-evidence/EvidenceFormSection";
 import EvidenceRecordsSection from "./it-work-evidence/EvidenceRecordsSection";
+import UnifiedWorkHistory from "./it-work-evidence/UnifiedWorkHistory";
 import {
   CAMERA_APPROVAL_OPTIONS,
   CAMERA_VIEW_JOB_TYPE,
   STATUS_OPTIONS,
   TYPE_OPTIONS,
-  buildCameraViewForm,
   buildReferenceCode,
   buildEndTimeFromDuration,
   buildForm,
@@ -104,6 +106,7 @@ export default function ITWorkEvidencePage({
   uiTheme,
   currentUser,
   onNavigatePage,
+  viewMode = "general",
 }) {
   const fileInputRef = useRef(null);
   const previewRef = useRef([]);
@@ -129,6 +132,7 @@ export default function ITWorkEvidencePage({
   const [recordModalOpen, setRecordModalOpen] = useState(false);
 
   const deferredQuery = useDeferredValue(filters.query);
+  const activeView = ["general", "movements", "history"].includes(viewMode) ? viewMode : "general";
   const isEditing = editingRecordId !== null;
   const isCameraViewRequest = formData.job_type === CAMERA_VIEW_JOB_TYPE;
   const cardClass = `${uiTheme.surfaceCard} rounded-2xl border sm:rounded-3xl`;
@@ -312,13 +316,6 @@ export default function ITWorkEvidencePage({
     setRecordModalOpen(true);
   };
 
-  const openCameraViewRecordModal = () => {
-    if (saving) return;
-    clearFormState();
-    setFormData(buildCameraViewForm());
-    setRecordModalOpen(true);
-  };
-
   const closeRecordModal = () => {
     if (saving) return;
     clearFormState();
@@ -326,11 +323,7 @@ export default function ITWorkEvidencePage({
   };
 
   const resetForm = () => {
-    const resetAsCameraViewRequest = isCameraViewRequest;
     clearFormState();
-    if (resetAsCameraViewRequest) {
-      setFormData(buildCameraViewForm());
-    }
   };
 
   const handleCancelEdit = () => {
@@ -613,6 +606,10 @@ export default function ITWorkEvidencePage({
   }, [deferredQuery, filters.department, filters.status, filters.type, filters.user, recordViews]);
 
   const beginEditRecord = (recordView) => {
+    if (recordView?.isCameraView) {
+      toast.error("ประวัติ CCTV เดิมเปิดให้อ่านย้อนหลังเท่านั้น");
+      return;
+    }
     const nextImages = normalizeEvidenceImages(recordView?.raw?.evidence_images);
 
     setTimerRunning(false);
@@ -786,6 +783,10 @@ export default function ITWorkEvidencePage({
 
   const handleDelete = async (record) => {
     if (!record?.id || deletingId) return;
+    if (record.job_type === CAMERA_VIEW_JOB_TYPE) {
+      toast.error("ประวัติ CCTV เดิมไม่อนุญาตให้ลบจากหน้านี้");
+      return;
+    }
     if (!window.confirm("ต้องการลบบันทึกงาน IT รายการนี้ใช่หรือไม่?")) return;
 
     setDeletingId(record.id);
@@ -806,10 +807,6 @@ export default function ITWorkEvidencePage({
     } finally {
       setDeletingId(null);
     }
-  };
-
-  const scrollToList = () => {
-    listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const scrollToTop = () => {
@@ -872,91 +869,74 @@ export default function ITWorkEvidencePage({
     ];
   }, [recordViews, theme]);
 
+  const workViews = [
+    {
+      mode: "general",
+      pageId: DASHBOARD_PAGE_IDS.IT_WORK_GENERAL,
+      label: "บันทึกงานทั่วไป",
+      description: "บันทึกงานติดตั้ง ปรับปรุง และแก้ไข พร้อมเวลาและรูปหลักฐาน",
+      icon: ClipboardList,
+    },
+    {
+      mode: "movements",
+      pageId: DASHBOARD_PAGE_IDS.IT_ASSET_MOVEMENTS,
+      label: "เคลื่อนย้ายอุปกรณ์",
+      description: "สร้าง Move ID และเก็บหลักฐานก่อน–หลังการเคลื่อนย้าย",
+      icon: MoveRight,
+    },
+    {
+      mode: "history",
+      pageId: DASHBOARD_PAGE_IDS.IT_WORK_HISTORY,
+      label: "ประวัติรวม",
+      description: "ค้นหางานทั่วไปและการเคลื่อนย้ายทั้งหมดจากหน้าเดียว",
+      icon: History,
+    },
+  ];
+  const activeViewMeta = workViews.find((item) => item.mode === activeView) || workViews[0];
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <section className={`${cardClass} overflow-hidden`}>
-        <div className="relative p-4 sm:p-6">
-          <div className={`pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl sm:h-48 sm:w-48 ${
-            theme === "dark" ? "bg-cyan-500/10" : "bg-cyan-200/50"
-          }`} />
-          <div className={`pointer-events-none absolute bottom-0 left-8 h-24 w-24 rounded-full blur-3xl sm:h-32 sm:w-32 ${
-            theme === "dark" ? "bg-[#2b59b0]/20" : "bg-[#2b59b0]/10"
-          }`} />
-
-          <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${
-                theme === "dark"
-                  ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200"
-                  : "border-cyan-200 bg-cyan-50 text-cyan-700"
-              }`}>
-                <ListChecks size={14} />
-                บันทึกงาน IT
+        <div className="p-4 sm:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="min-w-0">
+              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${theme === "dark" ? "border-blue-500/25 bg-blue-500/10 text-blue-200" : "border-blue-200 bg-blue-50 text-blue-700"}`}>
+                <ListChecks size={14} /> IT Work Center
               </div>
-              <h2 className={`mt-2 text-xl font-black sm:mt-3 sm:text-3xl ${uiTheme.textPrimary}`}>
-                บันทึกงานติดตั้ง ปรับปรุง และแก้ไข
-              </h2>
-              <p className={`mt-1 line-clamp-2 max-w-3xl text-xs leading-5 sm:mt-2 sm:text-sm sm:leading-6 ${uiTheme.textSecondary}`}>
-                หน้าแรกจะแสดงประวัติงานที่บันทึกไว้ทันที ส่วนการเพิ่มหรือแก้ไขงานย้ายไปอยู่ใน popup เพื่อให้ใช้งานเร็วและไม่ต้องเลื่อนหาฟอร์มยาว
-              </p>
+              <h2 className={`mt-2 text-xl font-black sm:text-2xl ${uiTheme.textPrimary}`}>{activeViewMeta.label}</h2>
+              <p className={`mt-1 max-w-3xl text-sm leading-6 ${uiTheme.textSecondary}`}>{activeViewMeta.description}</p>
             </div>
+            {activeView === "general" ? (
+              <button type="button" onClick={openCreateRecordModal} disabled={schemaMissing} className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition ${schemaMissing ? "cursor-not-allowed bg-slate-400" : "bg-[#2b59b0] shadow-lg shadow-blue-600/20 hover:bg-[#244a95]"}`}>
+                <Plus size={17} /> เพิ่มบันทึกงานทั่วไป
+              </button>
+            ) : null}
+          </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-              <button
-                type="button"
-                onClick={openCreateRecordModal}
-                disabled={schemaMissing}
-                className={`col-span-2 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 sm:col-span-1 sm:rounded-2xl sm:px-4 sm:py-3 ${
-                  schemaMissing
-                    ? "cursor-not-allowed bg-slate-400 shadow-none"
-                    : "bg-[#2b59b0] shadow-[#2b59b0]/25 hover:bg-[#244a95]"
-                }`}
-              >
-                <Plus size={18} />
-                เพิ่มบันทึกงาน
-              </button>
-              <button
-                type="button"
-                onClick={openCameraViewRecordModal}
-                disabled={schemaMissing}
-                className={`col-span-2 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 sm:col-span-1 sm:rounded-2xl sm:px-4 sm:py-3 ${
-                  schemaMissing
-                    ? "cursor-not-allowed bg-slate-400 shadow-none"
-                    : "bg-cyan-700 shadow-cyan-700/20 hover:bg-cyan-800"
-                }`}
-              >
-                <Cctv size={18} />
-                บันทึกประวัติการขอดูกล้อง
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigatePage?.(DASHBOARD_PAGE_IDS.REPORTS)}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${
-                  theme === "dark"
-                    ? "bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
-                    : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <LayoutDashboard size={16} />
-                <span className="truncate">Dashboard</span>
-              </button>
-              <button
-                type="button"
-                onClick={scrollToList}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${
-                  theme === "dark"
-                    ? "bg-[#162136] text-slate-200 hover:bg-[#1e2b44]"
-                    : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <ListChecks size={16} />
-                <span className="truncate">ประวัติงาน</span>
-              </button>
-            </div>
+          <div className={`mt-5 grid grid-cols-1 gap-2 rounded-2xl p-1.5 sm:grid-cols-3 ${theme === "dark" ? "bg-slate-900/80" : "bg-slate-100"}`} role="tablist" aria-label="ประเภทบันทึกงาน IT">
+            {workViews.map((item) => {
+              const Icon = item.icon;
+              const active = activeView === item.mode;
+              return (
+                <button
+                  key={item.mode}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onNavigatePage?.(item.pageId)}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${active ? theme === "dark" ? "bg-[#162136] text-white shadow-sm" : "bg-white text-[#16448d] shadow-sm" : theme === "dark" ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200" : "text-slate-500 hover:bg-white/70 hover:text-slate-800"}`}
+                >
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${active ? item.mode === "movements" ? theme === "dark" ? "bg-violet-500/15 text-violet-200" : "bg-violet-100 text-violet-700" : theme === "dark" ? "bg-blue-500/15 text-blue-200" : "bg-blue-100 text-[#2b59b0]" : theme === "dark" ? "bg-slate-800 text-slate-500" : "bg-slate-200/70 text-slate-500"}`}><Icon size={17} /></span>
+                  <span className="min-w-0"><span className="block truncate text-sm font-black">{item.label}</span><span className="mt-0.5 hidden truncate text-[11px] opacity-70 lg:block">{item.mode === "general" ? "ติดตั้ง / ปรับปรุง / แก้ไข" : item.mode === "movements" ? "Move ID และรูปก่อน–หลัง" : "ค้นหาข้ามข้อมูลทั้งสองแบบ"}</span></span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
 
+      {activeView === "general" ? (
+        <>
       <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
         {summaryCards.map((card) => {
           const Icon = card.icon;
@@ -1016,10 +996,31 @@ export default function ITWorkEvidencePage({
         onScrollToTop={scrollToTop}
         onStartFreshView={handleStartFreshView}
         onCreateRecord={openCreateRecordModal}
-        onCreateCameraViewRecord={openCameraViewRecordModal}
       />
+        </>
+      ) : null}
 
-      {recordModalOpen && (
+      {activeView === "movements" ? (
+        <AssetMoveCenter
+          theme={theme}
+          uiTheme={uiTheme}
+          currentUser={currentUser}
+          employeeOptions={employeeDirectory}
+          employeeLoading={employeeDirectoryLoading}
+        />
+      ) : null}
+
+      {activeView === "history" ? (
+        <UnifiedWorkHistory
+          theme={theme}
+          uiTheme={uiTheme}
+          generalRecords={recordViews}
+          generalLoading={loading}
+          generalLoadError={loadError}
+        />
+      ) : null}
+
+      {activeView === "general" && recordModalOpen && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
           <div
             className={`absolute inset-0 backdrop-blur-sm ${

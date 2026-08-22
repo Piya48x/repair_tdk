@@ -351,7 +351,7 @@ export default function EvidenceFormSection({
                 onChange={(event) => setFormData((prev) => ({ ...prev, job_type: event.target.value }))}
                 className={inputClass}
               >
-                {TYPE_OPTIONS.map((option) => (
+                {TYPE_OPTIONS.filter((option) => option.value !== CAMERA_VIEW_JOB_TYPE).map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>

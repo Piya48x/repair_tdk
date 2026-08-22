@@ -13,6 +13,7 @@ const TICKET_WORKSPACE_TRANSLATIONS = {
       today: "วันนี้",
       hardware: "ฮาร์ดแวร์",
       system: "ระบบ",
+      cctv: "CCTV",
     },
     sortOptions: {
       latest: "เรียง: ล่าสุด",
@@ -36,6 +37,7 @@ const TICKET_WORKSPACE_TRANSLATIONS = {
       today: "Today",
       hardware: "Hardware",
       system: "System",
+      cctv: "CCTV",
     },
     sortOptions: {
       latest: "Sort: Latest",
@@ -59,6 +61,7 @@ const TICKET_WORKSPACE_TRANSLATIONS = {
       today: "오늘",
       hardware: "하드웨어",
       system: "시스템",
+      cctv: "CCTV",
     },
     sortOptions: {
       latest: "정렬: 최신순",
@@ -129,6 +132,7 @@ const TicketWorkspacePage = ({
     { id: "TODAY", label: tt("quickFilters.today") },
     { id: "HARDWARE", label: tt("quickFilters.hardware") },
     { id: "SYSTEM", label: tt("quickFilters.system") },
+    { id: "CCTV", label: tt("quickFilters.cctv") },
   ];
   const summaryItems = (statCards || []).map((stat) => ({
     key: stat.key,

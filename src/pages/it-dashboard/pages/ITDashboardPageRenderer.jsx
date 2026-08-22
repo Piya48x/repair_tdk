@@ -53,7 +53,12 @@ const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
     case DASHBOARD_PAGE_IDS.NOTEBOOK_BORROW:
       return <NotebookBorrowRequestsPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.IT_WORK_LOGS:
-      return <ITWorkEvidencePage {...workspaceProps} />;
+    case DASHBOARD_PAGE_IDS.IT_WORK_GENERAL:
+      return <ITWorkEvidencePage {...workspaceProps} viewMode="general" />;
+    case DASHBOARD_PAGE_IDS.IT_ASSET_MOVEMENTS:
+      return <ITWorkEvidencePage {...workspaceProps} viewMode="movements" />;
+    case DASHBOARD_PAGE_IDS.IT_WORK_HISTORY:
+      return <ITWorkEvidencePage {...workspaceProps} viewMode="history" />;
     case DASHBOARD_PAGE_IDS.REPORTS:
       return <ReportsPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.SETTINGS:
