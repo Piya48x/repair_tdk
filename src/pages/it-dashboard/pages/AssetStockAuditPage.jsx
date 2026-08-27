@@ -98,7 +98,7 @@ const escapeHtml = (value) => String(value ?? "")
 async function printQrLabels(items, title = "IT Asset Labels") {
   const printableItems = (Array.isArray(items) ? items : []).filter((item) => item?.asset_tag_snapshot);
   if (!printableItems.length) {
-    toast.error("ไม่มี Asset Tag สำหรับพิมพ์");
+    toast.error("ไม่มี Asset Code สำหรับพิมพ์");
     return;
   }
 
@@ -248,7 +248,7 @@ function CameraScanner({ onDetected, onClose }) {
           </div>
         ) : (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-            เบราว์เซอร์นี้ยังไม่รองรับการอ่าน Barcode จากกล้อง กรุณาใช้ Chrome/Edge รุ่นล่าสุด หรือใช้ช่องกรอก Asset Tag และเครื่องสแกน USB
+            เบราว์เซอร์นี้ยังไม่รองรับการอ่าน Barcode จากกล้อง กรุณาใช้ Chrome/Edge รุ่นล่าสุด หรือใช้ช่องกรอก Asset Code และเครื่องสแกน USB
           </div>
         )}
         {cameraError ? <p className="mt-3 text-sm font-semibold text-rose-600">{cameraError}</p> : null}
@@ -517,7 +517,7 @@ function UnregisteredAssetModal({ tag, session, currentUser, onSaved, onClose })
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!cleanText(form.asset_tag) || !cleanText(form.asset_name)) return toast.error("กรุณาระบุ Asset Tag และชื่ออุปกรณ์");
+    if (!cleanText(form.asset_tag) || !cleanText(form.asset_name)) return toast.error("กรุณาระบุ Asset Code และชื่ออุปกรณ์");
     setSaving(true);
     try {
       await addUnregisteredAuditItem({ sessionId: session.id, asset: form, currentUser });
@@ -525,7 +525,7 @@ function UnregisteredAssetModal({ tag, session, currentUser, onSaved, onClose })
       onSaved();
     } catch (error) {
       console.error("Add unregistered asset error:", error);
-      toast.error(error?.code === "23505" ? "Asset Tag นี้มีอยู่ในรอบตรวจแล้ว" : error?.message || "บันทึกไม่สำเร็จ");
+      toast.error(error?.code === "23505" ? "Asset Code นี้มีอยู่ในรอบตรวจแล้ว" : error?.message || "บันทึกไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -535,7 +535,7 @@ function UnregisteredAssetModal({ tag, session, currentUser, onSaved, onClose })
     <Modal title="พบอุปกรณ์นอกทะเบียน" subtitle="เก็บรายการไว้ตรวจสอบก่อนเพิ่มเข้าสู่ Asset Master" onClose={onClose}>
       <form onSubmit={handleSubmit} className="grid gap-4 p-5 sm:grid-cols-2">
         {[
-          ["asset_tag", "Asset Tag *"],
+          ["asset_tag", "Asset Code *"],
           ["asset_name", "ชื่ออุปกรณ์ *"],
           ["asset_category", "ประเภทอุปกรณ์"],
           ["serial_number", "Serial Number"],
@@ -712,7 +712,7 @@ export default function AssetStockAuditPage({ theme = "light", currentUser }) {
       return;
     }
     if (selectedSession?.status === "completed") {
-      toast.error("ไม่พบ Asset Tag นี้ในรอบตรวจ");
+      toast.error("ไม่พบ Asset Code นี้ในรอบตรวจ");
       return;
     }
     setUnregisteredTag(tag);
@@ -890,7 +890,7 @@ export default function AssetStockAuditPage({ theme = "light", currentUser }) {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
                 <div className="flex items-center gap-3 lg:w-64"><span className={`rounded-xl p-2.5 ${isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-700"}`}><QrCode size={22} /></span><div><h3 className="font-black">สแกน Asset</h3><p className={`text-xs ${mutedClass}`}>รองรับกล้องและ USB Scanner</p></div></div>
                 <form onSubmit={handleScanSubmit} className="flex min-w-0 flex-1 gap-2">
-                  <input autoComplete="off" value={scanValue} onChange={(event) => setScanValue(event.target.value)} placeholder="สแกนหรือพิมพ์ Asset Tag เช่น PC-000123" className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${inputClass}`} />
+                  <input autoComplete="off" value={scanValue} onChange={(event) => setScanValue(event.target.value)} placeholder="สแกนหรือพิมพ์ Asset Code เช่น CPUTDK0065" className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${inputClass}`} />
                   <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">ค้นหา</button>
                 </form>
                 <button type="button" onClick={() => setShowCamera(true)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100"><Camera size={17} />เปิดกล้อง</button>
@@ -901,7 +901,7 @@ export default function AssetStockAuditPage({ theme = "light", currentUser }) {
           <section className={`overflow-hidden rounded-2xl border ${shellClass}`}>
             <div className={`border-b p-4 sm:p-5 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div><h2 className="font-black">รายการตรวจ <span className="text-blue-500">{filteredItems.length}</span></h2><p className={`mt-1 text-xs ${mutedClass}`}>ค้นหาด้วย Asset Tag, Serial Number, ผู้ใช้งาน หรือสถานที่</p></div>
+                <div><h2 className="font-black">รายการตรวจ <span className="text-blue-500">{filteredItems.length}</span></h2><p className={`mt-1 text-xs ${mutedClass}`}>ค้นหาด้วย Asset Code, Serial Number, ผู้ใช้งาน หรือสถานที่</p></div>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <label className="relative min-w-[260px]"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="ค้นหารายการ..." className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 ${inputClass}`} /></label>
                   <label className="relative"><Filter size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select value={resultFilter} onChange={(event) => setResultFilter(event.target.value)} className={`w-full appearance-none rounded-xl border py-2.5 pl-9 pr-8 text-sm font-bold outline-none focus:border-blue-500 ${inputClass}`}><option value="all">ทุกสถานะ</option><option value="pending">ยังไม่ได้ตรวจ</option><option value="verified">ข้อมูลถูกต้อง</option><option value="exceptions">รายการผิดปกติ</option><option value="mismatch">ข้อมูลไม่ตรง</option><option value="damaged">ชำรุด</option><option value="not_found">ไม่พบ</option><option value="unregistered">นอกทะเบียน</option></select></label>

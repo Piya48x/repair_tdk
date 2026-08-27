@@ -92,7 +92,7 @@ export default function AssetViewScannerModal({ onDetected, onClose }) {
             </div>
           ) : (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-              เบราว์เซอร์นี้ยังไม่รองรับการอ่าน QR จากกล้อง กรุณาใช้ Chrome/Edge รุ่นล่าสุด หรือใช้ช่อง Asset Tag กับเครื่องสแกน USB
+              เบราว์เซอร์นี้ยังไม่รองรับการอ่าน QR จากกล้อง กรุณาใช้ Chrome/Edge รุ่นล่าสุด หรือใช้ช่อง Asset Code กับเครื่องสแกน USB
             </div>
           )}
           {cameraError ? <p className="mt-3 text-sm font-bold text-rose-600">{cameraError}</p> : null}

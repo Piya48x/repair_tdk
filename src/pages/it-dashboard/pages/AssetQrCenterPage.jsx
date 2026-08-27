@@ -11,6 +11,7 @@ import {
   Edit3,
   ExternalLink,
   Factory,
+  FileSpreadsheet,
   FileImage,
   Laptop,
   ListFilter,
@@ -28,13 +29,13 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import toast from "react-hot-toast";
+import AssetExcelImportModal from "../components/AssetExcelImportModal";
 import AssetViewScannerModal, { extractAssetTagFromQr } from "../components/AssetViewScannerModal";
 import { DASHBOARD_PAGE_IDS } from "../constants/dashboardPages";
 import {
   buildAssetQrUrl,
   fetchAssetQrDirectory,
   fetchAssetQrProfiles,
-  generateSuggestedAssetTag,
   isAssetQrSchemaError,
   markAssetQrGenerated,
   saveAssetQrRecord,
@@ -131,17 +132,14 @@ function Modal({ title, subtitle, onClose, children, maxWidth = "max-w-5xl" }) {
   );
 }
 
-function AssetQrFormModal({ assets, profiles, asset, currentUser, onSaved, onClose }) {
+function AssetQrFormModal({ profiles, asset, currentUser, onSaved, onClose }) {
   const [form, setForm] = useState(() => asset ? {
     ...EMPTY_FORM,
     ...asset,
     owner_profile_id: asset.owner_profile_id || "",
     purchase_date: asset.purchase_date || "",
     last_verified_at: toDateTimeLocal(asset.last_verified_at),
-  } : {
-    ...EMPTY_FORM,
-    asset_tag: generateSuggestedAssetTag("PC", assets),
-  });
+  } : { ...EMPTY_FORM });
   const [files, setFiles] = useState([]);
   const [filePreview, setFilePreview] = useState("");
   const [saving, setSaving] = useState(false);
@@ -199,7 +197,6 @@ function AssetQrFormModal({ assets, profiles, asset, currentUser, onSaved, onClo
     setForm((previous) => ({
       ...previous,
       asset_category: category,
-      asset_tag: asset ? previous.asset_tag : generateSuggestedAssetTag(category, assets),
     }));
   };
 
@@ -274,7 +271,7 @@ function AssetQrFormModal({ assets, profiles, asset, currentUser, onSaved, onClo
       onSaved(saved);
     } catch (error) {
       console.error("Save Asset QR record error:", error);
-      if (error?.code === "23505") toast.error("Asset Tag นี้มีอยู่แล้ว กรุณาเปลี่ยนรหัส");
+      if (error?.code === "23505") toast.error("Asset Code นี้มีอยู่แล้ว กรุณาตรวจสอบรหัส");
       else toast.error(error?.message || "บันทึกข้อมูลไม่สำเร็จ");
     } finally {
       setSaving(false);
@@ -285,14 +282,14 @@ function AssetQrFormModal({ assets, profiles, asset, currentUser, onSaved, onClo
   const labelClass = "space-y-1.5 text-sm font-bold text-slate-700";
 
   return (
-    <Modal title={asset ? `แก้ไข ${asset.asset_tag}` : "สร้าง Asset QR Code แบบ Manual"} subtitle="QR จะอ้างอิง Asset Tag ข้อมูลที่แก้ในอนาคตจะแสดงผ่าน QR เดิมทันที" onClose={onClose}>
+    <Modal title={asset ? `แก้ไข ${asset.asset_tag}` : "สร้าง Asset QR Code แบบ Manual"} subtitle="กรอกรหัส Asset Code จริงตามทะเบียนหรือไฟล์ Excel โดย QR จะอ้างอิงรหัสนี้" onClose={onClose}>
       <form onSubmit={handleSubmit} className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-5">
           <section className="rounded-2xl border border-slate-200 p-4">
             <div className="mb-4 flex items-center gap-2"><PackagePlus size={18} className="text-blue-600" /><h3 className="font-black text-slate-900">ข้อมูลอุปกรณ์</h3></div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <label className={labelClass}><span>ประเภทอุปกรณ์ *</span><select value={form.asset_category} onChange={(event) => handleCategoryChange(event.target.value)} className={inputClass}>{ASSET_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
-              <label className={labelClass}><span>Asset Tag *</span><div className="flex gap-2"><input disabled={Boolean(asset)} value={form.asset_tag} onChange={(event) => updateField("asset_tag", event.target.value.toUpperCase())} className={inputClass} /><button type="button" disabled={Boolean(asset)} onClick={() => updateField("asset_tag", generateSuggestedAssetTag(form.asset_category, assets))} className="shrink-0 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-bold text-blue-700 disabled:opacity-40">สร้างรหัส</button></div></label>
+              <label className={labelClass}><span>Asset Code *</span><input disabled={Boolean(asset)} value={form.asset_tag} onChange={(event) => updateField("asset_tag", event.target.value.toUpperCase().replace(/\s+/g, ""))} placeholder="เช่น CPUTDK0065, NTDK0001, MTDK0001" className={inputClass} /><small className="font-normal text-slate-500">ใช้รหัสจริง ห้ามสร้าง PC-001 / NB-001 / MN-001 ใหม่</small></label>
               <label className={labelClass}><span>ชื่ออุปกรณ์ *</span><input value={form.asset_name} onChange={(event) => updateField("asset_name", event.target.value)} placeholder="เช่น PC ฝ่ายบัญชี 01" className={inputClass} /></label>
               <label className={labelClass}><span>Brand</span><input value={form.brand} onChange={(event) => updateField("brand", event.target.value)} className={inputClass} /></label>
               <label className={labelClass}><span>Model</span><input value={form.model} onChange={(event) => updateField("model", event.target.value)} className={inputClass} /></label>
@@ -344,7 +341,7 @@ function AssetQrFormModal({ assets, profiles, asset, currentUser, onSaved, onClo
               </div>
             </section>
 
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800"><div className="flex gap-2"><QrCode size={18} className="shrink-0" /><p><strong>QR ใช้ Asset Tag เป็นตัวอ้างอิง</strong><br />ห้ามเปลี่ยน Asset Tag หลังติด Label แต่แก้ข้อมูลอื่นได้ตลอด</p></div></div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800"><div className="flex gap-2"><QrCode size={18} className="shrink-0" /><p><strong>QR ใช้ Asset Code จริงเป็นตัวอ้างอิง</strong><br />หากต้องเปลี่ยนรหัสจากข้อมูลเดิม ให้ใช้ Import Excel เพื่อรักษารูปและประวัติเดิม</p></div></div>
           </div>
         </aside>
 
@@ -416,6 +413,7 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
   const [showScanner, setShowScanner] = useState(false);
   const [editingAsset, setEditingAsset] = useState(undefined);
   const [qrAsset, setQrAsset] = useState(null);
+  const [showExcelImport, setShowExcelImport] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -499,7 +497,7 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
     const tag = extractAssetTagFromQr(rawValue);
     setShowScanner(false);
     setScanValue("");
-    if (!tag) return toast.error("ไม่พบ Asset Tag ใน QR Code");
+    if (!tag) return toast.error("ไม่พบ Asset Code ใน QR Code");
     const match = assets.find((asset) => cleanText(asset.asset_tag).toLowerCase() === cleanText(tag).toLowerCase());
     if (!match) return toast.error(`ไม่พบ ${tag} ในทะเบียน Asset`);
     navigate(`/asset-qr/${encodeURIComponent(match.asset_tag)}`);
@@ -538,7 +536,7 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
           <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-violet-500/10 blur-3xl" />
           <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4"><span className={`rounded-2xl p-3 ${isDark ? "bg-violet-500/15 text-violet-300" : "bg-violet-50 text-violet-700"}`}><QrCode size={29} /></span><div><p className="text-xs font-black uppercase tracking-[0.18em] text-violet-500">Asset Identity & Lookup</p><h1 className="mt-1 text-2xl font-black sm:text-3xl">Asset QR Center</h1><p className={`mt-2 max-w-3xl text-sm ${muted}`}>สร้าง Asset และ QR แบบ Manual, พิมพ์ Label และสแกนเพื่อดูข้อมูลอุปกรณ์ล่าสุด โดยไม่บันทึกเป็นการตรวจ Stock ประจำปี</p></div></div>
-            <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void loadData()} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-bold ${input}`}><RefreshCw size={16} />รีเฟรช</button><button type="button" onClick={() => setEditingAsset(null)} disabled={!schemaReady} className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50"><Plus size={17} />สร้าง QR ใหม่</button></div>
+            <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void loadData()} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-bold ${input}`}><RefreshCw size={16} />รีเฟรช</button><button type="button" onClick={() => setShowExcelImport(true)} disabled={!schemaReady} className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"><FileSpreadsheet size={17} />Import Excel</button><button type="button" onClick={() => setEditingAsset(null)} disabled={!schemaReady} className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50"><Plus size={17} />สร้าง QR ใหม่</button></div>
           </div>
         </div>
       </section>
@@ -555,7 +553,7 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className={`rounded-2xl border p-5 ${shell}`}><div className="flex items-start gap-3"><span className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><ScanLine size={22} /></span><div><p className="text-xs font-black uppercase tracking-wider text-violet-500">Scan Mode 1</p><h2 className="mt-1 font-black">สแกนเพื่อดูข้อมูลอุปกรณ์</h2><p className={`mt-1 text-xs ${muted}`}>เปิดข้อมูล รูปอุปกรณ์ รูปผู้ใช้งาน ตำแหน่ง และวันที่ตรวจล่าสุด โดยไม่เปลี่ยนผล Audit</p></div></div><form onSubmit={handleScanSubmit} className="mt-4 flex gap-2"><input value={scanValue} onChange={(event) => setScanValue(event.target.value)} placeholder="สแกนหรือกรอก Asset Tag" className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:border-violet-500 ${input}`} /><button type="submit" className="rounded-xl bg-violet-600 px-4 text-sm font-bold text-white">เปิดข้อมูล</button><button type="button" onClick={() => setShowScanner(true)} className="rounded-xl border border-violet-300 bg-violet-50 px-3 text-violet-700" title="เปิดกล้อง"><Camera size={18} /></button></form></div>
+        <div className={`rounded-2xl border p-5 ${shell}`}><div className="flex items-start gap-3"><span className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><ScanLine size={22} /></span><div><p className="text-xs font-black uppercase tracking-wider text-violet-500">Scan Mode 1</p><h2 className="mt-1 font-black">สแกนเพื่อดูข้อมูลอุปกรณ์</h2><p className={`mt-1 text-xs ${muted}`}>เปิดข้อมูล รูปอุปกรณ์ รูปผู้ใช้งาน ตำแหน่ง และวันที่ตรวจล่าสุด โดยไม่เปลี่ยนผล Audit</p></div></div><form onSubmit={handleScanSubmit} className="mt-4 flex gap-2"><input value={scanValue} onChange={(event) => setScanValue(event.target.value)} placeholder="สแกนหรือกรอก Asset Code" className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:border-violet-500 ${input}`} /><button type="submit" className="rounded-xl bg-violet-600 px-4 text-sm font-bold text-white">เปิดข้อมูล</button><button type="button" onClick={() => setShowScanner(true)} className="rounded-xl border border-violet-300 bg-violet-50 px-3 text-violet-700" title="เปิดกล้อง"><Camera size={18} /></button></form></div>
         <div className={`rounded-2xl border p-5 ${shell}`}><div className="flex items-start gap-3"><span className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><ClipboardCheck size={22} /></span><div><p className="text-xs font-black uppercase tracking-wider text-blue-500">Scan Mode 2</p><h2 className="mt-1 font-black">สแกนเพื่อตรวจ Stock ประจำปี</h2><p className={`mt-1 text-xs ${muted}`}>ใช้โหมดนี้เมื่อต้องบันทึกผลตรวจ ถูกต้อง ข้อมูลไม่ตรง ชำรุด หรือไม่พบในรอบ Audit</p></div></div><button type="button" onClick={() => onNavigatePage?.(DASHBOARD_PAGE_IDS.ASSET_STOCK_AUDIT)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100"><ClipboardCheck size={17} />ไปหน้า Stock Audit PC & Monitor</button></div>
       </section>
 
@@ -564,7 +562,7 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <h2 className="font-black">ทะเบียน Asset และ QR</h2>
-              <p className={`mt-1 text-xs ${muted}`}>ค้นหาด้วย Asset Tag, Serial, ชื่อพนักงาน หรือกรองรายการตามข้อมูลที่ต้องการ</p>
+              <p className={`mt-1 text-xs ${muted}`}>ค้นหาด้วย Asset Code, Serial, ชื่อพนักงาน หรือกรองรายการตามข้อมูลที่ต้องการ</p>
             </div>
             <label className="relative w-full xl:max-w-md">
               <span className="sr-only">ค้นหาทะเบียน Asset</span>
@@ -572,7 +570,7 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="ค้นหา Asset Tag, S/N, ชื่อ/รหัสพนักงาน..."
+                placeholder="ค้นหา Asset Code, S/N, ชื่อ/รหัสพนักงาน..."
                 className={`w-full rounded-xl border py-2.5 pl-9 pr-9 text-sm outline-none focus:border-violet-500 ${input}`}
               />
               {search ? (
@@ -635,7 +633,8 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
         })}</div> : <div className={`py-16 text-center ${muted}`}><Search className="mx-auto mb-3 opacity-50" /><p className="font-bold">ไม่พบรายการ Asset</p></div>}
       </section>
 
-      {editingAsset !== undefined ? <AssetQrFormModal assets={assets} profiles={profiles} asset={editingAsset} currentUser={currentUser} onSaved={handleSaved} onClose={() => setEditingAsset(undefined)} /> : null}
+      {editingAsset !== undefined ? <AssetQrFormModal profiles={profiles} asset={editingAsset} currentUser={currentUser} onSaved={handleSaved} onClose={() => setEditingAsset(undefined)} /> : null}
+      {showExcelImport ? <AssetExcelImportModal assets={assets} isDark={isDark} onImported={loadData} onClose={() => setShowExcelImport(false)} /> : null}
       {qrAsset ? <QrOutputModal asset={qrAsset} onClose={() => setQrAsset(null)} /> : null}
       {showScanner ? <AssetViewScannerModal onDetected={openAssetDetail} onClose={() => setShowScanner(false)} /> : null}
     </div>

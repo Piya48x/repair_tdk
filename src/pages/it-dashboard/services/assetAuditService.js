@@ -182,7 +182,7 @@ export async function saveAssetAuditResult({
 
 export async function addUnregisteredAuditItem({ sessionId, asset, currentUser }) {
   const tag = cleanText(asset?.asset_tag);
-  if (!tag) throw new Error("กรุณาระบุ Asset Tag");
+  if (!tag) throw new Error("กรุณาระบุ Asset Code");
 
   const snapshot = {
     asset_tag: tag,

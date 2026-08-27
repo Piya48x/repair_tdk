@@ -48,28 +48,6 @@ export function buildAssetQrUrl(assetTag) {
   return `${window.location.origin}/asset-qr/${encodeURIComponent(cleanText(assetTag))}`;
 }
 
-export function generateSuggestedAssetTag(category, existingAssets = []) {
-  const normalized = cleanText(category).toLowerCase();
-  const prefix = normalized.includes("monitor") || normalized.includes("จอ")
-    ? "MON"
-    : normalized.includes("notebook") || normalized.includes("laptop")
-      ? "NB"
-      : normalized.includes("printer")
-        ? "PRN"
-        : normalized.includes("server")
-          ? "SRV"
-          : normalized.includes("pc") || normalized.includes("desktop") || normalized.includes("computer") || normalized.includes("คอม")
-            ? "PC"
-            : "IT";
-
-  const matcher = new RegExp(`^${prefix}-(\\d+)$`, "i");
-  const maxNumber = (Array.isArray(existingAssets) ? existingAssets : []).reduce((max, asset) => {
-    const match = cleanText(asset?.asset_tag).match(matcher);
-    return match ? Math.max(max, Number(match[1]) || 0) : max;
-  }, 0);
-  return `${prefix}-${String(maxNumber + 1).padStart(5, "0")}`;
-}
-
 export async function fetchAssetQrDirectory() {
   const { data, error } = await supabase
     .from("it_assets")
@@ -101,15 +79,30 @@ export async function fetchAssetQrProfiles() {
 
 export async function fetchAssetQrDetail(assetTag) {
   const tag = cleanText(assetTag);
-  if (!tag) throw new Error("ไม่พบ Asset Tag");
+  if (!tag) throw new Error("ไม่พบ Asset Code");
 
-  const { data: asset, error } = await supabase
+  let { data: asset, error } = await supabase
     .from("it_assets")
     .select(ASSET_QR_SELECT)
     .eq("asset_tag", tag)
     .maybeSingle();
 
   if (error) throw error;
+  if (!asset) {
+    const { data: resolvedCode, error: resolveError } = await supabase.rpc("resolve_it_asset_code", { p_code: tag });
+    const missingResolver = ["42883", "PGRST202"].includes(String(resolveError?.code || "").toUpperCase())
+      || String(resolveError?.message || "").toLowerCase().includes("resolve_it_asset_code");
+    if (resolveError && !missingResolver) throw resolveError;
+    if (resolvedCode) {
+      const { data: resolvedAsset, error: resolvedError } = await supabase
+        .from("it_assets")
+        .select(ASSET_QR_SELECT)
+        .eq("asset_tag", resolvedCode)
+        .maybeSingle();
+      if (resolvedError) throw resolvedError;
+      asset = resolvedAsset;
+    }
+  }
   if (!asset) return null;
 
   let ownerProfile = null;
@@ -191,7 +184,7 @@ export async function saveAssetQrRecord({ form, files, editingAsset, currentUser
   };
 
   if (!payload.asset_tag || !payload.asset_name) {
-    throw new Error("กรุณาระบุ Asset Tag และชื่ออุปกรณ์");
+    throw new Error("กรุณาระบุ Asset Code และชื่ออุปกรณ์");
   }
 
   let savedAsset;

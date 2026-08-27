@@ -193,7 +193,7 @@ export default function AssetQrDetailPage() {
       try {
         const data = await fetchAssetQrDetail(decodeURIComponent(assetTag));
         if (!active) return;
-        if (!data) setError("ไม่พบ Asset Tag นี้ในทะเบียน");
+        if (!data) setError("ไม่พบ Asset Code นี้ในทะเบียน");
         setAsset(data);
       } catch (loadError) {
         console.error("Load QR asset detail error:", loadError);
@@ -325,7 +325,7 @@ export default function AssetQrDetailPage() {
             <div className="mt-3 rounded-[20px] bg-gradient-to-br from-slate-950 to-slate-800 p-4 text-left text-white shadow-lg">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-blue-300">Asset Tag</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-blue-300">Asset Code</p>
                   <h1 className="mt-1 break-words text-2xl font-black tracking-tight">{asset.asset_tag}</h1>
                   <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-300">{asset.asset_name}</p>
                 </div>
@@ -379,7 +379,7 @@ export default function AssetQrDetailPage() {
                       {asset.asset_category || "IT Asset"}
                     </span>
                   </div>
-                  <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-blue-500">Asset Tag</p>
+                  <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-blue-500">Asset Code</p>
                   <h1 className="mt-0.5 break-words text-2xl font-black tracking-tight text-slate-950 sm:text-4xl">{asset.asset_tag}</h1>
                   <p className="mt-1 line-clamp-2 text-sm font-bold leading-5 text-slate-600 sm:text-lg">{asset.asset_name}</p>
                   <p className="mt-2 hidden text-xs font-semibold text-slate-400 sm:block">อัปเดตล่าสุด {formatDate(asset.updated_at, true)}</p>

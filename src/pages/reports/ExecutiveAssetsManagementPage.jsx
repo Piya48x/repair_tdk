@@ -150,6 +150,10 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       autoArchiveNotice: "ตัวกรองกำลังรวมรายการที่จัดเก็บแล้วให้โดยอัตโนมัติ",
       selected: "เลือกแล้ว: {{selected}} / {{total}}",
       clearSelected: "ล้างรายการที่เลือก",
+      exportSelected: "Export ที่เลือก ({{count}})",
+      deleteSelected: "ลบที่เลือก ({{count}})",
+      archiveSelected: "จัดเก็บที่เลือก ({{count}})",
+      detailsButton: "รายละเอียด",
       selectAllAria: "เลือกอุปกรณ์ทั้งหมดที่แสดง",
       selectRowAria: "เลือก {{asset}}",
       submitAdd: "Add Asset",
@@ -261,6 +265,9 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       importLicensesError: "นำเข้าไลเซนส์ไม่สำเร็จ",
       noAssetsToExport: "ไม่มีรายการอุปกรณ์สำหรับส่งออก",
       exportSuccess: "ส่งออกข้อมูลสำเร็จ {{count}} รายการ",
+      selectedDeleteSuccess: "ลบอุปกรณ์ที่เลือกสำเร็จ {{count}} รายการ",
+      selectedArchiveSuccess: "จัดเก็บอุปกรณ์ที่เลือกสำเร็จ {{count}} รายการ",
+      selectedActionError: "ดำเนินการกับรายการที่เลือกไม่สำเร็จ",
       fileTooLarge: "ไฟล์ {{name}} ต้องมีขนาดไม่เกิน 10 MB",
       imageOnly: "รูปหลักฐานต้องเป็นไฟล์รูปภาพเท่านั้น",
       evidencePasted: "วางรูปหลักฐานแล้ว {{count}} รูป",
@@ -272,6 +279,8 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       archiveLicense: "สิทธิ์ของคุณจะจัดเก็บแทนการลบถาวร\nยืนยันจัดเก็บไลเซนส์ {{name}} ?",
       deleteAsset: "ยืนยันลบอุปกรณ์ {{name}} แบบถาวร?",
       archiveAsset: "สิทธิ์ของคุณจะจัดเก็บแทนการลบถาวร\nยืนยันจัดเก็บอุปกรณ์ {{name}} ?",
+      deleteSelectedAssets: "ยืนยันลบอุปกรณ์ที่เลือก {{count}} รายการแบบถาวร? การดำเนินการนี้ย้อนกลับไม่ได้",
+      archiveSelectedAssets: "ยืนยันจัดเก็บอุปกรณ์ที่เลือก {{count}} รายการ?",
     },
   },
   en: {
@@ -377,6 +386,10 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       autoArchiveNotice: "This filter is automatically including archived retired and lost assets.",
       selected: "Selected: {{selected}} / {{total}}",
       clearSelected: "Clear selection",
+      exportSelected: "Export selected ({{count}})",
+      deleteSelected: "Delete selected ({{count}})",
+      archiveSelected: "Archive selected ({{count}})",
+      detailsButton: "Details",
       selectAllAria: "Select all visible assets",
       selectRowAria: "Select {{asset}}",
       submitAdd: "Add asset",
@@ -488,6 +501,9 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       importLicensesError: "Unable to import licenses",
       noAssetsToExport: "No assets to export",
       exportSuccess: "Exported {{count}} assets",
+      selectedDeleteSuccess: "Deleted {{count}} selected assets",
+      selectedArchiveSuccess: "Archived {{count}} selected assets",
+      selectedActionError: "Unable to process the selected assets",
       fileTooLarge: "File {{name}} must be 10 MB or smaller",
       imageOnly: "Evidence must be an image file.",
       evidencePasted: "Pasted {{count}} evidence photo(s)",
@@ -499,6 +515,8 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       archiveLicense: "Your role will archive instead of permanently deleting.\nArchive license {{name}}?",
       deleteAsset: "Permanently delete asset {{name}}?",
       archiveAsset: "Your role will archive instead of permanently deleting.\nArchive asset {{name}}?",
+      deleteSelectedAssets: "Permanently delete {{count}} selected assets? This action cannot be undone.",
+      archiveSelectedAssets: "Archive {{count}} selected assets?",
     },
   },
 };
@@ -661,6 +679,23 @@ const EMPTY_FORM = {
   notes: "",
 };
 
+function getAssetFormData(item = {}) {
+  return {
+    asset_tag: item.asset_tag || "",
+    asset_name: item.asset_name || "",
+    asset_category: normalizeAssetCategory(item.asset_category) || "PC",
+    brand: item.brand || "",
+    model: item.model || "",
+    serial_number: item.serial_number || "",
+    status: normalizeStatus(item.status),
+    location: item.location || "",
+    owner_name: item.owner_name || "",
+    purchase_date: item.purchase_date || "",
+    warranty_end_date: item.warranty_end_date || "",
+    notes: item.notes || "",
+  };
+}
+
 const EMPTY_LICENSE_FORM = {
   license_name: "",
   vendor: "",
@@ -742,6 +777,21 @@ function getStorageObjectPath(publicUrl, bucketName) {
 
 function sortByCreatedDesc(left, right) {
   return new Date(right?.created_at || 0).getTime() - new Date(left?.created_at || 0).getTime();
+}
+
+function sortByAssetCodeNatural(left, right) {
+  const codeCompare = normalizeText(left?.asset_tag).localeCompare(
+    normalizeText(right?.asset_tag),
+    "en",
+    { numeric: true, sensitivity: "base" },
+  );
+  if (codeCompare !== 0) return codeCompare;
+
+  return normalizeText(left?.asset_name).localeCompare(
+    normalizeText(right?.asset_name),
+    "th",
+    { numeric: true, sensitivity: "base" },
+  );
 }
 
 function getAssetEvidenceAttachments(asset) {
@@ -1141,6 +1191,9 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const [editingId, setEditingId] = useState("");
   const [licenseEditingId, setLicenseEditingId] = useState("");
   const [selectedAsset, setSelectedAsset] = useState(null);
+  const [detailEditMode, setDetailEditMode] = useState(false);
+  const [detailSaving, setDetailSaving] = useState(false);
+  const [detailFormData, setDetailFormData] = useState(EMPTY_FORM);
   const [selectedLicense, setSelectedLicense] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [licenseSearchQuery, setLicenseSearchQuery] = useState("");
@@ -1150,6 +1203,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const [assetStatusFilter, setAssetStatusFilter] = useState("all");
   const [licenseStatusFilter, setLicenseStatusFilter] = useState("all");
   const [assetActionId, setAssetActionId] = useState("");
+  const [assetBulkAction, setAssetBulkAction] = useState("");
   const [licenseActionId, setLicenseActionId] = useState("");
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
   const [assetEvidenceReady, setAssetEvidenceReady] = useState(true);
@@ -1360,9 +1414,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     if (assetStatusFilter !== "all") {
       scopedAssets = scopedAssets.filter((item) => normalizeStatus(item?.status) === assetStatusFilter);
     }
-    if (!query) return scopedAssets;
-
-    return scopedAssets.filter((item) => {
+    const matchedAssets = !query ? scopedAssets : scopedAssets.filter((item) => {
       const source = [
         item?.asset_tag,
         item?.asset_name,
@@ -1378,6 +1430,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
         .join(" ");
       return source.includes(query);
     });
+
+    return [...matchedAssets].sort(sortByAssetCodeNatural);
   }, [assets, searchQuery, showArchivedAssets, assetCategoryFilter, assetStatusFilter]);
 
   const autoIncludedArchivedAssets = !showArchivedAssets && (
@@ -1489,6 +1543,11 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   }, [assets]);
 
   const selectedAssetIdSet = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
+
+  const selectedAssets = useMemo(
+    () => assets.filter((item) => selectedAssetIdSet.has(item.id)),
+    [assets, selectedAssetIdSet],
+  );
 
   const selectedFilteredAssetCount = useMemo(() => {
     return filteredAssets.reduce((count, item) => {
@@ -1827,20 +1886,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     pendingAssetEvidenceRef.current = [];
     if (assetEvidenceInputRef.current) assetEvidenceInputRef.current.value = "";
     setEditingId(item.id);
-    setFormData({
-      asset_tag: item.asset_tag || "",
-      asset_name: item.asset_name || "",
-      asset_category: normalizeAssetCategory(item.asset_category) || "PC",
-      brand: item.brand || "",
-      model: item.model || "",
-      serial_number: item.serial_number || "",
-      status: normalizeStatus(item.status),
-      location: item.location || "",
-      owner_name: item.owner_name || "",
-      purchase_date: item.purchase_date || "",
-      warranty_end_date: item.warranty_end_date || "",
-      notes: item.notes || "",
-    });
+    setFormData(getAssetFormData(item));
     setAssetEvidenceAttachments(getAssetEvidenceAttachments(item));
     setRemovedAssetEvidence([]);
     setPendingAssetEvidence([]);
@@ -1851,7 +1897,94 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   };
 
   const handleOpenDetail = (item) => {
+    setDetailEditMode(false);
+    setDetailFormData(getAssetFormData(item));
     setSelectedAsset(item);
+  };
+
+  const handleCloseAssetDetail = () => {
+    if (detailSaving) return;
+    setDetailEditMode(false);
+    setSelectedAsset(null);
+  };
+
+  const handleStartDetailEdit = () => {
+    if (!selectedAsset) return;
+    setDetailFormData(getAssetFormData(selectedAsset));
+    setDetailEditMode(true);
+  };
+
+  const handleCancelDetailEdit = () => {
+    setDetailFormData(getAssetFormData(selectedAsset));
+    setDetailEditMode(false);
+  };
+
+  const handleSaveDetailAsset = async (event) => {
+    event.preventDefault();
+    if (detailSaving || !selectedAsset?.id) return;
+
+    const payload = {
+      asset_tag: normalizeText(detailFormData.asset_tag),
+      asset_name: normalizeText(detailFormData.asset_name),
+      asset_category: normalizeAssetCategory(detailFormData.asset_category) || "PC",
+      brand: normalizeOptionalText(detailFormData.brand),
+      model: normalizeOptionalText(detailFormData.model),
+      serial_number: normalizeOptionalText(detailFormData.serial_number),
+      status: normalizeStatus(detailFormData.status),
+      location: normalizeOptionalText(detailFormData.location),
+      owner_name: normalizeOptionalText(detailFormData.owner_name),
+      purchase_date: normalizeDateValue(detailFormData.purchase_date),
+      warranty_end_date: normalizeDateValue(detailFormData.warranty_end_date),
+      notes: normalizeOptionalText(detailFormData.notes),
+    };
+
+    if (!payload.asset_tag || !payload.asset_name) {
+      toast.error(tt("toast.requireAsset"));
+      return;
+    }
+
+    setDetailSaving(true);
+    try {
+      const beforeAsset = selectedAsset;
+      const changeEntries = buildAssetChangeEntries(beforeAsset, payload, {
+        fieldLabels: Object.fromEntries(assetDetailFields.map((field) => [field.key, field.label])),
+        statusLabels: assetStatusLabels,
+        locale,
+      });
+      const { data, error } = await supabase
+        .from("it_assets")
+        .update(payload)
+        .eq("id", selectedAsset.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      const savedAsset = normalizeAssetRecord({
+        ...beforeAsset,
+        ...data,
+        it_asset_attachments: getAssetEvidenceAttachments(beforeAsset),
+        it_asset_activity_logs: getAssetActivityLogs(beforeAsset),
+      });
+
+      await insertAssetActivityLog({
+        assetId: savedAsset.id,
+        action: "updated",
+        changes: changeEntries,
+        afterAsset: savedAsset,
+      });
+
+      setAssets((prev) => prev.map((item) => (item.id === savedAsset.id ? savedAsset : item)));
+      setSelectedAsset(savedAsset);
+      setDetailFormData(getAssetFormData(savedAsset));
+      setDetailEditMode(false);
+      toast.success(tt("toast.assetUpdated"));
+      await loadAssets({ silent: true });
+    } catch (error) {
+      console.error("Save asset from detail popup error:", error);
+      toast.error(error?.message || tt("toast.saveAssetError"));
+    } finally {
+      setDetailSaving(false);
+    }
   };
 
   const handleSaveLicense = async (event) => {
@@ -2034,6 +2167,71 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     }
     setSelectedAssetIds((prev) => prev.filter((id) => id !== item.id));
     setAssetActionId("");
+  };
+
+  const handleDeleteSelectedAssets = async () => {
+    if (assetBulkAction || selectedAssets.length === 0) return;
+
+    const selectedIds = selectedAssets.map((item) => item.id);
+    const selectedIdSet = new Set(selectedIds);
+    const ok = window.confirm(
+      canHardDelete
+        ? tt("confirm.deleteSelectedAssets", { count: formatNumber(selectedIds.length) })
+        : tt("confirm.archiveSelectedAssets", { count: formatNumber(selectedIds.length) }),
+    );
+    if (!ok) return;
+
+    setAssetBulkAction(canHardDelete ? "delete" : "archive");
+    try {
+      if (canHardDelete) {
+        const { error } = await supabase.from("it_assets").delete().in("id", selectedIds);
+        if (error) throw error;
+        setAssets((prev) => prev.filter((item) => !selectedIdSet.has(item.id)));
+        setSelectedAsset((prev) => (selectedIdSet.has(prev?.id) ? null : prev));
+        toast.success(tt("toast.selectedDeleteSuccess", { count: formatNumber(selectedIds.length) }));
+      } else {
+        const { data, error } = await supabase
+          .from("it_assets")
+          .update({ status: "retired" })
+          .in("id", selectedIds)
+          .select("*");
+        if (error) throw error;
+
+        const archivedAssets = Array.isArray(data) ? data : [];
+        await Promise.all(
+          archivedAssets.map((archivedAsset) => {
+            const beforeAsset = selectedAssets.find((item) => item.id === archivedAsset.id) || null;
+            const changeEntries = buildAssetChangeEntries(beforeAsset, archivedAsset, {
+              fieldLabels: Object.fromEntries(assetDetailFields.map((field) => [field.key, field.label])),
+              statusLabels: assetStatusLabels,
+              locale,
+            });
+            return insertAssetActivityLog({
+              assetId: archivedAsset.id,
+              action: "archived",
+              changes: changeEntries,
+              afterAsset: archivedAsset,
+            });
+          }),
+        );
+
+        setAssets((prev) =>
+          prev.map((item) => (selectedIdSet.has(item.id) ? { ...item, status: "retired" } : item)),
+        );
+        setSelectedAsset((prev) =>
+          selectedIdSet.has(prev?.id) ? { ...prev, status: "retired" } : prev,
+        );
+        toast.success(tt("toast.selectedArchiveSuccess", { count: formatNumber(selectedIds.length) }));
+      }
+
+      setSelectedAssetIds([]);
+      await loadAssets({ silent: true });
+    } catch (error) {
+      console.error("Bulk asset action error:", error);
+      toast.error(error?.message || tt("toast.selectedActionError"));
+    } finally {
+      setAssetBulkAction("");
+    }
   };
 
   const handleImportFile = async (event) => {
@@ -2219,13 +2417,13 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     }
   };
 
-  const handleExportAssetsExcel = () => {
-    if (!Array.isArray(filteredAssets) || filteredAssets.length === 0) {
+  const exportAssetsExcel = (items, filePrefix = "it-assets") => {
+    if (!Array.isArray(items) || items.length === 0) {
       toast.error(tt("toast.noAssetsToExport"));
       return;
     }
 
-    const exportRows = filteredAssets.map((item) => ({
+    const exportRows = items.map((item) => ({
       asset_tag: normalizeText(item.asset_tag),
       asset_name: normalizeText(item.asset_name),
       asset_category: normalizeAssetCategory(item.asset_category) || normalizeText(item.asset_category),
@@ -2245,8 +2443,16 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     XLSX.utils.book_append_sheet(workbook, worksheet, "Assets");
 
     const dateStamp = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(workbook, `it-assets-${dateStamp}.xlsx`);
+    XLSX.writeFile(workbook, `${filePrefix}-${dateStamp}.xlsx`);
     toast.success(tt("toast.exportSuccess", { count: formatNumber(exportRows.length) }));
+  };
+
+  const handleExportAssetsExcel = () => {
+    exportAssetsExcel(filteredAssets);
+  };
+
+  const handleExportSelectedAssets = () => {
+    exportAssetsExcel(selectedAssets, "it-assets-selected");
   };
 
   return (
@@ -2771,21 +2977,49 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               </div>
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-              <span className="font-semibold text-slate-600">
+            <div className={`mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs transition ${selectedAssets.length > 0 ? "border-blue-200 bg-blue-50/80" : "border-slate-200 bg-slate-50"}`}>
+              <span className={`font-bold ${selectedAssets.length > 0 ? "text-[#2b59b0]" : "text-slate-600"}`}>
                 {tt("assets.selected", {
-                  selected: formatNumber(selectedFilteredAssetCount),
+                  selected: formatNumber(selectedAssets.length),
                   total: formatNumber(filteredAssets.length),
                 })}
               </span>
-              <button
-                type="button"
-                onClick={handleClearSelectedAssets}
-                disabled={selectedAssetIds.length === 0}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {tt("assets.clearSelected")}
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {selectedAssets.length > 0 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleExportSelectedAssets}
+                      disabled={Boolean(assetBulkAction)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Download size={13} />
+                      {tt("assets.exportSelected", { count: formatNumber(selectedAssets.length) })}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelectedAssets}
+                      disabled={Boolean(assetBulkAction)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {assetBulkAction ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                      {assetBulkAction
+                        ? tt("common.processing")
+                        : canHardDelete
+                          ? tt("assets.deleteSelected", { count: formatNumber(selectedAssets.length) })
+                          : tt("assets.archiveSelected", { count: formatNumber(selectedAssets.length) })}
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleClearSelectedAssets}
+                  disabled={selectedAssets.length === 0 || Boolean(assetBulkAction)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {tt("assets.clearSelected")}
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 space-y-3 lg:hidden">
@@ -2839,139 +3073,144 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               })}
             </div>
 
-            <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 lg:block">
-              <div className="max-h-[560px] overflow-auto">
-                <table className="min-w-[980px] w-full text-left text-sm">
+            <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 lg:block">
+              <div className="max-h-[calc(100vh-250px)] min-h-[360px] overflow-auto">
+                <table className="w-full min-w-[860px] table-fixed text-left text-xs">
+                  <colgroup>
+                    <col className="w-9" />
+                    <col className="w-[104px]" />
+                    <col className="w-[180px]" />
+                    <col className="w-[74px]" />
+                    <col className="w-[76px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[90px]" />
+                    <col className="w-[48px]" />
+                    <col className="w-[154px]" />
+                  </colgroup>
                   <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
-                    <tr className="border-b border-slate-200 text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                    <th className="px-2 py-2">
-                      <input
-                        type="checkbox"
-                        checked={allFilteredAssetsSelected}
-                        onChange={(event) => handleToggleSelectAllFilteredAssets(event.target.checked)}
-                        className="h-4 w-4 rounded border-slate-300"
-                        aria-label={tt("assets.selectAllAria")}
-                      />
-                    </th>
-                    <th className="px-2 py-2">{tt("assets.tableCode")}</th>
-                    <th className="px-2 py-2">{tt("assets.tableName")}</th>
-                    <th className="px-2 py-2">{tt("assets.tableCategory")}</th>
-                    <th className="px-2 py-2">{tt("assets.tableStatus")}</th>
-                    <th className="px-2 py-2">{tt("assets.tableOwner")}</th>
-                    <th className="px-2 py-2">{tt("assets.tablePurchaseDate")}</th>
-                    <th className="px-2 py-2">{tt("assets.tableEvidence")}</th>
-                    <th className="px-2 py-2 text-right">{tt("assets.tableActions")}</th>
+                    <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[0.04em] text-slate-500">
+                      <th className="px-1.5 py-2">
+                        <input
+                          type="checkbox"
+                          checked={allFilteredAssetsSelected}
+                          onChange={(event) => handleToggleSelectAllFilteredAssets(event.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300"
+                          aria-label={tt("assets.selectAllAria")}
+                        />
+                      </th>
+                      <th className="px-1.5 py-2">{tt("assets.tableCode")}</th>
+                      <th className="px-1.5 py-2">{tt("assets.tableName")}</th>
+                      <th className="px-1.5 py-2">{tt("assets.tableCategory")}</th>
+                      <th className="px-1.5 py-2">{tt("assets.tableStatus")}</th>
+                      <th className="px-1.5 py-2">{tt("assets.tableOwner")}</th>
+                      <th className="px-1.5 py-2">{tt("assets.tablePurchaseDate")}</th>
+                      <th className="px-1.5 py-2 text-center">{tt("assets.tableEvidence")}</th>
+                      <th className="sticky right-0 z-20 border-l border-slate-200 bg-slate-50 px-1.5 py-2 text-right shadow-[-8px_0_14px_-14px_rgba(15,23,42,0.65)]">{tt("assets.tableActions")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={9} className="px-2 py-8 text-center text-slate-500">
-                        {tt("common.loading")}
-                      </td>
-                    </tr>
-                  ) : filteredAssets.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-2 py-8 text-center text-slate-500">
-                        {tt("common.noAssetData")}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredAssets.map((item) => {
-                      const evidenceCount = getAssetEvidenceAttachments(item).length;
-                      return (
-                        <tr
-                          key={item.id}
-                          className="cursor-pointer border-b border-slate-100 align-middle transition hover:bg-blue-50/45"
-                          onClick={() => handleOpenDetail(item)}
-                        >
-                        <td className="px-2 py-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedAssetIdSet.has(item.id)}
-                            onChange={(event) => handleToggleAssetSelection(item.id, event.target.checked)}
-                            onClick={(event) => event.stopPropagation()}
-                            className="h-4 w-4 rounded border-slate-300"
-                            aria-label={tt("assets.selectRowAria", { asset: item.asset_tag || tt("sections.assets") })}
-                          />
-                        </td>
-                        <td className="px-2 py-3 font-semibold text-slate-800">{item.asset_tag || "-"}</td>
-                        <td className="px-2 py-3 text-slate-700">
-                          <div>{item.asset_name || "-"}</div>
-                          <div className="text-xs text-slate-500">
-                            {item.brand || "-"} {item.model ? `• ${item.model}` : ""}
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 text-slate-700">
-                          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700">
-                            {item.asset_category || "-"}
-                          </span>
-                        </td>
-                        <td className="px-2 py-3 text-slate-700">
-                          <span
-                            className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getAssetStatusChipClass(
-                              item.status,
-                            )}`}
-                          >
-                            {formatAssetStatusLabel(item.status, assetStatusLabels)}
-                          </span>
-                        </td>
-                        <td className="px-2 py-3 text-slate-700">
-                          <div>{item.owner_name || "-"}</div>
-                          <div className="text-xs text-slate-500">{item.location || "-"}</div>
-                        </td>
-                        <td className="px-2 py-3 text-slate-700">{formatDate(item.purchase_date, locale)}</td>
-                        <td className="px-2 py-3">
-                          <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${evidenceCount > 0 ? "border-sky-200 bg-sky-50 text-sky-700" : "border-slate-200 bg-slate-50 text-slate-400"}`}>
-                            {formatNumber(evidenceCount)}
-                          </span>
-                        </td>
-                        <td className="px-2 py-3">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleOpenDetail(item);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100"
-                            >
-                              <Eye size={13} />
-                              {tt("common.view")}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleEditAsset(item);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                            >
-                              <PencilLine size={13} />
-                              {tt("common.edit")}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={assetActionId === item.id}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleDeleteAsset(item);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <Trash2 size={13} />
-                              {assetActionId === item.id
-                                ? tt("common.processing")
-                                : canHardDelete
-                                  ? tt("common.delete")
-                                  : tt("common.archive")}
-                            </button>
-                          </div>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={9} className="px-2 py-8 text-center text-slate-500">
+                          {tt("common.loading")}
                         </td>
                       </tr>
-                      );
-                    })
-                  )}
+                    ) : filteredAssets.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-2 py-8 text-center text-slate-500">
+                          {tt("common.noAssetData")}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAssets.map((item) => {
+                        const evidenceCount = getAssetEvidenceAttachments(item).length;
+                        return (
+                          <tr
+                            key={item.id}
+                            className="group cursor-pointer border-b border-slate-100 align-middle transition hover:bg-blue-50/45"
+                            onClick={() => handleOpenDetail(item)}
+                          >
+                            <td className="px-1.5 py-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedAssetIdSet.has(item.id)}
+                                onChange={(event) => handleToggleAssetSelection(item.id, event.target.checked)}
+                                onClick={(event) => event.stopPropagation()}
+                                className="h-4 w-4 rounded border-slate-300"
+                                aria-label={tt("assets.selectRowAria", { asset: item.asset_tag || tt("sections.assets") })}
+                              />
+                            </td>
+                            <td className="truncate px-1.5 py-2 font-bold text-slate-800" title={item.asset_tag || "-"}>{item.asset_tag || "-"}</td>
+                            <td className="px-1.5 py-2 text-slate-700">
+                              <div className="truncate font-semibold" title={item.asset_name || "-"}>{item.asset_name || "-"}</div>
+                              <div className="truncate text-[10px] leading-4 text-slate-500" title={`${item.brand || "-"} ${item.model || ""}`}>
+                                {item.brand || "-"} {item.model ? `• ${item.model}` : ""}
+                              </div>
+                            </td>
+                            <td className="px-1.5 py-2 text-slate-700">
+                              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                                {item.asset_category || "-"}
+                              </span>
+                            </td>
+                            <td className="px-1.5 py-2 text-slate-700">
+                              <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${getAssetStatusChipClass(item.status)}`}>
+                                {formatAssetStatusLabel(item.status, assetStatusLabels)}
+                              </span>
+                            </td>
+                            <td className="px-1.5 py-2 text-slate-700">
+                              <div className="truncate font-semibold" title={item.owner_name || "-"}>{item.owner_name || "-"}</div>
+                              <div className="truncate text-[10px] leading-4 text-slate-500" title={item.location || "-"}>{item.location || "-"}</div>
+                            </td>
+                            <td className="whitespace-nowrap px-1.5 py-2 text-[11px] text-slate-700">{formatDate(item.purchase_date, locale)}</td>
+                            <td className="px-1.5 py-2 text-center">
+                              <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${evidenceCount > 0 ? "border-sky-200 bg-sky-50 text-sky-700" : "border-slate-200 bg-slate-50 text-slate-400"}`}>
+                                {formatNumber(evidenceCount)}
+                              </span>
+                            </td>
+                            <td className="sticky right-0 border-l border-slate-100 bg-white px-1.5 py-2 shadow-[-8px_0_14px_-14px_rgba(15,23,42,0.65)] transition group-hover:bg-blue-50">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleOpenDetail(item);
+                                  }}
+                                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2 text-[10px] font-bold text-cyan-700 hover:bg-cyan-100"
+                                >
+                                  <Eye size={12} />
+                                  {tt("assets.detailsButton")}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleEditAsset(item);
+                                  }}
+                                  title={tt("common.edit")}
+                                  aria-label={tt("common.edit")}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                >
+                                  <PencilLine size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={assetActionId === item.id || Boolean(assetBulkAction)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleDeleteAsset(item);
+                                  }}
+                                  title={canHardDelete ? tt("common.delete") : tt("common.archive")}
+                                  aria-label={canHardDelete ? tt("common.delete") : tt("common.archive")}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {assetActionId === item.id ? <RefreshCw size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -3365,9 +3604,9 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
         ) : null}
 
         {selectedAsset ? (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" onClick={() => setSelectedAsset(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" onClick={handleCloseAssetDetail}>
             <article
-              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl"
+              className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
@@ -3376,29 +3615,111 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                   <h3 className="mt-1 text-2xl font-black text-slate-900">{selectedAsset.asset_name || "-"}</h3>
                   <p className="mt-1 text-sm text-slate-500">{tt("assets.detailCode")}: {selectedAsset.asset_tag || "-"}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedAsset(null)}
-                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  <X size={14} />
-                  {tt("common.close")}
-                </button>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  {detailEditMode ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCancelDetailEdit}
+                        disabled={detailSaving}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <X size={14} />
+                        {tt("common.cancelEdit")}
+                      </button>
+                      <button
+                        type="submit"
+                        form="asset-detail-edit-form"
+                        disabled={detailSaving}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#2b59b0] px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#244a95] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {detailSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                        {detailSaving ? tt("common.saving") : tt("common.save")}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleStartDetailEdit}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-bold text-[#2b59b0] transition hover:bg-blue-100"
+                      >
+                        <PencilLine size={14} />
+                        {tt("common.edit")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCloseAssetDetail}
+                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        <X size={14} />
+                        {tt("common.close")}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {assetDetailFields.map((field) => (
-                  <div key={field.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{field.label}</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-800">
-                      {formatDetailValue(selectedAsset, field.key, {
-                        locale,
-                        statusLabels: assetStatusLabels,
-                      })}
-                    </p>
+              {detailEditMode ? (
+                <form id="asset-detail-edit-form" className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4" onSubmit={handleSaveDetailAsset}>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <AssetFormField icon={Tag} label={tt("assetFields.asset_tag")} required>
+                      <input value={detailFormData.asset_tag} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_tag: event.target.value }))} className={assetInputClass} required autoFocus />
+                    </AssetFormField>
+                    <AssetFormField icon={HardDrive} label={tt("assetFields.asset_name")} required>
+                      <input value={detailFormData.asset_name} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_name: event.target.value }))} className={assetInputClass} required />
+                    </AssetFormField>
+                    <AssetFormField icon={LayoutGrid} label={tt("assetFields.asset_category")} required>
+                      <select value={detailFormData.asset_category} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_category: event.target.value }))} className={assetInputClass} required>
+                        {categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    </AssetFormField>
+                    <AssetFormField icon={CheckCircle2} label={tt("assetFields.status")}>
+                      <select value={detailFormData.status} onChange={(event) => setDetailFormData((prev) => ({ ...prev, status: event.target.value }))} className={assetInputClass}>
+                        {assetStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    </AssetFormField>
+                    <AssetFormField icon={Cpu} label={tt("assetFields.brand")}>
+                      <input value={detailFormData.brand} onChange={(event) => setDetailFormData((prev) => ({ ...prev, brand: event.target.value }))} className={assetInputClass} />
+                    </AssetFormField>
+                    <AssetFormField icon={SlidersHorizontal} label={tt("assetFields.model")}>
+                      <input value={detailFormData.model} onChange={(event) => setDetailFormData((prev) => ({ ...prev, model: event.target.value }))} className={assetInputClass} />
+                    </AssetFormField>
+                    <AssetFormField icon={Barcode} label={tt("assetFields.serial_number")}>
+                      <input value={detailFormData.serial_number} onChange={(event) => setDetailFormData((prev) => ({ ...prev, serial_number: event.target.value }))} className={assetInputClass} />
+                    </AssetFormField>
+                    <AssetFormField icon={MapPin} label={tt("assetFields.location")}>
+                      <input value={detailFormData.location} onChange={(event) => setDetailFormData((prev) => ({ ...prev, location: event.target.value }))} className={assetInputClass} />
+                    </AssetFormField>
+                    <AssetFormField icon={UserRound} label={tt("assetFields.owner_name")}>
+                      <input value={detailFormData.owner_name} onChange={(event) => setDetailFormData((prev) => ({ ...prev, owner_name: event.target.value }))} className={assetInputClass} />
+                    </AssetFormField>
+                    <AssetFormField icon={CalendarDays} label={tt("assetFields.purchase_date")}>
+                      <input type="date" value={detailFormData.purchase_date} onChange={(event) => setDetailFormData((prev) => ({ ...prev, purchase_date: event.target.value }))} className={assetInputClass} />
+                    </AssetFormField>
+                    <AssetFormField icon={ShieldCheck} label={tt("assetFields.warranty_end_date")}>
+                      <input type="date" value={detailFormData.warranty_end_date} onChange={(event) => setDetailFormData((prev) => ({ ...prev, warranty_end_date: event.target.value }))} className={assetInputClass} />
+                    </AssetFormField>
+                    <AssetFormField icon={ClipboardList} label={tt("assetFields.notes")} className="sm:col-span-2">
+                      <textarea value={detailFormData.notes} onChange={(event) => setDetailFormData((prev) => ({ ...prev, notes: event.target.value }))} className={`${assetInputClass} min-h-[88px] resize-y`} />
+                    </AssetFormField>
                   </div>
-                ))}
-              </div>
+                </form>
+              ) : (
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {assetDetailFields.map((field) => (
+                    <div key={field.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{field.label}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-800">
+                        {formatDetailValue(selectedAsset, field.key, {
+                          locale,
+                          statusLabels: assetStatusLabels,
+                        })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {(() => {
                 const evidenceAttachments = getAssetEvidenceAttachments(selectedAsset);
