@@ -29,11 +29,14 @@ export function isAssetMoveSchemaError(error) {
 
   return (
     code === "42P01" ||
+    code === "42883" ||
     code === "42703" ||
+    code === "PGRST202" ||
     code === "PGRST204" ||
     code === "PGRST205" ||
     status === 404 ||
     text.includes('relation "it_asset_moves" does not exist') ||
+    text.includes("create_it_asset_move_and_sync_registry") ||
     text.includes('bucket "asset-move-evidence" not found') ||
     text.includes("bucket not found")
   );
@@ -45,6 +48,13 @@ export async function loadAssetMoves() {
     .select("*")
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
+}
+
+export async function loadAssetMoveRegistryAssets() {
+  return supabase
+    .from("it_assets")
+    .select("id, asset_tag, asset_name, asset_category, brand, model, serial_number, status, location, owner_name, factory, building, floor, room, department, owner_profile_id, owner_employee_code, updated_at")
+    .order("asset_tag", { ascending: true });
 }
 
 export async function uploadAssetMoveEvidenceFiles(files, kind, userId) {
@@ -82,7 +92,7 @@ export async function uploadAssetMoveEvidenceFiles(files, kind, userId) {
 }
 
 export async function createAssetMove(payload) {
-  return supabase.from("it_asset_moves").insert(payload).select("*").single();
+  return supabase.rpc("create_it_asset_move_and_sync_registry", { p_payload: payload });
 }
 
 export async function cancelAssetMove(recordId, reason, currentUser) {

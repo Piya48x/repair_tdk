@@ -45,6 +45,7 @@ import ReportsTopbar from "../../components/reports/ReportsTopbar";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
 import NotebookInventoryManagementPanel from "./NotebookInventoryManagementPanel";
 import AttachmentPreviewModal from "../work-notes/AttachmentPreviewModal";
+import { downloadAssetRegistryWorkbook } from "./assetRegistryExcelExport";
 
 const EXECUTIVE_ASSETS_TRANSLATIONS = {
   th: {
@@ -86,6 +87,9 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       noIssues: "ไม่พบรายการผิดปกติ",
       records: "รายการ",
       assetRegistry: "ทะเบียนสินทรัพย์",
+      licenseRegistry: "ทะเบียนไลเซนส์",
+      notebookRegistry: "ทะเบียน Notebook",
+      addNotebook: "เพิ่ม Notebook",
       listHelper: "ค้นหา กรอง และจัดการสินทรัพย์ IT ได้จากจุดเดียว",
     },
     sections: {
@@ -134,6 +138,7 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       cancelEdit: "Cancel",
       close: "Close / ปิด",
       exportExcel: "Export Excel",
+      exportingExcel: "กำลังสร้างรายงาน...",
       loading: "กำลังโหลดข้อมูล...",
       noAssetData: "ไม่พบข้อมูลอุปกรณ์",
       noLicenseData: "ไม่พบข้อมูลไลเซนส์",
@@ -265,6 +270,7 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       importLicensesError: "นำเข้าไลเซนส์ไม่สำเร็จ",
       noAssetsToExport: "ไม่มีรายการอุปกรณ์สำหรับส่งออก",
       exportSuccess: "ส่งออกข้อมูลสำเร็จ {{count}} รายการ",
+      exportError: "สร้างรายงาน Excel ไม่สำเร็จ",
       selectedDeleteSuccess: "ลบอุปกรณ์ที่เลือกสำเร็จ {{count}} รายการ",
       selectedArchiveSuccess: "จัดเก็บอุปกรณ์ที่เลือกสำเร็จ {{count}} รายการ",
       selectedActionError: "ดำเนินการกับรายการที่เลือกไม่สำเร็จ",
@@ -322,6 +328,9 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       noIssues: "No issue found",
       records: "records",
       assetRegistry: "Asset registry",
+      licenseRegistry: "License registry",
+      notebookRegistry: "Notebook registry",
+      addNotebook: "Add notebook",
       listHelper: "Search, filter, and manage every IT asset from one place",
     },
     sections: {
@@ -370,6 +379,7 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       cancelEdit: "Cancel",
       close: "Close",
       exportExcel: "Export Excel",
+      exportingExcel: "Building report...",
       loading: "Loading data...",
       noAssetData: "No assets found",
       noLicenseData: "No licenses found",
@@ -501,6 +511,7 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       importLicensesError: "Unable to import licenses",
       noAssetsToExport: "No assets to export",
       exportSuccess: "Exported {{count}} assets",
+      exportError: "Unable to create the Excel report",
       selectedDeleteSuccess: "Deleted {{count}} selected assets",
       selectedArchiveSuccess: "Archived {{count}} selected assets",
       selectedActionError: "Unable to process the selected assets",
@@ -1175,6 +1186,9 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const licenseFileInputRef = useRef(null);
   const assetEvidenceInputRef = useRef(null);
   const assetFormRef = useRef(null);
+  const assetListRef = useRef(null);
+  const licenseListRef = useRef(null);
+  const notebookPanelRef = useRef(null);
   const pendingAssetEvidenceRef = useRef([]);
   const [activeSection, setActiveSection] = useState("assets");
   const [userRole, setUserRole] = useState("");
@@ -1190,6 +1204,9 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const [licenseImporting, setLicenseImporting] = useState(false);
   const [editingId, setEditingId] = useState("");
   const [licenseEditingId, setLicenseEditingId] = useState("");
+  const [assetFormOpen, setAssetFormOpen] = useState(false);
+  const [licenseFormOpen, setLicenseFormOpen] = useState(false);
+  const [notebookCreateRequest, setNotebookCreateRequest] = useState(0);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [detailEditMode, setDetailEditMode] = useState(false);
   const [detailSaving, setDetailSaving] = useState(false);
@@ -1204,6 +1221,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const [licenseStatusFilter, setLicenseStatusFilter] = useState("all");
   const [assetActionId, setAssetActionId] = useState("");
   const [assetBulkAction, setAssetBulkAction] = useState("");
+  const [assetExporting, setAssetExporting] = useState(false);
   const [licenseActionId, setLicenseActionId] = useState("");
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
   const [assetEvidenceReady, setAssetEvidenceReady] = useState(true);
@@ -1220,6 +1238,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     [numberFormatter],
   );
   const assetInputClass = "min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-[#2b59b0] focus:ring-4 focus:ring-blue-100/70";
+  const assetFilterInputClass = "min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-[#2b59b0] focus:ring-2 focus:ring-blue-100/80 sm:text-sm";
+  const assetStickyTopClass = embedded ? "top-[61px] sm:top-[65px]" : "top-2";
   const assetStatusOptions = useMemo(
     () => STATUS_OPTIONS.map((item) => ({ ...item, label: tt(`status.${item.value}`) })),
     [tt],
@@ -1872,6 +1892,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       });
 
       resetForm();
+      setAssetFormOpen(false);
       await loadAssets({ silent: true });
     } catch (error) {
       console.error("Save it_asset error:", error);
@@ -1891,8 +1912,25 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     setRemovedAssetEvidence([]);
     setPendingAssetEvidence([]);
     setActiveSection("assets");
+    setAssetFormOpen(true);
+  };
+
+  const handleOpenNewAsset = () => {
+    resetForm();
+    setActiveSection("assets");
+    setAssetFormOpen(true);
+  };
+
+  const handleCloseAssetForm = () => {
+    if (saving) return;
+    resetForm();
+    setAssetFormOpen(false);
+  };
+
+  const handleOpenAssetRegistry = () => {
+    setActiveSection("assets");
     window.requestAnimationFrame(() => {
-      assetFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      assetListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
 
@@ -2022,6 +2060,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       }
 
       resetLicenseForm();
+      setLicenseFormOpen(false);
       await loadLicenses({ silent: true });
     } catch (error) {
       console.error("Save it_license error:", error);
@@ -2044,6 +2083,39 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       renewal_date: item.renewal_date || "",
       notes: item.notes || "",
     });
+    setActiveSection("licenses");
+    setLicenseFormOpen(true);
+  };
+
+  const handleOpenNewLicense = () => {
+    resetLicenseForm();
+    setActiveSection("licenses");
+    setLicenseFormOpen(true);
+  };
+
+  const handleCloseLicenseForm = () => {
+    if (licenseSaving) return;
+    resetLicenseForm();
+    setLicenseFormOpen(false);
+  };
+
+  const handleOpenLicenseRegistry = () => {
+    setActiveSection("licenses");
+    window.requestAnimationFrame(() => {
+      licenseListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const handleOpenNotebookRegistry = () => {
+    setActiveSection("notebooks");
+    window.requestAnimationFrame(() => {
+      notebookPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const handleOpenNewNotebook = () => {
+    setActiveSection("notebooks");
+    setNotebookCreateRequest((prev) => prev + 1);
   };
 
   const handleOpenLicenseDetail = (item) => {
@@ -2417,42 +2489,71 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     }
   };
 
-  const exportAssetsExcel = (items, filePrefix = "it-assets") => {
+  const exportAssetsExcel = async (items, filePrefix = "it-asset-registry", scope = "filtered") => {
     if (!Array.isArray(items) || items.length === 0) {
       toast.error(tt("toast.noAssetsToExport"));
       return;
     }
 
-    const exportRows = items.map((item) => ({
-      asset_tag: normalizeText(item.asset_tag),
-      asset_name: normalizeText(item.asset_name),
-      asset_category: normalizeAssetCategory(item.asset_category) || normalizeText(item.asset_category),
-      brand: normalizeText(item.brand),
-      model: normalizeText(item.model),
-      serial_number: normalizeText(item.serial_number),
-      status: normalizeStatus(item.status),
-      location: normalizeText(item.location),
-      owner_name: normalizeText(item.owner_name),
-      purchase_date: normalizeDateValue(item.purchase_date) || "",
-      warranty_end_date: normalizeDateValue(item.warranty_end_date) || "",
-      notes: normalizeText(item.notes),
-    }));
+    setAssetExporting(true);
+    try {
+      const exportRows = [...items].sort(sortByAssetCodeNatural).map((item) => {
+        const statusCode = normalizeStatus(item.status);
+        return {
+          assetCode: normalizeText(item.asset_tag),
+          assetName: normalizeText(item.asset_name),
+          category: normalizeAssetCategory(item.asset_category) || normalizeText(item.asset_category) || "Other",
+          brand: normalizeText(item.brand),
+          model: normalizeText(item.model),
+          serialNumber: normalizeText(item.serial_number),
+          statusCode,
+          statusLabel: assetStatusLabels[statusCode] || statusCode,
+          owner: normalizeText(item.owner_name),
+          location: normalizeText(item.location),
+          purchaseDate: normalizeDateValue(item.purchase_date) || "",
+          warrantyEndDate: normalizeDateValue(item.warranty_end_date) || "",
+          evidenceCount: getAssetEvidenceAttachments(item).length,
+          notes: normalizeText(item.notes),
+          updatedAt: item.updated_at || item.created_at || "",
+        };
+      });
 
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Assets");
-
-    const dateStamp = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(workbook, `${filePrefix}-${dateStamp}.xlsx`);
-    toast.success(tt("toast.exportSuccess", { count: formatNumber(exportRows.length) }));
+      await downloadAssetRegistryWorkbook({
+        rows: exportRows,
+        filePrefix,
+        language,
+        context: {
+          scope,
+          preparedBy: currentProfile?.name || currentProfile?.email || "IT Service Hub",
+          search: scope === "selected" ? "" : normalizeText(searchQuery),
+          categoryFilter: scope === "selected"
+            ? tt("common.allCategories")
+            : assetCategoryFilter === "all"
+              ? tt("common.allCategories")
+              : categoryOptions.find((item) => item.value === assetCategoryFilter)?.label || assetCategoryFilter,
+          statusFilter: scope === "selected"
+            ? tt("common.allStatuses")
+            : assetStatusFilter === "all"
+              ? tt("common.allStatuses")
+              : assetStatusLabels[assetStatusFilter] || assetStatusFilter,
+          includeArchived: scope === "selected" || showArchivedAssets || autoIncludedArchivedAssets,
+        },
+      });
+      toast.success(tt("toast.exportSuccess", { count: formatNumber(exportRows.length) }));
+    } catch (error) {
+      console.error("Export asset registry error:", error);
+      toast.error(tt("toast.exportError"));
+    } finally {
+      setAssetExporting(false);
+    }
   };
 
   const handleExportAssetsExcel = () => {
-    exportAssetsExcel(filteredAssets);
+    void exportAssetsExcel(filteredAssets);
   };
 
   const handleExportSelectedAssets = () => {
-    exportAssetsExcel(selectedAssets, "it-assets-selected");
+    void exportAssetsExcel(selectedAssets, "it-asset-registry-selected", "selected");
   };
 
   return (
@@ -2461,48 +2562,48 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
         ? `asset-management-workspace ${theme === "dark" ? "is-dark" : ""}`
         : "min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8"}
     >
-      <div className={embedded ? "space-y-5" : "mx-auto max-w-[1600px] space-y-6"}>
+      <div className={embedded ? "space-y-3" : "mx-auto max-w-[1600px] space-y-4"}>
         {!embedded ? (
           <ReportsTopbar backTo="/admin-dashboard" backLabel={tt("page.backLabel")} showHub={false} />
         ) : null}
 
-        <section className="relative overflow-hidden rounded-[1.75rem] border border-blue-100 bg-white shadow-[0_24px_70px_-45px_rgba(30,64,175,0.5)]">
+        <section className="relative overflow-hidden rounded-[1.15rem] border border-blue-100 bg-white shadow-[0_14px_42px_-36px_rgba(30,64,175,0.42)] sm:rounded-[1.5rem]">
           <div className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl" />
           <div className="pointer-events-none absolute left-1/3 top-0 h-40 w-40 rounded-full bg-cyan-200/20 blur-3xl" />
 
-          <div className="relative border-b border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-cyan-50/60 p-5 sm:p-7">
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 items-start gap-4 sm:items-center">
-                <span className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2b59b0] to-[#173b80] text-white shadow-[0_14px_35px_-16px_rgba(43,89,176,0.9)] sm:h-16 sm:w-16">
-                  <HardDrive size={28} aria-hidden="true" />
-                  <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-400" />
+          <div className="relative border-b border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-cyan-50/60 px-3 py-3 sm:px-5 sm:py-4">
+            <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-start gap-2.5 sm:items-center sm:gap-3">
+                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b59b0] to-[#173b80] text-white shadow-[0_12px_28px_-16px_rgba(43,89,176,0.9)] sm:h-12 sm:w-12">
+                  <HardDrive size={20} aria-hidden="true" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
                 </span>
-                <div className="max-w-3xl">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#2b59b0]">
+                <div className="min-w-0 max-w-4xl">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#2b59b0] sm:text-[10px]">
                       {tt("page.eyebrow")}
                     </p>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {tt("ux.liveData")}
                     </span>
                   </div>
-                  <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl lg:text-[2rem]">
+                  <h1 className="mt-0.5 text-lg font-black leading-tight tracking-tight text-slate-950 sm:mt-1 sm:text-2xl">
                     {tt("page.title")}
                   </h1>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  <p className="mt-0.5 max-w-3xl text-[11px] leading-4 text-slate-600 sm:mt-1 sm:text-[13px] sm:leading-5">
                     {tt("page.subtitle")}
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:max-w-xl xl:justify-end">
+              <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] items-center gap-1.5 sm:flex sm:gap-2 lg:w-auto lg:justify-end">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={importing}
-                  className="col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#2b59b0] px-4 text-sm font-bold text-white shadow-[0_12px_28px_-14px_rgba(43,89,176,0.8)] transition hover:-translate-y-0.5 hover:bg-[#244a95] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-1"
+                  className="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-[#2b59b0] px-2 text-[11px] font-bold text-white shadow-[0_10px_24px_-14px_rgba(43,89,176,0.8)] transition hover:-translate-y-0.5 hover:bg-[#244a95] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1 sm:px-3 sm:text-xs lg:flex-none"
                 >
-                  <Upload size={16} />
+                  <Upload size={14} />
                   {importing ? tt("page.importing") : tt("page.importAssets")}
                 </button>
 
@@ -2510,9 +2611,9 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                   type="button"
                   onClick={() => licenseFileInputRef.current?.click()}
                   disabled={licenseImporting}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white/90 px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#2b59b0]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-white/90 px-2 text-[11px] font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#2b59b0]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1 sm:px-3 sm:text-xs lg:flex-none"
                 >
-                  <KeyRound size={16} className="text-[#2b59b0]" />
+                  <KeyRound size={14} className="text-[#2b59b0]" />
                   {licenseImporting ? tt("page.importing") : tt("page.importLicenses")}
                 </button>
 
@@ -2523,10 +2624,12 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                     void loadLicenses();
                   }}
                   disabled={loading || licenseLoading}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white/90 text-xs font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 xl:w-auto xl:px-3"
+                  title={tt("page.refresh")}
+                  aria-label={tt("page.refresh")}
                 >
-                  <RefreshCw size={16} className={loading || licenseLoading ? "animate-spin text-[#2b59b0]" : "text-slate-500"} />
-                  {tt("page.refresh")}
+                  <RefreshCw size={14} className={loading || licenseLoading ? "animate-spin text-[#2b59b0]" : "text-slate-500"} />
+                  <span className="hidden xl:inline">{tt("page.refresh")}</span>
                 </button>
               </div>
             </div>
@@ -2547,7 +2650,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
             onChange={handleImportLicenseFile}
           />
 
-          <div className="relative grid grid-cols-2 gap-3 bg-slate-50/70 p-4 sm:p-5 lg:grid-cols-4">
+          <div className="relative grid grid-cols-2 gap-1.5 bg-slate-50/70 p-2 sm:gap-2 sm:p-3 lg:grid-cols-4 lg:p-3.5">
             <AssetMetricCard
               icon={Database}
               label={tt("summary.totalAssets")}
@@ -2577,8 +2680,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
             />
           </div>
 
-          <div className="relative flex flex-col gap-3 border-t border-slate-200 bg-white px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <div className="relative flex items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-1.5 sm:px-4 sm:py-2">
+            <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto text-[10px] text-slate-600">
               {[
                 [Monitor, tt("summary.pc"), liveSummary.pc, "text-blue-600 bg-blue-50"],
                 [Laptop, tt("summary.notebook"), liveSummary.notebook, "text-indigo-600 bg-indigo-50"],
@@ -2586,19 +2689,19 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                 [Printer, tt("summary.printer"), liveSummary.printer, "text-amber-600 bg-amber-50"],
                 [KeyRound, tt("summary.issueLicenses"), liveLicenseSummary.broken, "text-rose-600 bg-rose-50"],
               ].map(([Icon, label, value, className]) => (
-                <span key={label} className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 font-semibold ${className}`}>
-                  <Icon size={13} />
+                <span key={label} className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-semibold ${className}`}>
+                  <Icon size={11} />
                   {label} <strong>{formatNumber(value)}</strong>
                 </span>
               ))}
             </div>
 
-            <details className="group text-sm text-slate-600 lg:text-right">
-              <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-slate-800">
-                <FileSpreadsheet size={16} />
+            <details className="group hidden shrink-0 text-xs text-slate-600 sm:block">
+              <summary className="flex min-h-7 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-transparent px-2 font-semibold text-slate-700 transition hover:border-slate-200 hover:bg-slate-50">
+                <FileSpreadsheet size={13} />
                 {tt("page.importGuide")}
               </summary>
-              <div className="mt-3 space-y-1 rounded-xl border border-slate-200 bg-white p-3 text-left text-xs text-slate-500 lg:max-w-[620px]">
+              <div className="mt-2 space-y-1 rounded-xl border border-slate-200 bg-white p-3 text-left text-xs text-slate-500 lg:max-w-[620px]">
                 <p>{tt("page.requiredAssetColumns")}</p>
                 <p>{tt("page.categoryHint")}</p>
                 <p>{tt("page.assetColumns")}: {TABLE_COLUMNS.join(", ")}</p>
@@ -2608,9 +2711,9 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
           </div>
         </section>
 
-        <section className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-[0_16px_45px_-38px_rgba(15,23,42,0.6)] sm:p-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap">
+        <section className="rounded-[1.25rem] border border-slate-200 bg-white p-2 shadow-[0_14px_38px_-34px_rgba(15,23,42,0.55)] sm:p-2.5">
+          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5 xl:pb-0">
               {[
                 { id: "assets", label: tt("sections.assets"), icon: HardDrive, count: liveSummary.total },
                 { id: "licenses", label: tt("sections.licenses"), icon: KeyRound, count: liveLicenseSummary.records },
@@ -2624,51 +2727,106 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                     key={item.id}
                     type="button"
                     onClick={() => setActiveSection(item.id)}
-                    className={`group inline-flex min-h-12 items-center gap-3 rounded-2xl border px-3 py-2 text-left transition duration-200 lg:min-w-[150px] ${
+                    className={`group inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition duration-200 ${
                       active
                         ? "border-[#2b59b0] bg-[#2b59b0] text-white shadow-[0_12px_26px_-16px_rgba(43,89,176,0.85)]"
                         : "border-slate-200 bg-slate-50/80 text-slate-600 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50"
                     }`}
                   >
-                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${active ? "bg-white/15 text-white" : "bg-white text-[#2b59b0] shadow-sm"}`}>
-                      <Icon size={16} strokeWidth={2.25} />
+                    <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${active ? "bg-white/15 text-white" : "bg-white text-[#2b59b0] shadow-sm"}`}>
+                      <Icon size={14} strokeWidth={2.25} />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-bold sm:text-sm">{item.label}</span>
-                      {item.count !== undefined ? (
-                        <span className={`mt-0.5 block text-[10px] font-semibold ${active ? "text-blue-100" : "text-slate-400"}`}>
-                          {formatNumber(item.count)} {tt("ux.records")}
-                        </span>
-                      ) : null}
-                    </span>
+                    <span className="whitespace-nowrap text-xs font-bold">{item.label}</span>
+                    {item.count !== undefined ? (
+                      <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black ${active ? "bg-white/15 text-blue-50" : "bg-slate-200/70 text-slate-500"}`}>
+                        {formatNumber(item.count)}
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-600">
+            <div className="flex flex-wrap items-center justify-end gap-1.5 text-[11px]">
+              <span className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-semibold text-slate-600 sm:inline-flex">
                 <CircleUserRound size={13} className="text-[#2b59b0]" />
                 {tt("sections.userRole")}: {userRole || tt("sections.unknownRole")}
               </span>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold ${
-                  canHardDelete
-                    ? "border-rose-200 bg-rose-50 text-rose-700"
-                    : "border-amber-200 bg-amber-50 text-amber-700"
-                }`}
-              >
-                {canHardDelete ? <Trash2 size={13} /> : <Archive size={13} />}
-                {canHardDelete ? tt("sections.deleteModePermanent") : tt("sections.deleteModeArchive")}
-              </span>
+              {activeSection === "assets" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleOpenAssetRegistry}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 font-bold text-[#2b59b0] transition hover:-translate-y-0.5 hover:bg-blue-100"
+                  >
+                    <Database size={14} />
+                    {tt("ux.assetRegistry")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenNewAsset}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-[#2b59b0] px-2.5 font-bold text-white shadow-[0_8px_18px_-13px_rgba(43,89,176,0.9)] transition hover:-translate-y-0.5 hover:bg-[#244a95]"
+                  >
+                    <Plus size={14} />
+                    {tt("assets.formAdd")}
+                  </button>
+                </>
+              ) : null}
+              {activeSection === "licenses" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleOpenLicenseRegistry}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 font-bold text-indigo-700 transition hover:-translate-y-0.5 hover:bg-indigo-100"
+                  >
+                    <KeyRound size={14} />
+                    {tt("ux.licenseRegistry")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenNewLicense}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-indigo-700 px-2.5 font-bold text-white shadow-[0_8px_18px_-13px_rgba(67,56,202,0.9)] transition hover:-translate-y-0.5 hover:bg-indigo-800"
+                  >
+                    <Plus size={14} />
+                    {tt("licenses.formAdd")}
+                  </button>
+                </>
+              ) : null}
+              {activeSection === "notebooks" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleOpenNotebookRegistry}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 font-bold text-blue-700 transition hover:-translate-y-0.5 hover:bg-blue-100"
+                  >
+                    <Laptop size={14} />
+                    {tt("ux.notebookRegistry")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenNewNotebook}
+                    disabled={!canHardDelete}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-slate-900 px-2.5 font-bold text-white shadow-[0_8px_18px_-13px_rgba(15,23,42,0.9)] transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Plus size={14} />
+                    {tt("ux.addNotebook")}
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         </section>
 
         {activeSection === "assets" ? (
-          <section className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.55fr)]">
-          <article ref={assetFormRef} className="scroll-mt-4 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_20px_55px_-42px_rgba(15,23,42,0.7)] xl:sticky xl:top-4">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-blue-50/80 to-white px-5 py-4">
+          <section className="space-y-5">
+          {assetFormOpen ? (
+          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-5" onClick={handleCloseAssetForm}>
+          <article
+            ref={assetFormRef}
+            className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-white px-5 py-4 shadow-sm">
               <div className="flex min-w-0 items-center gap-3">
                 <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${editingId ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-[#2b59b0]"}`}>
                   {editingId ? <PencilLine size={18} /> : <Plus size={18} />}
@@ -2680,16 +2838,15 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                   </h2>
                 </div>
               </div>
-              {editingId ? (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm transition hover:bg-slate-50"
-                >
-                  <X size={14} />
-                  {tt("common.cancelEdit")}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={handleCloseAssetForm}
+                disabled={saving}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <X size={14} />
+                {editingId ? tt("common.cancelEdit") : tt("common.close")}
+              </button>
             </div>
 
             <form className="space-y-4 p-5" onSubmit={handleSaveAsset}>
@@ -2866,59 +3023,62 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2b59b0] to-[#1f478f] px-4 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-16px_rgba(43,89,176,0.85)] transition hover:-translate-y-0.5 hover:from-[#244a95] hover:to-[#173b80] disabled:cursor-not-allowed disabled:opacity-60"
+                className="sticky bottom-0 z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2b59b0] to-[#1f478f] px-4 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(43,89,176,0.85)] transition hover:-translate-y-0.5 hover:from-[#244a95] hover:to-[#173b80] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {editingId ? <PencilLine size={16} /> : <Save size={16} />}
                 {saving ? tt("common.saving") : editingId ? tt("assets.submitEdit") : tt("assets.submitAdd")}
               </button>
             </form>
           </article>
+          </div>
+          ) : null}
 
-          <article className="min-w-0 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_20px_55px_-42px_rgba(15,23,42,0.7)]">
-            <div className="border-b border-slate-200 bg-gradient-to-r from-white to-slate-50/80 p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-                    <Database size={18} />
+          <article ref={assetListRef} className="min-w-0 scroll-mt-20 rounded-[1.25rem] border border-slate-200 bg-white shadow-[0_18px_48px_-40px_rgba(15,23,42,0.65)] sm:rounded-[1.5rem]">
+            <div className="rounded-t-[1.2rem] border-b border-slate-200 bg-gradient-to-r from-white to-slate-50/80 px-3 py-3 sm:rounded-t-[1.45rem] sm:px-4 sm:py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 sm:h-10 sm:w-10 sm:rounded-2xl">
+                    <Database size={17} />
                   </span>
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-black text-slate-900">
-                      {tt("assets.listTitle", { count: formatNumber(filteredAssets.length) })}
-                    </h2>
-                    <p className="text-xs text-slate-500">{tt("ux.listHelper")}</p>
+                  <div className="min-w-0">
+                    <h2 className="truncate text-base font-black text-slate-900 sm:text-lg">{tt("ux.assetRegistry")}</h2>
+                    <p className="truncate text-[11px] text-slate-500 sm:text-xs">{tt("ux.listHelper")}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleExportAssetsExcel}
-                  disabled={filteredAssets.length === 0}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-bold text-emerald-700 transition hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={filteredAssets.length === 0 || assetExporting}
+                  className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-bold text-emerald-700 transition hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-10 sm:rounded-xl sm:px-3 sm:text-sm"
                 >
-                  <Download size={15} />
-                  {tt("common.exportExcel")}
+                  {assetExporting ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+                  <span className="hidden min-[390px]:inline">{assetExporting ? tt("common.exportingExcel") : tt("common.exportExcel")}</span>
                 </button>
               </div>
+            </div>
 
-              <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(240px,1fr)_170px_170px_auto]">
-                <label className="relative block min-w-0">
-                  <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className={`sticky ${assetStickyTopClass} z-30 border-b border-slate-200 bg-white px-3 py-2.5 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.65)] sm:px-4`}>
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_40px] gap-1.5 lg:grid-cols-[minmax(240px,1fr)_160px_160px_auto] lg:gap-2">
+                <label className="relative col-span-3 block min-w-0 lg:col-span-1">
+                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    className={`${assetInputClass} pl-10`}
+                    className={`${assetFilterInputClass} pl-9`}
                     placeholder={tt("assets.searchPlaceholder")}
+                    aria-label={tt("assets.searchPlaceholder")}
                   />
                 </label>
-                <label className="relative block">
-                  <LayoutGrid size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <select value={assetCategoryFilter} onChange={(event) => setAssetCategoryFilter(event.target.value)} className={`${assetInputClass} pl-9`}>
+                <label className="relative block min-w-0">
+                  <LayoutGrid size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <select value={assetCategoryFilter} onChange={(event) => setAssetCategoryFilter(event.target.value)} className={`${assetFilterInputClass} pl-8`} aria-label={tt("common.allCategories")}>
                     <option value="all">{tt("common.allCategories")}</option>
                     {categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
                 </label>
-                <label className="relative block">
-                  <Filter size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <select value={assetStatusFilter} onChange={(event) => setAssetStatusFilter(event.target.value)} className={`${assetInputClass} pl-9`}>
+                <label className="relative block min-w-0">
+                  <Filter size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <select value={assetStatusFilter} onChange={(event) => setAssetStatusFilter(event.target.value)} className={`${assetFilterInputClass} pl-8`} aria-label={tt("common.allStatuses")}>
                     <option value="all">{tt("common.allStatuses")}</option>
                     {assetStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
@@ -2930,68 +3090,55 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                     setAssetCategoryFilter("all");
                     setAssetStatusFilter("all");
                   }}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-100"
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 lg:px-3 lg:text-sm lg:font-bold"
+                  title={tt("common.resetFilters")}
+                  aria-label={tt("common.resetFilters")}
                 >
-                  <RotateCcw size={15} />
-                  {tt("common.resetFilters")}
+                  <RotateCcw size={14} />
+                  <span className="hidden lg:inline">{tt("common.resetFilters")}</span>
                 </button>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <div className="mt-2 flex min-w-0 items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5 text-[10px] font-bold sm:text-[11px]">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-600">
+                    <Eye size={11} /> {tt("summary.visible")} {formatNumber(filteredAssetSummary.total)} / {formatNumber(assets.length)}
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
+                    <CheckCircle2 size={11} /> {tt("summary.usable")} {formatNumber(filteredAssetSummary.usable)}
+                  </span>
+                  {filteredAssetSummary.broken > 0 ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-rose-700">
+                      <AlertTriangle size={11} /> {tt("summary.unusable")} {formatNumber(filteredAssetSummary.broken)}
+                    </span>
+                  ) : null}
+                </div>
+                <label className="inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-slate-600 sm:text-xs">
                   <input
                     type="checkbox"
                     checked={showArchivedAssets}
                     onChange={(event) => setShowArchivedAssets(event.target.checked)}
                     className="h-4 w-4 rounded border-slate-300 text-[#2b59b0]"
                   />
-                  <Archive size={13} />
-                  {tt("assets.showArchived")}
+                  <Archive size={12} />
+                  <span className="hidden min-[430px]:inline">{tt("assets.showArchived")}</span>
                 </label>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">
-                  <SlidersHorizontal size={12} /> {formatNumber(filteredAssets.length)} / {formatNumber(assets.length)}
-                </span>
               </div>
-            </div>
 
-            <div className="p-5 pt-4">
-
-            {autoIncludedArchivedAssets ? (
-              <p className="mt-2 text-xs font-medium text-amber-700">
-                {tt("assets.autoArchiveNotice")}
-              </p>
-            ) : null}
-
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <p className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><Eye size={12} />{tt("summary.visible")}</p>
-                <p className="mt-1 text-lg font-black text-slate-900">{formatNumber(filteredAssetSummary.total)}</p>
-              </div>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
-                <p className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700"><CheckCircle2 size={12} />{tt("summary.usable")}</p>
-                <p className="mt-1 text-lg font-black text-emerald-900">{formatNumber(filteredAssetSummary.usable)}</p>
-              </div>
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
-                <p className="flex items-center gap-1.5 text-[10px] font-bold text-rose-700"><AlertTriangle size={12} />{tt("summary.unusable")}</p>
-                <p className="mt-1 text-lg font-black text-rose-900">{formatNumber(filteredAssetSummary.broken)}</p>
-              </div>
-            </div>
-
-            <div className={`mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs transition ${selectedAssets.length > 0 ? "border-blue-200 bg-blue-50/80" : "border-slate-200 bg-slate-50"}`}>
-              <span className={`font-bold ${selectedAssets.length > 0 ? "text-[#2b59b0]" : "text-slate-600"}`}>
-                {tt("assets.selected", {
-                  selected: formatNumber(selectedAssets.length),
-                  total: formatNumber(filteredAssets.length),
-                })}
-              </span>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {selectedAssets.length > 0 ? (
-                  <>
+              {selectedAssets.length > 0 ? (
+                <div className="mt-2 flex flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 text-[11px] sm:flex-row sm:items-center sm:justify-between sm:text-xs">
+                  <span className="shrink-0 font-bold text-[#2b59b0]">
+                    {tt("assets.selected", {
+                      selected: formatNumber(selectedAssets.length),
+                      total: formatNumber(filteredAssets.length),
+                    })}
+                  </span>
+                  <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
                     <button
                       type="button"
                       onClick={handleExportSelectedAssets}
-                      disabled={Boolean(assetBulkAction)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={Boolean(assetBulkAction) || assetExporting}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <Download size={13} />
                       {tt("assets.exportSelected", { count: formatNumber(selectedAssets.length) })}
@@ -3000,7 +3147,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                       type="button"
                       onClick={handleDeleteSelectedAssets}
                       disabled={Boolean(assetBulkAction)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {assetBulkAction ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
                       {assetBulkAction
@@ -3009,20 +3156,27 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                           ? tt("assets.deleteSelected", { count: formatNumber(selectedAssets.length) })
                           : tt("assets.archiveSelected", { count: formatNumber(selectedAssets.length) })}
                     </button>
-                  </>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={handleClearSelectedAssets}
-                  disabled={selectedAssets.length === 0 || Boolean(assetBulkAction)}
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {tt("assets.clearSelected")}
-                </button>
-              </div>
+                    <button
+                      type="button"
+                      onClick={handleClearSelectedAssets}
+                      disabled={Boolean(assetBulkAction)}
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {tt("assets.clearSelected")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
-            <div className="mt-4 space-y-3 lg:hidden">
+            <div className="rounded-b-[1.2rem] bg-white p-3 pt-2 sm:rounded-b-[1.45rem] sm:p-4 sm:pt-3">
+              {autoIncludedArchivedAssets ? (
+                <p className="mb-2 text-xs font-medium text-amber-700">
+                  {tt("assets.autoArchiveNotice")}
+                </p>
+              ) : null}
+
+            <div className="space-y-2.5 lg:hidden">
               {loading ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">{tt("common.loading")}</div>
               ) : filteredAssets.length === 0 ? (
@@ -3033,8 +3187,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               ) : filteredAssets.map((item) => {
                 const evidenceCount = getAssetEvidenceAttachments(item).length;
                 return (
-                  <article key={`mobile-${item.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" onClick={() => handleOpenDetail(item)}>
-                    <div className="flex items-start gap-3">
+                  <article key={`mobile-${item.id}`} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" onClick={() => handleOpenDetail(item)}>
+                    <div className="flex items-start gap-2.5">
                       <input
                         type="checkbox"
                         checked={selectedAssetIdSet.has(item.id)}
@@ -3043,8 +3197,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                         className="mt-1 h-4 w-4 rounded border-slate-300"
                         aria-label={tt("assets.selectRowAria", { asset: item.asset_tag || tt("sections.assets") })}
                       />
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#2b59b0]">
-                        <HardDrive size={18} />
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#2b59b0]">
+                        <HardDrive size={16} />
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3052,21 +3206,21 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                           <ChevronRight size={16} className="text-slate-400" />
                         </div>
                         <p className="mt-0.5 font-mono text-xs font-bold text-[#2b59b0]">{item.asset_tag || "-"}</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">{item.asset_category || "-"}</span>
-                          <span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${getAssetStatusChipClass(item.status)}`}>{formatAssetStatusLabel(item.status, assetStatusLabels)}</span>
-                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-700"><ImagePlus size={11} />{formatNumber(evidenceCount)}</span>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">{item.asset_category || "-"}</span>
+                          <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${getAssetStatusChipClass(item.status)}`}>{formatAssetStatusLabel(item.status, assetStatusLabels)}</span>
+                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-bold text-sky-700"><ImagePlus size={10} />{formatNumber(evidenceCount)}</span>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                        <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px] text-slate-500">
                           <span className="inline-flex items-center gap-1.5 truncate"><UserRound size={12} />{item.owner_name || "-"}</span>
                           <span className="inline-flex items-center gap-1.5 truncate"><MapPin size={12} />{item.location || "-"}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3" onClick={(event) => event.stopPropagation()}>
-                      <button type="button" onClick={() => handleOpenDetail(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-cyan-50 px-2 py-2 text-xs font-bold text-cyan-700"><Eye size={13} />{tt("common.view")}</button>
-                      <button type="button" onClick={() => handleEditAsset(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-2 py-2 text-xs font-bold text-slate-700"><PencilLine size={13} />{tt("common.edit")}</button>
-                      <button type="button" disabled={assetActionId === item.id} onClick={() => handleDeleteAsset(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-rose-50 px-2 py-2 text-xs font-bold text-rose-700 disabled:opacity-60"><Trash2 size={13} />{canHardDelete ? tt("common.delete") : tt("common.archive")}</button>
+                    <div className="mt-2.5 grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-2.5" onClick={(event) => event.stopPropagation()}>
+                      <button type="button" onClick={() => handleOpenDetail(item)} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-cyan-50 px-1.5 text-[11px] font-bold text-cyan-700"><Eye size={12} />{tt("common.view")}</button>
+                      <button type="button" onClick={() => handleEditAsset(item)} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-slate-100 px-1.5 text-[11px] font-bold text-slate-700"><PencilLine size={12} />{tt("common.edit")}</button>
+                      <button type="button" disabled={assetActionId === item.id} onClick={() => handleDeleteAsset(item)} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-rose-50 px-1.5 text-[11px] font-bold text-rose-700 disabled:opacity-60"><Trash2 size={12} />{canHardDelete ? tt("common.delete") : tt("common.archive")}</button>
                     </div>
                   </article>
                 );
@@ -3221,28 +3375,29 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
         ) : null}
 
         {activeSection === "licenses" ? (
-          <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.4fr]">
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
+          <section className="space-y-5">
+          {licenseFormOpen ? (
+          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-5" onClick={handleCloseLicenseForm}>
+          <article className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-indigo-50 via-white to-white px-5 py-4 shadow-sm">
               <div className="flex items-center gap-2">
                 <KeyRound size={18} className="text-indigo-600" />
                 <h2 className="text-lg font-black text-slate-900">
                   {licenseEditingId ? tt("licenses.formEdit") : tt("licenses.formAdd")}
                 </h2>
               </div>
-              {licenseEditingId ? (
-                <button
-                  type="button"
-                  onClick={resetLicenseForm}
-                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  <X size={14} />
-                  {tt("common.cancelEdit")}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={handleCloseLicenseForm}
+                disabled={licenseSaving}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <X size={14} />
+                {licenseEditingId ? tt("common.cancelEdit") : tt("common.close")}
+              </button>
             </div>
 
-            <form className="mt-4 space-y-3" onSubmit={handleSaveLicense}>
+            <form className="space-y-4 p-5" onSubmit={handleSaveLicense}>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   value={licenseFormData.license_name}
@@ -3325,7 +3480,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               <button
                 type="submit"
                 disabled={licenseSaving}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="sticky bottom-0 z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_-10px_rgba(67,56,202,0.75)] transition hover:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {licenseEditingId ? <PencilLine size={16} /> : <Save size={16} />}
                 {licenseSaving
@@ -3336,8 +3491,10 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               </button>
             </form>
           </article>
+          </div>
+          ) : null}
 
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <article ref={licenseListRef} className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -3407,17 +3564,54 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               </div>
             </div>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+            <div className="mt-4 space-y-3 lg:hidden">
+              {licenseLoading ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">{tt("licenses.loading")}</div>
+              ) : filteredLicenses.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">{tt("common.noLicenseData")}</div>
+              ) : filteredLicenses.map((item) => {
+                const totalSeats = normalizeInteger(item.quantity_total, 0);
+                const assignedSeats = Math.min(normalizeInteger(item.quantity_assigned, 0), totalSeats);
+                const availableSeats = Math.max(totalSeats - assignedSeats, 0);
+                return (
+                  <article key={`license-mobile-${item.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" onClick={() => handleOpenLicenseDetail(item)}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-black text-slate-900">{item.license_name || "-"}</h3>
+                        <p className="mt-1 truncate text-xs text-slate-500">{item.vendor || "-"} {item.license_type ? `• ${item.license_type}` : ""}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${getLicenseStatusChipClass(item.status)}`}>
+                        {formatLicenseStatusLabel(item.status, licenseStatusLabels)}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="rounded-xl bg-slate-50 px-2 py-2"><p className="text-[10px] text-slate-500">{tt("licenses.tableTotal")}</p><p className="font-black text-slate-800">{formatNumber(totalSeats)}</p></div>
+                      <div className="rounded-xl bg-indigo-50 px-2 py-2"><p className="text-[10px] text-indigo-600">{tt("licenses.tableAssigned")}</p><p className="font-black text-indigo-800">{formatNumber(assignedSeats)}</p></div>
+                      <div className="rounded-xl bg-emerald-50 px-2 py-2"><p className="text-[10px] text-emerald-600">{tt("licenses.tableAvailable")}</p><p className="font-black text-emerald-800">{formatNumber(availableSeats)}</p></div>
+                    </div>
+                    <p className="mt-3 text-xs font-semibold text-slate-500">{tt("licenses.tableExpiry")}: {formatDate(item.expiry_date, locale)}</p>
+                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3" onClick={(event) => event.stopPropagation()}>
+                      <button type="button" onClick={() => handleOpenLicenseDetail(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-cyan-50 px-2 py-2 text-xs font-bold text-cyan-700"><Eye size={13} />{tt("common.view")}</button>
+                      <button type="button" onClick={() => handleEditLicense(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-2 py-2 text-xs font-bold text-slate-700"><PencilLine size={13} />{tt("common.edit")}</button>
+                      <button type="button" disabled={licenseActionId === item.id} onClick={() => handleDeleteLicense(item)} className="inline-flex items-center justify-center gap-1 rounded-xl bg-rose-50 px-2 py-2 text-xs font-bold text-rose-700 disabled:opacity-60"><Trash2 size={13} />{canHardDelete ? tt("common.delete") : tt("common.archive")}</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 lg:block">
+              <div className="max-h-[calc(100vh-250px)] min-h-[320px] overflow-auto">
+              <table className="w-full min-w-[760px] table-fixed text-left text-xs">
+                <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
+                  <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[0.04em] text-slate-500">
                     <th className="px-2 py-2">{tt("licenses.tableLicense")}</th>
                     <th className="px-2 py-2">{tt("licenses.tableStatus")}</th>
                     <th className="px-2 py-2 text-right">{tt("licenses.tableTotal")}</th>
                     <th className="px-2 py-2 text-right">{tt("licenses.tableAssigned")}</th>
                     <th className="px-2 py-2 text-right">{tt("licenses.tableAvailable")}</th>
                     <th className="px-2 py-2">{tt("licenses.tableExpiry")}</th>
-                    <th className="px-2 py-2 text-right">{tt("licenses.tableActions")}</th>
+                    <th className="sticky right-0 z-20 border-l border-slate-200 bg-slate-50 px-2 py-2 text-right">{tt("licenses.tableActions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3441,37 +3635,37 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                       return (
                         <tr
                           key={item.id}
-                          className="cursor-pointer border-b border-slate-100 align-top transition hover:bg-slate-50/70"
+                          className="group cursor-pointer border-b border-slate-100 align-top transition hover:bg-slate-50/70"
                           onClick={() => handleOpenLicenseDetail(item)}
                         >
-                          <td className="px-2 py-3 text-slate-700">
-                            <div className="font-semibold text-slate-800">{item.license_name || "-"}</div>
-                            <div className="text-xs text-slate-500">
+                          <td className="px-2 py-2 text-slate-700">
+                            <div className="truncate font-semibold text-slate-800" title={item.license_name || "-"}>{item.license_name || "-"}</div>
+                            <div className="truncate text-[10px] text-slate-500">
                               {item.vendor || "-"} {item.license_type ? `• ${item.license_type}` : ""}
                             </div>
                           </td>
-                          <td className="px-2 py-3 text-slate-700">
+                          <td className="px-2 py-2 text-slate-700">
                             <span
-                              className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getLicenseStatusChipClass(
+                              className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${getLicenseStatusChipClass(
                                 item.status,
                               )}`}
                             >
                               {formatLicenseStatusLabel(item.status, licenseStatusLabels)}
                             </span>
                           </td>
-                          <td className="px-2 py-3 text-right font-semibold text-slate-800">{formatNumber(totalSeats)}</td>
-                          <td className="px-2 py-3 text-right text-slate-700">{formatNumber(assignedSeats)}</td>
-                          <td className="px-2 py-3 text-right text-emerald-700">{formatNumber(availableSeats)}</td>
-                          <td className="px-2 py-3 text-slate-700">{formatDate(item.expiry_date, locale)}</td>
-                          <td className="px-2 py-3">
-                            <div className="flex justify-end gap-2">
+                          <td className="px-2 py-2 text-right font-semibold text-slate-800">{formatNumber(totalSeats)}</td>
+                          <td className="px-2 py-2 text-right text-slate-700">{formatNumber(assignedSeats)}</td>
+                          <td className="px-2 py-2 text-right text-emerald-700">{formatNumber(availableSeats)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 text-slate-700">{formatDate(item.expiry_date, locale)}</td>
+                          <td className="sticky right-0 border-l border-slate-100 bg-white px-2 py-2 transition group-hover:bg-slate-50">
+                            <div className="flex justify-end gap-1">
                               <button
                                 type="button"
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   handleOpenLicenseDetail(item);
                                 }}
-                                className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100"
+                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2 text-[10px] font-semibold text-cyan-700 hover:bg-cyan-100"
                               >
                                 <Eye size={13} />
                                 {tt("common.view")}
@@ -3482,10 +3676,11 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                                   event.stopPropagation();
                                   handleEditLicense(item);
                                 }}
-                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                title={tt("common.edit")}
+                                aria-label={tt("common.edit")}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                               >
                                 <PencilLine size={13} />
-                                {tt("common.edit")}
                               </button>
                               <button
                                 type="button"
@@ -3494,14 +3689,11 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                                   event.stopPropagation();
                                   handleDeleteLicense(item);
                                 }}
-                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                title={canHardDelete ? tt("common.delete") : tt("common.archive")}
+                                aria-label={canHardDelete ? tt("common.delete") : tt("common.archive")}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                <Trash2 size={13} />
-                                {licenseActionId === item.id
-                                  ? tt("common.processing")
-                                  : canHardDelete
-                                    ? tt("common.delete")
-                                    : tt("common.archive")}
+                                {licenseActionId === item.id ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
                               </button>
                             </div>
                           </td>
@@ -3511,12 +3703,21 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           </article>
         </section>
         ) : null}
 
-        {activeSection === "notebooks" ? <NotebookInventoryManagementPanel userRole={userRole} /> : null}
+        {activeSection === "notebooks" ? (
+          <div ref={notebookPanelRef} className="scroll-mt-4">
+            <NotebookInventoryManagementPanel
+              userRole={userRole}
+              createRequest={notebookCreateRequest}
+              onCreateRequestHandled={() => setNotebookCreateRequest(0)}
+            />
+          </div>
+        ) : null}
 
         {activeSection === "activity" ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -3896,15 +4097,15 @@ function AssetMetricCard({ icon: Icon, label, value, helper, tone = "blue" }) {
   };
 
   return (
-    <article className={`group rounded-2xl border p-4 shadow-[0_12px_35px_-28px_rgba(15,23,42,0.55)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-26px_rgba(43,89,176,0.35)] ${tones[tone]}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">{value}</p>
-          {helper ? <p className="mt-1 truncate text-xs font-medium text-slate-500">{helper}</p> : null}
+    <article className={`group min-h-[62px] rounded-xl border px-2.5 py-2 shadow-[0_10px_28px_-25px_rgba(15,23,42,0.5)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_-25px_rgba(43,89,176,0.32)] sm:min-h-[76px] sm:px-3 sm:py-2.5 ${tones[tone]}`}>
+      <div className="flex h-full items-center justify-between gap-2 sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 sm:text-[10px]">{label}</p>
+          <p className="mt-0.5 text-lg font-black leading-none tracking-tight text-slate-900 sm:text-xl">{value}</p>
+          {helper ? <p className="mt-1 hidden truncate text-[10px] font-medium leading-4 text-slate-500 sm:block">{helper}</p> : null}
         </div>
-        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition group-hover:scale-105 ${iconTones[tone]}`}>
-          <Icon size={20} strokeWidth={2.25} />
+        <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition group-hover:scale-105 sm:h-9 sm:w-9 sm:rounded-xl ${iconTones[tone]}`}>
+          <Icon size={15} strokeWidth={2.25} className="sm:h-[17px] sm:w-[17px]" />
         </span>
       </div>
     </article>

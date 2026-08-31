@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PencilLine, RefreshCw, Save, Search, Trash2, Upload, X } from "lucide-react";
+import { Laptop, PencilLine, Plus, RefreshCw, Save, Search, Trash2, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabaseClient";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
@@ -285,7 +285,7 @@ function revokePreviewUrl(value) {
   }
 }
 
-export default function NotebookInventoryManagementPanel({ userRole = "" }) {
+export default function NotebookInventoryManagementPanel({ userRole = "", createRequest = 0, onCreateRequestHandled }) {
   const { language, tt } = useScopedI18n(NOTEBOOK_INVENTORY_TRANSLATIONS);
   const imageInputRef = useRef(null);
   const canManageNotebooks = NOTEBOOK_MANAGER_ROLES.has(normalizeText(userRole).toLowerCase());
@@ -295,6 +295,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
   const [actionId, setActionId] = useState("");
   const [availabilityActionId, setAvailabilityActionId] = useState("");
   const [editingId, setEditingId] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [formData, setFormData] = useState(EMPTY_NOTEBOOK_FORM);
@@ -448,7 +449,27 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
       revokePreviewUrl(prev);
       return normalizeText(item?.asset_image_url);
     });
+    setFormOpen(true);
   }, []);
+
+  const handleOpenNewNotebook = useCallback(() => {
+    resetForm();
+    setFormOpen(true);
+  }, [resetForm]);
+
+  const handleCloseNotebookForm = useCallback(() => {
+    if (saving) return;
+    resetForm();
+    setFormOpen(false);
+  }, [resetForm, saving]);
+
+  useEffect(() => {
+    if (!createRequest) return;
+    if (canManageNotebooks) {
+      handleOpenNewNotebook();
+    }
+    onCreateRequestHandled?.();
+  }, [canManageNotebooks, createRequest, handleOpenNewNotebook, onCreateRequestHandled]);
 
   const handleSelectImage = useCallback((file) => {
     if (!file) return;
@@ -587,6 +608,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
         }
 
         resetForm();
+        setFormOpen(false);
         await loadNotebooks({ silent: true });
       } catch (error) {
         if (uploadedAsset?.publicUrl) {
@@ -659,25 +681,26 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
   );
 
   return (
-    <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.35fr]">
-      <article className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
+    <section className="space-y-5">
+      {formOpen ? (
+      <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-5" onClick={handleCloseNotebookForm}>
+      <article className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-white px-5 py-4 shadow-sm">
           <div>
             <h2 className="text-lg font-black text-slate-900">
               {editingId ? tt("form.editTitle") : tt("form.addTitle")}
             </h2>
             <p className="mt-1 text-sm text-slate-500">{tt("form.subtitle")}</p>
           </div>
-          {editingId ? (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-            >
-              <X size={14} />
-              {tt("form.cancel")}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={handleCloseNotebookForm}
+            disabled={saving}
+            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <X size={14} />
+            {tt("form.cancel")}
+          </button>
         </div>
 
         {!canManageNotebooks ? (
@@ -686,7 +709,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
           </div>
         ) : null}
 
-        <form className="mt-4 space-y-4" onSubmit={handleSaveNotebook}>
+        <form className="space-y-4 p-5" onSubmit={handleSaveNotebook}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <input
               value={formData.asset_code}
@@ -805,24 +828,31 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
           <button
             type="submit"
             disabled={!canManageNotebooks || saving}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="sticky bottom-0 z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_-10px_rgba(15,23,42,0.65)] transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {editingId ? <PencilLine size={16} /> : <Save size={16} />}
             {saving ? tt("form.saving") : editingId ? tt("form.editSubmit") : tt("form.addSubmit")}
           </button>
         </form>
       </article>
+      </div>
+      ) : null}
 
       <article className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-black text-slate-900">
-              {tt("list.title", { count: formatNumber(filteredNotebooks.length) })}
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">{tt("list.subtitle")}</p>
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+              <Laptop size={18} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-lg font-black text-slate-900">
+                {tt("list.title", { count: formatNumber(filteredNotebooks.length) })}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">{tt("list.subtitle")}</p>
+            </div>
           </div>
 
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
             <div className="relative w-full sm:w-[280px]">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -840,6 +870,15 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
             >
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
               {tt("list.refresh")}
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenNewNotebook}
+              disabled={!canManageNotebooks}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Plus size={15} />
+              {tt("form.addTitle")}
             </button>
           </div>
         </div>
@@ -898,15 +937,57 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
           </button>
         </div>
 
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50">
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+        <div className="mt-4 space-y-3 lg:hidden">
+          {loading ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">{tt("list.loading")}</div>
+          ) : filteredNotebooks.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">{tt("list.noData")}</div>
+          ) : filteredNotebooks.map((item) => {
+            const imageUrl = normalizeText(item?.asset_image_url);
+            const isStaleBorrowed = isNotebookBorrowStateInconsistent(item);
+            const showInNotebookCenter = normalizeNotebookCenterVisibility(item?.show_in_notebook_center);
+            return (
+              <article key={`notebook-mobile-${item.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    {imageUrl ? <img src={imageUrl} alt={item?.asset_code || "Notebook"} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-[10px] font-semibold text-slate-400">{tt("list.noImage")}</div>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0"><h3 className="truncate text-sm font-black text-slate-900">{item?.asset_code || "-"}</h3><p className="mt-1 truncate text-xs text-slate-500">{item?.model || "-"}</p></div>
+                      <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${getNotebookStatusChipClass(item)}`}>{getNotebookStatusLabel(item, notebookStatusLabels)}</span>
+                    </div>
+                    <p className={`mt-2 text-xs font-semibold ${showInNotebookCenter ? "text-indigo-600" : "text-slate-400"}`}>{tt("list.centerLabel")}: {showInNotebookCenter ? tt("list.visibleText") : tt("list.hiddenText")}</p>
+                    {isStaleBorrowed ? <p className="mt-1 text-xs font-semibold text-rose-600">{tt("list.staleText")}</p> : null}
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
+                  <button type="button" onClick={() => void handleToggleNotebookCenterVisibility(item)} disabled={!canManageNotebooks || availabilityActionId === String(item.id || "")} className={`inline-flex items-center justify-center rounded-xl px-2 py-2 text-[10px] font-bold disabled:opacity-60 ${showInNotebookCenter ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{showInNotebookCenter ? tt("list.hideFromCenter") : tt("list.showInCenter")}</button>
+                  <button type="button" onClick={() => handleEditNotebook(item)} disabled={!canManageNotebooks} className="inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-2 py-2 text-xs font-bold text-slate-700 disabled:opacity-60"><PencilLine size={13} />{tt("list.edit")}</button>
+                  <button type="button" onClick={() => void handleDeleteNotebook(item)} disabled={!canManageNotebooks || actionId === item.id} className="inline-flex items-center justify-center gap-1 rounded-xl bg-rose-50 px-2 py-2 text-xs font-bold text-rose-700 disabled:opacity-60"><Trash2 size={13} />{tt("list.delete")}</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 lg:block">
+          <div className="max-h-[calc(100vh-250px)] min-h-[320px] overflow-auto">
+          <table className="w-full min-w-[850px] table-fixed text-left text-xs">
+            <colgroup>
+              <col className="w-[280px]" />
+              <col className="w-[110px]" />
+              <col className="w-[90px]" />
+              <col className="w-[120px]" />
+              <col className="w-[250px]" />
+            </colgroup>
+            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
+              <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[0.04em] text-slate-500">
                 <th className="px-3 py-2">{tt("list.tableNotebook")}</th>
                 <th className="px-3 py-2">{tt("list.tableStatus")}</th>
                 <th className="px-3 py-2">{tt("list.tableImage")}</th>
                 <th className="px-3 py-2">{tt("list.tableUpdated")}</th>
-                <th className="px-3 py-2 text-right">{tt("list.tableActions")}</th>
+                <th className="sticky right-0 z-20 border-l border-slate-200 bg-slate-50 px-3 py-2 text-right">{tt("list.tableActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -928,11 +1009,11 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                   const isStaleBorrowed = isNotebookBorrowStateInconsistent(item);
                   const showInNotebookCenter = normalizeNotebookCenterVisibility(item?.show_in_notebook_center);
                   return (
-                    <tr key={item.id} className="border-b border-slate-100 align-top last:border-b-0">
-                      <td className="px-3 py-3 text-slate-700">
+                    <tr key={item.id} className="group border-b border-slate-100 align-top last:border-b-0 hover:bg-slate-50/70">
+                      <td className="px-3 py-2 text-slate-700">
                         <div className="font-semibold text-slate-900">{item?.asset_code || "-"}</div>
-                        <div className="text-xs text-slate-500">{item?.model || "-"}</div>
-                        {item?.notes ? <div className="mt-1 text-xs text-slate-500">{item.notes}</div> : null}
+                        <div className="truncate text-xs text-slate-500" title={item?.model || "-"}>{item?.model || "-"}</div>
+                        {item?.notes ? <div className="mt-1 truncate text-[10px] text-slate-500" title={item.notes}>{item.notes}</div> : null}
                         <div className={`mt-1 text-xs font-semibold ${showInNotebookCenter ? "text-indigo-600" : "text-slate-400"}`}>
                           {tt("list.centerLabel")}: {showInNotebookCenter ? tt("list.visibleText") : tt("list.hiddenText")}
                         </div>
@@ -942,13 +1023,13 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                           </div>
                         ) : null}
                       </td>
-                      <td className="px-3 py-3">
-                        <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getNotebookStatusChipClass(item)}`}>
+                      <td className="px-3 py-2">
+                        <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${getNotebookStatusChipClass(item)}`}>
                           {getNotebookStatusLabel(item, notebookStatusLabels)}
                         </span>
                       </td>
-                      <td className="px-3 py-3">
-                        <div className="h-14 w-24 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                      <td className="px-3 py-2">
+                        <div className="h-10 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                           {imageUrl ? (
                             <img src={imageUrl} alt={item?.asset_code || "Notebook"} className="h-full w-full object-cover" />
                           ) : (
@@ -958,9 +1039,9 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-xs text-slate-500">{formatDateTime(item?.updated_at || item?.created_at, locale)}</td>
-                      <td className="px-3 py-3">
-                        <div className="flex justify-end gap-2">
+                      <td className="px-3 py-2 text-[10px] text-slate-500">{formatDateTime(item?.updated_at || item?.created_at, locale)}</td>
+                      <td className="sticky right-0 border-l border-slate-100 bg-white px-3 py-2 transition group-hover:bg-slate-50">
+                        <div className="flex justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => void handleToggleNotebookCenterVisibility(item)}
@@ -1003,6 +1084,7 @@ export default function NotebookInventoryManagementPanel({ userRole = "" }) {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </article>
     </section>

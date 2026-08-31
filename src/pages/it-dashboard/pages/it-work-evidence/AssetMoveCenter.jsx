@@ -21,6 +21,7 @@ import {
   cancelAssetMove,
   createAssetMove,
   isAssetMoveSchemaError,
+  loadAssetMoveRegistryAssets,
   loadAssetMoves,
   normalizeAssetMoveImages,
   normalizeAssetMoveText,
@@ -93,6 +94,28 @@ function getEmployeeInitials(employee) {
     .map((part) => part.charAt(0))
     .join("")
     .toUpperCase();
+}
+
+function sortAssetRegistryItems(left, right) {
+  return normalizeAssetMoveText(left?.asset_tag).localeCompare(
+    normalizeAssetMoveText(right?.asset_tag),
+    "en",
+    { numeric: true, sensitivity: "base" },
+  );
+}
+
+function getRegistryDeviceType(asset) {
+  const source = `${asset?.asset_category || ""} ${asset?.asset_name || ""}`.toLowerCase();
+  if (source.includes("notebook") || source.includes("laptop")) return "notebook";
+  if (source.includes("monitor") || source.includes("display")) return "monitor";
+  if (source.includes("printer")) return "printer";
+  if (["pc", "cpu", "desktop", "server", "computer"].some((token) => source.includes(token))) return "pc";
+  return "other";
+}
+
+function getRegistryBrandModel(asset) {
+  return [asset?.brand, asset?.model].map(normalizeAssetMoveText).filter(Boolean).join(" ")
+    || normalizeAssetMoveText(asset?.asset_name);
 }
 
 function buildForm() {
@@ -254,6 +277,9 @@ export default function AssetMoveCenter({
   openSignal = 0,
 }) {
   const [records, setRecords] = useState([]);
+  const [registryAssets, setRegistryAssets] = useState([]);
+  const [registryLoading, setRegistryLoading] = useState(true);
+  const [registryLoadError, setRegistryLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [schemaMissing, setSchemaMissing] = useState(false);
@@ -270,6 +296,8 @@ export default function AssetMoveCenter({
   const afterFilesRef = useRef([]);
   const [requesterLookupOpen, setRequesterLookupOpen] = useState(false);
   const [requesterActiveIndex, setRequesterActiveIndex] = useState(0);
+  const [assetLookupOpen, setAssetLookupOpen] = useState(false);
+  const [assetActiveIndex, setAssetActiveIndex] = useState(0);
   const [filters, setFilters] = useState(buildFilters);
   const deferredQuery = useDeferredValue(filters.query);
   const isDark = theme === "dark";
@@ -293,6 +321,19 @@ export default function AssetMoveCenter({
     if (!silent) setLoading(false);
   };
 
+  const loadRegistryAssets = async ({ silent = false } = {}) => {
+    if (!silent) setRegistryLoading(true);
+    const { data, error } = await loadAssetMoveRegistryAssets();
+    if (error) {
+      setRegistryAssets([]);
+      setRegistryLoadError("ไม่สามารถโหลด Asset Code จากทะเบียนสินทรัพย์ได้");
+    } else {
+      setRegistryAssets((Array.isArray(data) ? data : []).sort(sortAssetRegistryItems));
+      setRegistryLoadError("");
+    }
+    if (!silent) setRegistryLoading(false);
+  };
+
   useEffect(() => {
     let mounted = true;
     void loadRecords();
@@ -300,6 +341,21 @@ export default function AssetMoveCenter({
       .channel("it_asset_moves_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "it_asset_moves" }, () => {
         if (mounted) void loadRecords({ silent: true });
+      })
+      .subscribe();
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadRegistryAssets();
+    const channel = supabase
+      .channel("asset_move_registry_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "it_assets" }, () => {
+        if (mounted) void loadRegistryAssets({ silent: true });
       })
       .subscribe();
     return () => {
@@ -345,6 +401,8 @@ export default function AssetMoveCenter({
     setBeforeFiles([]);
     setAfterFiles([]);
     setForm(buildForm());
+    setAssetLookupOpen(false);
+    setAssetActiveIndex(0);
   };
 
   const closeForm = () => {
@@ -401,6 +459,101 @@ export default function AssetMoveCenter({
     () => employeeOptions.find((employee) => employee.id === form.requester_profile_id) || null,
     [employeeOptions, form.requester_profile_id],
   );
+
+  const assetSuggestions = useMemo(() => {
+    const query = normalizeAssetMoveText(form.asset_code).toLowerCase();
+    return registryAssets
+      .filter((asset) => {
+        if (!query) return true;
+        return [
+          asset.asset_tag,
+          asset.asset_name,
+          asset.asset_category,
+          asset.serial_number,
+          asset.owner_name,
+          asset.location,
+        ]
+          .map((value) => normalizeAssetMoveText(value).toLowerCase())
+          .some((value) => value.includes(query));
+      })
+      .slice(0, 12);
+  }, [form.asset_code, registryAssets]);
+
+  const selectedRegistryAsset = useMemo(() => {
+    const code = normalizeAssetMoveText(form.asset_code).toLowerCase();
+    if (!code) return null;
+    return registryAssets.find(
+      (asset) => normalizeAssetMoveText(asset.asset_tag).toLowerCase() === code,
+    ) || null;
+  }, [form.asset_code, registryAssets]);
+
+  const selectRegistryAsset = (assetId) => {
+    const asset = registryAssets.find((item) => item.id === assetId);
+    if (!asset) return;
+    const deviceType = getRegistryDeviceType(asset);
+    const hasStructuredLocation = [asset.factory, asset.building, asset.floor, asset.department]
+      .some(normalizeAssetMoveText);
+    setForm((previous) => ({
+      ...previous,
+      device_type: deviceType,
+      custom_device_type: deviceType === "other"
+        ? normalizeAssetMoveText(asset.asset_category) || "อุปกรณ์ IT"
+        : "",
+      asset_code: normalizeAssetMoveText(asset.asset_tag).toUpperCase(),
+      serial_number: normalizeAssetMoveText(asset.serial_number).toUpperCase(),
+      brand_model: getRegistryBrandModel(asset),
+      old_user_name: normalizeAssetMoveText(asset.owner_name),
+      old_factory: normalizeAssetMoveText(asset.factory),
+      old_building: normalizeAssetMoveText(asset.building),
+      old_floor: normalizeAssetMoveText(asset.floor),
+      old_department: normalizeAssetMoveText(asset.department),
+      old_desk: normalizeAssetMoveText(asset.room)
+        || (!hasStructuredLocation ? normalizeAssetMoveText(asset.location) : ""),
+    }));
+    setAssetLookupOpen(false);
+    setAssetActiveIndex(0);
+  };
+
+  const handleAssetCodeInput = (value) => {
+    setForm((previous) => ({
+      ...previous,
+      asset_code: value.toUpperCase(),
+      serial_number: "",
+      brand_model: "",
+      old_user_name: "",
+      old_factory: "",
+      old_building: "",
+      old_floor: "",
+      old_department: "",
+      old_desk: "",
+    }));
+    setAssetLookupOpen(true);
+    setAssetActiveIndex(0);
+  };
+
+  const handleAssetCodeKeyDown = (event) => {
+    if (event.key === "Escape") {
+      setAssetLookupOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setAssetLookupOpen(true);
+      setAssetActiveIndex((previous) => (
+        assetSuggestions.length > 0 ? Math.min(previous + 1, assetSuggestions.length - 1) : 0
+      ));
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setAssetActiveIndex((previous) => Math.max(previous - 1, 0));
+      return;
+    }
+    if (event.key === "Enter" && assetLookupOpen && assetSuggestions[assetActiveIndex]) {
+      event.preventDefault();
+      selectRegistryAsset(assetSuggestions[assetActiveIndex].id);
+    }
+  };
 
   const selectRequester = (profileId) => {
     const profile = employeeOptions.find((item) => item.id === profileId);
@@ -473,6 +626,7 @@ export default function AssetMoveCenter({
     if (!form.requester_name && !normalizeAssetMoveText(form.ticket_reference)) return "กรุณาเลือกผู้แจ้งหรือระบุเลข Ticket";
     if (!currentUser?.id) return "ไม่พบบัญชีผู้ดำเนินการ";
     if (!normalizeAssetMoveText(form.asset_code)) return "กรุณาระบุ Asset Code";
+    if (!selectedRegistryAsset) return "กรุณาเลือก Asset Code จาก IT Asset Management";
     if (!normalizeAssetMoveText(form.brand_model)) return "กรุณาระบุยี่ห้อ/รุ่น";
     if (form.device_type === "other" && !normalizeAssetMoveText(form.custom_device_type)) return "กรุณาระบุประเภทอุปกรณ์อื่น ๆ";
     if (!form.new_to_it_stock && !normalizeAssetMoveText(form.new_user_name)) return "กรุณาระบุผู้ใช้ใหม่หรือเลือกคลัง IT";
@@ -539,13 +693,13 @@ export default function AssetMoveCenter({
       const { data, error } = await createAssetMove(payload);
       if (error) throw error;
       setRecords((previous) => [data, ...previous.filter((record) => record.id !== data.id)]);
-      toast.success(`บันทึกการเคลื่อนย้าย ${data.move_id} เรียบร้อย`);
+      toast.success(`บันทึก ${data.move_id} และอัปเดต Asset Registry เรียบร้อย`);
       setFormOpen(false);
       resetForm();
     } catch (error) {
       if (isAssetMoveSchemaError(error)) {
         setSchemaMissing(true);
-        setLoadError("กรุณารัน database/20260822_it_asset_move_history.sql ก่อนใช้งาน");
+        setLoadError("กรุณารัน database/20260828_asset_move_registry_sync.sql ก่อนใช้งาน");
       }
       toast.error(error?.message || "ไม่สามารถบันทึกการเคลื่อนย้ายได้");
     } finally {
@@ -793,11 +947,111 @@ export default function AssetMoveCenter({
                 </div>
 
                 <div className={`rounded-2xl border p-4 ${softSurface}`}>
-                  <h4 className={`text-sm font-black ${uiTheme.textPrimary}`}>ข้อมูลอุปกรณ์</h4>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className={`text-sm font-black ${uiTheme.textPrimary}`}>ข้อมูลอุปกรณ์</h4>
+                      <p className={`mt-1 text-xs ${uiTheme.textSecondary}`}>เลือก Asset Code จากทะเบียน ระบบจะเติมข้อมูลเดิมและอัปเดต Asset Registry เมื่อบันทึก</p>
+                    </div>
+                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${registryLoadError ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200"}`}>
+                      {registryLoading ? "กำลังเชื่อมทะเบียน..." : registryLoadError || `เชื่อมแล้ว ${registryAssets.length} รายการ`}
+                    </span>
+                  </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     <label><FieldLabel required>ประเภทอุปกรณ์</FieldLabel><select value={form.device_type} onChange={(event) => setForm((previous) => ({ ...previous, device_type: event.target.value }))} className={inputClass}>{DEVICE_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                     {form.device_type === "other" ? <label><FieldLabel required>ประเภทอื่น ๆ</FieldLabel><input value={form.custom_device_type} onChange={(event) => setForm((previous) => ({ ...previous, custom_device_type: event.target.value }))} className={inputClass} /></label> : null}
-                    <label><FieldLabel required>Asset Code</FieldLabel><input value={form.asset_code} onChange={(event) => setForm((previous) => ({ ...previous, asset_code: event.target.value.toUpperCase() }))} className={inputClass} /></label>
+                    <div className="relative">
+                      <FieldLabel required>Asset Code จาก Asset Registry</FieldLabel>
+                      <div className="relative">
+                        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          value={form.asset_code}
+                          onChange={(event) => handleAssetCodeInput(event.target.value)}
+                          onFocus={() => {
+                            setAssetLookupOpen(true);
+                            setAssetActiveIndex(0);
+                          }}
+                          onBlur={() => window.setTimeout(() => setAssetLookupOpen(false), 150)}
+                          onKeyDown={handleAssetCodeKeyDown}
+                          className={`${inputClass} pl-10 pr-10 font-bold uppercase`}
+                          placeholder={registryLoading ? "กำลังโหลด Asset Code..." : "พิมพ์ Asset Code / Serial / ชื่ออุปกรณ์"}
+                          autoComplete="off"
+                          role="combobox"
+                          aria-expanded={assetLookupOpen}
+                          aria-controls="asset-move-registry-options"
+                          aria-autocomplete="list"
+                        />
+                        {form.asset_code ? (
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => handleAssetCodeInput("")}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                            aria-label="ล้าง Asset Code"
+                          >
+                            <X size={15} />
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {assetLookupOpen ? (
+                        <div
+                          id="asset-move-registry-options"
+                          role="listbox"
+                          className={`absolute left-0 right-0 top-full z-[135] mt-2 max-h-80 min-w-[min(92vw,34rem)] overflow-y-auto rounded-2xl border p-1.5 shadow-2xl ${
+                            isDark
+                              ? "border-slate-600 bg-[#0f172a] shadow-slate-950/60"
+                              : "border-slate-200 bg-white shadow-slate-300/60"
+                          }`}
+                        >
+                          {registryLoading ? (
+                            <div className={`flex items-center justify-center gap-2 px-4 py-5 text-sm ${uiTheme.textSecondary}`}>
+                              <Loader2 size={16} className="animate-spin" /> กำลังโหลด Asset Registry...
+                            </div>
+                          ) : registryLoadError ? (
+                            <div className="px-4 py-5 text-center text-sm text-rose-600 dark:text-rose-300">{registryLoadError}</div>
+                          ) : assetSuggestions.length > 0 ? (
+                            assetSuggestions.map((asset, index) => (
+                              <button
+                                key={asset.id}
+                                type="button"
+                                role="option"
+                                aria-selected={selectedRegistryAsset?.id === asset.id}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onMouseEnter={() => setAssetActiveIndex(index)}
+                                onClick={() => selectRegistryAsset(asset.id)}
+                                className={`flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                                  index === assetActiveIndex
+                                    ? isDark ? "bg-violet-500/15" : "bg-violet-50"
+                                    : isDark ? "hover:bg-slate-800" : "hover:bg-slate-50"
+                                }`}
+                              >
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
+                                  <PackageOpen size={17} />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className={`block truncate text-sm font-black ${uiTheme.textPrimary}`}>{asset.asset_tag}</span>
+                                  <span className={`mt-0.5 block truncate text-xs ${uiTheme.textSecondary}`}>
+                                    {asset.asset_name || "ไม่ระบุชื่อ"} • {[asset.brand, asset.model].filter(Boolean).join(" ") || "ไม่ระบุรุ่น"}
+                                  </span>
+                                  <span className="mt-1 block truncate text-[11px] text-slate-400">
+                                    S/N {asset.serial_number || "-"} • {asset.owner_name || "ไม่มีผู้ใช้"} • {asset.location || "ไม่ระบุที่ตั้ง"}
+                                  </span>
+                                </span>
+                                {selectedRegistryAsset?.id === asset.id ? <ShieldCheck size={17} className="mt-1 shrink-0 text-emerald-500" /> : null}
+                              </button>
+                            ))
+                          ) : (
+                            <div className={`px-4 py-5 text-center text-sm ${uiTheme.textSecondary}`}>ไม่พบ Asset Code ที่ค้นหาใน IT Asset Management</div>
+                          )}
+                        </div>
+                      ) : null}
+
+                      {selectedRegistryAsset ? (
+                        <p className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-300">เชื่อมแล้ว: {selectedRegistryAsset.asset_tag} • {selectedRegistryAsset.asset_name}</p>
+                      ) : form.asset_code ? (
+                        <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-300">กรุณาเลือกรหัสจากรายการแนะนำเพื่อเชื่อมกับทะเบียน</p>
+                      ) : null}
+                    </div>
                     <label><FieldLabel>Serial Number</FieldLabel><input value={form.serial_number} onChange={(event) => setForm((previous) => ({ ...previous, serial_number: event.target.value.toUpperCase() }))} className={inputClass} /></label>
                     <label><FieldLabel required>ยี่ห้อ/รุ่น</FieldLabel><input value={form.brand_model} onChange={(event) => setForm((previous) => ({ ...previous, brand_model: event.target.value }))} className={inputClass} /></label>
                   </div>
