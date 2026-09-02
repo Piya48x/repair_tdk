@@ -277,6 +277,7 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       fileTooLarge: "ไฟล์ {{name}} ต้องมีขนาดไม่เกิน 10 MB",
       imageOnly: "รูปหลักฐานต้องเป็นไฟล์รูปภาพเท่านั้น",
       evidencePasted: "วางรูปหลักฐานแล้ว {{count}} รูป",
+      evidenceAdded: "เพิ่มรูปหลักฐานแล้ว {{count}} รูป",
       evidenceMigrationMissing: "กรุณารัน migration สำหรับรูปหลักฐานและประวัติอุปกรณ์ก่อนใช้งาน",
       evidenceUploadError: "อัปโหลดรูปหลักฐานไม่สำเร็จ",
     },
@@ -518,6 +519,7 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       fileTooLarge: "File {{name}} must be 10 MB or smaller",
       imageOnly: "Evidence must be an image file.",
       evidencePasted: "Pasted {{count}} evidence photo(s)",
+      evidenceAdded: "Added {{count}} evidence photo(s)",
       evidenceMigrationMissing: "Please run the asset evidence and activity history migration before using this feature.",
       evidenceUploadError: "Unable to upload evidence photos",
     },
@@ -729,6 +731,22 @@ function sanitizePathSegment(value) {
 
 function isImageFile(file) {
   return String(file?.type || "").startsWith("image/");
+}
+
+function getClipboardImageFiles(event, namePrefix = "asset-evidence-paste") {
+  const itemFiles = Array.from(event?.clipboardData?.items || [])
+    .filter((item) => String(item?.type || "").startsWith("image/"))
+    .map((item) => item.getAsFile())
+    .filter(Boolean);
+  const fileFallbacks = Array.from(event?.clipboardData?.files || []).filter(isImageFile);
+
+  return (itemFiles.length > 0 ? itemFiles : fileFallbacks).map((file, index) => (
+    file?.name
+      ? file
+      : new File([file], `${namePrefix}-${Date.now()}-${index}.png`, {
+          type: file?.type || "image/png",
+        })
+  ));
 }
 
 function createPendingAssetEvidenceEntry(file) {
@@ -1185,6 +1203,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const fileInputRef = useRef(null);
   const licenseFileInputRef = useRef(null);
   const assetEvidenceInputRef = useRef(null);
+  const detailAssetEvidenceInputRef = useRef(null);
   const assetFormRef = useRef(null);
   const assetListRef = useRef(null);
   const licenseListRef = useRef(null);
@@ -1210,6 +1229,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [detailEditMode, setDetailEditMode] = useState(false);
   const [detailSaving, setDetailSaving] = useState(false);
+  const [detailEvidenceUploading, setDetailEvidenceUploading] = useState(false);
   const [detailFormData, setDetailFormData] = useState(EMPTY_FORM);
   const [selectedLicense, setSelectedLicense] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1653,38 +1673,31 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     setSelectedAssetIds([]);
   }, []);
 
-  const handleSelectAssetEvidence = (files) => {
+  const getValidAssetEvidenceFiles = (files) => {
     const entries = Array.from(files || []);
-    if (entries.length === 0) return 0;
+    if (entries.length === 0) return [];
     const invalidFile = entries.find((file) => !isImageFile(file));
     if (invalidFile) {
       toast.error(tt("toast.imageOnly"));
-      return 0;
+      return [];
     }
     const oversized = entries.find((file) => Number(file?.size || 0) > ASSET_EVIDENCE_MAX_SIZE);
     if (oversized) {
       toast.error(tt("toast.fileTooLarge", { name: oversized.name || "image" }));
-      return 0;
+      return [];
     }
+    return entries;
+  };
+
+  const handleSelectAssetEvidence = (files) => {
+    const entries = getValidAssetEvidenceFiles(files);
+    if (entries.length === 0) return 0;
     setPendingAssetEvidence((prev) => [...prev, ...entries.map(createPendingAssetEvidenceEntry)]);
     return entries.length;
   };
 
   const handlePasteAssetEvidence = (event) => {
-    const itemFiles = Array.from(event.clipboardData?.items || [])
-      .filter((item) => String(item?.type || "").startsWith("image/"))
-      .map((item) => item.getAsFile())
-      .filter(Boolean);
-    const fileFallbacks = Array.from(event.clipboardData?.files || []).filter((file) =>
-      String(file?.type || "").startsWith("image/"),
-    );
-    const imageFiles = (itemFiles.length > 0 ? itemFiles : fileFallbacks).map((file, index) =>
-      file?.name
-        ? file
-        : new File([file], `asset-evidence-paste-${Date.now()}-${index}.png`, {
-            type: file?.type || "image/png",
-          }),
-    );
+    const imageFiles = getClipboardImageFiles(event);
 
     if (imageFiles.length === 0) return;
     event.preventDefault();
@@ -1941,9 +1954,71 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   };
 
   const handleCloseAssetDetail = () => {
-    if (detailSaving) return;
+    if (detailSaving || detailEvidenceUploading) return;
     setDetailEditMode(false);
     setSelectedAsset(null);
+  };
+
+  const uploadDetailAssetEvidence = async (files, { pasted = false } = {}) => {
+    if (!selectedAsset?.id || detailEvidenceUploading) return;
+    if (!assetEvidenceReady) {
+      toast.error(tt("toast.evidenceMigrationMissing"));
+      return;
+    }
+
+    const validFiles = getValidAssetEvidenceFiles(files);
+    if (validFiles.length === 0) return;
+
+    setDetailEvidenceUploading(true);
+    try {
+      const uploaded = await uploadAssetEvidenceFiles({
+        assetId: selectedAsset.id,
+        assetTag: selectedAsset.asset_tag,
+        files: validFiles,
+      });
+
+      if (uploaded.length === 0) throw new Error(tt("toast.evidenceUploadError"));
+
+      const assetId = selectedAsset.id;
+      const mergeEvidence = (asset) => {
+        const seen = new Set();
+        const attachments = [...uploaded, ...getAssetEvidenceAttachments(asset)].filter((attachment) => {
+          const key = attachment?.id || attachment?.file_path || attachment?.file_url;
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        return normalizeAssetRecord({ ...asset, it_asset_attachments: attachments });
+      };
+      const evidenceSnapshot = mergeEvidence(selectedAsset);
+
+      setAssets((prev) => prev.map((item) => (item.id === assetId ? mergeEvidence(item) : item)));
+      setSelectedAsset((prev) => (prev?.id === assetId ? mergeEvidence(prev) : prev));
+
+      await insertAssetActivityLog({
+        assetId,
+        action: "evidence",
+        afterAsset: evidenceSnapshot,
+        evidenceAdded: uploaded.length,
+      });
+
+      toast.success(tt(pasted ? "toast.evidencePasted" : "toast.evidenceAdded", { count: uploaded.length }));
+      await loadAssets({ silent: true });
+    } catch (error) {
+      console.error("Upload evidence from asset detail error:", error);
+      toast.error(error?.message || tt("toast.evidenceUploadError"));
+    } finally {
+      setDetailEvidenceUploading(false);
+      if (detailAssetEvidenceInputRef.current) detailAssetEvidenceInputRef.current.value = "";
+    }
+  };
+
+  const handlePasteDetailAssetEvidence = (event) => {
+    const imageFiles = getClipboardImageFiles(event, "asset-detail-evidence-paste");
+    if (imageFiles.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void uploadDetailAssetEvidence(imageFiles, { pasted: true });
   };
 
   const handleStartDetailEdit = () => {
@@ -3851,10 +3926,12 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                       <button
                         type="button"
                         onClick={handleCloseAssetDetail}
-                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                        disabled={detailEvidenceUploading}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        title={tt("common.close")}
+                        aria-label={tt("common.close")}
                       >
-                        <X size={14} />
-                        {tt("common.close")}
+                        <X size={16} />
                       </button>
                     </>
                   )}
@@ -3927,22 +4004,54 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                 const assetLogs = getAssetActivityLogs(selectedAsset).slice(0, 8);
                 return (
                   <>
-                    <section className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <section
+                      className="mt-5 rounded-2xl border border-dashed border-sky-200 bg-slate-50 p-4 outline-none transition focus:ring-4 focus:ring-sky-100"
+                      tabIndex={0}
+                      onPaste={handlePasteDetailAssetEvidence}
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <h4 className="text-sm font-black text-slate-800">{tt("assets.evidenceTitle")}</h4>
                           <p className="mt-1 text-xs text-slate-500">{formatNumber(evidenceAttachments.length)} {tt("assets.tableEvidence")}</p>
                         </div>
-                        {evidenceAttachments.length > 0 ? (
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {evidenceAttachments.length > 0 ? (
                           <button
                             type="button"
                             onClick={() => handleOpenAssetPreview(evidenceAttachments, 0)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 sm:w-auto sm:px-3"
+                            title={tt("common.view")}
+                            aria-label={tt("common.view")}
                           >
                             <Eye size={14} />
-                            {tt("common.view")}
+                            <span className="hidden sm:inline">{tt("common.view")}</span>
                           </button>
-                        ) : null}
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => detailAssetEvidenceInputRef.current?.click()}
+                            disabled={!assetEvidenceReady || detailEvidenceUploading}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-sky-200 bg-white px-2.5 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {detailEvidenceUploading ? <RefreshCw size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+                            <span className="hidden min-[390px]:inline">{detailEvidenceUploading ? tt("common.processing") : tt("assets.evidenceButton")}</span>
+                          </button>
+                          <input
+                            ref={detailAssetEvidenceInputRef}
+                            type="file"
+                            multiple
+                            accept={ASSET_EVIDENCE_ACCEPT}
+                            className="hidden"
+                            onChange={(event) => {
+                              void uploadDetailAssetEvidence(event.target.files);
+                              event.target.value = "";
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700">
+                        {detailEvidenceUploading ? tt("common.processing") : tt("assets.evidencePasteHint")}
                       </div>
 
                       {evidenceAttachments.length === 0 ? (

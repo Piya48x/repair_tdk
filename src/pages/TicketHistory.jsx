@@ -664,6 +664,7 @@ export default function TicketHistory() {
         const matched =
           (ticket.title || "").toLowerCase().includes(query) ||
           (ticket.ticket_no || "").toLowerCase().includes(query) ||
+          (ticket.asset_code || "").toLowerCase().includes(query) ||
           (ticket.description || "").toLowerCase().includes(query) ||
           (ticket.category || "").toLowerCase().includes(query);
         if (!matched) return false;
@@ -1275,6 +1276,11 @@ export default function TicketHistory() {
                     <span className="rounded-full bg-[var(--brand-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)]">
                       {selectedTicket.ticket_no || fallbackTicketNo(selectedTicket)}
                     </span>
+                    {selectedTicket.asset_code ? (
+                      <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                        Asset {selectedTicket.asset_code}
+                      </span>
+                    ) : null}
                     <span
                       className={`rounded-full border px-3 py-1 text-xs font-semibold ${(statusConfig[selectedTicket.status] || statusConfig.default).chipClass}`}
                     >

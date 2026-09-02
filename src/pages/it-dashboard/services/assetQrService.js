@@ -44,8 +44,11 @@ export function buildAssetLocation({ factory, building, floor, room }) {
 }
 
 export function buildAssetQrUrl(assetTag) {
-  if (typeof window === "undefined") return `/asset-qr/${encodeURIComponent(cleanText(assetTag))}`;
-  return `${window.location.origin}/asset-qr/${encodeURIComponent(cleanText(assetTag))}`;
+  const assetPath = `/asset-qr/${encodeURIComponent(cleanText(assetTag))}`;
+  const configuredBaseUrl = cleanText(import.meta.env.VITE_ASSET_QR_BASE_URL).replace(/\/+$/, "");
+  if (configuredBaseUrl) return `${configuredBaseUrl}${assetPath}`;
+  if (typeof window === "undefined") return assetPath;
+  return `${window.location.origin}${assetPath}`;
 }
 
 export async function fetchAssetQrDirectory() {
@@ -80,6 +83,19 @@ export async function fetchAssetQrProfiles() {
 export async function fetchAssetQrDetail(assetTag) {
   const tag = cleanText(assetTag);
   if (!tag) throw new Error("ไม่พบ Asset Code");
+
+  const { data: scannedAsset, error: scannedAssetError } = await supabase.rpc(
+    "get_asset_qr_detail",
+    { p_asset_tag: tag },
+  );
+  const missingQrDetailFunction = ["42883", "PGRST202"].includes(
+    String(scannedAssetError?.code || "").toUpperCase(),
+  ) || String(scannedAssetError?.message || "").toLowerCase().includes("get_asset_qr_detail");
+
+  if (!scannedAssetError) {
+    return scannedAsset && typeof scannedAsset === "object" ? scannedAsset : null;
+  }
+  if (!missingQrDetailFunction) throw scannedAssetError;
 
   let { data: asset, error } = await supabase
     .from("it_assets")

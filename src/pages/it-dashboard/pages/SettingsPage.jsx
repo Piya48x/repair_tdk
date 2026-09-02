@@ -44,6 +44,7 @@ import {
   updateMemberAccessState,
   updateSelfAccount,
   uploadManagedAccountAvatar,
+  validateAccountProfile,
 } from "../services/accountCenterService";
 
 const ROLE_META = {
@@ -181,6 +182,37 @@ const SETTINGS_PAGE_TRANSLATIONS = {
       noMembers: "ไม่มีสมาชิก",
       noActivity: "ยังไม่มีกิจกรรม",
     },
+    validation: {
+      summary: "กรุณาตรวจสอบข้อมูลที่ไฮไลต์ {{count}} จุดก่อนบันทึก",
+      duplicateSummary: "พบบัญชีซ้ำ กรุณาเปลี่ยนอีเมลหรือรหัสพนักงาน",
+      fields: {
+        full_name: "ชื่อ-นามสกุล",
+        email: "อีเมล",
+        employee_code: "รหัสพนักงาน",
+        role: "บทบาท",
+        department: "แผนก",
+        position: "ตำแหน่ง",
+        location: "สถานที่ทำงาน",
+        first_name_en: "ชื่อภาษาอังกฤษ",
+        last_name_en: "นามสกุลภาษาอังกฤษ",
+        phone: "เบอร์โทร",
+        nextPassword: "รหัสผ่าน",
+        confirmPassword: "ยืนยันรหัสผ่าน",
+      },
+      messages: {
+        required: "กรุณากรอก{{field}}",
+        fullNameTooShort: "ชื่อ-นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร",
+        invalidEmail: "รูปแบบอีเมลไม่ถูกต้อง เช่น name@company.com",
+        invalidEmployeeCode: "รหัสพนักงานใช้ได้เฉพาะ A-Z, 0-9 และ . _ / - จำนวน 2–32 ตัว",
+        invalidRole: "กรุณาเลือกบทบาทที่ถูกต้อง",
+        invalidEnglishName: "กรอกเป็นตัวอักษรภาษาอังกฤษเท่านั้น",
+        invalidPhone: "รูปแบบเบอร์โทรไม่ถูกต้อง ต้องมีตัวเลข 8–15 หลัก",
+        passwordTooShort: "รหัสผ่านต้องมีอย่างน้อย {{count}} ตัวอักษร",
+        passwordMismatch: "รหัสผ่านและช่องยืนยันรหัสผ่านไม่ตรงกัน",
+        duplicateEmail: "อีเมลนี้ถูกใช้กับบัญชีอื่นแล้ว",
+        duplicateEmployeeCode: "รหัสพนักงานนี้ถูกใช้กับบัญชีอื่นแล้ว",
+      },
+    },
   },
   en: {
     statusOptions: {
@@ -269,6 +301,37 @@ const SETTINGS_PAGE_TRANSLATIONS = {
       noMembers: "No members",
       noActivity: "No activity",
     },
+    validation: {
+      summary: "Please correct the {{count}} highlighted fields before saving.",
+      duplicateSummary: "A duplicate account was found. Change the email or employee code.",
+      fields: {
+        full_name: "full name",
+        email: "email",
+        employee_code: "employee code",
+        role: "role",
+        department: "department",
+        position: "position",
+        location: "work location",
+        first_name_en: "English first name",
+        last_name_en: "English last name",
+        phone: "phone number",
+        nextPassword: "password",
+        confirmPassword: "password confirmation",
+      },
+      messages: {
+        required: "Enter {{field}}.",
+        fullNameTooShort: "Full name must contain at least 2 characters.",
+        invalidEmail: "Enter a valid email, such as name@company.com.",
+        invalidEmployeeCode: "Use 2–32 characters: A-Z, 0-9, and . _ / - only.",
+        invalidRole: "Select a valid role.",
+        invalidEnglishName: "Use English letters only.",
+        invalidPhone: "Enter a valid phone number containing 8–15 digits.",
+        passwordTooShort: "Password must contain at least {{count}} characters.",
+        passwordMismatch: "Password and confirmation do not match.",
+        duplicateEmail: "This email is already used by another account.",
+        duplicateEmployeeCode: "This employee code is already used by another account.",
+      },
+    },
   },
   ko: {
     statusOptions: {
@@ -356,6 +419,37 @@ const SETTINGS_PAGE_TRANSLATIONS = {
       noEmail: "이메일 없음",
       noMembers: "구성원 없음",
       noActivity: "활동 없음",
+    },
+    validation: {
+      summary: "저장하기 전에 강조된 {{count}}개 항목을 확인하세요.",
+      duplicateSummary: "중복 계정이 있습니다. 이메일 또는 사번을 변경하세요.",
+      fields: {
+        full_name: "이름",
+        email: "이메일",
+        employee_code: "사번",
+        role: "역할",
+        department: "부서",
+        position: "직책",
+        location: "근무 위치",
+        first_name_en: "영문 이름",
+        last_name_en: "영문 성",
+        phone: "전화번호",
+        nextPassword: "비밀번호",
+        confirmPassword: "비밀번호 확인",
+      },
+      messages: {
+        required: "{{field}}을(를) 입력하세요.",
+        fullNameTooShort: "이름은 2자 이상이어야 합니다.",
+        invalidEmail: "name@company.com 형식의 이메일을 입력하세요.",
+        invalidEmployeeCode: "A-Z, 0-9, . _ / -만 사용하여 2–32자로 입력하세요.",
+        invalidRole: "올바른 역할을 선택하세요.",
+        invalidEnglishName: "영문자만 입력하세요.",
+        invalidPhone: "8–15자리의 올바른 전화번호를 입력하세요.",
+        passwordTooShort: "비밀번호는 최소 {{count}}자여야 합니다.",
+        passwordMismatch: "비밀번호와 확인 값이 일치하지 않습니다.",
+        duplicateEmail: "이 이메일은 다른 계정에서 이미 사용 중입니다.",
+        duplicateEmployeeCode: "이 사번은 다른 계정에서 이미 사용 중입니다.",
+      },
     },
   },
 };
@@ -507,15 +601,16 @@ function Avatar({ src, name, size = "h-14 w-14", text = "text-base" }) {
   );
 }
 
-function Field({ icon: Icon, label, hint = "", children }) {
+function Field({ icon: Icon, label, hint = "", error = "", required = false, children }) {
   return (
     <label className="block">
       <span className="mb-2 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
         {Icon ? <Icon size={13} /> : null}
         {label}
+        {required ? <span className="text-rose-500" aria-hidden="true">*</span> : null}
       </span>
       {children}
-      {hint ? <p className="mt-2 text-xs text-slate-500">{hint}</p> : null}
+      {error ? <p className="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-300" role="alert">{error}</p> : hint ? <p className="mt-2 text-xs text-slate-500">{hint}</p> : null}
     </label>
   );
 }
@@ -532,6 +627,8 @@ function ProfileOptionSelect({
   allowCustom = false,
   customLabel = "Other / enter manually",
   customPlaceholder = "Enter a custom value",
+  name = "",
+  invalid = false,
 }) {
   const currentValue = normalizeText(value);
   const hasCustomValue = Boolean(currentValue && !options.includes(currentValue));
@@ -568,6 +665,8 @@ function ProfileOptionSelect({
         onChange={handleSelectChange}
         className={className}
         required={required}
+        name={name}
+        aria-invalid={invalid}
         aria-label={placeholder}
       >
         <option value="">{placeholder}</option>
@@ -583,11 +682,76 @@ function ProfileOptionSelect({
           className={className}
           placeholder={customPlaceholder}
           required={required}
+          name={name}
+          aria-invalid={invalid}
           aria-label={customPlaceholder}
         />
       ) : null}
     </div>
   );
+}
+
+function localizeValidationErrors(validationErrors, tt) {
+  return Object.fromEntries(Object.entries(validationErrors || {}).map(([field, code]) => [
+    field,
+    tt(`validation.messages.${code}`, {
+      field: tt(`validation.fields.${field}`),
+      count: PASSWORD_MIN_LENGTH,
+    }),
+  ]));
+}
+
+function createValidationFeedback(validationErrors, tt, duplicate = false) {
+  const fieldErrors = localizeValidationErrors(validationErrors, tt);
+  const count = Object.keys(fieldErrors).length;
+  return {
+    fieldErrors,
+    message: duplicate
+      ? tt("validation.duplicateSummary")
+      : tt("validation.summary", { count }),
+  };
+}
+
+function resolveAccountErrorFeedback(error, tt) {
+  const rawText = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  let validationErrors = error?.validationErrors && typeof error.validationErrors === "object"
+    ? error.validationErrors
+    : {};
+  const duplicate = String(error?.code || "").toUpperCase() === "ACCOUNT_DUPLICATE"
+    || rawText.includes("duplicate")
+    || rawText.includes("already registered")
+    || rawText.includes("already been registered")
+    || rawText.includes("already linked");
+
+  if (duplicate && Object.keys(validationErrors).length === 0) {
+    validationErrors = rawText.includes("employee")
+      ? { employee_code: "duplicateEmployeeCode" }
+      : { email: "duplicateEmail" };
+  }
+
+  if (Object.keys(validationErrors).length > 0) {
+    return createValidationFeedback(validationErrors, tt, duplicate);
+  }
+  return { fieldErrors: {}, message: error?.message || "Unable to save the account." };
+}
+
+function focusFirstInvalidField(formElement, fieldErrors) {
+  const firstField = Object.keys(fieldErrors || {})[0];
+  if (!firstField || !formElement) return;
+  requestAnimationFrame(() => {
+    formElement.querySelector(`[name="${firstField}"]`)?.focus();
+  });
+}
+
+function validatePasswordFields(form) {
+  const nextPassword = String(form?.nextPassword || "");
+  const confirmPassword = String(form?.confirmPassword || "");
+  const errors = {};
+  if (!nextPassword) errors.nextPassword = "required";
+  else if (nextPassword.length < PASSWORD_MIN_LENGTH) errors.nextPassword = "passwordTooShort";
+  if (!confirmPassword) errors.confirmPassword = "required";
+  else if (nextPassword !== confirmPassword) errors.confirmPassword = "passwordMismatch";
+  return errors;
 }
 
 export default function SettingsPage({ theme = "light", uiTheme: dashboardUiTheme = {}, currentUser, onCurrentUserUpdate }) {
@@ -619,6 +783,12 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
   const [avatarBusy, setAvatarBusy] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [selfFieldErrors, setSelfFieldErrors] = useState({});
+  const [memberFieldErrors, setMemberFieldErrors] = useState({});
+  const [passwordFieldErrors, setPasswordFieldErrors] = useState({});
+  const [managedPasswordFieldErrors, setManagedPasswordFieldErrors] = useState({});
+  const [createFieldErrors, setCreateFieldErrors] = useState({});
+  const [createErrorMessage, setCreateErrorMessage] = useState("");
   const [sessionUser, setSessionUser] = useState(null);
   const [currentUserId, setCurrentUserId] = useState("");
   const [members, setMembers] = useState([]);
@@ -653,6 +823,7 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
       : "w-full rounded-2xl border border-[#d8e4f8] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2b59b0] focus:ring-2 focus:ring-[#2b59b0]/10";
   const readOnlyInputClass =
     theme === "dark" ? `${inputClass} cursor-not-allowed bg-slate-800 text-slate-400` : `${inputClass} cursor-not-allowed bg-slate-100 text-slate-500`;
+  const inputClassFor = (fieldError, baseClass = inputClass) => `${baseClass} ${fieldError ? "!border-rose-400 !ring-2 !ring-rose-500/15 dark:!border-rose-400" : ""}`;
   const secondaryButton = `inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${uiTheme.statusButton}`;
   const ghostButton =
     theme === "dark"
@@ -702,7 +873,19 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
     setCreateAvatarFile(null);
     setCreateAvatarPreview("");
     setCreateForm(createNewMemberForm());
+    setCreateFieldErrors({});
+    setCreateErrorMessage("");
     setCreateOpen(false);
+  };
+
+  const updateValidatedField = (setForm, setFieldErrors, field, value) => {
+    setForm((previous) => ({ ...previous, [field]: value }));
+    setFieldErrors((previous) => {
+      if (!previous[field]) return previous;
+      const next = { ...previous };
+      delete next[field];
+      return next;
+    });
   };
 
   const loadData = async ({ silent = false, preferredSelectedId = "" } = {}) => {
@@ -749,10 +932,12 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
 
   useEffect(() => {
     setMemberForm(createProfileForm(selectedMember));
+    setMemberFieldErrors({});
   }, [selectedMember]);
 
   useEffect(() => {
     setManagedPasswordForm({ nextPassword: "", confirmPassword: "" });
+    setManagedPasswordFieldErrors({});
   }, [selectedMember?.id]);
 
   const summary = useMemo(() => {
@@ -813,7 +998,10 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
       await loadData({ silent: true, preferredSelectedId: targetId });
     } catch (error) {
       console.error("Avatar update error:", error);
-      setErrorMessage(error.message || "Unable to update the profile image.");
+      const feedback = resolveAccountErrorFeedback(error, tt);
+      if (isSelf) setSelfFieldErrors(feedback.fieldErrors);
+      else setMemberFieldErrors(feedback.fieldErrors);
+      setErrorMessage(feedback.message || "Unable to update the profile image.");
     } finally {
       setAvatarBusy("");
     }
@@ -857,15 +1045,19 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
       return;
     }
 
+    const rawValidationErrors = validatePasswordFields(managedPasswordForm);
+    if (Object.keys(rawValidationErrors).length > 0) {
+      const feedback = createValidationFeedback(rawValidationErrors, tt);
+      setManagedPasswordFieldErrors(feedback.fieldErrors);
+      setErrorMessage(feedback.message);
+      setSuccessMessage("");
+      return;
+    }
+
     try {
-      if (managedPasswordForm.nextPassword.length < PASSWORD_MIN_LENGTH) {
-        throw new Error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
-      }
-      if (managedPasswordForm.nextPassword !== managedPasswordForm.confirmPassword) {
-        throw new Error("Password confirmation does not match.");
-      }
 
       setSavingManagedPassword(true);
+      setManagedPasswordFieldErrors({});
       setErrorMessage("");
       setSuccessMessage("");
       await setManagedAccountPassword(selectedMember.id, managedPasswordForm.nextPassword);
@@ -876,6 +1068,148 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
       setErrorMessage(error.message || "Unable to update this member password.");
     } finally {
       setSavingManagedPassword(false);
+    }
+  };
+
+  const handleSaveSelfProfile = async (event) => {
+    event.preventDefault();
+    if (!sessionUser) return;
+    const rawValidationErrors = validateAccountProfile(selfForm, { requireWorkProfile: true });
+    if (Object.keys(rawValidationErrors).length > 0) {
+      const feedback = createValidationFeedback(rawValidationErrors, tt);
+      setSelfFieldErrors(feedback.fieldErrors);
+      setErrorMessage(feedback.message);
+      setSuccessMessage("");
+      focusFirstInvalidField(event.currentTarget, feedback.fieldErrors);
+      return;
+    }
+
+    try {
+      setSavingSelf(true);
+      setSelfFieldErrors({});
+      setErrorMessage("");
+      setSuccessMessage("");
+      const saved = await updateSelfAccount(sessionUser, currentUser?.role, selfForm);
+      setSelfForm(createProfileForm(saved));
+      syncCurrentUser(saved);
+      setSuccessMessage("Your account profile has been updated.");
+      await loadData({ silent: true, preferredSelectedId: currentUserId });
+    } catch (error) {
+      console.error("Save self profile error:", error);
+      const feedback = resolveAccountErrorFeedback(error, tt);
+      setSelfFieldErrors(feedback.fieldErrors);
+      setErrorMessage(feedback.message);
+      focusFirstInvalidField(event.currentTarget, feedback.fieldErrors);
+    } finally {
+      setSavingSelf(false);
+    }
+  };
+
+  const handleUpdateSelfPassword = async (event) => {
+    event.preventDefault();
+    const rawValidationErrors = validatePasswordFields(passwordForm);
+    if (Object.keys(rawValidationErrors).length > 0) {
+      const feedback = createValidationFeedback(rawValidationErrors, tt);
+      setPasswordFieldErrors(feedback.fieldErrors);
+      setErrorMessage(feedback.message);
+      setSuccessMessage("");
+      focusFirstInvalidField(event.currentTarget, feedback.fieldErrors);
+      return;
+    }
+
+    try {
+      setSavingPassword(true);
+      setPasswordFieldErrors({});
+      setErrorMessage("");
+      setSuccessMessage("");
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.nextPassword });
+      if (error) throw error;
+      setPasswordForm({ nextPassword: "", confirmPassword: "" });
+      setSuccessMessage("Your password has been updated.");
+    } catch (error) {
+      console.error("Save password error:", error);
+      setErrorMessage(error.message || "Unable to update your password.");
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const handleSaveMember = async (event) => {
+    event.preventDefault();
+    if (!selectedMember?.id) return;
+    const profileToValidate = { ...memberForm, email: selectedMember.email };
+    const rawValidationErrors = validateAccountProfile(profileToValidate, { requireWorkProfile: true });
+    if (Object.keys(rawValidationErrors).length > 0) {
+      const feedback = createValidationFeedback(rawValidationErrors, tt);
+      setMemberFieldErrors(feedback.fieldErrors);
+      setErrorMessage(feedback.message);
+      setSuccessMessage("");
+      focusFirstInvalidField(event.currentTarget, feedback.fieldErrors);
+      return;
+    }
+
+    try {
+      setSavingMember(true);
+      setMemberFieldErrors({});
+      setErrorMessage("");
+      setSuccessMessage("");
+      const saved = await updateManagedAccount(selectedMember.id, selectedMember.email, memberForm);
+      if (normalizeText(saved?.id) === currentUserId) {
+        setSelfForm(createProfileForm(saved));
+        syncCurrentUser(saved);
+      }
+      setMemberForm(createProfileForm(saved));
+      setSuccessMessage("Member access and profile details have been updated.");
+      await loadData({ silent: true, preferredSelectedId: selectedMember.id });
+    } catch (error) {
+      console.error("Save member error:", error);
+      const feedback = resolveAccountErrorFeedback(error, tt);
+      setMemberFieldErrors(feedback.fieldErrors);
+      setErrorMessage(feedback.message);
+      focusFirstInvalidField(event.currentTarget, feedback.fieldErrors);
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+  const handleCreateMember = async (event) => {
+    event.preventDefault();
+    const rawValidationErrors = validateAccountProfile(createForm, {
+      requireWorkProfile: true,
+      password: createForm.nextPassword,
+      confirmPassword: createForm.confirmPassword,
+      requirePassword: true,
+    });
+    if (Object.keys(rawValidationErrors).length > 0) {
+      const feedback = createValidationFeedback(rawValidationErrors, tt);
+      setCreateFieldErrors(feedback.fieldErrors);
+      setCreateErrorMessage(feedback.message);
+      focusFirstInvalidField(event.currentTarget, feedback.fieldErrors);
+      return;
+    }
+
+    try {
+      setCreatingMember(true);
+      setCreateFieldErrors({});
+      setCreateErrorMessage("");
+      setErrorMessage("");
+      setSuccessMessage("");
+      const { user, profile } = await createManagedAccount(createForm, createForm.nextPassword);
+      if (createAvatarFile) {
+        const avatarUrl = await uploadManagedAccountAvatar(user.id, createAvatarFile);
+        await updateManagedAccount(user.id, profile.email, { ...profile, avatar_url: avatarUrl });
+      }
+      resetCreate();
+      setSuccessMessage("New member account created.");
+      await loadData({ silent: true, preferredSelectedId: user.id });
+    } catch (error) {
+      console.error("Create member error:", error);
+      const feedback = resolveAccountErrorFeedback(error, tt);
+      setCreateFieldErrors(feedback.fieldErrors);
+      setCreateErrorMessage(feedback.message);
+      focusFirstInvalidField(event.currentTarget, feedback.fieldErrors);
+    } finally {
+      setCreatingMember(false);
     }
   };
 
@@ -966,24 +1300,34 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
                   <button type="button" onClick={() => void mutateAvatar({ scope: "self", clear: true })} disabled={!selfForm.avatar_url || avatarBusy === "self"} className={dangerButton}><Trash2 size={15} />{tt("self.removePhoto")}</button>
                   <input ref={selfAvatarRef} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void mutateAvatar({ scope: "self", file }); }} />
                 </div>
-                <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={async (event) => {
-                  event.preventDefault();
-                  if (!sessionUser) return;
-                  try {
-                    setSavingSelf(true); setErrorMessage(""); setSuccessMessage("");
-                    const saved = await updateSelfAccount(sessionUser, currentUser?.role, selfForm);
-                    setSelfForm(createProfileForm(saved)); syncCurrentUser(saved); setSuccessMessage("Your account profile has been updated."); await loadData({ silent: true, preferredSelectedId: currentUserId });
-                  } catch (error) { console.error("Save self profile error:", error); setErrorMessage(error.message || "Unable to update your account."); } finally { setSavingSelf(false); }
-                }}>
-                  <Field icon={UserRound} label="Full Name"><input value={selfForm.full_name} onChange={(event) => setSelfForm((prev) => ({ ...prev, full_name: event.target.value }))} className={inputClass} /></Field>
-                  <Field icon={Mail} label="Email"><input type="email" value={selfForm.email} onChange={(event) => setSelfForm((prev) => ({ ...prev, email: event.target.value }))} className={inputClass} /></Field>
-                  <Field label="First Name EN"><input value={selfForm.first_name_en} onChange={(event) => setSelfForm((prev) => ({ ...prev, first_name_en: event.target.value }))} className={inputClass} /></Field>
-                  <Field label="Last Name EN"><input value={selfForm.last_name_en} onChange={(event) => setSelfForm((prev) => ({ ...prev, last_name_en: event.target.value }))} className={inputClass} /></Field>
-                  <Field icon={BadgeInfo} label="Employee Code"><input value={selfForm.employee_code} onChange={(event) => setSelfForm((prev) => ({ ...prev, employee_code: event.target.value.toUpperCase() }))} className={inputClass} /></Field>
-                  <Field icon={Phone} label="Phone"><input value={selfForm.phone} onChange={(event) => setSelfForm((prev) => ({ ...prev, phone: event.target.value }))} className={inputClass} /></Field>
-                  <Field icon={Building2} label="Department"><ProfileOptionSelect value={selfForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => setSelfForm((prev) => ({ ...prev, department: value }))} className={inputClass} /></Field>
-                  <Field icon={Briefcase} label="Position"><ProfileOptionSelect key={`self-position-${currentUser?.id || "current"}`} value={selfForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => setSelfForm((prev) => ({ ...prev, position: value }))} className={inputClass} allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} /></Field>
-                  <Field icon={MapPin} label="Location"><ProfileOptionSelect value={selfForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => setSelfForm((prev) => ({ ...prev, location: value }))} className={inputClass} /></Field>
+                <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={handleSaveSelfProfile} noValidate>
+                  <Field icon={UserRound} label={tt("validation.fields.full_name")} error={selfFieldErrors.full_name} required>
+                    <input name="full_name" value={selfForm.full_name} onChange={(event) => updateValidatedField(setSelfForm, setSelfFieldErrors, "full_name", event.target.value)} className={inputClassFor(selfFieldErrors.full_name)} aria-invalid={Boolean(selfFieldErrors.full_name)} />
+                  </Field>
+                  <Field icon={Mail} label={tt("validation.fields.email")} error={selfFieldErrors.email} required>
+                    <input name="email" type="email" value={selfForm.email} onChange={(event) => updateValidatedField(setSelfForm, setSelfFieldErrors, "email", event.target.value)} className={inputClassFor(selfFieldErrors.email)} aria-invalid={Boolean(selfFieldErrors.email)} />
+                  </Field>
+                  <Field label={tt("validation.fields.first_name_en")} error={selfFieldErrors.first_name_en}>
+                    <input name="first_name_en" value={selfForm.first_name_en} onChange={(event) => updateValidatedField(setSelfForm, setSelfFieldErrors, "first_name_en", event.target.value)} className={inputClassFor(selfFieldErrors.first_name_en)} aria-invalid={Boolean(selfFieldErrors.first_name_en)} />
+                  </Field>
+                  <Field label={tt("validation.fields.last_name_en")} error={selfFieldErrors.last_name_en}>
+                    <input name="last_name_en" value={selfForm.last_name_en} onChange={(event) => updateValidatedField(setSelfForm, setSelfFieldErrors, "last_name_en", event.target.value)} className={inputClassFor(selfFieldErrors.last_name_en)} aria-invalid={Boolean(selfFieldErrors.last_name_en)} />
+                  </Field>
+                  <Field icon={BadgeInfo} label={tt("validation.fields.employee_code")} error={selfFieldErrors.employee_code} required>
+                    <input name="employee_code" value={selfForm.employee_code} onChange={(event) => updateValidatedField(setSelfForm, setSelfFieldErrors, "employee_code", event.target.value.toUpperCase())} className={inputClassFor(selfFieldErrors.employee_code)} aria-invalid={Boolean(selfFieldErrors.employee_code)} />
+                  </Field>
+                  <Field icon={Phone} label={tt("validation.fields.phone")} error={selfFieldErrors.phone}>
+                    <input name="phone" type="tel" value={selfForm.phone} onChange={(event) => updateValidatedField(setSelfForm, setSelfFieldErrors, "phone", event.target.value)} className={inputClassFor(selfFieldErrors.phone)} aria-invalid={Boolean(selfFieldErrors.phone)} />
+                  </Field>
+                  <Field icon={Building2} label={tt("validation.fields.department")} error={selfFieldErrors.department} required>
+                    <ProfileOptionSelect name="department" value={selfForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => updateValidatedField(setSelfForm, setSelfFieldErrors, "department", value)} className={inputClassFor(selfFieldErrors.department)} invalid={Boolean(selfFieldErrors.department)} required />
+                  </Field>
+                  <Field icon={Briefcase} label={tt("validation.fields.position")} error={selfFieldErrors.position} required>
+                    <ProfileOptionSelect key={`self-position-${currentUser?.id || "current"}`} name="position" value={selfForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => updateValidatedField(setSelfForm, setSelfFieldErrors, "position", value)} className={inputClassFor(selfFieldErrors.position)} invalid={Boolean(selfFieldErrors.position)} required allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} />
+                  </Field>
+                  <Field icon={MapPin} label={tt("validation.fields.location")} error={selfFieldErrors.location} required>
+                    <ProfileOptionSelect name="location" value={selfForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => updateValidatedField(setSelfForm, setSelfFieldErrors, "location", value)} className={inputClassFor(selfFieldErrors.location)} invalid={Boolean(selfFieldErrors.location)} required />
+                  </Field>
                   <div className={`md:col-span-2 flex flex-col gap-3 rounded-[1.35rem] border px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${subCardClass}`}><div><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("self.currentRole")}: {getRoleMeta(selfForm.role || currentUser?.role).label}</p><p className={`mt-1 text-xs ${uiTheme.textMuted}`}>{tt("self.syncHint")}</p></div><button type="submit" disabled={savingSelf} className={primaryButton}>{savingSelf ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}{tt("self.saveProfile")}</button></div>
                 </form>
               </section>
@@ -992,18 +1336,13 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
                 <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${uiTheme.textMuted}`}>{tt("self.security")}</p>
                 <h3 className={`mt-1 text-xl font-black ${uiTheme.textPrimary}`}>{tt("self.changePassword")}</h3>
                 <div className={`mt-4 rounded-[1.35rem] border px-4 py-4 ${subCardClass}`}><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("self.sessionPolicy")}</p><p className={`mt-2 text-sm leading-6 ${uiTheme.textSecondary}`}>{tt("password.minimumChars", { count: PASSWORD_MIN_LENGTH })}</p></div>
-                <form className="mt-5 grid gap-4" onSubmit={async (event) => {
-                  event.preventDefault();
-                  try {
-                    if (passwordForm.nextPassword.length < PASSWORD_MIN_LENGTH) throw new Error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
-                    if (passwordForm.nextPassword !== passwordForm.confirmPassword) throw new Error("Password confirmation does not match.");
-                    setSavingPassword(true); setErrorMessage(""); setSuccessMessage("");
-                    const { error } = await supabase.auth.updateUser({ password: passwordForm.nextPassword }); if (error) throw error;
-                    setPasswordForm({ nextPassword: "", confirmPassword: "" }); setSuccessMessage("Your password has been updated.");
-                  } catch (error) { console.error("Save password error:", error); setErrorMessage(error.message || "Unable to update your password."); } finally { setSavingPassword(false); }
-                }}>
-                  <Field icon={ShieldCheck} label={tt("password.newPassword")}><input type="password" value={passwordForm.nextPassword} onChange={(event) => setPasswordForm((prev) => ({ ...prev, nextPassword: event.target.value }))} className={inputClass} /></Field>
-                  <Field icon={ShieldCheck} label={tt("password.confirmPassword")} hint={tt("password.minimumChars", { count: PASSWORD_MIN_LENGTH })}><input type="password" value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} className={inputClass} /></Field>
+                <form className="mt-5 grid gap-4" onSubmit={handleUpdateSelfPassword} noValidate>
+                  <Field icon={ShieldCheck} label={tt("password.newPassword")} error={passwordFieldErrors.nextPassword} required>
+                    <input name="nextPassword" type="password" value={passwordForm.nextPassword} onChange={(event) => updateValidatedField(setPasswordForm, setPasswordFieldErrors, "nextPassword", event.target.value)} className={inputClassFor(passwordFieldErrors.nextPassword)} aria-invalid={Boolean(passwordFieldErrors.nextPassword)} />
+                  </Field>
+                  <Field icon={ShieldCheck} label={tt("password.confirmPassword")} hint={tt("password.minimumChars", { count: PASSWORD_MIN_LENGTH })} error={passwordFieldErrors.confirmPassword} required>
+                    <input name="confirmPassword" type="password" value={passwordForm.confirmPassword} onChange={(event) => updateValidatedField(setPasswordForm, setPasswordFieldErrors, "confirmPassword", event.target.value)} className={inputClassFor(passwordFieldErrors.confirmPassword)} aria-invalid={Boolean(passwordFieldErrors.confirmPassword)} />
+                  </Field>
                   <button type="submit" disabled={savingPassword} className={primaryButton}>{savingPassword ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}{tt("self.updatePassword")}</button>
                 </form>
               </section>
@@ -1033,35 +1372,26 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
                   <p className={`mt-2 text-sm ${uiTheme.textSecondary}`}>{tt("password.setNewPasswordHint")}</p>
                   {isSelectedCurrentUser ? <div className={`mt-3 rounded-2xl border px-4 py-3 text-xs ${subCardClass}`}>{tt("password.useSecurityPanel")}</div> : null}
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <Field icon={KeyRound} label={tt("password.newPassword")}><input type="password" value={managedPasswordForm.nextPassword} onChange={(event) => setManagedPasswordForm((prev) => ({ ...prev, nextPassword: event.target.value }))} className={inputClass} disabled={isSelectedCurrentUser} /></Field>
-                    <Field icon={KeyRound} label={tt("password.confirmPassword")} hint={tt("password.minimumChars", { count: PASSWORD_MIN_LENGTH })}><input type="password" value={managedPasswordForm.confirmPassword} onChange={(event) => setManagedPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} className={inputClass} disabled={isSelectedCurrentUser} /></Field>
+                    <Field icon={KeyRound} label={tt("password.newPassword")} error={managedPasswordFieldErrors.nextPassword} required><input name="nextPassword" type="password" value={managedPasswordForm.nextPassword} onChange={(event) => updateValidatedField(setManagedPasswordForm, setManagedPasswordFieldErrors, "nextPassword", event.target.value)} className={inputClassFor(managedPasswordFieldErrors.nextPassword)} aria-invalid={Boolean(managedPasswordFieldErrors.nextPassword)} disabled={isSelectedCurrentUser} /></Field>
+                    <Field icon={KeyRound} label={tt("password.confirmPassword")} hint={tt("password.minimumChars", { count: PASSWORD_MIN_LENGTH })} error={managedPasswordFieldErrors.confirmPassword} required><input name="confirmPassword" type="password" value={managedPasswordForm.confirmPassword} onChange={(event) => updateValidatedField(setManagedPasswordForm, setManagedPasswordFieldErrors, "confirmPassword", event.target.value)} className={inputClassFor(managedPasswordFieldErrors.confirmPassword)} aria-invalid={Boolean(managedPasswordFieldErrors.confirmPassword)} disabled={isSelectedCurrentUser} /></Field>
                   </div>
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                     <button type="button" onClick={handleSetManagedPassword} disabled={savingManagedPassword || isSelectedCurrentUser} className={primaryButton}>{savingManagedPassword ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}{tt("password.setPasswordNow")}</button>
                   </div>
                 </div>
-                <form className="mt-6 space-y-5" onSubmit={async (event) => {
-                  event.preventDefault();
-                  if (!selectedMember?.id) return;
-                  try {
-                    setSavingMember(true); setErrorMessage(""); setSuccessMessage("");
-                    const saved = await updateManagedAccount(selectedMember.id, selectedMember.email, memberForm);
-                    if (normalizeText(saved?.id) === currentUserId) { setSelfForm(createProfileForm(saved)); syncCurrentUser(saved); }
-                    setMemberForm(createProfileForm(saved)); setSuccessMessage("Member access and profile details have been updated."); await loadData({ silent: true, preferredSelectedId: selectedMember.id });
-                  } catch (error) { console.error("Save member error:", error); setErrorMessage(error.message || "Unable to update this member."); } finally { setSavingMember(false); }
-                }}>
+                <form className="mt-6 space-y-5" onSubmit={handleSaveMember} noValidate>
                   <div className={`rounded-[1.45rem] border p-4 ${subCardClass}`}>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <Field icon={UserRound} label="Full Name"><input value={memberForm.full_name} onChange={(event) => setMemberForm((prev) => ({ ...prev, full_name: event.target.value }))} className={inputClass} /></Field>
-                      <Field icon={Mail} label="Email" hint="Auth email changes for other users still require a backend admin endpoint."><input value={selectedMember.email || ""} readOnly className={readOnlyInputClass} /></Field>
-                      <Field label="First Name EN"><input value={memberForm.first_name_en} onChange={(event) => setMemberForm((prev) => ({ ...prev, first_name_en: event.target.value }))} className={inputClass} /></Field>
-                      <Field label="Last Name EN"><input value={memberForm.last_name_en} onChange={(event) => setMemberForm((prev) => ({ ...prev, last_name_en: event.target.value }))} className={inputClass} /></Field>
-                      <Field icon={BadgeInfo} label="Employee Code"><input value={memberForm.employee_code} onChange={(event) => setMemberForm((prev) => ({ ...prev, employee_code: event.target.value.toUpperCase() }))} className={inputClass} /></Field>
-                      <Field icon={ShieldCheck} label="Role"><select value={memberForm.role} onChange={(event) => setMemberForm((prev) => ({ ...prev, role: event.target.value }))} className={inputClass}>{ACCOUNT_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-                      <Field icon={Building2} label="Department"><ProfileOptionSelect value={memberForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => setMemberForm((prev) => ({ ...prev, department: value }))} className={inputClass} /></Field>
-                      <Field icon={Briefcase} label="Position"><ProfileOptionSelect key={`member-position-${selectedMember?.id || "none"}`} value={memberForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => setMemberForm((prev) => ({ ...prev, position: value }))} className={inputClass} allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} /></Field>
-                      <Field icon={Phone} label="Phone"><input value={memberForm.phone} onChange={(event) => setMemberForm((prev) => ({ ...prev, phone: event.target.value }))} className={inputClass} /></Field>
-                      <Field icon={MapPin} label="Location"><ProfileOptionSelect value={memberForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => setMemberForm((prev) => ({ ...prev, location: value }))} className={inputClass} /></Field>
+                      <Field icon={UserRound} label={tt("validation.fields.full_name")} error={memberFieldErrors.full_name} required><input name="full_name" value={memberForm.full_name} onChange={(event) => updateValidatedField(setMemberForm, setMemberFieldErrors, "full_name", event.target.value)} className={inputClassFor(memberFieldErrors.full_name)} aria-invalid={Boolean(memberFieldErrors.full_name)} /></Field>
+                      <Field icon={Mail} label={tt("validation.fields.email")} hint="Auth email changes for other users still require a backend admin endpoint." error={memberFieldErrors.email} required><input name="email" value={selectedMember.email || ""} readOnly className={inputClassFor(memberFieldErrors.email, readOnlyInputClass)} aria-invalid={Boolean(memberFieldErrors.email)} /></Field>
+                      <Field label={tt("validation.fields.first_name_en")} error={memberFieldErrors.first_name_en}><input name="first_name_en" value={memberForm.first_name_en} onChange={(event) => updateValidatedField(setMemberForm, setMemberFieldErrors, "first_name_en", event.target.value)} className={inputClassFor(memberFieldErrors.first_name_en)} aria-invalid={Boolean(memberFieldErrors.first_name_en)} /></Field>
+                      <Field label={tt("validation.fields.last_name_en")} error={memberFieldErrors.last_name_en}><input name="last_name_en" value={memberForm.last_name_en} onChange={(event) => updateValidatedField(setMemberForm, setMemberFieldErrors, "last_name_en", event.target.value)} className={inputClassFor(memberFieldErrors.last_name_en)} aria-invalid={Boolean(memberFieldErrors.last_name_en)} /></Field>
+                      <Field icon={BadgeInfo} label={tt("validation.fields.employee_code")} error={memberFieldErrors.employee_code} required><input name="employee_code" value={memberForm.employee_code} onChange={(event) => updateValidatedField(setMemberForm, setMemberFieldErrors, "employee_code", event.target.value.toUpperCase())} className={inputClassFor(memberFieldErrors.employee_code)} aria-invalid={Boolean(memberFieldErrors.employee_code)} /></Field>
+                      <Field icon={ShieldCheck} label={tt("validation.fields.role")} error={memberFieldErrors.role} required><select name="role" value={memberForm.role} onChange={(event) => updateValidatedField(setMemberForm, setMemberFieldErrors, "role", event.target.value)} className={inputClassFor(memberFieldErrors.role)} aria-invalid={Boolean(memberFieldErrors.role)}>{ACCOUNT_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+                      <Field icon={Building2} label={tt("validation.fields.department")} error={memberFieldErrors.department} required><ProfileOptionSelect name="department" value={memberForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => updateValidatedField(setMemberForm, setMemberFieldErrors, "department", value)} className={inputClassFor(memberFieldErrors.department)} invalid={Boolean(memberFieldErrors.department)} required /></Field>
+                      <Field icon={Briefcase} label={tt("validation.fields.position")} error={memberFieldErrors.position} required><ProfileOptionSelect key={`member-position-${selectedMember?.id || "none"}`} name="position" value={memberForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => updateValidatedField(setMemberForm, setMemberFieldErrors, "position", value)} className={inputClassFor(memberFieldErrors.position)} invalid={Boolean(memberFieldErrors.position)} required allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} /></Field>
+                      <Field icon={Phone} label={tt("validation.fields.phone")} error={memberFieldErrors.phone}><input name="phone" type="tel" value={memberForm.phone} onChange={(event) => updateValidatedField(setMemberForm, setMemberFieldErrors, "phone", event.target.value)} className={inputClassFor(memberFieldErrors.phone)} aria-invalid={Boolean(memberFieldErrors.phone)} /></Field>
+                      <Field icon={MapPin} label={tt("validation.fields.location")} error={memberFieldErrors.location} required><ProfileOptionSelect name="location" value={memberForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => updateValidatedField(setMemberForm, setMemberFieldErrors, "location", value)} className={inputClassFor(memberFieldErrors.location)} invalid={Boolean(memberFieldErrors.location)} required /></Field>
                     </div>
                   </div>
                   <div className={`rounded-[1.45rem] border p-4 ${subCardClass}`}><div className="flex items-start gap-3"><div className="rounded-2xl bg-[#2b59b0]/10 p-3 text-[#2b59b0]"><Clock3 size={18} /></div><div className="min-w-0"><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>Record details</p><div className={`mt-3 grid gap-2 text-sm ${uiTheme.textSecondary} sm:grid-cols-2`}><p className="truncate">Created: {formatDateTime(selectedMember.created_at)}</p><p className="truncate">Last seen: {selectedMember.last_seen_at ? formatDateTime(selectedMember.last_seen_at) : "-"}</p><p className="truncate">User ID: {selectedMember.id || "-"}</p><p className="truncate">Access state: {selectedMember.is_active === false ? "Paused" : "Active"}</p></div></div></div></div>
@@ -1078,27 +1408,38 @@ export default function SettingsPage({ theme = "light", uiTheme: dashboardUiThem
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-3" onClick={() => { if (!creatingMember) resetCreate(); }}>
           <div className={`${cardClass} w-full max-w-4xl overflow-hidden`} onClick={(event) => event.stopPropagation()}>
             <div className={`border-b px-5 py-4 sm:px-6 ${dividerClass}`}><div className="flex items-start justify-between gap-3"><div><p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${uiTheme.textMuted}`}>{tt("create.eyebrow")}</p><h3 className={`mt-1 text-2xl font-black ${uiTheme.textPrimary}`}>{tt("create.title")}</h3></div><button type="button" onClick={() => resetCreate()} disabled={creatingMember} className={ghostButton}><XCircle size={16} />{tt("create.close")}</button></div></div>
-            <form className="max-h-[80vh] overflow-y-auto p-5 sm:p-6" onSubmit={async (event) => {
-              event.preventDefault();
-              try {
-                if (!normalizeText(createForm.email)) throw new Error("Email is required.");
-                if (!normalizeText(createForm.employee_code)) throw new Error("Employee code is required.");
-                if (createForm.nextPassword.length < PASSWORD_MIN_LENGTH) throw new Error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
-                if (createForm.nextPassword !== createForm.confirmPassword) throw new Error("Password confirmation does not match.");
-                setCreatingMember(true); setErrorMessage(""); setSuccessMessage("");
-                const { user, profile } = await createManagedAccount(createForm, createForm.nextPassword);
-                if (createAvatarFile) {
-                  const avatarUrl = await uploadManagedAccountAvatar(user.id, createAvatarFile);
-                  await updateManagedAccount(user.id, profile.email, { ...profile, avatar_url: avatarUrl });
-                }
-                resetCreate(); setSuccessMessage("New member account created."); await loadData({ silent: true, preferredSelectedId: user.id });
-              } catch (error) { console.error("Create member error:", error); setErrorMessage(error.message || "Unable to create the new member account."); } finally { setCreatingMember(false); }
-            }}>
+            <form className="max-h-[80vh] overflow-y-auto p-5 sm:p-6" onSubmit={handleCreateMember} noValidate>
+              {createErrorMessage ? (
+                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200" role="alert">
+                  <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+                  <span>{createErrorMessage}</span>
+                </div>
+              ) : null}
               <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-                <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}><div className="flex items-center justify-between gap-3"><div><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.profileImage")}</p><p className={`mt-1 text-xs ${uiTheme.textMuted}`}>{tt("create.imageHint")}</p></div><div className="rounded-2xl bg-[#2b59b0]/10 p-3 text-[#2b59b0]"><Camera size={18} /></div></div><div className="mt-5 flex justify-center"><Avatar src={createAvatarPreview} name={createForm.full_name || createForm.email || tt("create.newMember")} size="h-32 w-32" text="text-3xl" /></div><div className="mt-5 grid gap-3"><button type="button" onClick={() => createAvatarRef.current?.click()} className={ghostButton}><Plus size={15} />{tt("create.chooseImage")}</button><button type="button" onClick={() => { if (createAvatarPreview) URL.revokeObjectURL(createAvatarPreview); setCreateAvatarFile(null); setCreateAvatarPreview(""); }} disabled={!createAvatarPreview} className={dangerButton}><Trash2 size={15} />{tt("create.removeImage")}</button><input ref={createAvatarRef} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (!String(file.type || "").startsWith("image/")) { setErrorMessage("Profile image must be an image file."); return; } if (file.size > PROFILE_AVATAR_MAX_SIZE_BYTES) { setErrorMessage("Profile image must be 3 MB or smaller."); return; } if (createAvatarPreview) URL.revokeObjectURL(createAvatarPreview); setCreateAvatarFile(file); setCreateAvatarPreview(URL.createObjectURL(file)); setErrorMessage(""); }} /></div></div>
+                <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}><div className="flex items-center justify-between gap-3"><div><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.profileImage")}</p><p className={`mt-1 text-xs ${uiTheme.textMuted}`}>{tt("create.imageHint")}</p></div><div className="rounded-2xl bg-[#2b59b0]/10 p-3 text-[#2b59b0]"><Camera size={18} /></div></div><div className="mt-5 flex justify-center"><Avatar src={createAvatarPreview} name={createForm.full_name || createForm.email || tt("create.newMember")} size="h-32 w-32" text="text-3xl" /></div><div className="mt-5 grid gap-3"><button type="button" onClick={() => createAvatarRef.current?.click()} className={ghostButton}><Plus size={15} />{tt("create.chooseImage")}</button><button type="button" onClick={() => { if (createAvatarPreview) URL.revokeObjectURL(createAvatarPreview); setCreateAvatarFile(null); setCreateAvatarPreview(""); }} disabled={!createAvatarPreview} className={dangerButton}><Trash2 size={15} />{tt("create.removeImage")}</button><input ref={createAvatarRef} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (!String(file.type || "").startsWith("image/")) { setCreateErrorMessage("Profile image must be an image file."); return; } if (file.size > PROFILE_AVATAR_MAX_SIZE_BYTES) { setCreateErrorMessage("Profile image must be 3 MB or smaller."); return; } if (createAvatarPreview) URL.revokeObjectURL(createAvatarPreview); setCreateAvatarFile(file); setCreateAvatarPreview(URL.createObjectURL(file)); setCreateErrorMessage(""); }} /></div></div>
                 <div className="space-y-5">
-                  <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.identityAccess")}</p><div className="mt-4 grid gap-4 md:grid-cols-2"><Field icon={UserRound} label={tt("create.fullName")}><input value={createForm.full_name} onChange={(event) => setCreateForm((prev) => ({ ...prev, full_name: event.target.value }))} className={inputClass} required /></Field><Field icon={Mail} label={tt("create.email")}><input type="email" value={createForm.email} onChange={(event) => setCreateForm((prev) => ({ ...prev, email: event.target.value.toLowerCase() }))} className={inputClass} required /></Field><Field icon={BadgeInfo} label={tt("create.employeeCode")}><input value={createForm.employee_code} onChange={(event) => setCreateForm((prev) => ({ ...prev, employee_code: event.target.value.toUpperCase() }))} className={inputClass} required /></Field><Field icon={ShieldCheck} label={tt("create.role")}><select value={createForm.role} onChange={(event) => setCreateForm((prev) => ({ ...prev, role: event.target.value }))} className={inputClass}>{ACCOUNT_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field><Field icon={KeyRound} label={tt("create.temporaryPassword")}><input type="password" value={createForm.nextPassword} onChange={(event) => setCreateForm((prev) => ({ ...prev, nextPassword: event.target.value }))} className={inputClass} required /></Field><Field icon={KeyRound} label={tt("create.confirmPassword")} hint={tt("password.minimumChars", { count: PASSWORD_MIN_LENGTH })}><input type="password" value={createForm.confirmPassword} onChange={(event) => setCreateForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} className={inputClass} required /></Field></div></div>
-                  <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}><p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.workProfile")}</p><div className="mt-4 grid gap-4 md:grid-cols-2"><Field label={tt("create.firstNameEn")}><input value={createForm.first_name_en} onChange={(event) => setCreateForm((prev) => ({ ...prev, first_name_en: event.target.value }))} className={inputClass} /></Field><Field label={tt("create.lastNameEn")}><input value={createForm.last_name_en} onChange={(event) => setCreateForm((prev) => ({ ...prev, last_name_en: event.target.value }))} className={inputClass} /></Field><Field icon={Building2} label={tt("create.department")}><ProfileOptionSelect value={createForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => setCreateForm((prev) => ({ ...prev, department: value }))} className={inputClass} /></Field><Field icon={Briefcase} label={tt("create.position")}><ProfileOptionSelect value={createForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => setCreateForm((prev) => ({ ...prev, position: value }))} className={inputClass} allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} /></Field><Field icon={Phone} label={tt("create.phone")}><input value={createForm.phone} onChange={(event) => setCreateForm((prev) => ({ ...prev, phone: event.target.value }))} className={inputClass} /></Field><Field icon={MapPin} label={tt("create.location")}><ProfileOptionSelect value={createForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => setCreateForm((prev) => ({ ...prev, location: value }))} className={inputClass} /></Field></div></div>
+                  <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}>
+                    <p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.identityAccess")}</p>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <Field icon={UserRound} label={tt("create.fullName")} error={createFieldErrors.full_name} required><input name="full_name" value={createForm.full_name} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "full_name", event.target.value)} className={inputClassFor(createFieldErrors.full_name)} aria-invalid={Boolean(createFieldErrors.full_name)} /></Field>
+                      <Field icon={Mail} label={tt("create.email")} error={createFieldErrors.email} required><input name="email" type="email" value={createForm.email} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "email", event.target.value.toLowerCase())} className={inputClassFor(createFieldErrors.email)} aria-invalid={Boolean(createFieldErrors.email)} /></Field>
+                      <Field icon={BadgeInfo} label={tt("create.employeeCode")} error={createFieldErrors.employee_code} required><input name="employee_code" value={createForm.employee_code} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "employee_code", event.target.value.toUpperCase())} className={inputClassFor(createFieldErrors.employee_code)} aria-invalid={Boolean(createFieldErrors.employee_code)} /></Field>
+                      <Field icon={ShieldCheck} label={tt("create.role")} error={createFieldErrors.role} required><select name="role" value={createForm.role} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "role", event.target.value)} className={inputClassFor(createFieldErrors.role)} aria-invalid={Boolean(createFieldErrors.role)}>{ACCOUNT_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+                      <Field icon={KeyRound} label={tt("create.temporaryPassword")} error={createFieldErrors.nextPassword} required><input name="nextPassword" type="password" value={createForm.nextPassword} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "nextPassword", event.target.value)} className={inputClassFor(createFieldErrors.nextPassword)} aria-invalid={Boolean(createFieldErrors.nextPassword)} /></Field>
+                      <Field icon={KeyRound} label={tt("create.confirmPassword")} hint={tt("password.minimumChars", { count: PASSWORD_MIN_LENGTH })} error={createFieldErrors.confirmPassword} required><input name="confirmPassword" type="password" value={createForm.confirmPassword} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "confirmPassword", event.target.value)} className={inputClassFor(createFieldErrors.confirmPassword)} aria-invalid={Boolean(createFieldErrors.confirmPassword)} /></Field>
+                    </div>
+                  </div>
+                  <div className={`rounded-[1.5rem] border p-5 ${subCardClass}`}>
+                    <p className={`text-sm font-semibold ${uiTheme.textPrimary}`}>{tt("create.workProfile")}</p>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <Field label={tt("create.firstNameEn")} error={createFieldErrors.first_name_en}><input name="first_name_en" value={createForm.first_name_en} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "first_name_en", event.target.value)} className={inputClassFor(createFieldErrors.first_name_en)} aria-invalid={Boolean(createFieldErrors.first_name_en)} /></Field>
+                      <Field label={tt("create.lastNameEn")} error={createFieldErrors.last_name_en}><input name="last_name_en" value={createForm.last_name_en} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "last_name_en", event.target.value)} className={inputClassFor(createFieldErrors.last_name_en)} aria-invalid={Boolean(createFieldErrors.last_name_en)} /></Field>
+                      <Field icon={Building2} label={tt("create.department")} error={createFieldErrors.department} required><ProfileOptionSelect name="department" value={createForm.department} options={DEPARTMENT_OPTIONS} placeholder={tt("create.selectDepartment")} onChange={(value) => updateValidatedField(setCreateForm, setCreateFieldErrors, "department", value)} className={inputClassFor(createFieldErrors.department)} invalid={Boolean(createFieldErrors.department)} required /></Field>
+                      <Field icon={Briefcase} label={tt("create.position")} error={createFieldErrors.position} required><ProfileOptionSelect name="position" value={createForm.position} options={POSITION_OPTIONS} placeholder={tt("create.selectPosition")} onChange={(value) => updateValidatedField(setCreateForm, setCreateFieldErrors, "position", value)} className={inputClassFor(createFieldErrors.position)} invalid={Boolean(createFieldErrors.position)} required allowCustom customLabel={tt("create.customPosition")} customPlaceholder={tt("create.customPositionPlaceholder")} /></Field>
+                      <Field icon={Phone} label={tt("create.phone")} error={createFieldErrors.phone}><input name="phone" type="tel" value={createForm.phone} onChange={(event) => updateValidatedField(setCreateForm, setCreateFieldErrors, "phone", event.target.value)} className={inputClassFor(createFieldErrors.phone)} aria-invalid={Boolean(createFieldErrors.phone)} /></Field>
+                      <Field icon={MapPin} label={tt("create.location")} error={createFieldErrors.location} required><ProfileOptionSelect name="location" value={createForm.location} options={WORK_LOCATION_OPTIONS} placeholder={tt("create.selectLocation")} onChange={(value) => updateValidatedField(setCreateForm, setCreateFieldErrors, "location", value)} className={inputClassFor(createFieldErrors.location)} invalid={Boolean(createFieldErrors.location)} required /></Field>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className={`mt-6 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between ${dividerClass}`}><p className={`text-sm ${uiTheme.textSecondary}`}>{tt("create.footerHint")}</p><button type="submit" disabled={creatingMember} className={primaryButton}>{creatingMember ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}{tt("create.submit")}</button></div>

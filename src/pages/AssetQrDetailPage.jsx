@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  ArrowRight,
   Building2,
   CalendarCheck,
   ChevronLeft,
@@ -15,6 +16,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   UserRound,
+  Wrench,
   X,
 } from "lucide-react";
 import { fetchAssetQrDetail } from "./it-dashboard/services/assetQrService";
@@ -91,6 +93,27 @@ function SectionCard({ icon: Icon, eyebrow, title, children }) {
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">{children}</div>
     </section>
+  );
+}
+
+function RepairTicketButton({ assetCode, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-center gap-3 rounded-2xl bg-[#2b59b0] px-4 py-3.5 text-left text-white shadow-[0_12px_28px_rgba(43,89,176,0.24)] transition hover:-translate-y-0.5 hover:bg-[#244a95] hover:shadow-[0_16px_34px_rgba(43,89,176,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-200"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+        <Wrench size={19} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-black">แจ้งซ่อมอุปกรณ์นี้</span>
+        <span className="mt-0.5 block truncate text-[11px] font-semibold text-blue-100">
+          ระบบจะแนบ Asset Code {assetCode}
+        </span>
+      </span>
+      <ArrowRight size={18} className="shrink-0 transition-transform group-hover:translate-x-0.5" />
+    </button>
   );
 }
 
@@ -245,6 +268,30 @@ export default function AssetQrDetailPage() {
     });
   };
 
+  const openRepairTicket = () => {
+    const assetContext = {
+      id: asset.id,
+      asset_tag: asset.asset_tag,
+      asset_name: asset.asset_name,
+      asset_category: asset.asset_category,
+      brand: asset.brand,
+      model: asset.model,
+      serial_number: asset.serial_number,
+      status: asset.status,
+      location: asset.location,
+      factory: asset.factory,
+      building: asset.building,
+      floor: asset.floor,
+      room: asset.room,
+      department: asset.department,
+      owner_name: asset.owner_name,
+    };
+
+    navigate(`/create-ticket?asset=${encodeURIComponent(asset.asset_tag)}&source=asset-qr`, {
+      state: { assetContext },
+    });
+  };
+
   if (loading) return <LoadingState />;
 
   if (error || !asset) {
@@ -335,6 +382,10 @@ export default function AssetQrDetailPage() {
               </div>
             </div>
 
+            <div className="mt-3">
+              <RepairTicketButton assetCode={asset.asset_tag} onClick={openRepairTicket} />
+            </div>
+
             <div className="mt-3 grid grid-cols-2 gap-2 text-left">
               <AssetMetric label="Brand" value={asset.brand} />
               <AssetMetric label="Model" value={asset.model} />
@@ -420,6 +471,10 @@ export default function AssetQrDetailPage() {
                     <p className="mt-1 text-sm font-black leading-5 text-slate-900">{asset.last_verified_at ? formatDate(asset.last_verified_at, true) : "ยังไม่เคยตรวจใน Stock Audit"}</p>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <RepairTicketButton assetCode={asset.asset_tag} onClick={openRepairTicket} />
               </div>
             </aside>
           </div>

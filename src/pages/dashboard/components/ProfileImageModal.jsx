@@ -22,33 +22,35 @@ const PROFILE_IMAGE_MODAL_TRANSLATIONS = {
 
 export default function ProfileImageModal({ isOpen, onClose, profile }) {
   const { tt } = useScopedI18n(PROFILE_IMAGE_MODAL_TRANSLATIONS);
+  const profileImageUrl = profile?.avatar_url || profile?.id_card_url || "";
 
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in"
+      className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/80 p-0 backdrop-blur-md animate-fade-in sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
-        className="relative max-w-2xl w-full animate-scale-in"
+        className="relative w-full max-w-2xl animate-scale-in"
         onClick={(event) => event.stopPropagation()}
       >
         <button
-          className="absolute -top-12 right-0 text-white flex items-center gap-2 font-bold hover:text-slate-200 transition-colors group/close"
+          className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white backdrop-blur transition hover:bg-black/65 sm:-top-12 sm:right-0 sm:h-auto sm:w-auto sm:gap-2 sm:border-0 sm:bg-transparent sm:font-bold"
           onClick={onClose}
+          aria-label={tt("close")}
         >
-          <span>{tt("close")}</span>
+          <span className="hidden sm:inline">{tt("close")}</span>
           <X size={20} className="transform group-hover/close:rotate-90 transition-transform" />
         </button>
-        {profile?.id_card_url ? (
+        {profileImageUrl ? (
           <img
-            src={profile.id_card_url}
-            className="w-full h-auto rounded-3xl shadow-2xl border-4 border-white/20"
+            src={profileImageUrl}
+            className="max-h-[88dvh] w-full rounded-t-3xl border border-white/20 bg-slate-900 object-contain shadow-2xl sm:rounded-3xl sm:border-4"
             alt={tt("alt")}
           />
         ) : (
-          <div className="bg-white rounded-3xl p-12 text-center">
+          <div className="rounded-t-3xl bg-white p-12 text-center sm:rounded-3xl">
             <User size={64} className="text-slate-300 mx-auto mb-4" />
             <p className="text-slate-600">{tt("noImage")}</p>
           </div>

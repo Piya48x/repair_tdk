@@ -10,7 +10,7 @@ import {
   AlertCircle, Plus, Search, RefreshCw,
   BarChart3, Calendar, Hash, Shield,
   Timer, ShieldCheck, Mail, Phone, MapPin, Settings,
-  SlidersHorizontal, BookmarkPlus, Trash2, Moon, Sun, MessageSquare, FileText, DoorOpen, KeyRound, X, Menu
+  SlidersHorizontal, BookmarkPlus, Trash2, Moon, Sun, MessageSquare, FileText, DoorOpen, KeyRound, X, Menu, ScanLine
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { format, formatDistanceToNow } from "date-fns";
@@ -47,6 +47,7 @@ import ProfileImageModal from "./dashboard/components/ProfileImageModal";
 import LogoutConfirmModal from "./dashboard/components/LogoutConfirmModal";
 import DashboardGlobalStyles from "./dashboard/components/DashboardGlobalStyles";
 import SupportSection from "./dashboard/components/SupportSection";
+import AssetViewScannerModal, { extractAssetTagFromQr } from "./it-dashboard/components/AssetViewScannerModal";
 import CentralChatDock from "../components/CentralChatDock";
 import LanguageSwitcher from "../components/LanguageSwitcher.jsx";
 import { loadMyNotebookBorrowLogs, NOTEBOOK_LOG_STATUS } from "../services/notebookBorrowService";
@@ -113,6 +114,11 @@ const DASHBOARD_TRANSLATIONS = {
     quickActions: {
       active: "เปิดใช้งาน",
       startChat: "เริ่มแชท",
+      scanAsset: {
+        label: "สแกน QR อุปกรณ์",
+        description: "ดูข้อมูลอุปกรณ์และแจ้งซ่อมพร้อมผูก Asset Code อัตโนมัติ",
+        cta: "เริ่มสแกน",
+      },
       createTicket: {
         label: "แจ้งซ่อม IT",
         description: "รายงานปัญหาและติดตามผลตาม SLA",
@@ -224,6 +230,11 @@ const DASHBOARD_TRANSLATIONS = {
     quickActions: {
       active: "Open",
       startChat: "Start chat",
+      scanAsset: {
+        label: "Scan Asset QR",
+        description: "View the asset and create a repair ticket with its Asset Code linked automatically",
+        cta: "Scan now",
+      },
       createTicket: {
         label: "Report IT Issue",
         description: "Report a problem and track progress by SLA",
@@ -335,6 +346,11 @@ const DASHBOARD_TRANSLATIONS = {
     quickActions: {
       active: "열기",
       startChat: "채팅 시작",
+      scanAsset: {
+        label: "자산 QR 스캔",
+        description: "자산 정보를 확인하고 Asset Code가 자동 연결된 수리 티켓을 생성합니다",
+        cta: "스캔 시작",
+      },
       createTicket: {
         label: "IT 문제 접수",
         description: "문제를 접수하고 SLA 기준으로 진행 상태를 추적합니다",
@@ -1437,9 +1453,9 @@ export default function Dashboard() {
   const [selectedKpiMetricKey, setSelectedKpiMetricKey] = useState("");
   const [supportChatOpenSignal, setSupportChatOpenSignal] = useState(0);
   const [showMoreQuickActions, setShowMoreQuickActions] = useState(false);
+  const [isAssetQrScannerOpen, setIsAssetQrScannerOpen] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isStatusOverviewMenuOpen, setIsStatusOverviewMenuOpen] = useState(false);
-  const [navMoreSelection, setNavMoreSelection] = useState("");
   const [activeTicketId, setActiveTicketId] = useState(null);
   const [isMessengerOpen, setIsMessengerOpen] = useState(false);
   const [isOperationalOverviewModalOpen, setIsOperationalOverviewModalOpen] = useState(false);
@@ -2918,9 +2934,27 @@ export default function Dashboard() {
     [normalizedUpcomingMeetingBookings],
   );
 
+  const handleAssetQrDetected = useCallback((rawValue) => {
+    const assetTag = extractAssetTagFromQr(rawValue);
+    if (!assetTag) return;
+    setIsAssetQrScannerOpen(false);
+    navigate(`/asset-qr/${encodeURIComponent(assetTag)}`);
+  }, [navigate]);
+
   const quickActions = useMemo(() => {
     const role = profile?.role || "user";
     const items = [
+      {
+        id: "scan-asset-qr",
+        label: dt("quickActions.scanAsset.label"),
+        description: dt("quickActions.scanAsset.description"),
+        icon: ScanLine,
+        accent: "indigo",
+        cta: dt("quickActions.scanAsset.cta"),
+        onClick: () => setIsAssetQrScannerOpen(true),
+        featured: true,
+        roles: ["user", "it_support", "it_manager", "executive", "admin"],
+      },
       {
         id: "create-ticket",
         label: dt("quickActions.createTicket.label"),
@@ -3049,7 +3083,7 @@ export default function Dashboard() {
   }, [activeFilter, borrowOpenCount, dt, navigate, notebookAttentionCount, openTicketCount, profile?.role, tickets, upcomingMeetingCount, workNotesPendingCount]);
 
   const primaryQuickActionIds = useMemo(
-    () => new Set(["create-ticket", "pick-up", "notebook-center", "work-notes", "meeting-room-booking", "history"]),
+    () => new Set(["scan-asset-qr", "create-ticket", "pick-up", "notebook-center", "work-notes", "meeting-room-booking", "history"]),
     [],
   );
 
@@ -3091,16 +3125,12 @@ export default function Dashboard() {
     setThemeMode((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  const handleNavMoreSelection = (event) => {
-    const selectedId = event.target.value;
-    setNavMoreSelection(selectedId);
+  const handleNavMoreOpen = (item) => {
     setIsStatusOverviewMenuOpen(false);
     setIsMobileNavOpen(false);
 
-    const selectedItem = NAV_MORE_LINKS.find((item) => item.id === selectedId);
-    if (selectedItem?.href) {
-      window.open(selectedItem.href, "_blank", "noopener,noreferrer");
-      window.setTimeout(() => setNavMoreSelection(""), 0);
+    if (item?.href) {
+      window.open(item.href, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -3142,10 +3172,10 @@ export default function Dashboard() {
   const QUICK_ACTIONS_HEADING_CLASS = `text-sm font-black uppercase tracking-[0.2em] ${TEXT_SUBTLE_CLASS}`;
   const QUICK_ACTIONS_TITLE_CLASS = `text-sm sm:text-base font-black ${TEXT_PRIMARY_CLASS}`;
   const QUICK_ACTIONS_DESCRIPTION_CLASS = `text-[11px] leading-relaxed ${TEXT_MUTED_CLASS}`;
-  const STAT_LABEL_CLASS = `text-xs font-bold uppercase tracking-wide ${TEXT_SUBTLE_CLASS}`;
-  const STAT_VALUE_CLASS = "mt-1 text-xl font-black leading-none tracking-tight tabular-nums sm:text-2xl";
-  const STAT_HELPER_LABEL_CLASS = `text-xs font-bold uppercase tracking-wide ${TEXT_SUBTLE_CLASS}`;
-  const STAT_HELPER_TEXT_CLASS = `text-[11px] font-semibold leading-relaxed ${TEXT_MUTED_CLASS}`;
+  const STAT_LABEL_CLASS = `text-[10px] font-bold uppercase tracking-wide sm:text-[11px] ${TEXT_SUBTLE_CLASS}`;
+  const STAT_VALUE_CLASS = "mt-0.5 text-lg font-black leading-none tracking-tight tabular-nums sm:text-xl";
+  const STAT_HELPER_LABEL_CLASS = `text-[9px] font-bold uppercase tracking-wide sm:text-[10px] ${TEXT_SUBTLE_CLASS}`;
+  const STAT_HELPER_TEXT_CLASS = `text-[10px] font-semibold leading-4 ${TEXT_MUTED_CLASS}`;
   const topNavPrimaryLinks = [
     {
       id: "meeting-room-status",
@@ -3217,6 +3247,7 @@ export default function Dashboard() {
     return mobileNavEmployeeCode.slice(-4);
   })();
   const mobileNavIdentityTitle = `ID: ${mobileNavEmployeeCode} • ${mobileNavDepartment}`;
+  const profileAvatarUrl = profile?.avatar_url || profile?.id_card_url || "";
   const profileDetailItems = [
     { key: "employee-code", label: rt("profile.employeeId"), value: profile?.employee_code || rt("common.notSpecified"), icon: Hash },
     { key: "email", label: rt("profile.email"), value: profile?.email || rt("common.noEmail"), icon: Mail },
@@ -3524,34 +3555,31 @@ export default function Dashboard() {
               key={card.key}
               type="button"
               onClick={() => setSelectedKpiMetricKey(card.key)}
-              className={`rounded-2xl border p-3 text-left shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 sm:p-3.5 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75 focus-visible:ring-indigo-400" : "border-blue-100/80 bg-white/95 shadow-blue-100/40 focus-visible:ring-blue-300"}`}
+              className={`rounded-2xl border p-2.5 text-left shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 sm:p-3 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/75 focus-visible:ring-indigo-400" : "border-blue-100/80 bg-white/95 shadow-blue-100/40 focus-visible:ring-blue-300"}`}
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className={`${STAT_LABEL_CLASS} text-[10px] sm:text-xs`}>{card.label}</p>
+                  <p className={STAT_LABEL_CLASS}>{card.label}</p>
                   <p className={`${STAT_VALUE_CLASS} ${card.valueColor}`}>{card.value}</p>
                 </div>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${card.iconWrap}`}>
-                  <card.icon className={`h-4 w-4 ${card.iconColor}`} />
+                <div className={`flex h-7 w-7 items-center justify-center rounded-lg sm:h-8 sm:w-8 sm:rounded-xl ${card.iconWrap}`}>
+                  <card.icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${card.iconColor}`} />
                 </div>
               </div>
               {isTrendCard ? (
-                <div className={`mt-2 flex items-center justify-between rounded-xl border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
+                <div className={`mt-1.5 flex items-center justify-between rounded-lg border px-2 py-1 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
                   <p className={STAT_HELPER_LABEL_CLASS}>{rt("common.comparePrevious7Days")}</p>
-                  <p className={`text-xs font-black tabular-nums sm:text-sm ${trendColor}`}>
+                  <p className={`text-[11px] font-black tabular-nums sm:text-xs ${trendColor}`}>
                     {card.trend.diff > 0 ? "+" : ""}
                     {card.trend.diff}
                   </p>
                 </div>
               ) : (
-                <div className={`mt-2 rounded-xl border px-2.5 py-1.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
+                <div className={`mt-1.5 rounded-lg border px-2 py-1 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-100 bg-slate-50/90"}`}>
                   <p className={STAT_HELPER_LABEL_CLASS}>{rt("common.currentStatus")}</p>
-                  <p className={`mt-1 line-clamp-2 ${STAT_HELPER_TEXT_CLASS}`}>{card.helperText}</p>
+                  <p className={`mt-0.5 line-clamp-2 sm:line-clamp-1 ${STAT_HELPER_TEXT_CLASS}`}>{card.helperText}</p>
                 </div>
               )}
-              <div className="mt-2 hidden items-center justify-end sm:flex">
-                <ChevronRight size={14} className={isDarkTheme ? "text-slate-500" : "text-slate-400"} />
-              </div>
             </button>
           );
         })}
@@ -3577,6 +3605,25 @@ export default function Dashboard() {
           {rt("common.companyName")}
         </p>
       </div>
+    </div>
+  );
+
+  const renderNavMoreLinkButtons = () => (
+    <div className="grid grid-cols-2 gap-1.5">
+      {localizedNavMoreLinks
+        .filter((item) => item.href)
+        .map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => handleNavMoreOpen(item)}
+            className={`group flex min-w-0 items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] font-bold transition focus:outline-none focus-visible:ring-2 ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "border-blue-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+            title={item.description}
+          >
+            <span className="truncate">{item.label}</span>
+            <ExternalLink size={12} className="shrink-0 opacity-60 transition group-hover:opacity-100" />
+          </button>
+        ))}
     </div>
   );
 
@@ -3627,24 +3674,12 @@ export default function Dashboard() {
           );
         })}
 
-        <div className={`rounded-2xl border ${mobile ? "px-2.5 py-2" : "px-3 py-2.5"} ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-blue-100 bg-blue-50/70"}`}>
-          <div className="mb-2 flex items-center gap-2">
+        <div className={`border-t ${mobile ? "px-1 pt-2" : "px-1 pt-2.5"} ${isDarkTheme ? "border-slate-700" : "border-blue-100"}`}>
+          <div className="mb-1.5 flex items-center gap-2">
             <SlidersHorizontal size={14} className={TEXT_SUBTLE_CLASS} />
             <span className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</span>
           </div>
-          <select
-            value={navMoreSelection}
-            onChange={handleNavMoreSelection}
-            aria-label={dt("nav.moreMenu")}
-            className={`w-full rounded-xl border px-3 py-2 font-bold outline-none ${mobile ? "text-[13px]" : "text-sm"} ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-100 focus:ring-2 focus:ring-indigo-400" : "border-blue-200 bg-white text-slate-700 focus:ring-2 focus:ring-blue-300"}`}
-          >
-            <option value="">{dt("nav.moreMenu")}</option>
-            {localizedNavMoreLinks.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+          {renderNavMoreLinkButtons()}
         </div>
       </div>
     </div>
@@ -3653,7 +3688,7 @@ export default function Dashboard() {
   const renderProfilePanel = ({ containerClassName = "" } = {}) => (
     <div className={`relative flex flex-col ${containerClassName}`}>
       <div className={`order-1 overflow-hidden rounded-[28px] shadow-lg backdrop-blur-md group transition-all duration-500 hover:shadow-2xl lg:order-2 ${isDarkTheme ? "bg-slate-900/75 shadow-slate-900/40" : "bg-white/90 shadow-[0_14px_40px_-16px_rgba(43,89,176,0.4)]"}`}>
-        <div className={`relative h-20 overflow-hidden sm:h-28 ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]" : "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]"}`}>
+        <div className={`relative h-16 overflow-hidden sm:h-24 ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]" : "bg-gradient-to-r from-[#2b59b0] via-[#2b59b0] to-[#244a95]"}`}>
           <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-r from-[#2b59b0]/20 via-[#2b59b0]/20 to-[#244a95]/20" : "bg-gradient-to-r from-[#2b59b0]/25 via-[#2b59b0]/18 to-[#244a95]/15"}`}></div>
           <div className="absolute -bottom-8 -right-8 h-32 w-32 rounded-full bg-white/10 blur-2xl sm:h-40 sm:w-40"></div>
           <div className="absolute bottom-3 right-4 text-2xl font-black text-white/10 sm:bottom-4 sm:right-6 sm:text-4xl">TDK</div>
@@ -3663,13 +3698,13 @@ export default function Dashboard() {
           <div className="relative -mt-6 mb-3 flex justify-center sm:-mt-9 sm:mb-5">
             <div
               className={`relative h-20 w-20 cursor-pointer overflow-hidden rounded-3xl p-1.5 shadow-2xl group/profile sm:h-28 sm:w-28 ${isDarkTheme ? "bg-slate-800" : "bg-white"}`}
-              onClick={() => profile?.id_card_url && setIsModalOpen(true)}
+              onClick={() => profileAvatarUrl && setIsModalOpen(true)}
             >
               <div className={`absolute inset-0 ${isDarkTheme ? "bg-gradient-to-br from-[#2b59b0]/12 to-[#244a95]/12" : "bg-gradient-to-br from-[#2b59b0]/15 to-[#244a95]/15"}`}></div>
-              {profile?.id_card_url ? (
+              {profileAvatarUrl ? (
                 <>
                   <img
-                    src={profile.id_card_url}
+                    src={profileAvatarUrl}
                     className="w-full h-full object-cover rounded-2xl transform group-hover/profile:scale-105 transition-transform duration-500"
                     alt={rt("common.profileAlt")}
                   />
@@ -4022,7 +4057,7 @@ export default function Dashboard() {
         {dt("statusBar.skipToContent")}
       </a>
       {/* Status Bar */}
-      <div className={`shrink-0 border-b px-3 py-2 backdrop-blur-xl sm:px-4 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
+      <div className={`hidden shrink-0 border-b px-3 py-2 backdrop-blur-xl sm:block sm:px-4 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2 text-xs sm:text-sm">
           <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
             <RefreshCw size={12} />
@@ -4059,9 +4094,11 @@ export default function Dashboard() {
           <div className="relative flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between xl:gap-3">
             <div ref={mobileNavMenuRef} className="relative md:hidden">
               <div className="flex items-center gap-2">
-                <div
+                <button
+                  type="button"
+                  onClick={() => setShowProfileDetails(true)}
                   title={mobileNavIdentityTitle}
-                  className={`flex min-w-0 flex-1 items-center gap-2 rounded-[1.4rem] border px-2.5 py-2 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/90 shadow-slate-950/20" : "border-blue-200 bg-white/95 shadow-blue-100/70"}`}
+                  className={`flex min-w-0 flex-1 items-center gap-2 rounded-[1.4rem] border px-2.5 py-2 text-left shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${isDarkTheme ? "border-slate-700 bg-slate-800/90 shadow-slate-950/20" : "border-blue-200 bg-white/95 shadow-blue-100/70"}`}
                 >
                   <div className="relative shrink-0">
                     <img
@@ -4083,7 +4120,7 @@ export default function Dashboard() {
                       </span>
                     </div>
                   </div>
-                </div>
+                </button>
 
                 <div ref={mobileStatusOverviewMenuRef} className="shrink-0">
                   <button
@@ -4168,19 +4205,7 @@ export default function Dashboard() {
                       <SlidersHorizontal size={14} className={TEXT_SUBTLE_CLASS} />
                       <span className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</span>
                     </div>
-                    <select
-                      value={navMoreSelection}
-                      onChange={handleNavMoreSelection}
-                      aria-label={dt("nav.moreMenu")}
-                      className={`w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-100 focus:ring-2 focus:ring-indigo-400" : "border-blue-200 bg-white text-slate-700 focus:ring-2 focus:ring-blue-300"}`}
-                    >
-                      <option value="">{dt("nav.moreMenu")}</option>
-                      {localizedNavMoreLinks.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
+                    {renderNavMoreLinkButtons()}
                   </div>
                 </div>
               </div>
@@ -4263,8 +4288,8 @@ export default function Dashboard() {
       </nav>
 
       {/* Main Content */}
-      <main id="dashboard-main-content" className="app-safe-bottom mx-auto flex w-full max-w-[1440px] flex-col px-4 pt-3 pb-28 sm:px-6 sm:pt-4 sm:pb-12 lg:px-8 lg:pb-8">
-        <div className="mb-3 xl:hidden">
+      <main id="dashboard-main-content" className="app-safe-bottom mx-auto flex w-full max-w-[1440px] flex-col px-3 pt-3 pb-28 sm:px-6 sm:pt-4 sm:pb-12 lg:px-8 lg:pb-8">
+        <div className="mb-3 hidden sm:block xl:hidden">
           {renderProfilePanel()}
         </div>
 
@@ -4305,12 +4330,12 @@ export default function Dashboard() {
                   <h3 className={QUICK_ACTIONS_HEADING_CLASS}>{rt("common.quickActionsTitle")}</h3>
                   <p className={`mt-1 text-xs ${TEXT_MUTED_CLASS}`}>{rt("common.quickActionsSubtitle")}</p>
                 </div>
-                <span className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${isDarkTheme ? "border-indigo-500/40 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-600"}`}>
+                <span className={`hidden w-fit items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider sm:inline-flex ${isDarkTheme ? "border-indigo-500/40 bg-indigo-900/40 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-600"}`}>
                   {rt("common.role")}: {roleLabel}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                 {primaryQuickActions.map((action) => {
                   const Icon = action.icon;
                   const accentClassMap = {
@@ -4362,7 +4387,7 @@ export default function Dashboard() {
                     <button
                       key={action.id}
                       onClick={action.onClick}
-                      className={`group h-full rounded-[20px] border p-3 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:rounded-[24px] sm:p-4 ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"} ${accent.hoverBorder} ${accent.hoverShadow}`}
+                      className={`group h-full rounded-[20px] border p-3 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:rounded-[24px] sm:p-4 ${action.featured ? "col-span-2" : ""} ${isDarkTheme ? "border-slate-700 bg-slate-900/80" : "border-blue-100/80 bg-white/95"} ${accent.hoverBorder} ${accent.hoverShadow}`}
                     >
                       <div className="mb-2.5 flex items-start justify-between gap-2">
                         <div className={`relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${accent.gradient} ${accent.text} shadow-sm transition-all duration-300 ${accent.hoverBg} sm:h-12 sm:w-12 sm:rounded-2xl`}>
@@ -4378,8 +4403,8 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <h4 className={`${QUICK_ACTIONS_TITLE_CLASS} text-[13px] leading-snug sm:text-base`}>{action.label}</h4>
-                      <p className={`mt-1.5 line-clamp-2 text-[11px] leading-5 sm:mt-2 sm:line-clamp-3 ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
-                      <div className={`mt-2.5 flex items-center gap-1 text-[10px] font-bold sm:mt-3 sm:text-[11px] ${accent.text}`}>
+                      <p className={`mt-1.5 line-clamp-2 text-[11px] leading-5 sm:mt-2 sm:line-clamp-3 ${action.featured ? "block" : "hidden min-[420px]:block"} ${QUICK_ACTIONS_DESCRIPTION_CLASS}`}>{action.description}</p>
+                      <div className={`mt-2.5 items-center gap-1 text-[10px] font-bold sm:mt-3 sm:text-[11px] ${action.featured ? "flex" : "hidden sm:flex"} ${accent.text}`}>
                         <span>{rt("common.active")}</span>
                         <ChevronRight size={12} className="transform transition-transform group-hover:translate-x-1" />
                       </div>
@@ -6029,6 +6054,15 @@ export default function Dashboard() {
         </div>
       )}
 
+      {isAssetQrScannerOpen ? (
+        <AssetViewScannerModal
+          title={dt("quickActions.scanAsset.label")}
+          subtitle={dt("quickActions.scanAsset.description")}
+          onDetected={handleAssetQrDetected}
+          onClose={() => setIsAssetQrScannerOpen(false)}
+        />
+      ) : null}
+
       {/* Ticket Detail Modal */}
       <TicketDetailModal
         ticket={selectedTicket}
@@ -6047,55 +6081,91 @@ export default function Dashboard() {
 
       {/* Full Profile Popup */}
       {showProfileDetails && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-6">
           <button
             type="button"
             aria-label={rt("common.close")}
             onClick={() => setShowProfileDetails(false)}
-            className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-slate-950/55 backdrop-blur-[3px]"
           />
 
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="full-profile-title"
-            className={`relative w-full max-w-lg overflow-hidden rounded-3xl border shadow-[0_28px_70px_-26px_rgba(43,89,176,0.42)] ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-100" : "border-[#2b59b0]/20 bg-white text-slate-800"}`}
+            className={`relative max-h-[92dvh] w-full max-w-xl overflow-hidden rounded-t-[28px] border shadow-[0_28px_70px_-26px_rgba(43,89,176,0.55)] sm:rounded-3xl ${isDarkTheme ? "border-slate-700 bg-slate-900 text-slate-100" : "border-[#2b59b0]/20 bg-white text-slate-800"}`}
           >
-            <div className="bg-gradient-to-r from-[#1c376d] via-[#2b59b0] to-[#244a95] px-4 py-4 text-white">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">Full Profile</p>
-                  <h3 id="full-profile-title" className="mt-1 text-base font-black">{profile?.full_name || rt("common.noName")}</h3>
-                  <p className="mt-1 text-xs text-white/80">{rt("common.profileInfo")}</p>
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#1c376d] via-[#2b59b0] to-[#244a95] px-3.5 pb-3.5 pt-3 text-white sm:px-5 sm:py-5">
+              <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+              <div className="absolute -bottom-20 left-1/3 h-36 w-36 rounded-full bg-cyan-300/10 blur-2xl" />
+              <div className="relative flex items-start gap-3 sm:gap-4">
+                <button
+                  type="button"
+                  onClick={() => profileAvatarUrl && setIsModalOpen(true)}
+                  disabled={!profileAvatarUrl}
+                  className="group/avatar relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white/70 bg-white/15 p-0.5 shadow-xl sm:h-[4.5rem] sm:w-[4.5rem]"
+                  aria-label={rt("common.profileAlt")}
+                >
+                  {profileAvatarUrl ? (
+                    <img
+                      src={profileAvatarUrl}
+                      alt={rt("common.profileAlt")}
+                      className="h-full w-full rounded-[13px] object-cover transition group-hover/avatar:scale-105 sm:rounded-[15px]"
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center rounded-[13px] bg-white/10 text-white/80 sm:rounded-[15px]">
+                      <User size={28} />
+                    </span>
+                  )}
+                </button>
+
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/70 sm:text-[10px]">Full Profile</p>
+                  <h3 id="full-profile-title" className="mt-0.5 truncate text-base font-black sm:text-lg">{profile?.full_name || rt("common.noName")}</h3>
+                  <p className="truncate text-[11px] font-semibold text-white/80 sm:text-xs">
+                    {profile?.position || rt("common.employee")}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <span className="max-w-full truncate rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/90">
+                      {profile?.department || rt("common.notSpecified")}
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/90">
+                      ID: {profile?.employee_code || rt("common.notSpecified")}
+                    </span>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowProfileDetails(false)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20 sm:h-9 sm:w-9"
                   aria-label={rt("common.close")}
                 >
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
 
-            <div className={`max-h-[min(74vh,620px)] overflow-y-auto p-4 ${isDarkTheme ? "bg-slate-900/95" : "bg-white/95"}`}>
-              <div className="space-y-2.5">
+            <div className={`max-h-[calc(92dvh-148px)] overflow-y-auto p-3.5 sm:max-h-[min(64vh,560px)] sm:p-5 ${isDarkTheme ? "bg-slate-900/95" : "bg-white/95"}`}>
+              <div className="mb-3 flex items-center justify-between px-0.5">
+                <p className={`text-xs font-black ${TEXT_PRIMARY_CLASS}`}>{rt("common.profileInfo")}</p>
+                <span className={`text-[10px] font-bold ${TEXT_SUBTLE_CLASS}`}>{profileDetailItems.length}</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2.5 min-[430px]:grid-cols-2">
                 {profileDetailItems.map((item) => {
                   const Icon = item.icon;
 
                   return (
                     <div
                       key={item.key}
-                      className={`rounded-2xl border p-3.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-200 bg-[#F8FBFF]"}`}
+                      className={`rounded-2xl border p-3 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-slate-200 bg-[#F8FBFF]"}`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b59b0] to-[#244a95] text-white">
-                          <Icon size={16} />
+                      <div className="flex items-start gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b59b0] to-[#244a95] text-white shadow-sm">
+                          <Icon size={14} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className={`text-[10px] uppercase font-black tracking-[0.18em] ${TEXT_SUBTLE_CLASS}`}>{item.label}</p>
-                          <p className={`mt-1.5 break-all text-sm font-bold leading-6 ${TEXT_SECONDARY_CLASS}`}>{item.value}</p>
+                          <p className={`text-[9px] font-black uppercase tracking-[0.16em] ${TEXT_SUBTLE_CLASS}`}>{item.label}</p>
+                          <p className={`mt-1 break-words text-xs font-bold leading-5 sm:text-sm ${TEXT_SECONDARY_CLASS}`}>{item.value}</p>
                         </div>
                       </div>
                     </div>

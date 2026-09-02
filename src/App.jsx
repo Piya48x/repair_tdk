@@ -126,7 +126,7 @@ function AppInner() {
         )}
       />
       <Route path="/asset-qr/:assetTag" element={
-        <ProtectedRoute allowedRoles={["it_support", "it_manager", "executive", "admin", "auditor"]}>
+        <ProtectedRoute allowedRoles={["user", "it_support", "it_manager", "executive", "admin", "auditor"]}>
           <AssetQrDetailPage />
         </ProtectedRoute>
       } />

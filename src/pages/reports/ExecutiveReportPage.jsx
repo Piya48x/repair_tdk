@@ -86,6 +86,13 @@ export default function ExecutiveReportPage() {
           void loadData();
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "it_asset_attachments" },
+        () => {
+          void loadData();
+        },
+      )
       .subscribe();
 
     return () => {

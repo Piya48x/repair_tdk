@@ -212,7 +212,7 @@ function ImagePicker({ title, hint, entries, setEntries, inputClass }) {
     const available = Math.max(0, MAX_IMAGES_PER_GROUP - entries.length);
     if (available === 0) {
       toast.error(`แนบได้สูงสุด ${MAX_IMAGES_PER_GROUP} รูป`);
-      return;
+      return 0;
     }
 
     const valid = incoming.filter((file) => {
@@ -231,6 +231,24 @@ function ImagePicker({ title, hint, entries, setEntries, inputClass }) {
       ...previous,
       ...valid.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
     ]);
+    return valid.length;
+  };
+
+  const handlePaste = (event) => {
+    const itemFiles = Array.from(event.clipboardData?.items || [])
+      .filter((item) => String(item?.type || "").startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    const fileFallbacks = Array.from(event.clipboardData?.files || []).filter((file) =>
+      String(file?.type || "").startsWith("image/"),
+    );
+    const imageFiles = itemFiles.length > 0 ? itemFiles : fileFallbacks;
+    if (imageFiles.length === 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const addedCount = append(imageFiles);
+    if (addedCount > 0) toast.success(`วางรูปใน ${title} แล้ว ${addedCount} รูป`);
   };
 
   const remove = (index) => {
@@ -242,7 +260,12 @@ function ImagePicker({ title, hint, entries, setEntries, inputClass }) {
   };
 
   return (
-    <div className={`rounded-2xl border p-4 ${inputClass.includes("slate-7") ? "border-slate-700 bg-slate-900/30" : "border-slate-200 bg-slate-50"}`}>
+    <div
+      className={`rounded-2xl border p-4 outline-none transition focus:ring-4 ${inputClass.includes("slate-7") ? "border-slate-700 bg-slate-900/30 focus:ring-violet-500/15" : "border-slate-200 bg-slate-50 focus:ring-violet-100"}`}
+      tabIndex={0}
+      onPaste={handlePaste}
+      aria-label={`${title} รองรับการวางรูปด้วย Ctrl+V`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-black text-slate-900 dark:text-slate-100">{title} <span className="text-rose-500">*</span></p>
@@ -252,6 +275,9 @@ function ImagePicker({ title, hint, entries, setEntries, inputClass }) {
           <ImagePlus size={15} /> เพิ่มรูป
         </button>
         <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => { append(event.target.files); event.target.value = ""; }} />
+      </div>
+      <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-200">
+        คลิกกรอบ {title} แล้วกด Ctrl+V เพื่อวางรูปจาก Clipboard
       </div>
       {entries.length ? (
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">

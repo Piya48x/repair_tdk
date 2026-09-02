@@ -14,6 +14,8 @@ const OPTIONAL_TICKET_COLUMNS = new Set([
   "reporter_avatar_url",
   "assigned_avatar_url",
   "assigned_employee_id",
+  "asset_id",
+  "asset_code",
 ]);
 
 function extractMissingTicketColumn(error) {

@@ -738,6 +738,25 @@ async function safeSingle(query) {
   return { data, error: null };
 }
 
+async function fetchExecutiveAssets() {
+  const assetsWithEvidence = await supabase
+    .from("it_assets")
+    .select("*, it_asset_attachments(id, file_name, file_url, created_at)")
+    .order("updated_at", { ascending: false });
+
+  if (!assetsWithEvidence.error) return assetsWithEvidence;
+
+  const errorText = `${assetsWithEvidence.error?.code || ""} ${assetsWithEvidence.error?.message || ""}`.toLowerCase();
+  const evidenceSchemaUnavailable =
+    errorText.includes("it_asset_attachments") ||
+    errorText.includes("could not find a relationship") ||
+    errorText.includes("pgrst200");
+
+  if (!evidenceSchemaUnavailable) return assetsWithEvidence;
+
+  return supabase.from("it_assets").select("*").order("updated_at", { ascending: false });
+}
+
 export async function fetchReportTickets({ months = 12 } = {}) {
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - months);
@@ -756,7 +775,7 @@ export async function fetchExecutiveReportData() {
   const [kpiResult, tickets, assetsResult, licensesResult] = await Promise.all([
     safeSingle(supabase.from("executive_kpi").select("*").maybeSingle()),
     fetchReportTickets({ months: 12 }),
-    supabase.from("it_assets").select("*").order("updated_at", { ascending: false }),
+    fetchExecutiveAssets(),
     supabase.from("it_licenses").select("*").order("updated_at", { ascending: false }),
   ]);
 

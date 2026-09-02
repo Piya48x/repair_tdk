@@ -1,7 +1,8 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { insertTicketWithSchemaFallback } from "../lib/ticketSchemaCompat";
+import { fetchAssetQrDetail } from "./it-dashboard/services/assetQrService";
 import { useScopedI18n } from "../i18n/useScopedI18n";
 import LanguageSwitcher from "../components/LanguageSwitcher.jsx";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,7 +45,8 @@ import {
   Image as ImageIcon,
   Zap,
   Shield,
-  Clock
+  Clock,
+  QrCode,
 } from "lucide-react";
 
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
@@ -277,6 +279,11 @@ const CREATE_TICKET_TRANSLATIONS = {
     enterpriseEdition: "Enterprise Edition",
     supportLabel: "24/7 Support",
     workLocation: "สถานที่",
+    linkedAssetTitle: "อุปกรณ์ที่ผูกกับ Ticket",
+    linkedAssetSubtitle: "ข้อมูลจาก QR ถูกแนบอัตโนมัติและแก้ไข Asset Code จากฟอร์มนี้ไม่ได้",
+    linkedAssetLocation: "ตำแหน่งอุปกรณ์",
+    linkedAssetLoading: "กำลังโหลดข้อมูลอุปกรณ์จาก QR...",
+    linkedAssetError: "ไม่สามารถผูกข้อมูลอุปกรณ์จาก QR ได้",
     employeeFallback: "พนักงาน",
     defaultDepartment: "ฝ่ายเทคโนโลยีสารสนเทศ",
     defaultPosition: "เจ้าหน้าที่ระบบ",
@@ -373,6 +380,11 @@ const CREATE_TICKET_TRANSLATIONS = {
     enterpriseEdition: "Enterprise Edition",
     supportLabel: "24/7 Support",
     workLocation: "Location",
+    linkedAssetTitle: "Asset linked to this ticket",
+    linkedAssetSubtitle: "QR data is attached automatically and the Asset Code is read-only in this form.",
+    linkedAssetLocation: "Asset location",
+    linkedAssetLoading: "Loading asset data from QR...",
+    linkedAssetError: "Unable to link the asset data from this QR code.",
     employeeFallback: "Employee",
     defaultDepartment: "Information Technology",
     defaultPosition: "System Officer",
@@ -469,6 +481,11 @@ const CREATE_TICKET_TRANSLATIONS = {
     enterpriseEdition: "엔터프라이즈 에디션",
     supportLabel: "24/7 지원",
     workLocation: "위치",
+    linkedAssetTitle: "티켓에 연결된 장비",
+    linkedAssetSubtitle: "QR 정보가 자동으로 첨부되며 이 양식에서 자산 코드는 변경할 수 없습니다.",
+    linkedAssetLocation: "장비 위치",
+    linkedAssetLoading: "QR 장비 정보를 불러오는 중...",
+    linkedAssetError: "QR 장비 정보를 티켓에 연결할 수 없습니다.",
     employeeFallback: "직원",
     defaultDepartment: "정보기술부서",
     defaultPosition: "시스템 담당자",
@@ -629,8 +646,24 @@ function formatLocalizedDateTime(date, language) {
   };
 }
 
+function inferAssetRepairCategory(asset) {
+  const source = `${asset?.asset_category || ""} ${asset?.asset_name || ""}`.toLowerCase();
+  if (/printer|scanner|copier|เครื่องพิมพ์|สแกน/.test(source)) return "Printer";
+  if (/network|router|switch|access point|wifi|wi-fi|เครือข่าย/.test(source)) return "Network";
+  return "Hardware";
+}
+
+function normalizeLinkedAsset(asset) {
+  if (!asset || typeof asset !== "object") return null;
+  const assetCode = String(asset.asset_tag || asset.asset_code || "").trim();
+  if (!assetCode) return null;
+  return { ...asset, asset_tag: assetCode };
+}
+
 const CreateTicket = () => {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
+  const [searchParams] = useSearchParams();
   const webcamRef = useRef(null);
   const imageInputRef = useRef(null);
   const { language, tt } = useScopedI18n(CREATE_TICKET_TRANSLATIONS);
@@ -639,6 +672,13 @@ const CreateTicket = () => {
   const [success, setSuccess] = useState(false);
   const [ticketRef, setTicketRef] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const requestedAssetCode = String(searchParams.get("asset") || "").trim();
+  const stateAssetContext = normalizeLinkedAsset(routerLocation.state?.assetContext);
+  const [linkedAsset, setLinkedAsset] = useState(() => stateAssetContext);
+  const [linkedAssetLoading, setLinkedAssetLoading] = useState(
+    Boolean(requestedAssetCode && !stateAssetContext),
+  );
+  const [linkedAssetError, setLinkedAssetError] = useState("");
 
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState("user");
@@ -663,6 +703,58 @@ const CreateTicket = () => {
   const hasAttachment = Boolean(form.attachment);
   const attachmentIsImage = isImageFile(form.attachment);
   const hasProblemPhoto = hasAttachment && attachmentIsImage;
+
+  useEffect(() => {
+    let active = true;
+    const routeAsset = normalizeLinkedAsset(routerLocation.state?.assetContext);
+
+    const applyAsset = (asset) => {
+      if (!active || !asset) return;
+      setLinkedAsset(asset);
+      setLinkedAssetError("");
+      setForm((previous) => ({
+        ...previous,
+        category: previous.category || inferAssetRepairCategory(asset),
+      }));
+    };
+
+    if (
+      routeAsset
+      && (!requestedAssetCode || routeAsset.asset_tag.toLowerCase() === requestedAssetCode.toLowerCase())
+    ) {
+      applyAsset(routeAsset);
+      setLinkedAssetLoading(false);
+      return () => { active = false; };
+    }
+
+    if (!requestedAssetCode) {
+      setLinkedAsset(null);
+      setLinkedAssetLoading(false);
+      setLinkedAssetError("");
+      return () => { active = false; };
+    }
+
+    const loadAsset = async () => {
+      setLinkedAssetLoading(true);
+      setLinkedAssetError("");
+      try {
+        const asset = normalizeLinkedAsset(await fetchAssetQrDetail(requestedAssetCode));
+        if (!asset) throw new Error(`ไม่พบ Asset Code ${requestedAssetCode}`);
+        applyAsset(asset);
+      } catch (assetError) {
+        console.error("Load linked repair asset error:", assetError);
+        if (active) {
+          setLinkedAsset(null);
+          setLinkedAssetError(assetError?.message || tt("linkedAssetError"));
+        }
+      } finally {
+        if (active) setLinkedAssetLoading(false);
+      }
+    };
+
+    void loadAsset();
+    return () => { active = false; };
+  }, [requestedAssetCode]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -875,6 +967,26 @@ const CreateTicket = () => {
         }
       }
 
+      const issueText = form.issue.trim();
+      const linkedAssetCode = String(linkedAsset?.asset_tag || "").trim();
+      const linkedAssetName = String(linkedAsset?.asset_name || "").trim();
+      const linkedAssetSerial = String(linkedAsset?.serial_number || "").trim();
+      const linkedAssetLocation = String(linkedAsset?.location || "").trim();
+      const assetDescription = linkedAssetCode
+        ? [
+            issueText,
+            "",
+            "--- Linked IT Asset ---",
+            `Asset Code: ${linkedAssetCode}`,
+            linkedAssetName ? `Asset: ${linkedAssetName}` : null,
+            linkedAssetSerial ? `Serial Number: ${linkedAssetSerial}` : null,
+            linkedAssetLocation ? `Asset Location: ${linkedAssetLocation}` : null,
+          ].filter((line) => line !== null).join("\n")
+        : issueText;
+      const ticketTitle = linkedAssetCode
+        ? `[${linkedAssetCode}] ${issueText}`
+        : issueText;
+
       const ticketPayload = {
         creator_id: user.id,
         reporter_name: form.employeeName,
@@ -885,8 +997,12 @@ const CreateTicket = () => {
         department: form.department,
         location: resolvedTicketLocation || null,
         category: form.category,
-        title: form.issue.substring(0, 60),
-        description: form.issue,
+        service_type: "req_repair",
+        channel: linkedAssetCode ? "asset_qr" : "web",
+        asset_id: linkedAsset?.id || null,
+        asset_code: linkedAssetCode || null,
+        title: ticketTitle.substring(0, 60),
+        description: assetDescription,
         priority: form.urgency,
         status: "NEW",
         image_url: fileUrl,
@@ -895,7 +1011,7 @@ const CreateTicket = () => {
       const { data, error } = await insertTicketWithSchemaFallback(
         supabase,
         ticketPayload,
-        { select: "id,ticket_no", single: true },
+        { select: "id,ticket_no", single: true, maxRetries: 10 },
       );
 
       if (error) throw error;
@@ -957,6 +1073,12 @@ const CreateTicket = () => {
                 #{String(ticketRef || "").toUpperCase()}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
+                {linkedAsset?.asset_tag && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                    <QrCode size={13} />
+                    Asset {linkedAsset.asset_tag}
+                  </span>
+                )}
                 {selectedCategory && (
                   <span className="rounded-full border border-[#2b59b0]/20 bg-[#2b59b0]/10 px-3 py-1.5 text-xs font-semibold text-[#2b59b0]">
                     {selectedCategory.label}
@@ -988,57 +1110,42 @@ const CreateTicket = () => {
 
       {/* Clean enterprise background */}
 
-      {/* Premium Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
-        <div className="app-safe-top mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center justify-between gap-3 sm:hidden">
+      {/* Compact responsive header */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/95 backdrop-blur-xl">
+        <div className="app-safe-top mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-4">
             <motion.button
               whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={() => navigate(-1)}
-              className="rounded-xl border border-slate-200/80 bg-white/90 p-2.5 text-slate-700 shadow-sm transition-all hover:shadow-md"
-            >
-              <ArrowLeft size={18} />
-            </motion.button>
-
-            <div className="flex items-center rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm">
-              <LanguageSwitcher mode="nav" />
-            </div>
-          </div>
-
-          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-            <motion.button
-              whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
-              whileTap={{ scale: 0.95 }}
-              type="button"
-              onClick={() => navigate(-1)}
-              className="hidden rounded-xl border border-slate-200/80 bg-white/90 p-2.5 text-slate-700 shadow-sm transition-all hover:shadow-md sm:inline-flex"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:shadow-md sm:h-10 sm:w-10"
+              aria-label={tt("back")}
             >
               <ArrowLeft size={18} />
             </motion.button>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg font-black text-slate-900 sm:text-xl">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-base font-black text-slate-900 sm:text-xl">
                   IT Service Desk
                 </h1>
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-200">
+                <span className="hidden rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 sm:inline-flex">
                   {tt("standard")}
                 </span>
               </div>
-              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+              <p className="mt-0.5 truncate text-[11px] text-slate-500 sm:text-sm">
                 {tt("headerSubtitle")}
               </p>
             </div>
           </div>
 
-          <div className="flex w-full flex-wrap items-center justify-start gap-3 sm:justify-end lg:w-auto">
+          <div className="ml-auto hidden items-center gap-3 xl:flex">
             <motion.div
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
-              className="hidden items-center gap-3 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-2 backdrop-blur-sm shadow-sm sm:flex"
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
                 <Calendar size={16} className="text-white" />
               </div>
               <div>
@@ -1047,36 +1154,31 @@ const CreateTicket = () => {
               </div>
             </motion.div>
 
-            <div className="flex w-full items-center justify-start gap-2 min-[420px]:w-auto min-[420px]:justify-end">
-              <div className="flex items-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
-                <div className="relative">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <div className="absolute -inset-1 animate-ping rounded-full bg-emerald-500 opacity-20" />
-                </div>
-                <span className="text-xs font-bold text-emerald-700">{tt("ready")}</span>
-              </div>
-
-              <div className="hidden items-center rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm sm:flex">
-                <LanguageSwitcher mode="nav" />
-              </div>
+            <div className="hidden items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 md:flex">
+              <div className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="text-xs font-bold text-emerald-700">{tt("ready")}</span>
             </div>
+          </div>
+
+          <div className="flex shrink-0 items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+            <LanguageSwitcher mode="nav" />
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-3 py-4 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:py-8">
+      <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-3 py-3 pb-28 sm:px-6 sm:py-5 lg:grid-cols-12 lg:gap-8 lg:py-8 lg:pb-8">
         {/* Left Column - Main Form */}
         <div className="space-y-4 lg:col-span-8 sm:space-y-6">
-          <form id="create-ticket-form" onSubmit={handleSubmit} className="space-y-6">
+          <form id="create-ticket-form" onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             {/* Profile Card */}
             <motion.section
               {...sectionAnim}
               transition={{ duration: 0.4, delay: 0.05 }}
-              className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_12px_32px_-22px_rgba(15,23,42,0.3)] sm:p-6"
+              className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-[0_12px_32px_-22px_rgba(15,23,42,0.3)] sm:p-6"
             >
-              <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
-                <div className="relative">
-                  <div className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-md shadow-slate-200/70 sm:h-24 sm:w-24">
+              <div className="relative flex items-start gap-3 sm:gap-8">
+                <div className="relative shrink-0">
+                  <div className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-md shadow-slate-200/70 sm:h-24 sm:w-24">
                     <div className="h-full w-full overflow-hidden rounded-[14px] border border-white bg-white">
                       {form.profilePic ? (
                         <img
@@ -1090,7 +1192,7 @@ const CreateTicket = () => {
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                          <User size={28} className="text-slate-500 sm:h-9 sm:w-9" />
+                           <User size={24} className="text-slate-500 sm:h-9 sm:w-9" />
                         </div>
                       )}
                     </div>
@@ -1104,36 +1206,36 @@ const CreateTicket = () => {
                   </div>
                 </div>
 
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#2b59b0]">
                         {tt("profileLabel")}
                       </p>
-                      <h2 className="text-lg font-black text-slate-800 sm:text-2xl">
+                      <h2 className="truncate text-base font-black text-slate-800 sm:text-2xl">
                         {form.employeeName || tt("employeeFallback")}
                       </h2>
                     </div>
-                    <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">
+                    <span className="w-fit shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-700 shadow-sm sm:px-3 sm:py-1.5 sm:text-xs">
                       <Hash size={12} className="inline mr-1" />
                       {form.employeeId || "EMP-001"}
                     </span>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Briefcase size={16} className="text-indigo-500" />
-                      <span className="font-medium">{form.position || tt("defaultPosition")}</span>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5 sm:mt-3 sm:flex sm:flex-wrap sm:gap-3">
+                    <div className="flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600 sm:bg-transparent sm:px-0 sm:py-0 sm:text-sm">
+                      <Briefcase size={14} className="shrink-0 text-indigo-500 sm:h-4 sm:w-4" />
+                      <span className="truncate font-medium">{form.position || tt("defaultPosition")}</span>
                     </div>
-                    <div className="w-px h-4 bg-slate-200" />
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Building size={16} className="text-indigo-500" />
-                      <span className="font-medium">{form.department || tt("defaultDepartment")}</span>
+                    <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+                    <div className="flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600 sm:bg-transparent sm:px-0 sm:py-0 sm:text-sm">
+                      <Building size={14} className="shrink-0 text-indigo-500 sm:h-4 sm:w-4" />
+                      <span className="truncate font-medium">{form.department || tt("defaultDepartment")}</span>
                     </div>
-                    <div className="w-px h-4 bg-slate-200" />
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <MapPin size={16} className="text-indigo-500" />
-                      <span className="font-medium">
+                    <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+                    <div className="col-span-2 flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600 sm:bg-transparent sm:px-0 sm:py-0 sm:text-sm">
+                      <MapPin size={14} className="shrink-0 text-indigo-500 sm:h-4 sm:w-4" />
+                      <span className="truncate font-medium">
                         {tt("workLocation")}: {String(form.location || "").trim() || "-"}
                       </span>
                     </div>
@@ -1142,6 +1244,78 @@ const CreateTicket = () => {
               </div>
             </motion.section>
 
+            {linkedAssetLoading ? (
+              <motion.section
+                {...sectionAnim}
+                className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-blue-800 shadow-sm sm:p-5"
+              >
+                <Loader2 size={20} className="shrink-0 animate-spin" />
+                <p className="text-sm font-bold">{tt("linkedAssetLoading")}</p>
+              </motion.section>
+            ) : linkedAsset ? (
+              <motion.section
+                {...sectionAnim}
+                transition={{ duration: 0.4, delay: 0.08 }}
+                className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-[0_12px_32px_-22px_rgba(37,99,235,0.38)]"
+              >
+                <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500" />
+                <div className="p-3.5 sm:p-5">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-100 sm:h-11 sm:w-11 sm:rounded-2xl">
+                      <QrCode size={20} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">
+                        {tt("linkedAssetTitle")}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <h2 className="break-all text-lg font-black text-slate-950 sm:text-xl">
+                          {linkedAsset.asset_tag}
+                        </h2>
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                          QR Linked
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm font-bold text-slate-700">
+                        {linkedAsset.asset_name || linkedAsset.asset_category || "IT Asset"}
+                      </p>
+                      <p className="mt-1 hidden text-xs leading-5 text-slate-500 sm:block">
+                        {tt("linkedAssetSubtitle")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:grid-cols-3">
+                    <div className="rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200/80">
+                      <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Brand / Model</p>
+                      <p className="mt-1 truncate text-xs font-bold text-slate-800">
+                        {[linkedAsset.brand, linkedAsset.model].filter(Boolean).join(" · ") || "-"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200/80">
+                      <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Serial Number</p>
+                      <p className="mt-1 truncate text-xs font-bold text-slate-800">{linkedAsset.serial_number || "-"}</p>
+                    </div>
+                    <div className="col-span-2 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200/80 sm:col-span-1">
+                      <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{tt("linkedAssetLocation")}</p>
+                      <p className="mt-1 truncate text-xs font-bold text-slate-800">{linkedAsset.location || "-"}</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.section>
+            ) : linkedAssetError ? (
+              <motion.section
+                {...sectionAnim}
+                className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm"
+              >
+                <AlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="text-sm font-black">{tt("linkedAssetError")}</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-800">{linkedAssetError}</p>
+                </div>
+              </motion.section>
+            ) : null}
+
             {/* Category Selection */}
             <motion.section
               {...sectionAnim}
@@ -1149,7 +1323,7 @@ const CreateTicket = () => {
               className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
             >
               <div className="relative">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-4 flex items-center justify-between sm:mb-6">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-indigo-600 to-purple-600" />
@@ -1160,12 +1334,12 @@ const CreateTicket = () => {
                       <p className="text-xs text-slate-500 mt-0.5">{tt("categorySubtitle")}</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                  <span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500 sm:px-3 sm:py-1.5 sm:text-xs">
                     {tt("required")}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
                   {localizedCategories.map((cat) => {
                     const Icon = cat.icon;
                     const selected = form.category === cat.id;
@@ -1177,7 +1351,7 @@ const CreateTicket = () => {
                         whileTap={{ scale: 0.99 }}
                         onClick={() => setForm((p) => ({ ...p, category: cat.id, issue: "" }))}
                         className={`
-                          relative overflow-hidden rounded-2xl border-2 p-4 text-left transition-all duration-300 sm:p-5
+                          relative min-h-[104px] overflow-hidden rounded-xl border-2 p-3 text-left transition-all duration-300 sm:min-h-0 sm:rounded-2xl sm:p-5
                           ${selected
                             ? `bg-gradient-to-br ${cat.selectedClass} text-white shadow-md`
                             : "bg-white border-slate-200/80 hover:border-slate-400 hover:shadow-sm"
@@ -1187,7 +1361,7 @@ const CreateTicket = () => {
                         <div className="absolute top-0 right-0 h-20 w-20 translate-x-7 -translate-y-7 rounded-full bg-white/5 blur-2xl sm:h-24 sm:w-24 sm:translate-x-8 sm:-translate-y-8" />
 
                         <div className="relative">
-                          <div className="mb-4 flex items-center justify-between">
+                          <div className="mb-2 flex items-center justify-between sm:mb-4">
                             <div className={`
                               rounded-xl p-2 transition-all duration-300 sm:p-2.5
                               ${selected ? 'bg-white' : cat.softClass}
@@ -1208,7 +1382,7 @@ const CreateTicket = () => {
                           <p className={`text-sm font-bold mb-1 ${selected ? 'text-white' : 'text-slate-800'}`}>
                             {cat.label}
                           </p>
-                          <p className={`text-xs ${selected ? 'text-white/80' : 'text-slate-500'}`}>
+                          <p className={`hidden text-xs sm:block ${selected ? 'text-white/80' : 'text-slate-500'}`}>
                             {cat.desc}
                           </p>
                         </div>
@@ -1229,7 +1403,7 @@ const CreateTicket = () => {
                   className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
                 >
                   <div className="relative">
-                    <div className="mb-6 flex items-center justify-between">
+                    <div className="mb-4 flex items-center justify-between sm:mb-6">
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-amber-500 to-orange-500" />
@@ -1240,7 +1414,7 @@ const CreateTicket = () => {
                           <p className="text-xs text-slate-500 mt-0.5">{tt("issueSubtitle")}</p>
                         </div>
                       </div>
-                      <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                      <span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500 sm:px-3 sm:py-1.5 sm:text-xs">
                         {tt("required")}
                       </span>
                     </div>
@@ -1262,7 +1436,7 @@ const CreateTicket = () => {
                             whileTap={{ scale: 0.97 }}
                             onClick={() => setForm((p) => ({ ...p, issue: item }))}
                             className={`
-                              rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 border-2
+                              rounded-full border-2 px-3 py-1.5 text-[11px] font-bold transition-all duration-200 sm:px-4 sm:py-2 sm:text-xs
                               ${form.issue === item
                                 ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-lg shadow-amber-200/50"
                                 : "bg-slate-100 border-transparent text-slate-700 hover:bg-amber-50 hover:border-amber-300"
@@ -1290,7 +1464,7 @@ const CreateTicket = () => {
                           onBlur={() => setFocusedField(null)}
                           placeholder={tt("issuePlaceholder")}
                           className={`
-                            min-h-[180px] w-full rounded-2xl border-2 px-5 py-4 text-sm
+                            min-h-[132px] w-full rounded-2xl border-2 px-3.5 py-3 text-sm sm:min-h-[180px] sm:px-5 sm:py-4
                             outline-none transition-all duration-300 resize-none
                             bg-slate-50/80 placeholder:text-slate-400
                             ${focusedField === 'description'
@@ -1547,7 +1721,7 @@ const CreateTicket = () => {
             className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
           >
             <div className="relative">
-              <div className="mb-6 flex items-center gap-3">
+              <div className="mb-4 flex items-center gap-3 sm:mb-6">
                 <div className="relative">
                   <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-amber-500 to-red-500" />
                   <div className="absolute -inset-1 animate-pulse rounded-full bg-amber-500/20 blur-sm" />
@@ -1558,7 +1732,7 @@ const CreateTicket = () => {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 lg:grid-cols-1 lg:gap-3">
                 {localizedUrgency.map((item, idx) => {
                   const active = form.urgency === item.id;
                   return (
@@ -1572,19 +1746,19 @@ const CreateTicket = () => {
                       whileTap={{ scale: 0.99 }}
                       onClick={() => setForm((p) => ({ ...p, urgency: item.id }))}
                       className={`
-                        w-full rounded-xl border-2 p-4 text-left transition-all duration-300
+                        w-full rounded-xl border-2 p-2.5 text-left transition-all duration-300 sm:p-3 lg:p-4
                         ${active
                           ? `${item.border} ${item.selectedBg} shadow-lg`
                           : "bg-white border-slate-200/80 hover:border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-white"
                         }
                       `}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${item.dot} ${active ? 'animate-pulse' : ''}`} />
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className={`text-sm font-bold ${active ? `text-${item.color}-700` : 'text-slate-800'}`}>
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="flex min-w-0 items-start gap-1.5 lg:gap-3">
+                          <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full lg:h-2.5 lg:w-2.5 ${item.dot} ${active ? 'animate-pulse' : ''}`} />
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 flex-col gap-1 lg:mb-1 lg:flex-row lg:items-center lg:gap-2">
+                              <p className={`truncate text-xs font-bold sm:text-sm ${active ? `text-${item.color}-700` : 'text-slate-800'}`}>
                                 {item.label}
                               </p>
                               <span className={`
@@ -1594,7 +1768,7 @@ const CreateTicket = () => {
                                 {item.priority}
                               </span>
                             </div>
-                            <p className="text-xs text-slate-600">SLA: {item.desc}</p>
+                            <p className="hidden text-xs text-slate-600 lg:block">SLA: {item.desc}</p>
                           </div>
                         </div>
                         {active && (
@@ -1611,7 +1785,7 @@ const CreateTicket = () => {
               </div>
 
               {/* SLA Timeline */}
-              <div className="mt-6 pt-4 border-t border-slate-200">
+              <div className="mt-6 hidden border-t border-slate-200 pt-4 lg:block">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock size={14} className="text-slate-500" />
@@ -1645,7 +1819,7 @@ const CreateTicket = () => {
           <motion.section
             {...sectionAnim}
             transition={{ duration: 0.4, delay: 0.25 }}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
+            className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:block"
           >
             <div className="relative">
               <div className="mb-6 flex items-center gap-3">
@@ -1812,7 +1986,7 @@ const CreateTicket = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur-sm"
+            className="hidden rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur-sm lg:block"
           >
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b59b0]/10 to-cyan-100 text-[#244a95]">
@@ -1859,7 +2033,7 @@ const CreateTicket = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
-            className="rounded-2xl border border-slate-200 bg-white/80 p-4 backdrop-blur-sm shadow-sm"
+            className="hidden rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur-sm lg:block"
           >
             <div className="flex items-start gap-3">
               <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -1876,8 +2050,34 @@ const CreateTicket = () => {
         </div>
       </main>
 
+      {/* Mobile submit dock keeps the primary action within thumb reach. */}
+      <div className="app-safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_-14px_35px_-24px_rgba(15,23,42,0.55)] backdrop-blur-xl lg:hidden">
+        <div className="mx-auto flex max-w-2xl items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+              {linkedAsset?.asset_tag || tt("summaryTitle")}
+            </p>
+            <p className="truncate text-xs font-bold text-slate-700">
+              {selectedUrgency?.label || tt("urgencyTitle")}
+            </p>
+          </div>
+          <button
+            type="submit"
+            form="create-ticket-form"
+            disabled={!canSubmit}
+            className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black transition ${canSubmit && !loading
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200 active:scale-[0.98]"
+              : "cursor-not-allowed bg-slate-200 text-slate-400"
+            }`}
+          >
+            {loading ? <Loader2 className="animate-spin" size={17} /> : <Zap size={17} />}
+            <span>{loading ? tt("submitting") : tt("submit")}</span>
+          </button>
+        </div>
+      </div>
+
       {/* Premium Footer */}
-      <footer className="app-safe-bottom relative z-10 mx-auto w-full max-w-7xl px-3 pb-6 sm:px-6">
+      <footer className="app-safe-bottom relative z-10 mx-auto hidden w-full max-w-7xl px-3 pb-6 sm:px-6 lg:block">
         <div className="flex flex-wrap items-center justify-center gap-4 border-t border-slate-200/80 pt-5 text-[9px] text-slate-500">
           <span className="flex items-center gap-1.5">
             <Building size={12} className="text-indigo-400" />

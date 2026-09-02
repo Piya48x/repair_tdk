@@ -175,6 +175,11 @@ export default function TicketDetailModal({
                 <span className="rounded-full bg-[#2b59b0]/10 px-3 py-1 text-xs font-bold text-[#2b59b0]">
                   {ticket.ticket_no || `T${String(ticket.id || "").slice(-6).toUpperCase() || "000000"}`}
                 </span>
+                {ticket.asset_code ? (
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                    Asset {ticket.asset_code}
+                  </span>
+                ) : null}
                 <span
                   className={`rounded-full border px-3 py-1 text-xs font-bold ${statusConfig.bg} ${statusConfig.color} ${statusConfig.border}`}
                 >
