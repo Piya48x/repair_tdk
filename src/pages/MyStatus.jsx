@@ -237,7 +237,7 @@ function activeNotebookLog(logs) {
   );
 }
 
-export default function MyStatus() {
+export default function MyStatus({ embedded = false }) {
   const navigate = useNavigate();
   const { language, tt } = useScopedI18n(MY_STATUS_TRANSLATIONS);
   const [profile, setProfile] = useState(null);
@@ -416,10 +416,11 @@ export default function MyStatus() {
   const subtleClass = isDarkTheme ? "text-slate-400" : "text-slate-500";
 
   return (
-    <div className={`min-h-screen overflow-x-clip transition-colors duration-300 ${isDarkTheme ? "bg-[#0b1220] text-slate-100" : "bg-[#f4f7fb] text-slate-800"}`}>
-      <header className={`sticky top-0 z-30 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/90"}`}>
+    <div className={`overflow-x-clip transition-colors duration-300 ${embedded ? "min-h-0 bg-transparent" : `min-h-screen ${isDarkTheme ? "bg-[#0b1220]" : "bg-[#f4f7fb]"}`} ${isDarkTheme ? "text-slate-100" : "text-slate-800"}`}>
+      <header className={`${embedded ? "relative" : "sticky top-0"} z-30 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/90"}`}>
         <div className="app-safe-top mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex items-center gap-3">
+            {!embedded ? (
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
@@ -428,6 +429,7 @@ export default function MyStatus() {
             >
               <ArrowLeft size={18} />
             </button>
+            ) : null}
             <div>
               <p className="inline-flex items-center gap-1 rounded-full border border-[#2b59b0]/15 bg-[#2b59b0]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#2b59b0]">
                 <ShieldCheck size={12} />

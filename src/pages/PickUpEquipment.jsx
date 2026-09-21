@@ -520,7 +520,7 @@ function buildStockRequestMetadata(item, quantity, selectedRequest) {
   };
 }
 
-const PickUpEquipment = () => {
+const PickUpEquipment = ({ embedded = false }) => {
   const navigate = useNavigate();
   const { language, tt } = useScopedI18n(PICK_UP_EQUIPMENT_TRANSLATIONS);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -979,7 +979,7 @@ const PickUpEquipment = () => {
 
   if (profileLoading) {
     return (
-      <div className="app-theme min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+      <div className={`app-theme flex items-center justify-center ${embedded ? "min-h-[50vh] bg-transparent" : "min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50"}`}>
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-slate-600 font-medium">{tt('loadingUser')}</p>
@@ -989,9 +989,10 @@ const PickUpEquipment = () => {
   }
 
   return (
-    <div className="app-theme min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800  selection:bg-blue-100 pb-20">
+    <div className={`app-theme pb-20 text-slate-800 selection:bg-blue-100 ${embedded ? "min-h-0 bg-transparent" : "min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50"}`}>
 
       {/* --- 1. Header (CreateTicket Style) --- */}
+      {!embedded ? (
       <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/90 border-b border-slate-200/60 shadow-lg transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[72px] py-3 sm:h-20 sm:py-0 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -1060,6 +1061,7 @@ const PickUpEquipment = () => {
           </div>
         </div>
       </header>
+      ) : null}
 
       {/* --- 2. Main Content --- */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">

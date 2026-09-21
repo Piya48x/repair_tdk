@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 // ^^^ à¸•à¹‰à¸­à¸‡à¸¡à¸µ useRef à¸­à¸¢à¸¹à¹ˆà¸•à¸£à¸‡à¸™à¸µà¹‰à¸”à¹‰à¸§à¸¢
 import { supabase } from "../lib/supabaseClient";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n/LanguageProvider";
 import {
   LogOut, Wrench, Package, Laptop, ChevronRight,
@@ -47,7 +47,10 @@ import ProfileImageModal from "./dashboard/components/ProfileImageModal";
 import LogoutConfirmModal from "./dashboard/components/LogoutConfirmModal";
 import DashboardGlobalStyles from "./dashboard/components/DashboardGlobalStyles";
 import SupportSection from "./dashboard/components/SupportSection";
+import DashboardSidebar from "./dashboard/components/DashboardSidebar";
+import EmployeePortalPageHost from "./dashboard/components/EmployeePortalPageHost";
 import AssetViewScannerModal, { extractAssetTagFromQr } from "./it-dashboard/components/AssetViewScannerModal";
+import { getITDashboardTheme } from "./it-dashboard/theme/itDashboardTheme";
 import CentralChatDock from "../components/CentralChatDock";
 import LanguageSwitcher from "../components/LanguageSwitcher.jsx";
 import { loadMyNotebookBorrowLogs, NOTEBOOK_LOG_STATUS } from "../services/notebookBorrowService";
@@ -110,6 +113,18 @@ const DASHBOARD_TRANSLATIONS = {
       newTicket: "แจ้งซ่อมใหม่",
       notSpecified: "ไม่ระบุ",
       notSpecifiedDepartment: "ไม่ระบุแผนก",
+      sidebarMain: "เมนูหลัก",
+      sidebarServices: "บริการเพิ่มเติม",
+      sidebarOrganization: "ระบบองค์กร",
+      sidebarHome: "หน้าหลัก Dashboard",
+      sidebarTitle: "Employee Portal",
+      sidebarSubtitle: "เมนูสำหรับผู้ใช้งาน",
+      sidebarNavigation: "เมนูนำทาง Dashboard",
+      sidebarClose: "ปิดเมนูด้านข้าง",
+      sidebarCollapse: "ย่อเมนู",
+      sidebarExpand: "ขยายเมนู",
+      centralChat: "แชทกลาง",
+      openCentralChat: "เปิดแชทกลาง",
     },
     quickActions: {
       active: "เปิดใช้งาน",
@@ -226,6 +241,18 @@ const DASHBOARD_TRANSLATIONS = {
       newTicket: "New Ticket",
       notSpecified: "Not specified",
       notSpecifiedDepartment: "No department",
+      sidebarMain: "Main menu",
+      sidebarServices: "More services",
+      sidebarOrganization: "Organization systems",
+      sidebarHome: "Dashboard home",
+      sidebarTitle: "Employee Portal",
+      sidebarSubtitle: "User navigation",
+      sidebarNavigation: "Dashboard navigation",
+      sidebarClose: "Close sidebar",
+      sidebarCollapse: "Collapse menu",
+      sidebarExpand: "Expand menu",
+      centralChat: "Central chat",
+      openCentralChat: "Open central chat",
     },
     quickActions: {
       active: "Open",
@@ -342,6 +369,18 @@ const DASHBOARD_TRANSLATIONS = {
       newTicket: "새 티켓",
       notSpecified: "미지정",
       notSpecifiedDepartment: "부서 미지정",
+      sidebarMain: "주요 메뉴",
+      sidebarServices: "추가 서비스",
+      sidebarOrganization: "사내 시스템",
+      sidebarHome: "Dashboard 홈",
+      sidebarTitle: "Employee Portal",
+      sidebarSubtitle: "사용자 메뉴",
+      sidebarNavigation: "Dashboard 탐색 메뉴",
+      sidebarClose: "사이드바 닫기",
+      sidebarCollapse: "메뉴 축소",
+      sidebarExpand: "메뉴 확장",
+      centralChat: "중앙 채팅",
+      openCentralChat: "중앙 채팅 열기",
     },
     quickActions: {
       active: "열기",
@@ -1407,6 +1446,8 @@ function StableChartContainer({ className, children }) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPortalSubpage = location.pathname !== "/dashboard";
   const { language, t } = useI18n();
   const dateLocale = useMemo(() => DATE_FNS_LOCALES[language] || DATE_FNS_LOCALES.en, [language]);
   const dt = useCallback(
@@ -1452,9 +1493,11 @@ export default function Dashboard() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [selectedKpiMetricKey, setSelectedKpiMetricKey] = useState("");
   const [supportChatOpenSignal, setSupportChatOpenSignal] = useState(0);
+  const [centralChatUnreadCount, setCentralChatUnreadCount] = useState(0);
   const [showMoreQuickActions, setShowMoreQuickActions] = useState(false);
   const [isAssetQrScannerOpen, setIsAssetQrScannerOpen] = useState(false);
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isDashboardSidebarOpen, setIsDashboardSidebarOpen] = useState(false);
+  const [isDashboardSidebarCollapsed, setIsDashboardSidebarCollapsed] = useState(false);
   const [isStatusOverviewMenuOpen, setIsStatusOverviewMenuOpen] = useState(false);
   const [activeTicketId, setActiveTicketId] = useState(null);
   const [isMessengerOpen, setIsMessengerOpen] = useState(false);
@@ -1504,6 +1547,7 @@ export default function Dashboard() {
   const searchInputRef = useRef(null);
   const notificationTimeoutsRef = useRef(new Map());
   const quickActionsSectionRef = useRef(null);
+  const dashboardInitializedRef = useRef(false);
 
   const hydrateTicketLocation = useCallback(
     (ticket, fallbackLocation = "") => {
@@ -1538,13 +1582,13 @@ export default function Dashboard() {
   // âœ… REAL-TIME SUBSCRIPTION (Supabase Realtime)
   // ============================================
 
-  const setupRealtimeSubscription = useCallback((userId) => {
+  const setupRealtimeSubscription = useCallback((userId, fallbackLocation = "") => {
     // à¸–à¹‰à¸²à¸¡à¸µ Channel à¹€à¸”à¸´à¸¡à¸—à¸µà¹ˆà¸„à¹‰à¸²à¸‡à¸­à¸¢à¸¹à¹ˆà¹ƒà¸«à¹‰à¸›à¸´à¸”à¸—à¸´à¹‰à¸‡à¸à¹ˆà¸­à¸™
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
-    const fallbackLocation = String(profile?.location || "").trim();
+    const resolvedFallbackLocation = String(fallbackLocation || "").trim();
 
     const channel = supabase
       .channel(`tickets-user-${userId}`)
@@ -1564,7 +1608,7 @@ export default function Dashboard() {
           const hydratedNewRow =
             payload.eventType === "DELETE"
               ? null
-              : hydrateTicketLocation(payload.new, fallbackLocation);
+              : hydrateTicketLocation(payload.new, resolvedFallbackLocation);
 
           const updateRows = (currentRows, shouldKeepRow) => {
             const remainingRows = currentRows.filter((row) => row.id !== affectedId);
@@ -1593,7 +1637,7 @@ export default function Dashboard() {
 
     // à¹€à¸à¹‡à¸šà¹„à¸§à¹‰à¹ƒà¸™ Ref (à¹„à¸¡à¹ˆà¸—à¸³à¹ƒà¸«à¹‰à¹€à¸à¸´à¸” Re-render)
     channelRef.current = channel;
-  }, [hydrateTicketLocation, profile?.location, rt]); // Dependency à¹€à¸›à¹‡à¸™à¸§à¹ˆà¸²à¸‡à¹€à¸›à¸¥à¹ˆà¸²à¹€à¸žà¸·à¹ˆà¸­à¹„à¸¡à¹ˆà¹ƒà¸«à¹‰à¹€à¸à¸´à¸”à¸à¸²à¸£à¸ªà¸£à¹‰à¸²à¸‡ function à¹ƒà¸«à¸¡à¹ˆà¸§à¸™à¸¥à¸¹à¸›
+  }, [hydrateTicketLocation, rt]);
 
   const fetchMeetingRoomBookings = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setMeetingRoomLoading(true);
@@ -1780,7 +1824,6 @@ export default function Dashboard() {
   // ============================================
   const initDashboard = useCallback(async () => {
     try {
-      setLoading(true);
       setDashboardError("");
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -1852,7 +1895,7 @@ export default function Dashboard() {
 
         // Setup realtime after initial load
         setTimeout(() => {
-          setupRealtimeSubscription(user.id);
+          setupRealtimeSubscription(user.id, fallbackLocation);
         }, 100);
 
         // Calculate SLA stats
@@ -1903,6 +1946,8 @@ export default function Dashboard() {
   }, [fetchAccessRequestSummary, hydrateTicketLocation, navigate, rt, setupAccessRequestRealtime, setupRealtimeSubscription]);
 
   useEffect(() => {
+    if (dashboardInitializedRef.current) return;
+    dashboardInitializedRef.current = true;
     initDashboard();
   }, [initDashboard]);
 
@@ -1988,7 +2033,7 @@ export default function Dashboard() {
 
       if (event.key?.toLowerCase() === "n" && !isTypingField && !event.metaKey && !event.ctrlKey) {
         event.preventDefault();
-        navigate("/create-ticket");
+        navigate("/dashboard/create-ticket");
       }
     };
 
@@ -2065,29 +2110,6 @@ export default function Dashboard() {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [isStatusOverviewMenuOpen]);
-
-  useEffect(() => {
-    if (!isMobileNavOpen) return undefined;
-
-    const handlePointerDown = (event) => {
-      if (mobileNavMenuRef.current && !mobileNavMenuRef.current.contains(event.target)) {
-        setIsMobileNavOpen(false);
-      }
-    };
-
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setIsMobileNavOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isMobileNavOpen]);
 
   useEffect(() => {
     return () => {
@@ -2941,6 +2963,16 @@ export default function Dashboard() {
     navigate(`/asset-qr/${encodeURIComponent(assetTag)}`);
   }, [navigate]);
 
+  const openCentralChat = useCallback(() => {
+    setIsStatusOverviewMenuOpen(false);
+    setIsDashboardSidebarOpen(false);
+    setSupportChatOpenSignal((value) => value + 1);
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [location.pathname]);
+
   const quickActions = useMemo(() => {
     const role = profile?.role || "user";
     const items = [
@@ -2962,7 +2994,8 @@ export default function Dashboard() {
         icon: Wrench,
         accent: "indigo",
         cta: dt("quickActions.createTicket.cta"),
-        onClick: () => navigate("/create-ticket"),
+        onClick: () => navigate("/dashboard/create-ticket"),
+        active: location.pathname === "/dashboard/create-ticket",
         badgeCount: openTicketCount,
         roles: ["user", "it_support", "executive", "admin"],
       },
@@ -2973,7 +3006,8 @@ export default function Dashboard() {
         icon: Package,
         accent: "emerald",
         cta: dt("quickActions.pickup.cta"),
-        onClick: () => navigate("/pick-up-equipment"),
+        onClick: () => navigate("/dashboard/pick-up-equipment"),
+        active: location.pathname === "/dashboard/pick-up-equipment",
         badgeCount: borrowOpenCount,
         roles: ["user", "it_support", "executive", "admin"],
       },
@@ -2984,7 +3018,8 @@ export default function Dashboard() {
         icon: Laptop,
         accent: "violet",
         cta: dt("quickActions.notebook.cta"),
-        onClick: () => navigate("/notebook-center"),
+        onClick: () => navigate("/dashboard/notebook-center"),
+        active: location.pathname === "/dashboard/notebook-center",
         badgeCount: notebookAttentionCount,
         roles: ["user", "it_support", "executive", "admin"],
       },
@@ -2995,7 +3030,8 @@ export default function Dashboard() {
         icon: FileText,
         accent: "indigo",
         cta: dt("quickActions.workNotes.cta"),
-        onClick: () => navigate("/work-notes"),
+        onClick: () => navigate("/dashboard/work-notes"),
+        active: location.pathname === "/dashboard/work-notes",
         badgeCount: workNotesPendingCount,
         roles: ["user", "it_support", "executive", "admin", "auditor"],
       },
@@ -3006,7 +3042,8 @@ export default function Dashboard() {
         icon: Calendar,
         accent: "sky",
         cta: dt("quickActions.meetingRoom.cta"),
-        onClick: () => navigate("/meeting-room-booking"),
+        onClick: () => navigate("/dashboard/meeting-room-booking"),
+        active: location.pathname === "/dashboard/meeting-room-booking",
         badgeCount: upcomingMeetingCount,
         roles: ["user", "it_support", "executive", "admin"],
       },
@@ -3018,24 +3055,15 @@ export default function Dashboard() {
         accent: "sky",
         cta: dt("quickActions.history.cta"),
         onClick: () =>
-          navigate("/ticket-history", {
+          navigate("/dashboard/ticket-history", {
             state: {
               initialFilter: activeFilter,
               tickets,
             },
           }),
+        active: location.pathname === "/dashboard/ticket-history",
         badgeCount: openTicketCount,
         roles: ["user", "it_support", "executive", "admin", "auditor"],
-      },
-      {
-        id: "chat-it",
-        label: dt("quickActions.chatIt.label"),
-        description: dt("quickActions.chatIt.description"),
-        icon: MessageSquare,
-        accent: "emerald",
-        cta: dt("quickActions.chatIt.cta"),
-        onClick: () => setSupportChatOpenSignal((value) => value + 1),
-        roles: ["user", "it_support", "it_manager", "executive", "admin", "auditor"],
       },
       {
         id: "my-status",
@@ -3044,7 +3072,8 @@ export default function Dashboard() {
         icon: CheckCircle2,
         accent: "sky",
         cta: dt("quickActions.myStatus.cta"),
-        onClick: () => navigate("/my-status"),
+        onClick: () => navigate("/dashboard/my-status"),
+        active: location.pathname === "/dashboard/my-status",
         roles: ["user", "it_support", "it_manager", "executive", "admin", "auditor"],
       },
       {
@@ -3054,7 +3083,8 @@ export default function Dashboard() {
         icon: KeyRound,
         accent: "indigo",
         cta: dt("quickActions.accessRequest.cta"),
-        onClick: () => navigate("/access-request"),
+        onClick: () => navigate("/dashboard/access-request"),
+        active: location.pathname === "/dashboard/access-request",
         roles: ["user", "it_support", "executive", "admin", "auditor"],
       },
       {
@@ -3080,7 +3110,7 @@ export default function Dashboard() {
     ];
 
     return items.filter((item) => item.roles.includes(role));
-  }, [activeFilter, borrowOpenCount, dt, navigate, notebookAttentionCount, openTicketCount, profile?.role, tickets, upcomingMeetingCount, workNotesPendingCount]);
+  }, [activeFilter, borrowOpenCount, dt, location.pathname, navigate, notebookAttentionCount, openTicketCount, profile?.role, tickets, upcomingMeetingCount, workNotesPendingCount]);
 
   const primaryQuickActionIds = useMemo(
     () => new Set(["scan-asset-qr", "create-ticket", "pick-up", "notebook-center", "work-notes", "meeting-room-booking", "history"]),
@@ -3093,13 +3123,13 @@ export default function Dashboard() {
   );
 
   const secondaryQuickActions = useMemo(() => {
-    const items = quickActions.filter((action) => !primaryQuickActionIds.has(action.id));
-    return items.sort((left, right) => {
-      if (left.id === "chat-it" && right.id !== "chat-it") return -1;
-      if (right.id === "chat-it" && left.id !== "chat-it") return 1;
-      return 0;
-    });
+    return quickActions.filter((action) => !primaryQuickActionIds.has(action.id));
   }, [primaryQuickActionIds, quickActions]);
+
+  const activePortalTitle = useMemo(() => {
+    if (location.pathname === "/dashboard") return dt("nav.sidebarHome");
+    return quickActions.find((action) => action.active)?.label || dt("nav.sidebarHome");
+  }, [dt, location.pathname, quickActions]);
 
   const localizedNavMoreLinks = useMemo(
     () =>
@@ -3116,6 +3146,7 @@ export default function Dashboard() {
   }, [profile?.role]);
 
   const isDarkTheme = themeMode === "dark";
+  const adminUiTheme = getITDashboardTheme(themeMode);
   const currentRole = profile?.role || "user";
   const isUserSearchMode = currentRole === "user" || currentRole === "executive";
   const roleLabel = localizedRoleLabels[currentRole] || localizedRoleLabels.user;
@@ -3127,12 +3158,68 @@ export default function Dashboard() {
 
   const handleNavMoreOpen = (item) => {
     setIsStatusOverviewMenuOpen(false);
-    setIsMobileNavOpen(false);
+    setIsDashboardSidebarOpen(false);
 
     if (item?.href) {
       window.open(item.href, "_blank", "noopener,noreferrer");
     }
   };
+
+  const dashboardSidebarGroups = [
+    {
+      id: "main",
+      label: dt("nav.sidebarMain"),
+      items: [
+        {
+          id: "dashboard-home",
+          label: dt("nav.sidebarHome"),
+          icon: BarChart3,
+          active: location.pathname === "/dashboard",
+          onClick: () => {
+            if (location.pathname === "/dashboard") {
+              window.scrollTo({ top: 0, behavior: "smooth" });
+              return;
+            }
+            navigate("/dashboard");
+          },
+        },
+        ...primaryQuickActions,
+      ],
+    },
+    {
+      id: "services",
+      label: dt("nav.sidebarServices"),
+      items: [
+        {
+          id: "central-chat",
+          label: dt("nav.centralChat"),
+          icon: MessageSquare,
+          active: isMessengerOpen,
+          badgeCount: centralChatUnreadCount,
+          onClick: openCentralChat,
+        },
+        ...secondaryQuickActions,
+        {
+          id: "theme-toggle",
+          label: isDarkTheme ? t("common.lightMode") : t("common.darkMode"),
+          icon: isDarkTheme ? Sun : Moon,
+          onClick: toggleTheme,
+        },
+      ],
+    },
+    {
+      id: "organization",
+      label: dt("nav.sidebarOrganization"),
+      items: localizedNavMoreLinks
+        .filter((item) => item.href)
+        .map((item, index) => ({
+          ...item,
+          icon: index === 0 ? Building2 : Briefcase,
+          external: true,
+          onClick: () => handleNavMoreOpen(item),
+        })),
+    },
+  ].filter((group) => group.items.length > 0);
 
   // Dark-mode-aware CSS classes
   const FORM_CONTROL_CLASS = isDarkTheme
@@ -3282,7 +3369,7 @@ export default function Dashboard() {
   };
 
   const handleViewAllClick = () => {
-    navigate("/ticket-history", {
+    navigate("/dashboard/ticket-history", {
       state: {
         initialFilter: activeFilter,
         tickets: tickets
@@ -3587,27 +3674,6 @@ export default function Dashboard() {
     );
   };
 
-  const renderNavBrand = ({ className = "", compact = false } = {}) => (
-    <div className={`flex min-w-0 items-center shadow-sm ${compact ? "gap-1.5 rounded-2xl px-1.5 py-1.5" : "gap-2.5 rounded-[22px] px-2.5 py-1.5"} ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200/80 bg-white/90 shadow-blue-100/60"} border ${className}`}>
-      <div className="relative">
-        <img
-          src={tdkLogo}
-          alt={rt("common.companyLogoAlt")}
-          className={`${compact ? "h-7 w-7 rounded-lg" : "h-9 w-9 rounded-xl xl:h-10 xl:w-10"} bg-white object-contain p-1 shadow-lg shadow-blue-200 animate-float`}
-        />
-        <div className={`absolute ${compact ? "-bottom-0.5 -right-0.5 h-3 w-3" : "-bottom-1 -right-1 h-4 w-4"} rounded-full border-2 border-white bg-emerald-500 animate-pulse`}></div>
-      </div>
-      <div className="min-w-0">
-        <h1 className={`truncate bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text font-black leading-none tracking-tight text-transparent ${compact ? "text-[12px]" : "text-[15px] xl:text-lg"}`}>
-          {compact ? "TDK" : "TDK INDUSTRIAL"}
-        </h1>
-        <p className={`mt-0.5 hidden text-[9px] font-bold uppercase tracking-wider 2xl:block ${TEXT_SUBTLE_CLASS}`}>
-          {rt("common.companyName")}
-        </p>
-      </div>
-    </div>
-  );
-
   const renderNavMoreLinkButtons = () => (
     <div className="grid grid-cols-2 gap-1.5">
       {localizedNavMoreLinks
@@ -3624,6 +3690,40 @@ export default function Dashboard() {
             <ExternalLink size={12} className="shrink-0 opacity-60 transition group-hover:opacity-100" />
           </button>
         ))}
+    </div>
+  );
+
+  const renderTopNavExternalLinks = ({ mobile = false } = {}) => (
+    <div className={mobile
+      ? "grid grid-cols-2 gap-1.5"
+      : `flex shrink-0 items-center gap-0.5 rounded-xl border p-1 ${isDarkTheme ? "border-slate-700 bg-slate-800/70" : "border-slate-200 bg-slate-50"}`}
+    >
+      {localizedNavMoreLinks
+        .filter((item) => item.href)
+        .map((item) => {
+          const SystemIcon = item.id === "groupware-tdk" ? Building2 : Briefcase;
+          return (
+            <button
+              key={`top-nav-${item.id}`}
+              type="button"
+              onClick={() => handleNavMoreOpen(item)}
+              aria-label={item.label}
+              title={item.description}
+              className={`group inline-flex items-center justify-center gap-1.5 rounded-lg font-bold transition focus:outline-none focus-visible:ring-2 ${mobile ? "min-h-9 border px-2 text-[11px]" : "h-8 px-2.5 text-[11px] xl:h-9 xl:px-3 xl:text-xs"} ${isDarkTheme ? `${mobile ? "border-slate-600" : "border-transparent"} bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400` : `${mobile ? "border-blue-200" : "border-transparent"} bg-white text-slate-700 shadow-sm hover:bg-blue-50 hover:text-[#173b80] focus-visible:ring-blue-300`}`}
+            >
+              <SystemIcon size={13} className={isDarkTheme ? "text-slate-400" : "text-[#2b59b0]"} />
+              {mobile ? (
+                <span className="truncate">{item.label}</span>
+              ) : (
+                <>
+                  <span className="2xl:hidden">{item.id === "groupware-tdk" ? "GW" : "EB+"}</span>
+                  <span className="hidden truncate 2xl:inline">{item.label}</span>
+                </>
+              )}
+              <ExternalLink size={11} className="shrink-0 opacity-45 transition group-hover:opacity-100" />
+            </button>
+          );
+        })}
     </div>
   );
 
@@ -3654,7 +3754,7 @@ export default function Dashboard() {
               type="button"
               onClick={() => {
                 setIsStatusOverviewMenuOpen(false);
-                setIsMobileNavOpen(false);
+                setIsDashboardSidebarOpen(false);
                 item.onClick();
               }}
               className={`flex w-full items-center rounded-2xl border text-left transition focus:outline-none ${mobile ? "gap-2.5 px-2.5 py-2.5" : "gap-3 px-3 py-2.5"} ${item.cardClass} ${isDarkTheme ? "focus-visible:ring-2 focus-visible:ring-indigo-400" : "focus-visible:ring-2 focus-visible:ring-blue-300"}`}
@@ -4016,7 +4116,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen px-4 py-10 ${isDarkTheme ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" : "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/80"}`}>
+      <div className={`min-h-screen px-4 py-10 ${adminUiTheme.pageBackground}`}>
         <div className="mx-auto max-w-7xl animate-pulse">
           <div className={`mb-6 h-14 w-full rounded-2xl ${isDarkTheme ? "bg-slate-800/80" : "bg-white/90 ring-1 ring-blue-100"}`} />
           <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -4045,10 +4145,7 @@ export default function Dashboard() {
 
   return (
     <div
-      className={`app-theme dashboard-theme dashboard-theme--${themeMode} min-h-screen overflow-x-clip transition-colors duration-300 ${isDarkTheme
-        ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 selection:bg-slate-700/60"
-        : "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/80 text-slate-800 selection:bg-blue-100"
-        }`}
+      className={`app-theme dashboard-theme dashboard-theme--${themeMode} min-h-screen overflow-x-clip transition-colors duration-300 ${adminUiTheme.pageBackground} ${isDarkTheme ? "text-slate-100 selection:bg-slate-700/60" : "text-slate-800 selection:bg-blue-100"}`}
     >
       <a
         href="#dashboard-main-content"
@@ -4056,42 +4153,28 @@ export default function Dashboard() {
       >
         {dt("statusBar.skipToContent")}
       </a>
-      {/* Status Bar */}
-      <div className={`hidden shrink-0 border-b px-3 py-2 backdrop-blur-xl sm:block sm:px-4 ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/75"}`} aria-live="polite">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2 text-xs sm:text-sm">
-          <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300" : "border-blue-200 bg-blue-50/80 text-blue-800"}`}>
-            <RefreshCw size={12} />
-            {getTimeSinceUpdate()}
-          </span>
-          <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${isDarkTheme ? "border-indigo-500/50 bg-indigo-900/40 text-indigo-400" : "border-blue-200 bg-blue-100 text-blue-800"}`}>
-            <ShieldCheck size={12} />
-            {dt("statusBar.role")}: {roleLabel}
-          </span>
-          {canOpenAuditView && (
-            <button
-              type="button"
-              onClick={() => navigate("/audit-view")}
-              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
-            >
-              <Shield size={12} />
-              {dt("statusBar.auditLog")}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={initDashboard}
-            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
-          >
-            <RefreshCw size={12} />
-            {dt("statusBar.refreshData")}
-          </button>
-        </div>
-      </div>
 
+      <DashboardSidebar
+        open={isDashboardSidebarOpen}
+        onClose={() => setIsDashboardSidebarOpen(false)}
+        collapsed={isDashboardSidebarCollapsed}
+        onToggleCollapsed={() => setIsDashboardSidebarCollapsed((value) => !value)}
+        groups={dashboardSidebarGroups}
+        theme={adminUiTheme}
+        isDarkTheme={isDarkTheme}
+        title="TDK INDUSTRIAL"
+        subtitle={dt("nav.sidebarTitle")}
+        navigationLabel={dt("nav.sidebarNavigation")}
+        closeLabel={dt("nav.sidebarClose")}
+        collapseLabel={dt("nav.sidebarCollapse")}
+        expandLabel={dt("nav.sidebarExpand")}
+      />
+
+      <div className={`${isDashboardSidebarCollapsed ? "lg:ml-20" : "lg:ml-72"} min-w-0 transition-[margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]`}>
       {/* Navigation */}
-      <nav className={`sticky top-0 z-40 shrink-0 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700/70 bg-slate-900/80" : "border-blue-100/80 bg-white/80"}`}>
-        <div className="app-safe-top mx-auto max-w-[1440px] px-4 py-2.5 sm:px-6 lg:px-6 xl:px-8">
-          <div className="relative flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between xl:gap-3">
+      <nav className={`sticky top-0 z-40 shrink-0 border-b ${adminUiTheme.headerShell}`}>
+        <div className="app-safe-top mx-auto max-w-[1440px] px-3 py-2 sm:px-6 md:py-0">
+          <div className="relative flex flex-col gap-2.5 md:min-h-16 md:flex-row md:items-center md:justify-between md:py-3 xl:gap-3">
             <div ref={mobileNavMenuRef} className="relative md:hidden">
               <div className="flex items-center gap-2">
                 <button
@@ -4122,17 +4205,40 @@ export default function Dashboard() {
                   </div>
                 </button>
 
+                <button
+                  type="button"
+                  onClick={openCentralChat}
+                  aria-expanded={isMessengerOpen}
+                  aria-label={dt("nav.openCentralChat")}
+                  title={dt("nav.centralChat")}
+                  className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[1.2rem] border shadow-sm transition-colors ${isMessengerOpen
+                    ? isDarkTheme
+                      ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-200 shadow-slate-950/20"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-700 shadow-emerald-100/70"
+                    : isDarkTheme
+                      ? "border-slate-700 bg-slate-800/90 text-slate-100 shadow-slate-950/20 hover:bg-slate-700"
+                      : "border-blue-200 bg-white/95 text-slate-700 shadow-blue-100/70 hover:bg-blue-50"
+                  }`}
+                >
+                  <MessageSquare size={17} />
+                  {centralChatUnreadCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black text-white">
+                      {centralChatUnreadCount > 9 ? "9+" : centralChatUnreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
                 <div ref={mobileStatusOverviewMenuRef} className="shrink-0">
                   <button
                     type="button"
                     onClick={() => {
-                      setIsMobileNavOpen(false);
+                      setIsDashboardSidebarOpen(false);
                       setIsStatusOverviewMenuOpen((value) => !value);
                     }}
                     aria-expanded={isStatusOverviewMenuOpen}
                     aria-controls="dashboard-status-overview-menu-mobile"
                     aria-label={dt("nav.statusOverview")}
-                    className={`relative inline-flex h-10 w-10 items-center justify-center rounded-[1.2rem] border shadow-sm transition-colors ${isDarkTheme ? "border-slate-700 bg-slate-800/90 text-slate-100 shadow-slate-950/20 hover:bg-slate-700" : "border-blue-200 bg-white/95 text-slate-700 shadow-blue-100/70 hover:bg-blue-50"}`}
+                    className={`relative hidden h-10 w-10 items-center justify-center rounded-[1.2rem] border shadow-sm transition-colors min-[420px]:inline-flex ${isDarkTheme ? "border-slate-700 bg-slate-800/90 text-slate-100 shadow-slate-950/20 hover:bg-slate-700" : "border-blue-200 bg-white/95 text-slate-700 shadow-blue-100/70 hover:bg-blue-50"}`}
                   >
                     <BarChart3 size={17} />
                     <span className={`absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1 py-0.5 text-[9px] font-black ${isDarkTheme ? "bg-indigo-500 text-white" : "bg-indigo-600 text-white"}`}>
@@ -4145,13 +4251,13 @@ export default function Dashboard() {
                   type="button"
                   onClick={() => {
                     setIsStatusOverviewMenuOpen(false);
-                    setIsMobileNavOpen((value) => !value);
+                    setIsDashboardSidebarOpen(true);
                   }}
-                  aria-expanded={isMobileNavOpen}
-                  aria-label="Toggle mobile navigation"
+                  aria-expanded={isDashboardSidebarOpen}
+                  aria-label={dt("nav.sidebarNavigation")}
                   className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[1.2rem] border shadow-sm transition-colors ${isDarkTheme ? "border-slate-700 bg-slate-800/90 text-slate-100 shadow-slate-950/20 hover:bg-slate-700" : "border-blue-200 bg-white/95 text-slate-700 shadow-blue-100/70 hover:bg-blue-50"}`}
                 >
-                  {isMobileNavOpen ? <X size={18} /> : <Menu size={18} />}
+                  <Menu size={18} />
                 </button>
 
                 <div className={`flex shrink-0 items-center gap-0.5 rounded-[1.2rem] border p-0.5 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/90 shadow-slate-950/20" : "border-blue-200 bg-white/95 shadow-blue-100/70"}`}>
@@ -4159,7 +4265,7 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => {
-                      setIsMobileNavOpen(false);
+                      setIsDashboardSidebarOpen(false);
                       setIsStatusOverviewMenuOpen(false);
                       setIsLogoutConfirmOpen(true);
                     }}
@@ -4178,71 +4284,43 @@ export default function Dashboard() {
               >
                 {renderStatusOverviewMenuContent({ mobile: true })}
               </div>
+            </div>
 
-              <div
-                className={`absolute left-0 right-0 top-[calc(100%+0.55rem)] z-40 transition-all duration-150 ${isMobileNavOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"}`}
+            <div className="hidden min-w-0 md:flex md:items-center md:gap-2">
+              <button
+                type="button"
+                onClick={() => setIsDashboardSidebarOpen(true)}
+                aria-label={dt("nav.sidebarNavigation")}
+                className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl lg:hidden ${adminUiTheme.iconButton}`}
               >
-                <div className={`rounded-[22px] border p-2.5 shadow-2xl ${isDarkTheme ? "border-slate-700 bg-slate-900/95" : "border-blue-200 bg-white/95 shadow-blue-200/70"}`}>
-                  <div className={`flex items-center justify-between gap-3 rounded-[18px] border px-3 py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-blue-100 bg-blue-50/70"}`}>
-                    <div className="min-w-0">
-                      <p className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</p>
-                      <p className={`mt-1 text-[11px] ${TEXT_MUTED_CLASS}`}>{rt("operational.footerHint")}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={toggleTheme}
-                      aria-label={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
-                      title={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
-                      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-bold transition ${isDarkTheme ? "border-slate-600 bg-slate-900 text-slate-100 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
-                    >
-                      {isDarkTheme ? <Sun size={15} /> : <Moon size={15} />}
-                      <span>{isDarkTheme ? t("common.lightMode") : t("common.darkMode")}</span>
-                    </button>
-                  </div>
-
-                  <div className={`mt-2 rounded-2xl border px-3 py-2.5 ${isDarkTheme ? "border-slate-700 bg-slate-800/80" : "border-blue-100 bg-blue-50/70"}`}>
-                    <div className="mb-2 flex items-center gap-2">
-                      <SlidersHorizontal size={14} className={TEXT_SUBTLE_CLASS} />
-                      <span className={`text-[11px] font-black uppercase tracking-[0.14em] ${TEXT_SUBTLE_CLASS}`}>{dt("nav.moreMenu")}</span>
-                    </div>
-                    {renderNavMoreLinkButtons()}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="hidden md:flex md:items-center md:justify-between md:gap-3">
-              {renderNavBrand({ className: "md:min-w-[280px]" })}
-            </div>
-
-            <div className="hidden md:flex md:w-auto md:flex-1 md:items-center md:justify-end md:gap-1.5">
-              <div className={`flex flex-wrap items-center gap-1.5 rounded-[20px] border px-2 py-1.5 shadow-sm sm:w-auto xl:gap-2 xl:px-3 xl:py-2 ${isDarkTheme ? "border-slate-700 bg-slate-800/75" : "border-blue-200/80 bg-white/90 shadow-blue-100/40"}`}>
-                <div className="relative">
-                  <span className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-bold xl:px-2 xl:text-[11px] ${isDarkTheme ? "bg-slate-700 text-slate-300" : "bg-blue-100 text-blue-800"}`}>
-                    <Hash size={12} />
-                    ID: {profile?.employee_code || dt("nav.notSpecified")}
-                  </span>
-                </div>
-                <span className={`inline-flex max-w-[162px] items-center gap-1 truncate rounded-lg px-1.5 py-1 text-[10px] font-bold xl:max-w-none xl:px-2 xl:text-[11px] ${isDarkTheme ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700"}`}>
-                  <Building2 size={12} />
+                <Menu size={18} />
+              </button>
+              <div className="min-w-0">
+                <p className={`truncate text-sm font-black xl:text-base ${adminUiTheme.statusText}`}>{activePortalTitle}</p>
+                <p className={`mt-0.5 truncate text-[11px] font-semibold ${adminUiTheme.statusSubtle}`}>
                   {profile?.department || dt("nav.notSpecifiedDepartment")}
-                </span>
+                </p>
               </div>
+            </div>
 
-              <div ref={desktopStatusOverviewMenuRef} className="relative md:min-w-[220px]">
+            <div className="hidden min-w-0 md:flex md:flex-1 md:items-center md:gap-3">
+              <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
+                {renderTopNavExternalLinks()}
+
+                <div ref={desktopStatusOverviewMenuRef} className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsStatusOverviewMenuOpen((value) => !value)}
                   aria-expanded={isStatusOverviewMenuOpen}
                   aria-controls="dashboard-status-overview-menu-desktop"
-                  className={`inline-flex h-10 w-full items-center justify-between gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all sm:h-9 sm:w-full sm:justify-center sm:px-2.5 xl:h-10 xl:gap-2 xl:px-4 xl:text-sm ${isDarkTheme ? "border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700" : "border-blue-200 bg-white text-slate-700 hover:bg-blue-50"}`}
+                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-2.5 text-xs font-bold shadow-sm transition-all 2xl:min-w-[190px] 2xl:px-4 2xl:text-sm ${isDarkTheme ? "border-indigo-500/40 bg-indigo-500/10 text-indigo-100 hover:bg-indigo-500/20" : "border-blue-200 bg-blue-50 text-[#173b80] hover:border-blue-300 hover:bg-blue-100"}`}
                 >
                   <span className="inline-flex items-center gap-1.5 xl:gap-2">
                     <BarChart3 size={16} />
-                    <span>{dt("nav.statusOverview")}</span>
+                    <span className="hidden 2xl:inline">{dt("nav.statusOverview")}</span>
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className={`inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black xl:min-w-[1.5rem] xl:text-[10px] ${isDarkTheme ? "bg-indigo-500/20 text-indigo-200" : "bg-indigo-50 text-indigo-700"}`}>
+                    <span className={`inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black xl:min-w-[1.5rem] xl:text-[10px] ${isDarkTheme ? "bg-indigo-400/20 text-indigo-100" : "bg-white text-blue-700"}`}>
                       {statusOverviewTotalCount > 99 ? "99+" : statusOverviewTotalCount}
                     </span>
                     <ChevronDown
@@ -4259,27 +4337,85 @@ export default function Dashboard() {
                   {renderStatusOverviewMenuContent()}
                 </div>
               </div>
+              </div>
 
-              <div className="ml-auto flex items-center gap-1.5">
-                <div className={`flex items-center gap-1 rounded-2xl border p-0.5 xl:p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/85" : "border-blue-200 bg-white/90 shadow-blue-100/40"}`}>
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <div className={`hidden items-center gap-2 rounded-lg border px-2 py-1 text-[11px] font-semibold lg:flex ${adminUiTheme.statusBadge}`} aria-live="polite">
+                  <span className={`h-2 w-2 rounded-full ${loading ? "bg-slate-400" : "bg-emerald-500"}`} />
+                  <RefreshCw size={12} />
+                  <span>{getTimeSinceUpdate()}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={openCentralChat}
+                  aria-expanded={isMessengerOpen}
+                  aria-label={dt("nav.openCentralChat")}
+                  title={dt("nav.centralChat")}
+                  className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${adminUiTheme.iconButton} ${isMessengerOpen ? "ring-2 ring-emerald-400/60" : ""}`}
+                >
+                  <MessageSquare size={16} />
+                  {centralChatUnreadCount > 0 ? (
+                    <span className={`absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black text-white ring-2 ${isDarkTheme ? "ring-slate-900" : "ring-white"}`}>
+                      {centralChatUnreadCount > 9 ? "9+" : centralChatUnreadCount}
+                    </span>
+                  ) : null}
+                </button>
+                {canOpenAuditView ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/audit-view")}
+                    aria-label={dt("statusBar.auditLog")}
+                    title={dt("statusBar.auditLog")}
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${adminUiTheme.iconButton}`}
+                  >
+                    <Shield size={16} />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={initDashboard}
+                  aria-label={dt("statusBar.refreshData")}
+                  title={dt("statusBar.refreshData")}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${adminUiTheme.iconButton}`}
+                >
+                  <RefreshCw size={16} />
+                </button>
+                <div className={`flex items-center gap-0.5 rounded-xl border p-1 shadow-sm ${isDarkTheme ? "border-slate-700 bg-slate-800/70" : "border-slate-200 bg-slate-50"}`}>
                   <button
                     type="button"
                     onClick={toggleTheme}
                     aria-label={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
                     title={isDarkTheme ? t("common.lightMode") : t("common.darkMode")}
-                    className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition focus:outline-none focus-visible:ring-2 xl:h-10 xl:w-10 ${isDarkTheme ? "bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "bg-white/90 text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
+                    className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition focus:outline-none focus-visible:ring-2 xl:h-9 xl:w-9 ${isDarkTheme ? "bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:ring-indigo-400" : "bg-white text-slate-700 hover:bg-blue-50 focus-visible:ring-blue-300"}`}
                   >
                     {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
                   </button>
                   <LanguageSwitcher mode="nav" isDarkTheme={isDarkTheme} />
                 </div>
                 <button
+                  type="button"
+                  onClick={() => setShowProfileDetails(true)}
+                  className={`flex h-10 max-w-[10rem] items-center gap-2 rounded-lg border px-1.5 py-1.5 text-sm ${adminUiTheme.statusButton}`}
+                  aria-label={profile?.full_name || rt("common.userFallback")}
+                >
+                  {profileAvatarUrl ? (
+                    <img src={profileAvatarUrl} alt="" className="h-7 w-7 rounded-md object-cover" />
+                  ) : (
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-[#2b59b0]/10 text-[#2b59b0]">
+                      <User size={15} />
+                    </span>
+                  )}
+                  <span className="hidden max-w-[110px] truncate text-xs font-semibold 2xl:inline">
+                    {profile?.full_name || profile?.employee_code || rt("common.userFallback")}
+                  </span>
+                </button>
+                <button
                   onClick={() => setIsLogoutConfirmOpen(true)}
                   aria-label={t("common.signOut")}
-                  className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-bold transition-all xl:h-10 xl:gap-2 xl:px-3 xl:text-sm ${isDarkTheme ? "border-rose-500/30 text-rose-300 hover:bg-rose-900/30" : "border-rose-200 text-rose-600 hover:bg-rose-50"}`}
+                  title={t("common.signOut")}
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${adminUiTheme.iconButtonDanger}`}
                 >
                   <LogOut size={16} />
-                  <span className="hidden xl:inline">{t("common.signOut")}</span>
                 </button>
               </div>
             </div>
@@ -4288,7 +4424,13 @@ export default function Dashboard() {
       </nav>
 
       {/* Main Content */}
-      <main id="dashboard-main-content" className="app-safe-bottom mx-auto flex w-full max-w-[1440px] flex-col px-3 pt-3 pb-28 sm:px-6 sm:pt-4 sm:pb-12 lg:px-8 lg:pb-8">
+      <main
+        id="dashboard-main-content"
+        className={isPortalSubpage
+          ? "app-safe-bottom mx-auto w-full max-w-[1440px] min-w-0"
+          : "app-safe-bottom mx-auto flex w-full max-w-[1440px] flex-col px-3 pb-12 pt-3 sm:px-6 sm:pt-4 lg:px-8 lg:pb-8"}
+      >
+        <div className={isPortalSubpage ? "hidden" : "contents"}>
         <div className="mb-3 hidden sm:block xl:hidden">
           {renderProfilePanel()}
         </div>
@@ -4534,7 +4676,7 @@ export default function Dashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate("/meeting-room-booking")}
+                  onClick={() => navigate("/dashboard/meeting-room-booking")}
                   className={SECONDARY_BUTTON_CLASS}
                 >
                   {rt("meeting.openBooking")}
@@ -4732,7 +4874,7 @@ export default function Dashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate("/access-request")}
+                  onClick={() => navigate("/dashboard/access-request")}
                   className={SECONDARY_BUTTON_CLASS}
                 >
                   เปิดรายการคำขอ
@@ -5187,7 +5329,7 @@ export default function Dashboard() {
                         )}
                         <button
                           type="button"
-                          onClick={() => navigate("/create-ticket")}
+                          onClick={() => navigate("/dashboard/create-ticket")}
                           className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/25"
                         >
                           <Plus size={16} />
@@ -5202,7 +5344,7 @@ export default function Dashboard() {
             {/* Support Section */}
             <SupportSection
               hidden={isMessengerOpen}
-              onOpenChat={() => setSupportChatOpenSignal((value) => value + 1)}
+              onOpenChat={openCentralChat}
             />
           </div>
         </div>
@@ -5210,7 +5352,17 @@ export default function Dashboard() {
         <div className="mt-4">
           {renderOperationalMiniDashboard()}
         </div>
+        </div>
+
+        <div className={isPortalSubpage ? "min-w-0" : "hidden"}>
+          <EmployeePortalPageHost
+            currentPath={location.pathname}
+            currentRole={profile?.role || "user"}
+            onOpenChat={openCentralChat}
+          />
+        </div>
       </main>
+      </div>
 
       {/* ============================================
          MODALS & DIALOGS
@@ -5239,7 +5391,9 @@ export default function Dashboard() {
         }}
         openSignal={supportChatOpenSignal}
         onOpenChange={setIsMessengerOpen}
-        className="bottom-4 left-4 sm:bottom-6 sm:left-6"
+        onUnreadCountChange={setCentralChatUnreadCount}
+        launcherMode="hidden"
+        className={`bottom-4 left-4 transition-[left] duration-300 sm:bottom-6 sm:left-6 ${isDashboardSidebarCollapsed ? "lg:left-24" : "lg:left-[19rem]"}`}
       />
 
       {selectedKpiMetric && (
@@ -5856,7 +6010,7 @@ export default function Dashboard() {
                 <p className={`text-xs ${TEXT_MUTED_CLASS}`}>{rt("meeting.footerHint")}</p>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button type="button" onClick={() => setIsMeetingRoomStatusModalOpen(false)} className={SECONDARY_BUTTON_CLASS}>{rt("common.close")}</button>
-                  <button type="button" onClick={() => navigate("/meeting-room-booking")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
+                  <button type="button" onClick={() => navigate("/dashboard/meeting-room-booking")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-bold text-white">
                     {rt("meeting.openBooking")}
                   </button>
                 </div>
@@ -6067,7 +6221,7 @@ export default function Dashboard() {
       <TicketDetailModal
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
-        onNewTicket={() => navigate("/create-ticket")}
+        onNewTicket={() => navigate("/dashboard/create-ticket")}
         getStatusConfig={getStatusConfig}
         getPriorityConfig={getPriorityConfig}
         formatDate={formatDate}

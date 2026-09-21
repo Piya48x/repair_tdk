@@ -79,6 +79,7 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       visible: "จำนวนที่แสดง",
       usable: "ใช้งานได้",
       unusable: "ใช้ไม่ได้",
+      latestChanges: "การเปลี่ยนแปลงล่าสุด",
     },
     ux: {
       liveData: "ข้อมูลล่าสุด",
@@ -321,6 +322,7 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       visible: "Visible items",
       usable: "Usable",
       unusable: "Unavailable",
+      latestChanges: "Latest changes",
     },
     ux: {
       liveData: "Live data",
@@ -1238,7 +1240,9 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const [showArchivedLicenses, setShowArchivedLicenses] = useState(false);
   const [assetCategoryFilter, setAssetCategoryFilter] = useState("all");
   const [assetStatusFilter, setAssetStatusFilter] = useState("all");
+  const [assetQuickFilter, setAssetQuickFilter] = useState("all");
   const [licenseStatusFilter, setLicenseStatusFilter] = useState("all");
+  const [licenseQuickFilter, setLicenseQuickFilter] = useState("all");
   const [assetActionId, setAssetActionId] = useState("");
   const [assetBulkAction, setAssetBulkAction] = useState("");
   const [assetExporting, setAssetExporting] = useState(false);
@@ -1442,7 +1446,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   const filteredAssets = useMemo(() => {
     const query = normalizeText(searchQuery).toLowerCase();
     const includeArchivedByStatus = ["retired", "lost"].includes(assetStatusFilter);
-    const shouldIncludeArchived = showArchivedAssets || includeArchivedByStatus || Boolean(query);
+    const includeArchivedByQuickFilter = ["issues", "recent_removed"].includes(assetQuickFilter);
+    const shouldIncludeArchived = showArchivedAssets || includeArchivedByStatus || includeArchivedByQuickFilter || Boolean(query);
     let scopedAssets = shouldIncludeArchived
       ? assets
       : assets.filter((item) => !["retired", "lost"].includes(normalizeStatus(item?.status)));
@@ -1453,6 +1458,15 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     }
     if (assetStatusFilter !== "all") {
       scopedAssets = scopedAssets.filter((item) => normalizeStatus(item?.status) === assetStatusFilter);
+    }
+    if (assetQuickFilter === "usable") {
+      scopedAssets = scopedAssets.filter((item) => !isAssetBrokenStatus(item?.status));
+    } else if (assetQuickFilter === "issues") {
+      scopedAssets = scopedAssets.filter((item) => isAssetBrokenStatus(item?.status));
+    } else if (assetQuickFilter === "recent_broken") {
+      scopedAssets = scopedAssets.filter((item) => ["broken", "repair"].includes(normalizeStatus(item?.status)));
+    } else if (assetQuickFilter === "recent_removed") {
+      scopedAssets = scopedAssets.filter((item) => ["retired", "lost"].includes(normalizeStatus(item?.status)));
     }
     const matchedAssets = !query ? scopedAssets : scopedAssets.filter((item) => {
       const source = [
@@ -1471,22 +1485,35 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       return source.includes(query);
     });
 
+    if (["recent_added", "recent_broken", "recent_removed"].includes(assetQuickFilter)) {
+      const dateField = assetQuickFilter === "recent_added" ? "created_at" : "updated_at";
+      return [...matchedAssets].sort(
+        (left, right) => new Date(right?.[dateField] || 0).getTime() - new Date(left?.[dateField] || 0).getTime(),
+      );
+    }
     return [...matchedAssets].sort(sortByAssetCodeNatural);
-  }, [assets, searchQuery, showArchivedAssets, assetCategoryFilter, assetStatusFilter]);
+  }, [assets, searchQuery, showArchivedAssets, assetCategoryFilter, assetStatusFilter, assetQuickFilter]);
 
   const autoIncludedArchivedAssets = !showArchivedAssets && (
-    Boolean(normalizeText(searchQuery)) || ["retired", "lost"].includes(assetStatusFilter)
+    Boolean(normalizeText(searchQuery)) ||
+    ["retired", "lost"].includes(assetStatusFilter) ||
+    ["issues", "recent_removed"].includes(assetQuickFilter)
   );
 
   const filteredLicenses = useMemo(() => {
     const query = normalizeText(licenseSearchQuery).toLowerCase();
-    let scopedLicenses = showArchivedLicenses
+    let scopedLicenses = showArchivedLicenses || licenseQuickFilter === "issues"
       ? licenses
       : licenses.filter((item) => !["inactive", "expired"].includes(normalizeLicenseStatus(item?.status)));
     if (licenseStatusFilter !== "all") {
       scopedLicenses = scopedLicenses.filter(
         (item) => normalizeLicenseStatus(item?.status) === licenseStatusFilter,
       );
+    }
+    if (licenseQuickFilter === "usable") {
+      scopedLicenses = scopedLicenses.filter((item) => isLicenseUsableStatus(item?.status));
+    } else if (licenseQuickFilter === "issues") {
+      scopedLicenses = scopedLicenses.filter((item) => !isLicenseUsableStatus(item?.status));
     }
     if (!query) return scopedLicenses;
 
@@ -1502,7 +1529,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
         .join(" ");
       return source.includes(query);
     });
-  }, [licenses, licenseSearchQuery, showArchivedLicenses, licenseStatusFilter]);
+  }, [licenses, licenseSearchQuery, showArchivedLicenses, licenseStatusFilter, licenseQuickFilter]);
 
   const liveSummary = useMemo(() => {
     return assets.reduce(
@@ -1538,21 +1565,6 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       { records: 0, total: 0, usable: 0, broken: 0, assigned: 0 },
     );
   }, [licenses]);
-
-  const filteredAssetSummary = useMemo(() => {
-    return filteredAssets.reduce(
-      (summary, item) => {
-        summary.total += 1;
-        if (isAssetBrokenStatus(item?.status)) {
-          summary.broken += 1;
-        } else {
-          summary.usable += 1;
-        }
-        return summary;
-      },
-      { total: 0, usable: 0, broken: 0 },
-    );
-  }, [filteredAssets]);
 
   const filteredLicenseSummary = useMemo(() => {
     return filteredLicenses.reduce(
@@ -1947,6 +1959,18 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     });
   };
 
+  const handleAssetSummaryFilter = ({ category = "all", quickFilter = "all", includeArchived = false } = {}) => {
+    setActiveSection("assets");
+    setSearchQuery("");
+    setAssetCategoryFilter(category);
+    setAssetStatusFilter("all");
+    setAssetQuickFilter(quickFilter);
+    setShowArchivedAssets(includeArchived);
+    window.requestAnimationFrame(() => {
+      assetListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const handleOpenDetail = (item) => {
     setDetailEditMode(false);
     setDetailFormData(getAssetFormData(item));
@@ -2176,6 +2200,17 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
 
   const handleOpenLicenseRegistry = () => {
     setActiveSection("licenses");
+    window.requestAnimationFrame(() => {
+      licenseListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const handleLicenseSummaryFilter = (quickFilter = "all") => {
+    setActiveSection("licenses");
+    setLicenseSearchQuery("");
+    setLicenseStatusFilter("all");
+    setLicenseQuickFilter(quickFilter);
+    setShowArchivedLicenses(quickFilter === "issues");
     window.requestAnimationFrame(() => {
       licenseListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -2731,6 +2766,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               label={tt("summary.totalAssets")}
               value={formatNumber(liveSummary.total)}
               helper={`${tt("summary.pc")} ${formatNumber(liveSummary.pc)} • ${tt("summary.notebook")} ${formatNumber(liveSummary.notebook)}`}
+              onClick={() => handleAssetSummaryFilter({ includeArchived: true })}
+              active={activeSection === "assets" && assetCategoryFilter === "all" && assetQuickFilter === "all" && showArchivedAssets}
             />
             <AssetMetricCard
               icon={PackageCheck}
@@ -2738,6 +2775,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               value={formatNumber(liveSummary.usable)}
               helper={`${liveSummary.total > 0 ? Math.round((liveSummary.usable / liveSummary.total) * 100) : 0}% ${tt("ux.ready")}`}
               tone="emerald"
+              onClick={() => handleAssetSummaryFilter({ quickFilter: "usable" })}
+              active={activeSection === "assets" && assetQuickFilter === "usable"}
             />
             <AssetMetricCard
               icon={AlertTriangle}
@@ -2745,6 +2784,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               value={formatNumber(liveSummary.broken)}
               helper={liveSummary.broken > 0 ? tt("ux.needsAttention") : tt("ux.noIssues")}
               tone="rose"
+              onClick={() => handleAssetSummaryFilter({ quickFilter: "issues" })}
+              active={activeSection === "assets" && assetQuickFilter === "issues"}
             />
             <AssetMetricCard
               icon={ShieldCheck}
@@ -2752,22 +2793,30 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
               value={formatNumber(liveLicenseSummary.usable)}
               helper={`${tt("summary.totalLicenses")} ${formatNumber(liveLicenseSummary.total)}`}
               tone="violet"
+              onClick={() => handleLicenseSummaryFilter("usable")}
+              active={activeSection === "licenses" && licenseQuickFilter === "usable"}
             />
           </div>
 
           <div className="relative flex items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-1.5 sm:px-4 sm:py-2">
             <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto text-[10px] text-slate-600">
               {[
-                [Monitor, tt("summary.pc"), liveSummary.pc, "text-blue-600 bg-blue-50"],
-                [Laptop, tt("summary.notebook"), liveSummary.notebook, "text-indigo-600 bg-indigo-50"],
-                [Monitor, tt("summary.monitor"), liveSummary.monitor, "text-cyan-600 bg-cyan-50"],
-                [Printer, tt("summary.printer"), liveSummary.printer, "text-amber-600 bg-amber-50"],
-                [KeyRound, tt("summary.issueLicenses"), liveLicenseSummary.broken, "text-rose-600 bg-rose-50"],
-              ].map(([Icon, label, value, className]) => (
-                <span key={label} className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-semibold ${className}`}>
+                [Monitor, tt("summary.pc"), liveSummary.pc, "text-blue-600 bg-blue-50", () => handleAssetSummaryFilter({ category: "PC", includeArchived: true }), activeSection === "assets" && assetCategoryFilter === "PC"],
+                [Laptop, tt("summary.notebook"), liveSummary.notebook, "text-indigo-600 bg-indigo-50", () => handleAssetSummaryFilter({ category: "Notebook", includeArchived: true }), activeSection === "assets" && assetCategoryFilter === "Notebook"],
+                [Monitor, tt("summary.monitor"), liveSummary.monitor, "text-cyan-600 bg-cyan-50", () => handleAssetSummaryFilter({ category: "Monitor", includeArchived: true }), activeSection === "assets" && assetCategoryFilter === "Monitor"],
+                [Printer, tt("summary.printer"), liveSummary.printer, "text-amber-600 bg-amber-50", () => handleAssetSummaryFilter({ category: "Printer", includeArchived: true }), activeSection === "assets" && assetCategoryFilter === "Printer"],
+                [KeyRound, tt("summary.issueLicenses"), liveLicenseSummary.broken, "text-rose-600 bg-rose-50", () => handleLicenseSummaryFilter("issues"), activeSection === "licenses" && licenseQuickFilter === "issues"],
+              ].map(([Icon, label, value, className, onClick, active]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={onClick}
+                  aria-pressed={active}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 font-semibold transition hover:-translate-y-0.5 hover:shadow-sm ${className} ${active ? "border-current ring-2 ring-current/15" : "border-transparent"}`}
+                >
                   <Icon size={11} />
                   {label} <strong>{formatNumber(value)}</strong>
-                </span>
+                </button>
               ))}
             </div>
 
@@ -3146,14 +3195,30 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                 </label>
                 <label className="relative block min-w-0">
                   <LayoutGrid size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <select value={assetCategoryFilter} onChange={(event) => setAssetCategoryFilter(event.target.value)} className={`${assetFilterInputClass} pl-8`} aria-label={tt("common.allCategories")}>
+                  <select
+                    value={assetCategoryFilter}
+                    onChange={(event) => {
+                      setAssetCategoryFilter(event.target.value);
+                      setAssetQuickFilter("all");
+                    }}
+                    className={`${assetFilterInputClass} pl-8`}
+                    aria-label={tt("common.allCategories")}
+                  >
                     <option value="all">{tt("common.allCategories")}</option>
                     {categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
                 </label>
                 <label className="relative block min-w-0">
                   <Filter size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <select value={assetStatusFilter} onChange={(event) => setAssetStatusFilter(event.target.value)} className={`${assetFilterInputClass} pl-8`} aria-label={tt("common.allStatuses")}>
+                  <select
+                    value={assetStatusFilter}
+                    onChange={(event) => {
+                      setAssetStatusFilter(event.target.value);
+                      setAssetQuickFilter("all");
+                    }}
+                    className={`${assetFilterInputClass} pl-8`}
+                    aria-label={tt("common.allStatuses")}
+                  >
                     <option value="all">{tt("common.allStatuses")}</option>
                     {assetStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
@@ -3164,6 +3229,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                     setSearchQuery("");
                     setAssetCategoryFilter("all");
                     setAssetStatusFilter("all");
+                    setAssetQuickFilter("all");
+                    setShowArchivedAssets(false);
                   }}
                   className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 lg:px-3 lg:text-sm lg:font-bold"
                   title={tt("common.resetFilters")}
@@ -3174,19 +3241,32 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                 </button>
               </div>
 
-              <div className="mt-2 flex min-w-0 items-center gap-2">
+              <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5 text-[10px] font-bold sm:text-[11px]">
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-600">
-                    <Eye size={11} /> {tt("summary.visible")} {formatNumber(filteredAssetSummary.total)} / {formatNumber(assets.length)}
-                  </span>
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
-                    <CheckCircle2 size={11} /> {tt("summary.usable")} {formatNumber(filteredAssetSummary.usable)}
-                  </span>
-                  {filteredAssetSummary.broken > 0 ? (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-rose-700">
-                      <AlertTriangle size={11} /> {tt("summary.unusable")} {formatNumber(filteredAssetSummary.broken)}
-                    </span>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => handleAssetSummaryFilter({ quickFilter: "usable" })}
+                    aria-pressed={assetQuickFilter === "usable"}
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 transition hover:bg-emerald-100 ${assetQuickFilter === "usable" ? "ring-2 ring-emerald-300" : ""}`}
+                  >
+                    <CheckCircle2 size={11} /> {tt("summary.usable")} {formatNumber(liveSummary.usable)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAssetSummaryFilter({ quickFilter: "issues" })}
+                    aria-pressed={assetQuickFilter === "issues"}
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-rose-700 transition hover:bg-rose-100 ${assetQuickFilter === "issues" ? "ring-2 ring-rose-300" : ""}`}
+                  >
+                    <AlertTriangle size={11} /> {tt("summary.unusable")} {formatNumber(liveSummary.broken)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection("activity")}
+                    aria-pressed={activeSection === "activity"}
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[#2b59b0] transition hover:bg-blue-100 ${activeSection === "activity" ? "ring-2 ring-blue-300" : ""}`}
+                  >
+                    <History size={11} /> {tt("summary.latestChanges")} {formatNumber(recentAssetActivities.length)}
+                  </button>
                 </div>
                 <label className="inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-slate-600 sm:text-xs">
                   <input
@@ -3602,7 +3682,10 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <select
                 value={licenseStatusFilter}
-                onChange={(event) => setLicenseStatusFilter(event.target.value)}
+                onChange={(event) => {
+                  setLicenseStatusFilter(event.target.value);
+                  setLicenseQuickFilter("all");
+                }}
                 className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
               >
                 <option value="all">{tt("common.allStatuses")}</option>
@@ -3617,6 +3700,8 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                 onClick={() => {
                   setLicenseSearchQuery("");
                   setLicenseStatusFilter("all");
+                  setLicenseQuickFilter("all");
+                  setShowArchivedLicenses(false);
                 }}
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
               >
@@ -3629,14 +3714,24 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                 <p className="text-[11px] font-semibold text-slate-500">{tt("summary.visible")}</p>
                 <p className="text-lg font-black text-slate-900">{formatNumber(filteredLicenseSummary.total)}</p>
               </div>
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => handleLicenseSummaryFilter("usable")}
+                aria-pressed={licenseQuickFilter === "usable"}
+                className={`rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${licenseQuickFilter === "usable" ? "ring-2 ring-indigo-300" : ""}`}
+              >
                 <p className="text-[11px] font-semibold text-indigo-700">{tt("summary.usable")}</p>
                 <p className="text-lg font-black text-indigo-900">{formatNumber(filteredLicenseSummary.usable)}</p>
-              </div>
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLicenseSummaryFilter("issues")}
+                aria-pressed={licenseQuickFilter === "issues"}
+                className={`rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${licenseQuickFilter === "issues" ? "ring-2 ring-rose-300" : ""}`}
+              >
                 <p className="text-[11px] font-semibold text-rose-700">{tt("summary.unusable")}</p>
                 <p className="text-lg font-black text-rose-900">{formatNumber(filteredLicenseSummary.broken)}</p>
-              </div>
+              </button>
             </div>
 
             <div className="mt-4 space-y-3 lg:hidden">
@@ -4191,7 +4286,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
   );
 }
 
-function AssetMetricCard({ icon: Icon, label, value, helper, tone = "blue" }) {
+function AssetMetricCard({ icon: Icon, label, value, helper, tone = "blue", onClick, active = false }) {
   const tones = {
     blue: "border-blue-100 bg-gradient-to-br from-white to-blue-50/80 text-[#2b59b0]",
     emerald: "border-emerald-100 bg-gradient-to-br from-white to-emerald-50/80 text-emerald-600",
@@ -4205,8 +4300,13 @@ function AssetMetricCard({ icon: Icon, label, value, helper, tone = "blue" }) {
     violet: "bg-violet-100 text-violet-700",
   };
 
+  const Component = onClick ? "button" : "article";
+
   return (
-    <article className={`group min-h-[62px] rounded-xl border px-2.5 py-2 shadow-[0_10px_28px_-25px_rgba(15,23,42,0.5)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_-25px_rgba(43,89,176,0.32)] sm:min-h-[76px] sm:px-3 sm:py-2.5 ${tones[tone]}`}>
+    <Component
+      {...(onClick ? { type: "button", onClick, "aria-pressed": active } : {})}
+      className={`group min-h-[62px] w-full rounded-xl border px-2.5 py-2 text-left shadow-[0_10px_28px_-25px_rgba(15,23,42,0.5)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_-25px_rgba(43,89,176,0.32)] sm:min-h-[76px] sm:px-3 sm:py-2.5 ${tones[tone]} ${active ? "ring-2 ring-current/20" : ""} ${onClick ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-current/25" : ""}`}
+    >
       <div className="flex h-full items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 sm:text-[10px]">{label}</p>
@@ -4217,7 +4317,7 @@ function AssetMetricCard({ icon: Icon, label, value, helper, tone = "blue" }) {
           <Icon size={15} strokeWidth={2.25} className="sm:h-[17px] sm:w-[17px]" />
         </span>
       </div>
-    </article>
+    </Component>
   );
 }
 

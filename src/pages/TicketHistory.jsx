@@ -482,7 +482,7 @@ const fetchImageAsBase64 = async (url) => {
   };
 };
 
-export default function TicketHistory() {
+export default function TicketHistory({ embedded = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { tt, t } = useScopedI18n(TICKET_HISTORY_TRANSLATIONS);
@@ -805,7 +805,7 @@ export default function TicketHistory() {
 
   if (loading) {
     return (
-      <div className="app-theme app-page-bg min-h-screen flex items-center justify-center px-4  selection:bg-blue-100 antialiased">
+      <div className={`app-theme flex items-center justify-center px-4 selection:bg-blue-100 antialiased ${embedded ? "min-h-[50vh] bg-transparent" : "app-page-bg min-h-screen"}`}>
         <div className="app-surface text-center p-8">
           <div className="mx-auto h-14 w-14 rounded-2xl border-4 border-[var(--brand-border)] border-t-[var(--brand-primary)] animate-spin" />
           <p className="mt-4 text-sm font-semibold text-slate-600">{t("ticketHistory.loading")}</p>
@@ -815,10 +815,11 @@ export default function TicketHistory() {
   }
 
   return (
-    <div className="app-theme app-page-bg min-h-screen text-slate-800  selection:bg-blue-100 antialiased">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+    <div className={`app-theme text-slate-800 selection:bg-blue-100 antialiased ${embedded ? "min-h-0 bg-transparent" : "app-page-bg min-h-screen"}`}>
+      <header className={`${embedded ? "relative" : "sticky top-0"} z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md`}>
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
+            {!embedded ? (
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
@@ -827,6 +828,7 @@ export default function TicketHistory() {
             >
               <ArrowLeft size={18} />
             </button>
+            ) : null}
             <div>
               <p className="inline-flex items-center gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-primary)]">
                 <Sparkles size={12} />
@@ -1428,7 +1430,7 @@ export default function TicketHistory() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate("/create-ticket")}
+                  onClick={() => navigate("/dashboard/create-ticket")}
                   className="app-btn-primary inline-flex flex-1 items-center justify-center gap-2"
                 >
                   <ExternalLink size={16} />

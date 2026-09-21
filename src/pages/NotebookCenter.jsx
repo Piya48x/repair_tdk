@@ -41,7 +41,7 @@ const NOTEBOOK_CENTER_TRANSLATIONS = {
   },
 };
 
-export default function NotebookCenter() {
+export default function NotebookCenter({ embedded = false, onOpenChat }) {
   const { tt } = useScopedI18n(NOTEBOOK_CENTER_TRANSLATIONS);
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
@@ -57,6 +57,9 @@ export default function NotebookCenter() {
   });
 
   const isDarkTheme = themeMode === "dark";
+  const handleOpenChat = embedded && onOpenChat
+    ? onOpenChat
+    : () => setSupportChatOpenSignal((value) => value + 1);
 
   useEffect(() => {
     let mounted = true;
@@ -101,7 +104,8 @@ export default function NotebookCenter() {
   }, [profile]);
 
   return (
-    <div className={`app-theme min-h-screen overflow-x-clip transition-colors duration-300 ${isDarkTheme ? "bg-[#0b1220] text-slate-100" : "bg-[#f4f7fb] text-slate-800"}`}>
+    <div className={`app-theme overflow-x-clip transition-colors duration-300 ${embedded ? "min-h-0 bg-transparent" : `min-h-screen ${isDarkTheme ? "bg-[#0b1220]" : "bg-[#f4f7fb]"}`} ${isDarkTheme ? "text-slate-100" : "text-slate-800"}`}>
+      {!embedded ? (
       <header className={`sticky top-0 z-30 border-b backdrop-blur-xl ${isDarkTheme ? "border-slate-700 bg-[#0f172a]/95" : "border-slate-200 bg-white/90"}`}>
         <div className="app-safe-top mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex min-w-0 items-start gap-3">
@@ -138,7 +142,7 @@ export default function NotebookCenter() {
             </div>
             <button
               type="button"
-              onClick={() => setSupportChatOpenSignal((value) => value + 1)}
+              onClick={handleOpenChat}
               className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2b59b0] to-[#244a95] px-3 py-2 text-sm font-semibold text-white shadow-[0_16px_28px_-18px_rgba(43,89,176,0.7)] sm:flex-none"
             >
               {tt("openChat")}
@@ -146,6 +150,7 @@ export default function NotebookCenter() {
           </div>
         </div>
       </header>
+      ) : null}
 
       <main className="app-safe-bottom mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
         {loading ? (
@@ -156,12 +161,12 @@ export default function NotebookCenter() {
           <NotebookBorrowSection
             currentUser={currentUser}
             isDarkTheme={isDarkTheme}
-            onOpenChat={() => setSupportChatOpenSignal((value) => value + 1)}
+            onOpenChat={handleOpenChat}
           />
         ) : null}
       </main>
 
-      {currentUser && (
+      {!embedded && currentUser && (
         <CentralChatDock
           currentUser={currentUser}
           openSignal={supportChatOpenSignal}

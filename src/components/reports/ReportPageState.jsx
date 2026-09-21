@@ -1,6 +1,5 @@
 import React from "react";
 import { RefreshCw, TriangleAlert } from "lucide-react";
-import ReportsPageShell from "./ReportsPageShell";
 import ReportsTopbar from "./ReportsTopbar";
 
 export default function ReportPageState({
@@ -12,7 +11,7 @@ export default function ReportPageState({
   retryLabel,
 }) {
   return (
-    <ReportsPageShell>
+    <>
       <ReportsTopbar />
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_5px_24px_rgba(15,23,42,0.05)]">
         <div className="h-1 bg-blue-700" />
@@ -38,6 +37,6 @@ export default function ReportPageState({
           ) : null}
         </div>
       </section>
-    </ReportsPageShell>
+    </>
   );
 }

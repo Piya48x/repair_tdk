@@ -7,13 +7,10 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock3,
-  LayoutDashboard,
   ListTodo,
-  Package,
   RefreshCw,
   TicketCheck,
   UserRound,
-  Wrench,
 } from "lucide-react";
 import {
   Bar,
@@ -28,23 +25,17 @@ import {
   YAxis,
 } from "recharts";
 import ReportsTopbar from "../../components/reports/ReportsTopbar";
-import ReportsPageShell from "../../components/reports/ReportsPageShell";
-import useNotebookApprovalRealtime from "../../hooks/useNotebookApprovalRealtime";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
-import {
-  canAccessRoute,
-  REPORT_ROUTE_PERMISSIONS,
-  resolveWorkspaceRoute,
-} from "../../lib/roleAccess";
+import { resolveWorkspaceRoute } from "../../lib/roleAccess";
 import { supabase } from "../../lib/supabaseClient";
 import { fetchExecutiveAssetOverviewData } from "../../services/reportService";
 
 const REPORTS_HOME_TRANSLATIONS = {
   th: {
     page: {
-      eyebrow: "Executive IT Operations",
-      title: "ภาพรวมผลการดำเนินงานฝ่าย IT",
-      description: "สรุปปริมาณงาน ผลงานที่ดำเนินการแล้ว และงานที่ทีมกำลังรับผิดชอบ จากข้อมูลในระบบปัจจุบัน",
+      eyebrow: "IT Operations Hub",
+      title: "งาน IT ทั้งหมด",
+      description: "ศูนย์รวมงานซ่อม งานบริการ งานที่กำลังดำเนินการ และทางเข้าสู่รายงานเฉพาะด้านของฝ่าย IT",
       periodLabel: "ช่วงข้อมูล",
       refresh: "อัปเดตข้อมูล",
       updated: "ข้อมูลล่าสุด",
@@ -110,10 +101,10 @@ const REPORTS_HOME_TRANSLATIONS = {
       subtitle: "เข้าถึงรายละเอียดที่เกี่ยวข้องได้โดยตรง",
     },
     operations: {
-      title: "รายงานผู้บริหาร",
-      description: "ดูรายละเอียดปริมาณงาน แนวโน้ม และข้อมูลประกอบการบริหาร",
-      cta: "เปิดรายงาน",
-      label: "Executive",
+      title: "Executive IT Command Center",
+      description: "ภาพรวมระดับบริหารของงานซ่อม SLA ทรัพย์สิน License และประเด็นที่ต้องตัดสินใจ",
+      cta: "เปิด Command Center",
+      label: "Command Center",
     },
     notebook: {
       title: "รายการอนุมัติ Notebook",
@@ -122,10 +113,16 @@ const REPORTS_HOME_TRANSLATIONS = {
       label: "Approvals",
     },
     asset: {
-      title: "ภาพรวมสินทรัพย์ IT",
-      description: "ดู Asset, License, Access Request และสถานะทรัพย์สิน",
-      cta: "เปิดภาพรวม",
+      title: "สถานะและความพร้อมของทรัพย์สิน",
+      description: "ดูจำนวน สถานะ ความพร้อม ความเสี่ยง และ License ของทรัพย์สิน IT",
+      cta: "เปิดข้อมูลทรัพย์สิน",
       label: "Assets",
+    },
+    gatepass: {
+      title: "Gatepass Vehicle Report",
+      description: "สรุปรถ TDK APPROVED และ TEMPORARY พร้อมเทียบรายวัน รายเดือน และผลต่างรถเพิ่ม-ลด",
+      cta: "เปิดรายงาน Gatepass",
+      label: "Gatepass",
     },
     manager: {
       title: "รายงานการปฏิบัติงาน IT",
@@ -142,9 +139,9 @@ const REPORTS_HOME_TRANSLATIONS = {
   },
   en: {
     page: {
-      eyebrow: "Executive IT Operations",
-      title: "IT Performance Overview",
-      description: "A concise view of service volume, completed work, and the responsibilities currently being handled by the IT team.",
+      eyebrow: "IT Operations Hub",
+      title: "All IT Work",
+      description: "A single hub for repairs, service work, active operations, and focused IT management reports.",
       periodLabel: "Reporting period",
       refresh: "Refresh data",
       updated: "Last updated",
@@ -210,10 +207,10 @@ const REPORTS_HOME_TRANSLATIONS = {
       subtitle: "Open related details directly.",
     },
     operations: {
-      title: "Executive report",
-      description: "Review work volume, trends, and management information.",
-      cta: "Open report",
-      label: "Executive",
+      title: "Executive IT Command Center",
+      description: "A leadership view of repairs, SLA, assets, licenses, and decisions requiring attention.",
+      cta: "Open Command Center",
+      label: "Command Center",
     },
     notebook: {
       title: "Notebook approvals",
@@ -222,10 +219,16 @@ const REPORTS_HOME_TRANSLATIONS = {
       label: "Approvals",
     },
     asset: {
-      title: "IT asset overview",
-      description: "Review assets, licenses, access requests, and inventory.",
-      cta: "Open overview",
+      title: "Asset Status & Readiness",
+      description: "Review IT asset volume, condition, readiness, risk, and software licenses.",
+      cta: "Open assets",
       label: "Assets",
+    },
+    gatepass: {
+      title: "Gatepass Vehicle Report",
+      description: "Compare TDK APPROVED and TEMPORARY vehicles by day or month, including added and reduced vehicles.",
+      cta: "Open Gatepass report",
+      label: "Gatepass",
     },
     manager: {
       title: "IT operations report",
@@ -242,9 +245,9 @@ const REPORTS_HOME_TRANSLATIONS = {
   },
   ko: {
     page: {
-      eyebrow: "Executive IT Operations",
-      title: "IT 운영 실적 개요",
-      description: "서비스 업무량, 완료 업무 및 IT 팀이 현재 담당하는 업무를 한눈에 확인합니다.",
+      eyebrow: "IT Operations Hub",
+      title: "전체 IT 업무",
+      description: "수리, 서비스 업무, 진행 중인 운영 및 IT 관리 보고서를 한곳에서 확인합니다.",
       periodLabel: "조회 기간",
       refresh: "데이터 새로고침",
       updated: "마지막 업데이트",
@@ -310,10 +313,10 @@ const REPORTS_HOME_TRANSLATIONS = {
       subtitle: "관련 상세 화면으로 바로 이동합니다.",
     },
     operations: {
-      title: "경영진 보고서",
-      description: "업무량, 추세 및 경영 정보를 확인합니다.",
-      cta: "보고서 열기",
-      label: "Executive",
+      title: "Executive IT Command Center",
+      description: "수리, SLA, 자산, 라이선스 및 주요 의사결정 항목을 한눈에 확인합니다.",
+      cta: "Command Center 열기",
+      label: "Command Center",
     },
     notebook: {
       title: "노트북 승인",
@@ -322,10 +325,16 @@ const REPORTS_HOME_TRANSLATIONS = {
       label: "Approvals",
     },
     asset: {
-      title: "IT 자산 개요",
-      description: "자산, 라이선스, 접근 요청 및 재고를 확인합니다.",
-      cta: "개요 열기",
+      title: "자산 상태 및 준비도",
+      description: "IT 자산 수량, 상태, 준비도, 위험 및 소프트웨어 라이선스를 확인합니다.",
+      cta: "자산 보기",
       label: "Assets",
+    },
+    gatepass: {
+      title: "Gatepass Vehicle Report",
+      description: "TDK APPROVED 및 TEMPORARY 차량을 일별·월별로 비교하고 증감을 확인합니다.",
+      cta: "Gatepass 보고서 열기",
+      label: "Gatepass",
     },
     manager: {
       title: "IT 운영 보고서",
@@ -587,30 +596,6 @@ function WorkList({ rows, emptyLabel, copy, dateFormatter, mode }) {
   );
 }
 
-function QuickLinkCard({ icon: Icon, label, title, description, cta, to, badgeCount = 0 }) {
-  return (
-    <Link
-      to={to}
-      className="group flex min-h-[158px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.035)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_28px_rgba(37,99,235,0.09)]"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-700">
-          <Icon size={19} />
-        </span>
-        <div className="flex items-center gap-2">
-          {badgeCount > 0 ? <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">{badgeCount > 99 ? "99+" : badgeCount}</span> : null}
-          <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">{label}</span>
-        </div>
-      </div>
-      <h3 className="mt-4 text-sm font-bold text-slate-900">{title}</h3>
-      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{description}</p>
-      <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs font-bold text-blue-700">
-        {cta}<ArrowRight size={13} className="transition group-hover:translate-x-0.5" />
-      </span>
-    </Link>
-  );
-}
-
 export default function ReportsHomePage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [identityReady, setIdentityReady] = useState(false);
@@ -650,11 +635,7 @@ export default function ReportsHomePage() {
 
   const currentRole = String(currentUser?.role || "").trim().toLowerCase();
   const canSeeOperations = ["admin", "executive", "it_manager"].includes(currentRole);
-  const canSeeNotebookApprovals = canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.notebookApprovals);
   const workspaceRoute = resolveWorkspaceRoute(currentRole || "user");
-  const { pendingCount: notebookApprovalBadgeCount } = useNotebookApprovalRealtime({
-    enabled: identityReady && canSeeNotebookApprovals,
-  });
 
   const loadOverview = useCallback(async () => {
     if (!canSeeOperations) return;
@@ -755,69 +736,10 @@ export default function ReportsHomePage() {
   );
   const updatedAt = overviewData?.generatedAt ? parseDate(overviewData.generatedAt) : null;
 
-  const quickLinks = useMemo(() => [
-    {
-      key: "operations",
-      icon: LayoutDashboard,
-      label: tt("operations.label"),
-      title: tt("operations.title"),
-      description: tt("operations.description"),
-      cta: tt("operations.cta"),
-      to: "/reports/executive",
-      roles: REPORT_ROUTE_PERMISSIONS.executive,
-    },
-    {
-      key: "notebook",
-      icon: ClipboardCheck,
-      label: tt("notebook.label"),
-      title: tt("notebook.title"),
-      description: tt("notebook.description"),
-      cta: tt("notebook.cta"),
-      to: "/reports/executive/notebook-approvals",
-      roles: REPORT_ROUTE_PERMISSIONS.notebookApprovals,
-      badgeCount: notebookApprovalBadgeCount,
-    },
-    {
-      key: "assets",
-      icon: Package,
-      label: tt("asset.label"),
-      title: tt("asset.title"),
-      description: tt("asset.description"),
-      cta: tt("asset.cta"),
-      to: "/reports/executive/assets-overview",
-      roles: REPORT_ROUTE_PERMISSIONS.executive,
-    },
-    {
-      key: "manager",
-      icon: BarChart3,
-      label: tt("manager.label"),
-      title: tt("manager.title"),
-      description: tt("manager.description"),
-      cta: tt("manager.cta"),
-      to: "/reports/it",
-      roles: REPORT_ROUTE_PERMISSIONS.it,
-    },
-    {
-      key: "workspace",
-      icon: Wrench,
-      label: tt("workspace.label"),
-      title: tt("workspace.title"),
-      description: tt("workspace.description"),
-      cta: tt("workspace.cta"),
-      to: workspaceRoute,
-      roles: null,
-    },
-  ], [notebookApprovalBadgeCount, tt, workspaceRoute]);
-
-  const visibleQuickLinks = quickLinks.filter(
-    (item) => !item.roles || (currentRole && canAccessRoute(currentRole, item.roles)),
-  );
-
   return (
-    <ReportsPageShell>
+    <>
       <ReportsTopbar
         currentUser={currentUser}
-        notebookApprovalBadgeCount={canSeeNotebookApprovals ? notebookApprovalBadgeCount : 0}
       />
 
       <main className="space-y-5">
@@ -1024,29 +946,10 @@ export default function ReportsHomePage() {
             </>
           ) : null}
 
-          <section>
-            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{tt("quick.eyebrow")}</p>
-                <h2 className="mt-1 text-lg font-bold text-slate-950">{tt("quick.title")}</h2>
-              </div>
-              <p className="text-xs text-slate-500">{tt("quick.subtitle")}</p>
-            </div>
-            {identityReady ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                {visibleQuickLinks.map((item) => <QuickLinkCard key={item.key} {...item} />)}
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-[158px] animate-pulse rounded-2xl border border-slate-200 bg-white" />)}
-              </div>
-            )}
-          </section>
-
           <footer className="flex items-center justify-center gap-2 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
             <BarChart3 size={13} />TDK IT Operations Reporting
           </footer>
       </main>
-    </ReportsPageShell>
+    </>
   );
 }

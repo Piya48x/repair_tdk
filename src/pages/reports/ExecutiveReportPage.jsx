@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import ExecutiveDashboard from "../../components/reports/ExecutiveDashboard";
 import ReportPageState from "../../components/reports/ReportPageState";
-import ReportsPageShell from "../../components/reports/ReportsPageShell";
 import ReportsTopbar from "../../components/reports/ReportsTopbar";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
 import { supabase } from "../../lib/supabaseClient";
@@ -10,7 +9,7 @@ import { fetchExecutiveReportData } from "../../services/reportService";
 
 const EXECUTIVE_REPORT_PAGE_TRANSLATIONS = {
   th: {
-    backLabel: "Reports Hub",
+    backLabel: "งาน IT ทั้งหมด",
     loadingTitle: "กำลังโหลดรายงานผู้บริหาร",
     loadingSubtitle: "กำลังดึงข้อมูล KPI, แนวโน้ม, สินทรัพย์ และ license",
     unavailableTitle: "ไม่สามารถเปิดรายงานผู้บริหารได้",
@@ -21,7 +20,7 @@ const EXECUTIVE_REPORT_PAGE_TRANSLATIONS = {
     },
   },
   en: {
-    backLabel: "Reports Hub",
+    backLabel: "All IT Work",
     loadingTitle: "Loading executive report",
     loadingSubtitle: "Fetching KPI, trend, asset, and license data.",
     unavailableTitle: "Executive report unavailable",
@@ -32,7 +31,7 @@ const EXECUTIVE_REPORT_PAGE_TRANSLATIONS = {
     },
   },
   ko: {
-    backLabel: "리포트 허브",
+    backLabel: "전체 IT 업무",
     loadingTitle: "임원 리포트를 불러오는 중입니다",
     loadingSubtitle: "KPI, 추세, 자산, 라이선스 데이터를 가져오고 있습니다",
     unavailableTitle: "임원 리포트를 열 수 없습니다",
@@ -93,6 +92,20 @@ export default function ExecutiveReportPage() {
           void loadData();
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tickets" },
+        () => {
+          void loadData();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "access_requests" },
+        () => {
+          void loadData();
+        },
+      )
       .subscribe();
 
     return () => {
@@ -124,9 +137,9 @@ export default function ExecutiveReportPage() {
   }
 
   return (
-    <ReportsPageShell>
+    <>
       <ReportsTopbar />
       <ExecutiveDashboard data={data} onRefresh={loadData} loading={loading} />
-    </ReportsPageShell>
+    </>
   );
 }

@@ -52,6 +52,7 @@ const ROLE_META = {
   it_support: { label: "IT Support", chip: "border-[#2b59b0]/25 bg-[#2b59b0]/10 text-[#2b59b0]" },
   it_manager: { label: "IT Manager", chip: "border-indigo-200 bg-indigo-50 text-indigo-700" },
   executive: { label: "Executive", chip: "border-violet-200 bg-violet-50 text-violet-700" },
+  security: { label: "Security / รปภ.", chip: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   auditor: { label: "Auditor", chip: "border-amber-200 bg-amber-50 text-amber-700" },
   admin: { label: "Admin", chip: "border-rose-200 bg-rose-50 text-rose-700" },
 };

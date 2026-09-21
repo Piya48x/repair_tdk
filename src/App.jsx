@@ -1,18 +1,10 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import AuthPage from "./pages/AuthPage.jsx";
 import Dashboard from "./pages/Dashboard";
-import CreateTicket from "./pages/CreateTicket";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
-import TicketHistory from "./pages/TicketHistory";
 import ITDashboard from "./pages/ITDashboard";
 import AuditView from "./pages/AuditView";
-import PickUpEquipment from "./pages/PickUpEquipment.jsx";
-import MeetingRoomBooking from "./pages/MeetingRoomBooking.jsx";
-import WorkNotes from "./pages/WorkNotes.jsx";
-import AccessRequest from "./pages/AccessRequest.jsx";
-import NotebookCenter from "./pages/NotebookCenter.jsx";
-import MyStatus from "./pages/MyStatus.jsx";
 import MyBorrowRequests from "./pages/MyBorrowRequests.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
@@ -21,10 +13,22 @@ import ITManagerReportPage from "./pages/reports/ITManagerReportPage.jsx";
 import ExecutiveReportPage from "./pages/reports/ExecutiveReportPage.jsx";
 import ExecutiveAssetOverviewPage from "./pages/reports/ExecutiveAssetOverviewPage.jsx";
 import ExecutiveNotebookApprovalsPage from "./pages/reports/ExecutiveNotebookApprovalsPage.jsx";
+import GatepassReportPage from "./pages/reports/GatepassReportPage.jsx";
+import ReportsPageShell from "./components/reports/ReportsPageShell.jsx";
 import AssetQrDetailPage from "./pages/AssetQrDetailPage.jsx";
 import { REPORT_ROUTE_PERMISSIONS } from "./lib/roleAccess";
 import { Toaster } from "react-hot-toast";
 import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
+
+const DASHBOARD_ROUTE_ROLES = ["user", "it_support", "it_manager", "executive", "admin", "auditor"];
+
+function ReportsLayout() {
+  return (
+    <ReportsPageShell>
+      <Outlet />
+    </ReportsPageShell>
+  );
+}
 
 function AppInner() {
   return (
@@ -33,34 +37,34 @@ function AppInner() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
-      <Route path="/dashboard" element={
-        <ProtectedRoute allowedRoles={['user', 'it_support', 'it_manager', 'executive', 'admin', 'auditor']}>
+      <Route path="/dashboard/*" element={
+        <ProtectedRoute allowedRoles={DASHBOARD_ROUTE_ROLES}>
           <Dashboard />
         </ProtectedRoute>
       } />
       <Route path="/ticket-history" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin', 'auditor']}>
-          <TicketHistory />
+          <Navigate to="/dashboard/ticket-history" replace />
         </ProtectedRoute>
       } />
       <Route path="/work-notes" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin', 'auditor']}>
-          <WorkNotes />
+          <Navigate to="/dashboard/work-notes" replace />
         </ProtectedRoute>
       } />
       <Route path="/access-request" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin', 'auditor']}>
-          <AccessRequest />
+          <Navigate to="/dashboard/access-request" replace />
         </ProtectedRoute>
       } />
       <Route path="/notebook-center" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin', 'auditor']}>
-          <NotebookCenter />
+          <Navigate to="/dashboard/notebook-center" replace />
         </ProtectedRoute>
       } />
       <Route path="/my-status" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'it_manager', 'executive', 'admin', 'auditor']}>
-          <MyStatus />
+          <Navigate to="/dashboard/my-status" replace />
         </ProtectedRoute>
       } />
       <Route path="/my-borrow-requests" element={
@@ -71,7 +75,7 @@ function AppInner() {
 
       <Route path="/create-ticket" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'it_manager', 'executive', 'admin']}>
-          <CreateTicket />
+          <Navigate to="/dashboard/create-ticket" replace />
         </ProtectedRoute>
       } />
 
@@ -90,41 +94,48 @@ function AppInner() {
           />
         )}
       />
-      <Route path="/reports" element={
-        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.index}>
-          <ReportsHomePage />
-        </ProtectedRoute>
-      } />
-      <Route path="/reports/it" element={
-        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.it}>
-          <ITManagerReportPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/reports/executive" element={
-        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.executive}>
-          <ExecutiveReportPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/reports/executive/notebook-approvals" element={
-        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.notebookApprovals}>
-          <ExecutiveNotebookApprovalsPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/reports/executive/assets-overview" element={
-        <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.executive}>
-          <ExecutiveAssetOverviewPage />
-        </ProtectedRoute>
-      } />
-      <Route
-        path="/reports/executive/assets-management"
-        element={(
-          <Navigate
-            to="/admin-dashboard"
-            replace
-            state={{ dashboardPage: "ASSET_MANAGEMENT" }}
-          />
-        )}
-      />
+      <Route element={<ReportsLayout />}>
+        <Route path="/reports" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.index}>
+            <ReportsHomePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/it" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.it}>
+            <ITManagerReportPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/executive" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.executive}>
+            <ExecutiveReportPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/executive/notebook-approvals" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.notebookApprovals}>
+            <ExecutiveNotebookApprovalsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/executive/assets-overview" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.executive}>
+            <ExecutiveAssetOverviewPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/gatepass" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.gatepass}>
+            <GatepassReportPage />
+          </ProtectedRoute>
+        } />
+        <Route
+          path="/reports/executive/assets-management"
+          element={(
+            <Navigate
+              to="/admin-dashboard"
+              replace
+              state={{ dashboardPage: "ASSET_MANAGEMENT" }}
+            />
+          )}
+        />
+      </Route>
       <Route path="/asset-qr/:assetTag" element={
         <ProtectedRoute allowedRoles={["user", "it_support", "it_manager", "executive", "admin", "auditor"]}>
           <AssetQrDetailPage />
@@ -139,13 +150,13 @@ function AppInner() {
       } />
       <Route path="/pick-up-equipment" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin']}>
-          <PickUpEquipment />
+          <Navigate to="/dashboard/pick-up-equipment" replace />
         </ProtectedRoute>
       } />
 
       <Route path="/meeting-room-booking" element={
         <ProtectedRoute allowedRoles={['user', 'it_support', 'executive', 'admin']}>
-          <MeetingRoomBooking />
+          <Navigate to="/dashboard/meeting-room-booking" replace />
         </ProtectedRoute>
       } />
 
@@ -157,7 +168,7 @@ function AppInner() {
 function AppChrome() {
   const location = useLocation();
   const hideFloatingLanguageSwitcher =
-    location.pathname === "/dashboard" ||
+    location.pathname.startsWith("/dashboard") ||
     location.pathname === "/my-borrow-requests" ||
     location.pathname === "/notebook-center" ||
     location.pathname === "/create-ticket" ||

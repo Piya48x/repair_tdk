@@ -4,6 +4,20 @@ import { supabase } from "../lib/supabaseClient";
 import { canAccessRoute } from "../lib/roleAccess";
 import { useScopedI18n } from "../i18n/useScopedI18n";
 
+// A route change used to mount a new ProtectedRoute and show a full-screen
+// permission loader every time. Keep the verified role for the active browser
+// session so internal navigation stays in the current application shell.
+let verifiedAuth = null;
+
+function getCachedAccess(allowedRoles) {
+  if (!verifiedAuth || verifiedAuth.isActive === false) return null;
+  return canAccessRoute(verifiedAuth.role, allowedRoles);
+}
+
+function clearVerifiedAuth() {
+  verifiedAuth = null;
+}
+
 const PROTECTED_ROUTE_TRANSLATIONS = {
   th: {
     checking: "กำลังตรวจสอบสิทธิ์การเข้าถึง...",
@@ -18,15 +32,26 @@ const PROTECTED_ROUTE_TRANSLATIONS = {
 
 export default function ProtectedRoute({ children, allowedRoles }) {
   const { tt } = useScopedI18n(PROTECTED_ROUTE_TRANSLATIONS);
-  const [loading, setLoading] = useState(true);
-  const [isAllowed, setIsAllowed] = useState(false);
-  const [hasAuthenticatedUser, setHasAuthenticatedUser] = useState(false);
+  const cachedAccess = getCachedAccess(allowedRoles);
+  const [loading, setLoading] = useState(() => cachedAccess === null);
+  const [isAllowed, setIsAllowed] = useState(() => cachedAccess === true);
+  const [hasAuthenticatedUser, setHasAuthenticatedUser] = useState(() => cachedAccess !== null);
   const location = useLocation();
 
   useEffect(() => {
     let isMounted = true;
 
     const checkAuth = async () => {
+      const cachedRouteAccess = getCachedAccess(allowedRoles);
+      if (cachedRouteAccess !== null) {
+        if (isMounted) {
+          setHasAuthenticatedUser(true);
+          setIsAllowed(cachedRouteAccess);
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
         setLoading(true);
         setHasAuthenticatedUser(false);
@@ -60,12 +85,18 @@ export default function ProtectedRoute({ children, allowedRoles }) {
 
           if (profile?.is_active === false) {
             await supabase.auth.signOut();
+            clearVerifiedAuth();
             if (isMounted) setIsAllowed(false);
             return;
           }
 
-          if (profile && canAccessRoute(profile.role, allowedRoles)) {
-            if (isMounted) setIsAllowed(true);
+          if (profile) {
+            verifiedAuth = {
+              userId: user.id,
+              role: profile.role,
+              isActive: profile.is_active !== false,
+            };
+            if (isMounted) setIsAllowed(canAccessRoute(profile.role, allowedRoles));
           }
         }
       } catch (err) {
@@ -81,6 +112,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT" && isMounted) {
+        clearVerifiedAuth();
         setIsAllowed(false);
         setHasAuthenticatedUser(false);
         setLoading(false);

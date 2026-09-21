@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import ReportPageHero from "../../components/reports/ReportPageHero";
-import ReportsPageShell from "../../components/reports/ReportsPageShell";
 import ReportsTopbar from "../../components/reports/ReportsTopbar";
 import useNotebookApprovalRealtime from "../../hooks/useNotebookApprovalRealtime";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
@@ -89,10 +88,9 @@ export default function ExecutiveNotebookApprovalsPage() {
   });
 
   return (
-    <ReportsPageShell>
+    <>
       <ReportsTopbar
         currentUser={currentUser}
-        notebookApprovalBadgeCount={notebookApprovalBadgeCount}
         messengerOpenSignal={chatOpenSignal}
         messengerOpenSignalTarget="list"
       />
@@ -110,6 +108,6 @@ export default function ExecutiveNotebookApprovalsPage() {
           embedded
         />
       </main>
-    </ReportsPageShell>
+    </>
   );
 }

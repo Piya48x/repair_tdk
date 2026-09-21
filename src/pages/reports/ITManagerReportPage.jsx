@@ -8,7 +8,7 @@ import { fetchITManagerReportData } from "../../services/reportService";
 
 const IT_MANAGER_REPORT_PAGE_TRANSLATIONS = {
   th: {
-    backLabel: "Reports Hub",
+    backLabel: "งาน IT ทั้งหมด",
     loadingTitle: "กำลังโหลดรายงาน IT Manager",
     loadingSubtitle: "กำลังดึงข้อมูล queue, workload, aging และ SLA",
     unavailableTitle: "ไม่สามารถเปิดรายงาน IT Manager ได้",
@@ -19,7 +19,7 @@ const IT_MANAGER_REPORT_PAGE_TRANSLATIONS = {
     },
   },
   en: {
-    backLabel: "Reports Hub",
+    backLabel: "All IT Work",
     loadingTitle: "Loading IT manager report",
     loadingSubtitle: "Fetching queue, workload, aging, and SLA data.",
     unavailableTitle: "IT manager report unavailable",
@@ -30,7 +30,7 @@ const IT_MANAGER_REPORT_PAGE_TRANSLATIONS = {
     },
   },
   ko: {
-    backLabel: "리포트 허브",
+    backLabel: "전체 IT 업무",
     loadingTitle: "IT 매니저 리포트를 불러오는 중입니다",
     loadingSubtitle: "대기열, 업무량, aging, SLA 데이터를 가져오고 있습니다",
     unavailableTitle: "IT 매니저 리포트를 열 수 없습니다",
@@ -44,35 +44,33 @@ const IT_MANAGER_REPORT_PAGE_TRANSLATIONS = {
 
 function PageState({ title, subtitle, error, onRetry, loading, retryLabel, backLabel }) {
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        <ReportsTopbar backTo="/reports" backLabel={backLabel} />
+    <>
+      <ReportsTopbar backTo="/reports" backLabel={backLabel} />
 
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mx-auto max-w-2xl text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-              {error ? (
-                <TriangleAlert size={24} />
-              ) : (
-                <RefreshCw size={24} className={loading ? "animate-spin" : ""} />
-              )}
-            </div>
-            <h1 className="mt-4 text-2xl font-black text-slate-900">{title}</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{subtitle}</p>
-            {error ? <p className="mt-4 text-sm font-medium text-rose-600">{error}</p> : null}
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="mx-auto max-w-2xl text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
             {error ? (
-              <button
-                type="button"
-                onClick={onRetry}
-                className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                {retryLabel}
-              </button>
-            ) : null}
+              <TriangleAlert size={24} />
+            ) : (
+              <RefreshCw size={24} className={loading ? "animate-spin" : ""} />
+            )}
           </div>
+          <h1 className="mt-4 text-2xl font-black text-slate-900">{title}</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500">{subtitle}</p>
+          {error ? <p className="mt-4 text-sm font-medium text-rose-600">{error}</p> : null}
+          {error ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              {retryLabel}
+            </button>
+          ) : null}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -127,11 +125,9 @@ export default function ITManagerReportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        <ReportsTopbar backTo="/reports" backLabel={tt("backLabel")} />
-        <ITManagerDashboard data={data} onRefresh={loadData} loading={loading} />
-      </div>
-    </div>
+    <>
+      <ReportsTopbar backTo="/reports" backLabel={tt("backLabel")} />
+      <ITManagerDashboard data={data} onRefresh={loadData} loading={loading} />
+    </>
   );
 }

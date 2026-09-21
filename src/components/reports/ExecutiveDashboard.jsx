@@ -1,16 +1,25 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   Archive,
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
   Box,
   Building2,
   CheckCircle2,
   ChevronRight,
+  Clock3,
   Computer,
+  Gauge,
   HardDrive,
+  Headphones,
   ImageOff,
+  Images,
   KeyRound,
   Laptop,
+  LayoutDashboard,
   MapPin,
   Monitor,
   PackageCheck,
@@ -18,25 +27,113 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  TicketCheck,
+  Tickets,
+  TrendingUp,
   UserRound,
+  Users,
   Wrench,
   X,
   ZoomIn,
 } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useI18n } from "../../i18n/LanguageProvider";
 import { getReportLocale } from "./reportLocale";
 import ReportPageHero from "./ReportPageHero";
 
 const COPY = {
   th: {
-    heroBadge: "Executive Asset Health",
-    heroTitle: "ภาพรวมทรัพย์สิน IT",
-    heroDescription: "ดูจำนวน สถานะ ความพร้อมใช้งาน และรูปอุปกรณ์ล่าสุดได้ในหน้าเดียว เพื่อช่วยตัดสินใจและติดตามความเสี่ยงได้เร็วขึ้น",
+    heroBadge: "Executive IT Command Center",
+    heroTitle: "ภาพรวมการบริหาร IT",
+    heroDescription: "สรุปงานบริการ SLA ความพร้อมของทรัพย์สิน รูปอุปกรณ์ License และคำขอสิทธิ์ เพื่อให้ MD, Manager และหัวหน้า IT ตัดสินใจจากข้อมูลเดียวกัน",
     refresh: "รีเฟรชข้อมูล",
     updated: "อัปเดตล่าสุด",
     healthScore: "ความพร้อมของทรัพย์สินที่ยังใช้งาน",
     healthy: "สถานะโดยรวมอยู่ในเกณฑ์ดี",
     needsAttention: "มี {{count}} รายการที่ควรติดตาม",
+    navigation: {
+      summary: "สรุปผู้บริหาร",
+      performance: "ประสิทธิภาพงาน",
+      assets: "สถานะทรัพย์สิน",
+      gallery: "รูปอุปกรณ์",
+      licenses: "License",
+    },
+    executive: {
+      eyebrow: "Executive Snapshot",
+      title: "ตัวเลขสำคัญสำหรับตัดสินใจ",
+      subtitle: "อ่านสถานการณ์หลักได้ทันที แล้วลงรายละเอียดเฉพาะจุดที่ต้องจัดการ",
+      stable: "ภาพรวมระบบ IT อยู่ในเกณฑ์ควบคุมได้",
+      attention: "มี {{count}} ประเด็นที่ต้องติดตามจาก SLA, Asset, License และ Access",
+      metrics: {
+        tickets: "คำขอทั้งหมด",
+        ticketsHint: "งานบริการทั้งหมดในระบบ",
+        open: "งานที่ยังเปิดอยู่",
+        openHint: "{{percent}}% ของคำขอทั้งหมด",
+        overdue: "งานเกิน SLA",
+        overdueHint: "{{percent}}% ของงานที่ยังเปิด",
+        resolution: "เวลาปิดงานเฉลี่ย",
+        resolutionHint: "ระยะเวลาตั้งแต่รับจนปิดงาน",
+        assetReadiness: "Asset พร้อมใช้งาน",
+        assetReadinessHint: "{{ready}} จาก {{active}} รายการที่ยังใช้งาน",
+        licenseUse: "การใช้ License",
+        licenseUseHint: "ใช้แล้ว {{used}} จาก {{total}} สิทธิ์",
+      },
+    },
+    operations: {
+      eyebrow: "Service Performance",
+      title: "ประสิทธิภาพและภาระงาน IT",
+      subtitle: "แนวโน้มรับเข้าเทียบปิดงาน พร้อมจุดที่ต้องเร่งติดตาม",
+      trendTitle: "แนวโน้มคำขอ 12 เดือน",
+      trendSubtitle: "เปรียบเทียบงานรับเข้าและงานที่ปิดในแต่ละเดือน",
+      created: "รับเข้า",
+      closed: "ปิดงาน",
+      closeRate: "อัตราปิดงาน 3 เดือนล่าสุด",
+      workloadUp: "ภาระงานเพิ่ม {{percent}}% เทียบ 3 เดือนก่อน",
+      workloadDown: "ภาระงานลด {{percent}}% เทียบ 3 เดือนก่อน",
+      workloadStable: "ภาระงานใกล้เคียง 3 เดือนก่อน",
+      noTrend: "ยังไม่มีข้อมูลแนวโน้ม",
+    },
+    priorities: {
+      eyebrow: "Management Attention",
+      title: "ประเด็นที่ต้องตัดสินใจ",
+      subtitle: "เรียงจากสัญญาณที่กระทบการให้บริการและความต่อเนื่อง",
+      overdue: "งานเกิน SLA",
+      overdueHint: "ควรมอบหมายเจ้าของและกำหนดวันปิด",
+      assets: "อุปกรณ์เสีย / กำลังซ่อม",
+      assetsHint: "ตรวจอะไหล่ เครื่องทดแทน และแผนซ่อม",
+      licenses: "License ใกล้หมดอายุ",
+      licensesHint: "ครบกำหนดภายใน 30 วัน",
+      access: "Access รออนุมัติ",
+      accessHint: "ลดคอขวดการเริ่มงานของพนักงาน",
+      clear: "ไม่มีประเด็นเร่งด่วนในขณะนี้",
+      items: "รายการ",
+    },
+    insights: {
+      eyebrow: "Demand Insights",
+      title: "ความต้องการบริการที่เกิดขึ้นจริง",
+      subtitle: "ใช้จัดลำดับกำลังคน ป้องกันปัญหาซ้ำ และวางแผนสนับสนุนแต่ละแผนก",
+      issuesTitle: "ปัญหา / บริการที่พบบ่อย",
+      issuesSubtitle: "ประเภทคำขอสูงสุดใน 12 เดือน",
+      departmentsTitle: "แผนกที่ใช้บริการสูง",
+      departmentsSubtitle: "จำนวนคำขอแยกตามแผนก",
+      statusTitle: "สถานะงานบริการ",
+      statusSubtitle: "จำนวน Ticket ในแต่ละขั้นตอนปัจจุบัน",
+      requests: "คำขอ",
+      empty: "ยังไม่มีข้อมูลเพียงพอ",
+    },
+    assetSection: {
+      eyebrow: "Asset Governance",
+      title: "สถานะและความพร้อมของทรัพย์สิน",
+      subtitle: "มุมมองสำหรับหัวหน้า IT เพื่อติดตามการใช้งาน ความเสี่ยง เครื่องสำรอง และหลักฐานรูปภาพ",
+    },
     metrics: {
       total: "ทรัพย์สินทั้งหมด",
       totalHint: "รวมอุปกรณ์ทุกสถานะ",
@@ -119,16 +216,104 @@ const COPY = {
       retired: "ปลดระวาง",
       lost: "สูญหาย",
     },
+    ticketStatusCodes: {
+      new: "งานใหม่",
+      open: "เปิดอยู่",
+      pending: "รอดำเนินการ",
+      assigned: "มอบหมายแล้ว",
+      in_progress: "กำลังดำเนินการ",
+      waiting: "รอข้อมูล",
+      on_hold: "พักงาน",
+      closed: "ปิดงาน",
+      completed: "เสร็จสิ้น",
+      resolved: "แก้ไขแล้ว",
+      cancelled: "ยกเลิก",
+    },
   },
   en: {
-    heroBadge: "Executive Asset Health",
-    heroTitle: "IT Asset Overview",
-    heroDescription: "See inventory, readiness, risks, and recent equipment photos in one place for faster executive decisions.",
+    heroBadge: "Executive IT Command Center",
+    heroTitle: "IT Management Overview",
+    heroDescription: "Unify service workload, SLA, asset readiness, equipment photos, licenses, and access requests so MDs, managers, and IT leaders act from the same view.",
     refresh: "Refresh data",
     updated: "Last updated",
     healthScore: "Readiness of active assets",
     healthy: "Overall asset health is good",
     needsAttention: "{{count}} assets need attention",
+    navigation: {
+      summary: "Executive summary",
+      performance: "Performance",
+      assets: "Asset health",
+      gallery: "Equipment photos",
+      licenses: "Licenses",
+    },
+    executive: {
+      eyebrow: "Executive Snapshot",
+      title: "Decision-ready indicators",
+      subtitle: "Read the operating position first, then drill into the areas that need action.",
+      stable: "IT operations are currently within a manageable range",
+      attention: "{{count}} signals need attention across SLA, assets, licenses, and access",
+      metrics: {
+        tickets: "Total requests",
+        ticketsHint: "All service work in the system",
+        open: "Open work",
+        openHint: "{{percent}}% of all requests",
+        overdue: "Overdue SLA",
+        overdueHint: "{{percent}}% of open work",
+        resolution: "Avg. resolution",
+        resolutionHint: "Average intake-to-close time",
+        assetReadiness: "Asset readiness",
+        assetReadinessHint: "{{ready}} of {{active}} active assets",
+        licenseUse: "License utilization",
+        licenseUseHint: "{{used}} of {{total}} seats assigned",
+      },
+    },
+    operations: {
+      eyebrow: "Service Performance",
+      title: "IT performance and workload",
+      subtitle: "Compare incoming and closed work, then focus on the signals requiring intervention.",
+      trendTitle: "12-month request trend",
+      trendSubtitle: "Monthly intake compared with closed work",
+      created: "Received",
+      closed: "Closed",
+      closeRate: "Latest 3-month close rate",
+      workloadUp: "Workload up {{percent}}% vs. prior 3 months",
+      workloadDown: "Workload down {{percent}}% vs. prior 3 months",
+      workloadStable: "Workload is stable vs. prior 3 months",
+      noTrend: "No trend data yet",
+    },
+    priorities: {
+      eyebrow: "Management Attention",
+      title: "Decisions and follow-up",
+      subtitle: "Prioritized signals affecting service delivery and continuity",
+      overdue: "Overdue SLA work",
+      overdueHint: "Assign an owner and committed close date",
+      assets: "Broken / repairing assets",
+      assetsHint: "Review parts, loaners, and repair plans",
+      licenses: "Licenses nearing expiry",
+      licensesHint: "Due within the next 30 days",
+      access: "Pending access approvals",
+      accessHint: "Remove employee onboarding bottlenecks",
+      clear: "No urgent management signals right now",
+      items: "items",
+    },
+    insights: {
+      eyebrow: "Demand Insights",
+      title: "Where service demand is coming from",
+      subtitle: "Use the pattern to allocate capacity, prevent recurrence, and support departments proactively.",
+      issuesTitle: "Top issues and services",
+      issuesSubtitle: "Highest-volume request types in 12 months",
+      departmentsTitle: "Highest-demand departments",
+      departmentsSubtitle: "Requests grouped by department",
+      statusTitle: "Service ticket status",
+      statusSubtitle: "Current ticket volume at each workflow stage",
+      requests: "requests",
+      empty: "Not enough data yet",
+    },
+    assetSection: {
+      eyebrow: "Asset Governance",
+      title: "Asset status and readiness",
+      subtitle: "An IT leadership view of utilization, risk, spare capacity, and photographic evidence.",
+    },
     metrics: {
       total: "Total assets",
       totalHint: "Equipment across every status",
@@ -211,16 +396,104 @@ const COPY = {
       retired: "Retired",
       lost: "Lost",
     },
+    ticketStatusCodes: {
+      new: "New",
+      open: "Open",
+      pending: "Pending",
+      assigned: "Assigned",
+      in_progress: "In progress",
+      waiting: "Waiting",
+      on_hold: "On hold",
+      closed: "Closed",
+      completed: "Completed",
+      resolved: "Resolved",
+      cancelled: "Cancelled",
+    },
   },
   ko: {
-    heroBadge: "Executive Asset Health",
-    heroTitle: "IT 자산 현황",
-    heroDescription: "자산 수량, 준비 상태, 위험 요소와 최신 장비 사진을 한 화면에서 빠르게 확인합니다.",
+    heroBadge: "Executive IT Command Center",
+    heroTitle: "IT 경영 현황",
+    heroDescription: "서비스 업무량, SLA, 자산 준비 상태, 장비 사진, 라이선스 및 접근 요청을 통합하여 경영진과 IT 리더가 같은 정보를 기준으로 판단합니다.",
     refresh: "새로고침",
     updated: "마지막 업데이트",
     healthScore: "운영 자산 준비율",
     healthy: "전반적인 자산 상태가 양호합니다",
     needsAttention: "{{count}}개 자산 확인 필요",
+    navigation: {
+      summary: "경영 요약",
+      performance: "업무 성과",
+      assets: "자산 상태",
+      gallery: "장비 사진",
+      licenses: "라이선스",
+    },
+    executive: {
+      eyebrow: "Executive Snapshot",
+      title: "의사결정을 위한 핵심 지표",
+      subtitle: "운영 상황을 먼저 확인한 후 조치가 필요한 영역을 자세히 살펴보세요.",
+      stable: "현재 IT 운영은 관리 가능한 범위입니다",
+      attention: "SLA, 자산, 라이선스 및 접근에서 {{count}}개 신호를 확인해야 합니다",
+      metrics: {
+        tickets: "전체 요청",
+        ticketsHint: "시스템의 모든 서비스 업무",
+        open: "진행 중 업무",
+        openHint: "전체 요청의 {{percent}}%",
+        overdue: "SLA 초과",
+        overdueHint: "진행 중 업무의 {{percent}}%",
+        resolution: "평균 해결 시간",
+        resolutionHint: "접수부터 종료까지 평균 시간",
+        assetReadiness: "자산 준비율",
+        assetReadinessHint: "운영 자산 {{active}}개 중 {{ready}}개",
+        licenseUse: "라이선스 사용률",
+        licenseUseHint: "전체 {{total}}석 중 {{used}}석 사용",
+      },
+    },
+    operations: {
+      eyebrow: "Service Performance",
+      title: "IT 성과 및 업무량",
+      subtitle: "접수와 종료 추세를 비교하고 조치가 필요한 신호를 확인합니다.",
+      trendTitle: "12개월 요청 추세",
+      trendSubtitle: "월별 접수 업무와 종료 업무 비교",
+      created: "접수",
+      closed: "종료",
+      closeRate: "최근 3개월 종료율",
+      workloadUp: "이전 3개월 대비 업무량 {{percent}}% 증가",
+      workloadDown: "이전 3개월 대비 업무량 {{percent}}% 감소",
+      workloadStable: "이전 3개월과 비슷한 업무량",
+      noTrend: "추세 데이터가 없습니다",
+    },
+    priorities: {
+      eyebrow: "Management Attention",
+      title: "결정 및 후속 조치",
+      subtitle: "서비스 제공과 연속성에 영향을 주는 주요 신호",
+      overdue: "SLA 초과 업무",
+      overdueHint: "담당자와 완료 예정일을 지정하세요",
+      assets: "고장 / 수리 중 자산",
+      assetsHint: "부품, 대체 장비 및 수리 계획 검토",
+      licenses: "만료 예정 라이선스",
+      licensesHint: "30일 이내 만료 예정",
+      access: "접근 승인 대기",
+      accessHint: "직원 업무 시작 지연 해소",
+      clear: "현재 긴급한 관리 신호가 없습니다",
+      items: "건",
+    },
+    insights: {
+      eyebrow: "Demand Insights",
+      title: "서비스 수요 발생 영역",
+      subtitle: "인력 배치, 재발 방지 및 부서 지원 계획에 활용하세요.",
+      issuesTitle: "주요 문제 및 서비스",
+      issuesSubtitle: "최근 12개월 요청 상위 유형",
+      departmentsTitle: "요청이 많은 부서",
+      departmentsSubtitle: "부서별 요청 수",
+      statusTitle: "서비스 티켓 상태",
+      statusSubtitle: "현재 업무 단계별 티켓 수",
+      requests: "요청",
+      empty: "충분한 데이터가 없습니다",
+    },
+    assetSection: {
+      eyebrow: "Asset Governance",
+      title: "자산 상태 및 준비도",
+      subtitle: "IT 리더를 위한 사용 현황, 위험, 예비 자산 및 사진 증빙 보기입니다.",
+    },
     metrics: {
       total: "전체 자산",
       totalHint: "모든 상태의 장비",
@@ -303,6 +576,19 @@ const COPY = {
       retired: "폐기",
       lost: "분실",
     },
+    ticketStatusCodes: {
+      new: "신규",
+      open: "진행 대기",
+      pending: "대기 중",
+      assigned: "배정됨",
+      in_progress: "진행 중",
+      waiting: "정보 대기",
+      on_hold: "보류",
+      closed: "종료",
+      completed: "완료",
+      resolved: "해결됨",
+      cancelled: "취소",
+    },
   },
 };
 
@@ -376,7 +662,69 @@ const CATEGORY_DEFINITIONS = [
 
 const normalizeStatus = (value) => String(value || "").trim().toLowerCase().replace(/\s+/g, "_");
 const toNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+const toPercent = (value, total) => (total > 0 ? Math.round((value / total) * 100) : 0);
 const replaceToken = (text, token, value) => String(text || "").replace(`{{${token}}}`, String(value));
+const replaceTokens = (text, values) => Object.entries(values).reduce(
+  (result, [token, value]) => replaceToken(result, token, value),
+  String(text || ""),
+);
+
+const KPI_TONES = {
+  blue: {
+    card: "border-blue-200/80 bg-blue-50/70",
+    icon: "bg-blue-700 text-white shadow-blue-200",
+    value: "text-blue-950",
+    progress: "bg-blue-600",
+  },
+  indigo: {
+    card: "border-indigo-200/80 bg-indigo-50/70",
+    icon: "bg-indigo-700 text-white shadow-indigo-200",
+    value: "text-indigo-950",
+    progress: "bg-indigo-600",
+  },
+  emerald: {
+    card: "border-emerald-200/80 bg-emerald-50/70",
+    icon: "bg-emerald-600 text-white shadow-emerald-200",
+    value: "text-emerald-950",
+    progress: "bg-emerald-500",
+  },
+  amber: {
+    card: "border-amber-200/80 bg-amber-50/70",
+    icon: "bg-amber-500 text-white shadow-amber-200",
+    value: "text-amber-950",
+    progress: "bg-amber-500",
+  },
+  rose: {
+    card: "border-rose-200/80 bg-rose-50/70",
+    icon: "bg-rose-600 text-white shadow-rose-200",
+    value: "text-rose-950",
+    progress: "bg-rose-500",
+  },
+  slate: {
+    card: "border-slate-200 bg-white",
+    icon: "bg-slate-900 text-white shadow-slate-200",
+    value: "text-slate-950",
+    progress: "bg-slate-700",
+  },
+};
+
+const formatDuration = (minutes, language, locale) => {
+  const totalMinutes = Math.max(Math.round(toNumber(minutes)), 0);
+  if (!totalMinutes) return "-";
+  const labels = {
+    th: { minute: "นาที", hour: "ชม.", day: "วัน" },
+    en: { minute: "min", hour: "hr", day: "day" },
+    ko: { minute: "분", hour: "시간", day: "일" },
+  };
+  const unit = labels[language] || labels.en;
+  if (totalMinutes < 60) return `${new Intl.NumberFormat(locale).format(totalMinutes)} ${unit.minute}`;
+  if (totalMinutes < 1440) {
+    const hours = Math.round((totalMinutes / 60) * 10) / 10;
+    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(hours)} ${unit.hour}`;
+  }
+  const days = Math.round((totalMinutes / 1440) * 10) / 10;
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(days)} ${unit.day}`;
+};
 
 const formatDateTime = (value, locale) => {
   if (!value) return "-";
@@ -454,6 +802,89 @@ function MetricCard({ active, icon: Icon, label, value, hint, tone, onClick }) {
   );
 }
 
+function SectionHeading({ eyebrow, title, subtitle, icon: Icon = Activity, action = null }) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="mt-0.5 hidden rounded-xl border border-blue-100 bg-blue-50 p-2.5 text-blue-700 sm:inline-flex">
+          <Icon size={18} />
+        </span>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">{eyebrow}</p>
+          <h2 className="mt-1.5 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{title}</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">{subtitle}</p>
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function ExecutiveKpiCard({ icon: Icon, label, value, hint, tone = "slate", progress }) {
+  const styles = KPI_TONES[tone] || KPI_TONES.slate;
+  const safeProgress = typeof progress === "number" ? Math.min(Math.max(progress, 0), 100) : null;
+  return (
+    <article className={`relative min-h-[172px] overflow-hidden rounded-2xl border p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${styles.card}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.11em] text-slate-500">{label}</p>
+          <p className={`mt-3 truncate text-3xl font-black tracking-tight ${styles.value}`}>{value}</p>
+        </div>
+        <span className={`inline-flex shrink-0 rounded-xl p-2.5 shadow-lg ${styles.icon}`}><Icon size={18} /></span>
+      </div>
+      <p className="mt-3 min-h-[40px] text-xs leading-5 text-slate-500">{hint}</p>
+      {safeProgress !== null ? (
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/90">
+          <div className={`h-full rounded-full transition-[width] duration-500 ${styles.progress}`} style={{ width: `${safeProgress}%` }} />
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function PriorityRow({ icon: Icon, label, hint, count, tone, href }) {
+  const urgent = count > 0;
+  const toneClasses = urgent ? tone : "border-slate-200 bg-white text-slate-500";
+  return (
+    <a href={href} className={`group flex items-center gap-3 rounded-xl border px-3.5 py-3 transition hover:-translate-y-0.5 hover:shadow-md ${toneClasses}`}>
+      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-current/10 bg-white/75">
+        <Icon size={17} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-black">{label}</span>
+        <span className="mt-0.5 block truncate text-[11px] opacity-70">{hint}</span>
+      </span>
+      <span className="text-xl font-black tabular-nums">{count}</span>
+      <ArrowRight size={15} className="shrink-0 opacity-40 transition group-hover:translate-x-0.5 group-hover:opacity-80" />
+    </a>
+  );
+}
+
+function RankingList({ items, emptyLabel, unitLabel, tone = "blue" }) {
+  const rows = Array.isArray(items) ? items.slice(0, 5) : [];
+  const maximum = Math.max(...rows.map((item) => toNumber(item?.value)), 1);
+  const barClass = tone === "indigo" ? "bg-indigo-500" : tone === "emerald" ? "bg-emerald-500" : "bg-blue-600";
+  return rows.length ? (
+    <div className="space-y-4">
+      {rows.map((item, index) => {
+        const value = toNumber(item?.value);
+        return (
+          <div key={`${item?.label || "item"}-${index}`}>
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] font-black text-slate-500">{index + 1}</span>
+              <p className="min-w-0 flex-1 truncate text-sm font-bold text-slate-700">{item?.label || "-"}</p>
+              <p className="shrink-0 text-xs font-black text-slate-900">{value} <span className="font-semibold text-slate-400">{unitLabel}</span></p>
+            </div>
+            <div className="ml-10 mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full ${barClass}`} style={{ width: `${Math.round((value / maximum) * 100)}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  ) : <p className="py-10 text-center text-sm font-semibold text-slate-400">{emptyLabel}</p>;
+}
+
 export default function ExecutiveDashboard({ data, onRefresh, loading }) {
   const { language } = useI18n();
   const copy = COPY[language] || COPY.en;
@@ -520,6 +951,57 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
   const availableLicenseSeats = Math.max(totalLicenseSeats - assignedLicenseSeats, 0);
   const licenseUtilization = totalLicenseSeats > 0 ? Math.round((assignedLicenseSeats / totalLicenseSeats) * 100) : 0;
 
+  const kpi = data?.kpi || {};
+  const trend = Array.isArray(data?.trend) ? data.trend : [];
+  const topIssues = Array.isArray(data?.topIssues) ? data.topIssues : [];
+  const topDepartments = Array.isArray(data?.topDepartments) ? data.topDepartments : [];
+  const ticketStatusBreakdown = (Array.isArray(data?.ticketStatusBreakdown) ? data.ticketStatusBreakdown : []).map((item) => ({
+    ...item,
+    label: copy.ticketStatusCodes[normalizeStatus(item?.label)] || item?.label,
+  }));
+  const accessRequestSummary = data?.accessRequestSummary || {};
+  const licenseSummary = data?.licenseSummary || {};
+  const totalTickets = Math.max(toNumber(kpi.totalTickets), 0);
+  const openTickets = Math.max(toNumber(kpi.openTickets), 0);
+  const overdueTickets = Math.max(toNumber(kpi.overdueTickets), 0);
+  const averageResolutionMinutes = Math.max(toNumber(kpi.avgResolutionTimeMinutes), 0);
+  const openRate = toPercent(openTickets, totalTickets);
+  const overdueRate = toPercent(overdueTickets, openTickets);
+  const pendingAccessRequests = Math.max(toNumber(accessRequestSummary.pending), 0);
+  const expiringLicenses = Math.max(toNumber(licenseSummary.expiring30), 0);
+  const managementAttentionTotal = overdueTickets + statusCounts.attention + expiringLicenses + pendingAccessRequests;
+
+  const latestTrend = trend.slice(-3);
+  const previousTrend = trend.slice(-6, -3);
+  const latestReceived = latestTrend.reduce((sum, item) => sum + toNumber(item?.value), 0);
+  const latestClosed = latestTrend.reduce((sum, item) => sum + toNumber(item?.closed), 0);
+  const previousReceived = previousTrend.reduce((sum, item) => sum + toNumber(item?.value), 0);
+  const recentCloseRate = toPercent(latestClosed, latestReceived);
+  const workloadChange = previousReceived > 0
+    ? Math.round(((latestReceived - previousReceived) / previousReceived) * 100)
+    : (latestReceived > 0 ? 100 : 0);
+  const workloadMessage = workloadChange > 2
+    ? replaceToken(copy.operations.workloadUp, "percent", formatCount(Math.abs(workloadChange)))
+    : workloadChange < -2
+      ? replaceToken(copy.operations.workloadDown, "percent", formatCount(Math.abs(workloadChange)))
+      : copy.operations.workloadStable;
+  const WorkloadIcon = workloadChange > 2 ? ArrowUpRight : workloadChange < -2 ? ArrowDownRight : TrendingUp;
+  const workloadTone = workloadChange > 2
+    ? "border-amber-200 bg-amber-50 text-amber-700"
+    : workloadChange < -2
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-slate-200 bg-slate-50 text-slate-600";
+  const chartTrend = trend.map((item) => {
+    const [year, month] = String(item?.key || "").split("-").map(Number);
+    const monthDate = year && month ? new Date(year, month - 1, 1) : null;
+    return {
+      ...item,
+      label: monthDate && !Number.isNaN(monthDate.getTime())
+        ? new Intl.DateTimeFormat(locale, { month: "short", year: "2-digit" }).format(monthDate)
+        : item?.label,
+    };
+  });
+
   const statusTotal = Math.max(assets.length, 1);
   let statusOffset = 0;
   const statusSegments = STATUS_GROUPS.map((group) => {
@@ -574,6 +1056,229 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
           </button>
         )}
       />
+
+      <nav aria-label={copy.heroTitle} className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+        <div className="flex min-w-max items-center gap-1">
+          {[
+            ["#executive-summary", LayoutDashboard, copy.navigation.summary],
+            ["#service-performance", Activity, copy.navigation.performance],
+            ["#asset-health", HardDrive, copy.navigation.assets],
+            ["#asset-gallery", Images, copy.navigation.gallery],
+            ["#license-health", KeyRound, copy.navigation.licenses],
+          ].map(([href, Icon, label]) => (
+            <a key={href} href={href} className="inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-bold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700">
+              <Icon size={14} /> {label}
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      <section id="executive-summary" className="scroll-mt-20 space-y-4">
+        <SectionHeading
+          eyebrow={copy.executive.eyebrow}
+          title={copy.executive.title}
+          subtitle={copy.executive.subtitle}
+          icon={Gauge}
+          action={(
+            <div className={`inline-flex max-w-full items-center gap-2 self-start rounded-full border px-3 py-2 text-xs font-black sm:self-auto ${managementAttentionTotal > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+              {managementAttentionTotal > 0 ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}
+              <span className="truncate">
+                {managementAttentionTotal > 0
+                  ? replaceToken(copy.executive.attention, "count", formatCount(managementAttentionTotal))
+                  : copy.executive.stable}
+              </span>
+            </div>
+          )}
+        />
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <ExecutiveKpiCard
+            icon={Tickets}
+            label={copy.executive.metrics.tickets}
+            value={formatCount(totalTickets)}
+            hint={copy.executive.metrics.ticketsHint}
+            tone="blue"
+          />
+          <ExecutiveKpiCard
+            icon={Headphones}
+            label={copy.executive.metrics.open}
+            value={formatCount(openTickets)}
+            hint={replaceToken(copy.executive.metrics.openHint, "percent", formatCount(openRate))}
+            tone={openTickets > 0 ? "indigo" : "emerald"}
+            progress={openRate}
+          />
+          <ExecutiveKpiCard
+            icon={AlertTriangle}
+            label={copy.executive.metrics.overdue}
+            value={formatCount(overdueTickets)}
+            hint={replaceToken(copy.executive.metrics.overdueHint, "percent", formatCount(overdueRate))}
+            tone={overdueTickets > 0 ? "rose" : "emerald"}
+            progress={overdueRate}
+          />
+          <ExecutiveKpiCard
+            icon={Clock3}
+            label={copy.executive.metrics.resolution}
+            value={formatDuration(averageResolutionMinutes, language, locale)}
+            hint={copy.executive.metrics.resolutionHint}
+            tone="slate"
+          />
+          <ExecutiveKpiCard
+            icon={ShieldCheck}
+            label={copy.executive.metrics.assetReadiness}
+            value={`${formatCount(readinessRate)}%`}
+            hint={replaceTokens(copy.executive.metrics.assetReadinessHint, {
+              ready: formatCount(operationalTotal),
+              active: formatCount(activeAssetTotal),
+            })}
+            tone={readinessRate >= 90 ? "emerald" : "amber"}
+            progress={readinessRate}
+          />
+          <ExecutiveKpiCard
+            icon={KeyRound}
+            label={copy.executive.metrics.licenseUse}
+            value={`${formatCount(licenseUtilization)}%`}
+            hint={replaceTokens(copy.executive.metrics.licenseUseHint, {
+              used: formatCount(assignedLicenseSeats),
+              total: formatCount(totalLicenseSeats),
+            })}
+            tone="indigo"
+            progress={licenseUtilization}
+          />
+        </div>
+      </section>
+
+      <section id="service-performance" className="scroll-mt-20 space-y-4">
+        <SectionHeading
+          eyebrow={copy.operations.eyebrow}
+          title={copy.operations.title}
+          subtitle={copy.operations.subtitle}
+          icon={Activity}
+        />
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.75fr)]">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-950">{copy.operations.trendTitle}</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{copy.operations.trendSubtitle}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700">
+                  <TicketCheck size={14} /> {copy.operations.closeRate} {formatCount(recentCloseRate)}%
+                </span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${workloadTone}`}>
+                  <WorkloadIcon size={14} /> {workloadMessage}
+                </span>
+              </div>
+            </div>
+
+            {trend.some((item) => toNumber(item?.value) > 0 || toNumber(item?.closed) > 0) ? (
+              <div className="mt-5 h-[285px] w-full" role="img" aria-label={copy.operations.trendTitle}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartTrend} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="executiveReceived" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="executiveClosed" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.24} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.01} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} minTickGap={24} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} dy={8} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                    <Tooltip
+                      cursor={{ stroke: "#94a3b8", strokeDasharray: "4 4" }}
+                      contentStyle={{ borderRadius: 12, borderColor: "#e2e8f0", boxShadow: "0 10px 30px rgba(15,23,42,.1)", fontSize: 12 }}
+                      formatter={(value, name) => [formatCount(value), name === "closed" ? copy.operations.closed : copy.operations.created]}
+                    />
+                    <Area type="monotone" dataKey="value" name="value" stroke="#2563eb" strokeWidth={3} fill="url(#executiveReceived)" activeDot={{ r: 5 }} />
+                    <Area type="monotone" dataKey="closed" name="closed" stroke="#10b981" strokeWidth={3} fill="url(#executiveClosed)" activeDot={{ r: 5 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="mt-5 flex h-[285px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-400">
+                {copy.operations.noTrend}
+              </div>
+            )}
+            <div className="mt-4 flex items-center justify-center gap-5 text-xs font-bold text-slate-500">
+              <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-blue-600" />{copy.operations.created}</span>
+              <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{copy.operations.closed}</span>
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-[0_8px_28px_rgba(15,23,42,0.13)] sm:p-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">{copy.priorities.eyebrow}</p>
+            <h3 className="mt-2 text-xl font-black">{copy.priorities.title}</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-400">{copy.priorities.subtitle}</p>
+            {managementAttentionTotal === 0 ? (
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200">
+                <CheckCircle2 size={16} /> {copy.priorities.clear}
+              </div>
+            ) : null}
+            <div className="mt-5 space-y-2.5">
+              <PriorityRow icon={Clock3} label={copy.priorities.overdue} hint={copy.priorities.overdueHint} count={overdueTickets} tone="border-rose-300/30 bg-rose-400/10 text-rose-100" href="#service-performance" />
+              <PriorityRow icon={Wrench} label={copy.priorities.assets} hint={copy.priorities.assetsHint} count={statusCounts.attention} tone="border-amber-300/30 bg-amber-400/10 text-amber-100" href="#asset-health" />
+              <PriorityRow icon={KeyRound} label={copy.priorities.licenses} hint={copy.priorities.licensesHint} count={expiringLicenses} tone="border-indigo-300/30 bg-indigo-400/10 text-indigo-100" href="#license-health" />
+              <PriorityRow icon={Users} label={copy.priorities.access} hint={copy.priorities.accessHint} count={pendingAccessRequests} tone="border-blue-300/30 bg-blue-400/10 text-blue-100" href="#executive-summary" />
+            </div>
+          </article>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><TrendingUp size={18} /></span>
+              <div>
+                <h3 className="text-base font-black text-slate-950">{copy.insights.issuesTitle}</h3>
+                <p className="mt-1 text-xs text-slate-500">{copy.insights.issuesSubtitle}</p>
+              </div>
+            </div>
+            <div className="mt-5"><RankingList items={topIssues} emptyLabel={copy.insights.empty} unitLabel={copy.insights.requests} /></div>
+          </article>
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="rounded-xl bg-indigo-50 p-2.5 text-indigo-700"><Building2 size={18} /></span>
+              <div>
+                <h3 className="text-base font-black text-slate-950">{copy.insights.departmentsTitle}</h3>
+                <p className="mt-1 text-xs text-slate-500">{copy.insights.departmentsSubtitle}</p>
+              </div>
+            </div>
+            <div className="mt-5"><RankingList items={topDepartments} emptyLabel={copy.insights.empty} unitLabel={copy.insights.requests} tone="indigo" /></div>
+          </article>
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700"><TicketCheck size={18} /></span>
+              <div>
+                <h3 className="text-base font-black text-slate-950">{copy.insights.statusTitle}</h3>
+                <p className="mt-1 text-xs text-slate-500">{copy.insights.statusSubtitle}</p>
+              </div>
+            </div>
+            <div className="mt-5"><RankingList items={ticketStatusBreakdown} emptyLabel={copy.insights.empty} unitLabel={copy.insights.requests} tone="emerald" /></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="asset-health" className="scroll-mt-20">
+        <SectionHeading
+          eyebrow={copy.assetSection.eyebrow}
+          title={copy.assetSection.title}
+          subtitle={copy.assetSection.subtitle}
+          icon={HardDrive}
+          action={(
+            <span className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 sm:self-auto">
+              <Images size={14} />
+              {replaceTokens(copy.gallery.photoCoverage, {
+                withPhoto: formatCount(photoAssetCount),
+                total: formatCount(assets.length),
+              })}
+            </span>
+          )}
+        />
+      </section>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard
@@ -688,7 +1393,7 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         </article>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_5px_22px_rgba(15,23,42,0.04)]">
+      <section id="asset-gallery" className="scroll-mt-20 rounded-2xl border border-slate-200 bg-white shadow-[0_5px_22px_rgba(15,23,42,0.04)]">
         <header className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:p-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">{copy.gallery.eyebrow}</p>
@@ -858,7 +1563,7 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:p-6">
+      <section id="license-health" className="scroll-mt-20 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-xl">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">{copy.licenses.eyebrow}</p>

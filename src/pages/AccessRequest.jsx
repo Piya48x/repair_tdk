@@ -211,7 +211,7 @@ const formatDateTime = (value, language = "th") => {
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
 
-const AccessRequest = () => {
+const AccessRequest = ({ embedded = false }) => {
   const navigate = useNavigate();
   const { language, tt } = useScopedI18n(ACCESS_REQUEST_TRANSLATIONS);
   const channelRef = useRef(null);
@@ -507,11 +507,12 @@ const AccessRequest = () => {
   };
 
   return (
-    <div className="app-theme app-page-bg min-h-screen text-slate-800">
-      <div className="app-safe-top app-safe-bottom mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 lg:px-8">
+    <div className={`app-theme text-slate-800 ${embedded ? "min-h-0 bg-transparent" : "app-page-bg min-h-screen"}`}>
+      <div className={`${embedded ? "app-safe-bottom" : "app-safe-top app-safe-bottom"} mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 lg:px-8`}>
         <header className="app-surface p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-start gap-3">
+              {!embedded ? (
               <button
                 type="button"
                 onClick={() => navigate("/dashboard")}
@@ -520,6 +521,7 @@ const AccessRequest = () => {
                 <ArrowLeft size={15} />
                 {tt("back")}
               </button>
+              ) : null}
 
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-1 text-[11px] font-bold text-[var(--brand-primary)]">

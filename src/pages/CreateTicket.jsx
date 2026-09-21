@@ -660,7 +660,7 @@ function normalizeLinkedAsset(asset) {
   return { ...asset, asset_tag: assetCode };
 }
 
-const CreateTicket = () => {
+const CreateTicket = ({ embedded = false }) => {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const [searchParams] = useSearchParams();
@@ -1040,7 +1040,7 @@ const CreateTicket = () => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="app-theme min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/40 to-slate-50 p-6 "
+        className={`app-theme flex items-center justify-center p-6 ${embedded ? "min-h-[60vh] bg-transparent" : "min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-slate-50"}`}
       >
         <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
         <motion.div
@@ -1105,12 +1105,13 @@ const CreateTicket = () => {
   }
 
   return (
-    <div className="app-theme app-safe-bottom min-h-screen overflow-x-clip bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-800 selection:bg-blue-100 antialiased">
+    <div className={`app-theme app-safe-bottom overflow-x-clip text-slate-800 selection:bg-blue-100 antialiased ${embedded ? "min-h-0 bg-transparent" : "min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50"}`}>
       <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
 
       {/* Clean enterprise background */}
 
       {/* Compact responsive header */}
+      {!embedded ? (
       <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/95 backdrop-blur-xl">
         <div className="app-safe-top mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
           <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-4">
@@ -1165,6 +1166,7 @@ const CreateTicket = () => {
           </div>
         </div>
       </header>
+      ) : null}
 
       <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-3 py-3 pb-28 sm:px-6 sm:py-5 lg:grid-cols-12 lg:gap-8 lg:py-8 lg:pb-8">
         {/* Left Column - Main Form */}
@@ -2077,7 +2079,7 @@ const CreateTicket = () => {
       </div>
 
       {/* Premium Footer */}
-      <footer className="app-safe-bottom relative z-10 mx-auto hidden w-full max-w-7xl px-3 pb-6 sm:px-6 lg:block">
+      <footer className={`app-safe-bottom relative z-10 mx-auto w-full max-w-7xl px-3 pb-6 sm:px-6 ${embedded ? "hidden" : "hidden lg:block"}`}>
         <div className="flex flex-wrap items-center justify-center gap-4 border-t border-slate-200/80 pt-5 text-[9px] text-slate-500">
           <span className="flex items-center gap-1.5">
             <Building size={12} className="text-indigo-400" />

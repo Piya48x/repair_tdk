@@ -469,7 +469,7 @@ const getRoleLabel = (role, tt) => {
   return tt("roles.user");
 };
 
-const MeetingRoomBooking = () => {
+const MeetingRoomBooking = ({ embedded = false }) => {
   const navigate = useNavigate();
   const channelRef = useRef(null);
   const { language, tt } = useScopedI18n(MEETING_ROOM_BOOKING_TRANSLATIONS);
@@ -806,14 +806,16 @@ const MeetingRoomBooking = () => {
   };
 
   return (
-    <div className="app-theme app-page-bg app-safe-top app-safe-bottom min-h-screen px-4 py-6 text-slate-800 selection:bg-blue-100 antialiased sm:px-6">
+    <div className={`app-theme app-safe-bottom px-4 py-6 text-slate-800 selection:bg-blue-100 antialiased sm:px-6 ${embedded ? "min-h-0 bg-transparent" : "app-page-bg app-safe-top min-h-screen"}`}>
       <div className="mx-auto max-w-6xl space-y-5">
         <header className="app-surface p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
+            {!embedded ? (
             <button type="button" onClick={() => navigate("/dashboard")} className="app-btn-secondary inline-flex items-center gap-2">
               <ArrowLeft size={15} />
               {tt("common.backDashboard")}
             </button>
+            ) : <span />}
             <button type="button" onClick={() => fetchBookings()} className="app-btn-secondary inline-flex items-center gap-2">
               <RefreshCw size={15} />
               {tt("common.refresh")}

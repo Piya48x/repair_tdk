@@ -772,15 +772,24 @@ export async function fetchReportTickets({ months = 12 } = {}) {
 }
 
 export async function fetchExecutiveReportData() {
-  const [kpiResult, tickets, assetsResult, licensesResult] = await Promise.all([
+  const [kpiResult, tickets, assetsResult, licensesResult, accessRequestsResult] = await Promise.all([
     safeSingle(supabase.from("executive_kpi").select("*").maybeSingle()),
     fetchReportTickets({ months: 12 }),
     fetchExecutiveAssets(),
     supabase.from("it_licenses").select("*").order("updated_at", { ascending: false }),
+    supabase
+      .from("access_requests")
+      .select("id, requester_name, department, system_name, status, urgency, created_at, processed_at, completed_at")
+      .order("created_at", { ascending: false })
+      .limit(120),
   ]);
 
   const assets = assetsResult.data || [];
   const licenses = licensesResult.data || [];
+  const accessRequests = accessRequestsResult.error ? [] : (accessRequestsResult.data || []);
+  if (accessRequestsResult.error) {
+    console.warn("Executive report access-request summary unavailable:", accessRequestsResult.error);
+  }
 
   const kpi =
     kpiResult?.data || buildExecutiveKpiFallback(tickets);
@@ -800,10 +809,29 @@ export async function fetchExecutiveReportData() {
     coreMenuSummary: buildCoreMenuSummary(assets, licenses),
     assetRows: assets,
     licenseRows: licenses,
+    accessRequestSummary: buildAccessRequestSummary(accessRequests),
+    accessRequestRows: accessRequests,
+    ticketRows: tickets,
+    ticketStatusBreakdown: groupCounts(tickets, (ticket) => ticket?.status || "UNKNOWN").slice(0, 6),
     generatedAt: new Date().toISOString(),
   };
 }
 
+export async function fetchAssetReadinessReportData() {
+  const assetsResult = await fetchExecutiveAssets();
+
+  if (assetsResult.error) throw assetsResult.error;
+
+  const assets = assetsResult.data || [];
+
+  return {
+    assetSummary: buildAssetSummary(assets),
+    assetRows: assets,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+// Broad operations dataset used by the All IT Work hub.
 export async function fetchExecutiveAssetOverviewData() {
   const [tickets, assetsResult, licensesResult, accessRequestsResult] = await Promise.all([
     fetchReportTickets({ months: 12 }),

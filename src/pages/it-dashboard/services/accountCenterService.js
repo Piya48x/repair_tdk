@@ -8,6 +8,7 @@ export const ACCOUNT_ROLE_OPTIONS = [
   { value: "it_support", label: "IT Support" },
   { value: "it_manager", label: "IT Manager" },
   { value: "executive", label: "Executive" },
+  { value: "security", label: "Security / รปภ." },
   { value: "auditor", label: "Auditor" },
   { value: "admin", label: "Admin" },
 ];

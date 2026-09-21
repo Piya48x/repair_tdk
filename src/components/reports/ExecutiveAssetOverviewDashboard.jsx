@@ -1,481 +1,374 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
-  ChevronDown,
+  Archive,
+  Box,
   Clock3,
+  Computer,
+  HardDrive,
   KeyRound,
-  Package,
+  Laptop,
+  MapPin,
+  Monitor,
+  PackageCheck,
+  Printer,
   RefreshCw,
-  Ticket,
+  Search,
+  Server,
+  ShieldCheck,
+  UserRound,
   Wrench,
 } from "lucide-react";
 import ReportMetricCard from "./ReportMetricCard";
 import ReportPageHero from "./ReportPageHero";
 import ReportSectionCard from "./ReportSectionCard";
-import BenchmarkInsightsPanel from "./BenchmarkInsightsPanel";
-import { buildReportBenchmark } from "../../services/reportBenchmarkService";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
 import { getReportLocale } from "./reportLocale";
 
-const EXECUTIVE_ASSET_OVERVIEW_TRANSLATIONS = {
+const TRANSLATIONS = {
   th: {
-    heroBadge: "Asset & Operations Overview",
-    heroTitle: "ภาพรวมงาน IT สำหรับผู้บริหารแบบอ่านเร็ว",
-    heroDescription:
-      "รวมงานซ่อม, เบิกของ, access request, สถานะทรัพย์สิน และสัญญาณหลักที่ผู้บริหารควรเห็นในหน้าเดียว",
-    benchmarkTitle: "Benchmark Summary / Executive Readiness",
-    sections: {
-      overviewEyebrow: "Executive Snapshot",
-      overviewTitle: "ภาพรวมงานและสัญญาณสำคัญ",
-      overviewSubtitle: "ตัวเลขหลัก ปริมาณงาน และความพร้อมของทรัพย์สินที่ควรตรวจสอบก่อน",
-      activityEyebrow: "Operational Activity",
-      activityTitle: "งานที่เกิดขึ้นและรายการเคลื่อนไหวล่าสุด",
-      activitySubtitle: "ดูประเภทคำขอหลักควบคู่กับความเปลี่ยนแปลงล่าสุดในระบบ",
-      healthEyebrow: "Asset & License Health",
-      healthTitle: "ความพร้อมของทรัพย์สินและไลเซนส์",
-      healthSubtitle: "สรุปสถานะใช้งาน ความเสี่ยง และรายการที่ต้องติดตาม",
-      benchmarkEyebrow: "Advanced Insights",
-      benchmarkTitle: "Benchmark และความพร้อมเชิงบริหาร",
-      benchmarkSubtitle: "เปิดดูเมื่อต้องการวิเคราะห์เชิงลึกเทียบกับเป้าหมาย",
-      showBenchmark: "เปิดการวิเคราะห์ขั้นสูง",
-    },
-    metrics: {
-      tickets: "Tickets",
-      ticketsHint: "งานทั้งหมดในระบบ",
-      openIssues: "Open Issues",
-      openIssuesHint: "งานที่ยังไม่ปิด",
-      overdue: "Overdue",
-      overdueHint: "เกิน SLA",
-      assets: "Assets",
-      assetsHint: "อุปกรณ์ทั้งหมด",
-      accessRequests: "Access Requests",
-      accessRequestsHint: "คำขอสิทธิ์ระบบ",
-    },
-    requestMix: {
-      title: "Request Mix",
-      subtitle: "ภาพรวมประเภทงานที่ทีม IT รับผิดชอบ",
-      totalCases: "รวม {{count}} cases",
-      repair: "แจ้งซ่อม / Service Desk",
-      procurement: "ขออุปกรณ์ / Procurement",
-      access: "ขอสิทธิ์ระบบ / Access",
-      other: "งาน IT อื่น ๆ",
-      pending: "คำขอสิทธิ์รออนุมัติ",
-      approved: "อนุมัติแล้ว",
-      completed: "ปิดงานแล้ว",
-    },
-    signals: {
-      title: "Operational Signals",
-      subtitle: "สัญญาณหลักที่ผู้บริหารควรดูทันที",
-      availability: "Availability",
-      availabilityHint: "อุปกรณ์ที่พร้อมใช้งาน",
-      licenses: "Licenses",
-      licensesHint: "รายการ license ที่ต้องติดตาม",
-      trend: "Trend",
-    },
-    topService: {
-      title: "Top Service Areas",
-      subtitle: "ประเภทงานที่พบมากสุดในระบบ",
-      helper: "Top request category",
-      records: "records",
-      empty: "ยังไม่มีข้อมูลประเภทงาน",
-    },
-    latest: {
-      title: "Latest Activity",
-      subtitle: "รายการล่าสุดที่เกิดขึ้นในระบบ",
-      empty: "ยังไม่มี activity ล่าสุด",
-      asset: "Asset",
-      license: "License",
-      access: "Access",
-      unknownAsset: "ไม่ระบุอุปกรณ์",
-      unknownLocation: "ไม่ระบุสถานที่",
-      unknownLicense: "ไม่ระบุ license",
-      unknownRequester: "ไม่ระบุผู้ขอ",
-      unknownDepartment: "ไม่ระบุแผนก",
-      accessFallback: "Access Request",
-      seatsInUse: "ใช้งาน {{used}}/{{total}}",
-    },
-    assetHealth: {
-      title: "Asset Health",
-      subtitle: "ภาพรวมทรัพย์สินและสถานะ stock",
-      active: "พร้อมใช้งาน",
-      risk: "ต้องทบทวน",
-      headers: {
-        category: "Category",
-        total: "Total",
-        usable: "Usable",
-        broken: "Broken",
-      },
-    },
-    licenseHealth: {
-      title: "License Health",
-      subtitle: "ภาพรวมการใช้งานและการต่ออายุ",
-      seatsUsed: "Seats ใช้งาน",
-      expiring: "ใกล้หมดอายุ 30 วัน",
-      descriptionTitle: "คำอธิบาย",
-      description:
-        "รายงานนี้ออกแบบให้เป็นภาพรวมสำหรับผู้บริหาร เพื่อดูทั้งงานซ่อม, เบิกของ, คำขอสิทธิ์ และสัญญาณด้านทรัพย์สินในหน้าเดียว",
-    },
-    refresh: "รีเฟรช",
+    heroBadge: "Asset Governance",
+    heroTitle: "สถานะและความพร้อมของทรัพย์สิน",
+    heroDescription: "ติดตามจำนวน สถานะ ความพร้อม ความเสี่ยง และ License ของทรัพย์สิน IT โดยไม่ปะปนกับงานซ่อมหรือคำขอบริการ",
+    refresh: "รีเฟรชข้อมูล",
     updated: "อัปเดตล่าสุด",
+    readiness: "ความพร้อมรวม",
+    metrics: {
+      total: "ทรัพย์สินทั้งหมด",
+      totalHint: "อุปกรณ์ทุกสถานะในทะเบียน",
+      active: "กำลังใช้งาน",
+      activeHint: "มีผู้ใช้งานหรือมอบหมายแล้ว",
+      ready: "พร้อมใช้ / สำรอง",
+      readyHint: "พร้อมรองรับความต้องการใหม่",
+      attention: "เสีย / กำลังซ่อม",
+      attentionHint: "อุปกรณ์ที่ต้องเร่งติดตาม",
+    },
+    sections: {
+      inventoryEyebrow: "Equipment Dashboard",
+      statusTitle: "สัดส่วนสถานะทรัพย์สิน",
+      statusSubtitle: "เห็นความพร้อมและรายการที่ออกจากการใช้งานได้ในมุมเดียว",
+      categoryTitle: "ทรัพย์สินตามประเภท",
+      categorySubtitle: "ใช้วางแผนจำนวนอุปกรณ์และการจัดซื้อทดแทน",
+      inventoryTitle: "อุปกรณ์ทั้งหมด",
+      inventorySubtitle: "แสดงอุปกรณ์ทุกชิ้นเป็น Block พร้อมรูปจริงหรือไอคอนตามประเภท",
+      licenseTitle: "ความพร้อมของ Software License",
+      licenseSubtitle: "จำนวนสิทธิ์ การใช้งานคงเหลือ และรายการใกล้หมดอายุ",
+    },
+    status: {
+      deployed: "กำลังใช้งาน",
+      ready: "พร้อมใช้ / สำรอง",
+      attention: "เสีย / กำลังซ่อม",
+      inactive: "เลิกใช้ / สูญหาย",
+      other: "สถานะอื่น",
+    },
+    asset: {
+      code: "Asset Code",
+      owner: "ผู้ใช้งาน",
+      location: "สถานที่",
+      category: "ประเภท",
+      noOwner: "ยังไม่มอบหมาย",
+      noLocation: "ไม่ระบุสถานที่",
+      noCategory: "ไม่ระบุประเภท",
+      noPhoto: "ยังไม่มีรูปอุปกรณ์",
+      empty: "ยังไม่มีข้อมูลทรัพย์สิน",
+      noResults: "ไม่พบอุปกรณ์ตามตัวกรอง",
+      searchPlaceholder: "ค้นหา Asset Code, ชื่ออุปกรณ์, Serial Number หรือผู้ใช้งาน",
+      allStatuses: "ทุกสถานะ",
+      allCategories: "ทุกประเภท",
+      clearFilters: "ล้างตัวกรอง",
+      showing: "แสดง {{shown}} จาก {{total}} รายการ",
+      photos: "{{count}} รูป",
+      photoCoverage: "มีรูป {{withPhoto}} / {{total}} รายการ",
+      records: "รายการ",
+      agingRisk: "ทรัพย์สินอายุเกิน 3 ปี",
+      agingHint: "ควรตรวจสภาพและวางแผนทดแทน",
+    },
+    license: {
+      records: "รายการ License",
+      totalSeats: "สิทธิ์ทั้งหมด",
+      usedSeats: "ใช้งานแล้ว",
+      availableSeats: "คงเหลือ",
+      utilization: "อัตราการใช้งาน",
+      expiring30: "หมดอายุภายใน 30 วัน",
+      expiring90: "หมดอายุภายใน 90 วัน",
+      latest: "License ที่อัปเดตล่าสุด",
+      seats: "สิทธิ์",
+      empty: "ยังไม่มีข้อมูล License",
+    },
   },
   en: {
-    heroBadge: "Asset & Operations Overview",
-    heroTitle: "Fast-reading IT operations overview for executives",
-    heroDescription:
-      "Pull repairs, procurement, access requests, asset status, and leadership signals into one page.",
-    benchmarkTitle: "Benchmark Summary / Executive Readiness",
-    sections: {
-      overviewEyebrow: "Executive Snapshot",
-      overviewTitle: "Workload and priority signals",
-      overviewSubtitle: "Start with the core volume, risk, and asset-readiness indicators.",
-      activityEyebrow: "Operational Activity",
-      activityTitle: "Service demand and latest movement",
-      activitySubtitle: "Review the leading request areas alongside the newest system activity.",
-      healthEyebrow: "Asset & License Health",
-      healthTitle: "Asset and license readiness",
-      healthSubtitle: "Track serviceability, risk, utilization, and upcoming renewals.",
-      benchmarkEyebrow: "Advanced Insights",
-      benchmarkTitle: "Benchmark and executive readiness",
-      benchmarkSubtitle: "Expand when deeper comparison against operating targets is needed.",
-      showBenchmark: "Open advanced analysis",
-    },
-    metrics: {
-      tickets: "Tickets",
-      ticketsHint: "All service records",
-      openIssues: "Open Issues",
-      openIssuesHint: "Work not yet closed",
-      overdue: "Overdue",
-      overdueHint: "Beyond SLA",
-      assets: "Assets",
-      assetsHint: "Tracked devices",
-      accessRequests: "Access Requests",
-      accessRequestsHint: "System access requests",
-    },
-    requestMix: {
-      title: "Request Mix",
-      subtitle: "High-level split of the work handled by IT",
-      totalCases: "{{count}} total cases",
-      repair: "Repair / Service Desk",
-      procurement: "Procurement",
-      access: "Access Requests",
-      other: "Other IT work",
-      pending: "Pending access approval",
-      approved: "Approved",
-      completed: "Completed",
-    },
-    signals: {
-      title: "Operational Signals",
-      subtitle: "Key indicators executives should check first",
-      availability: "Availability",
-      availabilityHint: "Assets ready for use",
-      licenses: "Licenses",
-      licensesHint: "Tracked license records",
-      trend: "Trend",
-    },
-    topService: {
-      title: "Top Service Areas",
-      subtitle: "Most common request categories in the system",
-      helper: "Top request category",
-      records: "records",
-      empty: "No request category data yet.",
-    },
-    latest: {
-      title: "Latest Activity",
-      subtitle: "Latest changes happening across the system",
-      empty: "No recent activity yet.",
-      asset: "Asset",
-      license: "License",
-      access: "Access",
-      unknownAsset: "Unspecified asset",
-      unknownLocation: "Unknown location",
-      unknownLicense: "Unspecified license",
-      unknownRequester: "Unknown requester",
-      unknownDepartment: "Unknown department",
-      accessFallback: "Access Request",
-      seatsInUse: "{{used}}/{{total}} seats in use",
-    },
-    assetHealth: {
-      title: "Asset Health",
-      subtitle: "Asset stock view and serviceability summary",
-      active: "Ready for use",
-      risk: "Needs review",
-      headers: {
-        category: "Category",
-        total: "Total",
-        usable: "Usable",
-        broken: "Broken",
-      },
-    },
-    licenseHealth: {
-      title: "License Health",
-      subtitle: "Usage and renewal overview",
-      seatsUsed: "Seats Used",
-      expiring: "Expiring within 30 days",
-      descriptionTitle: "Context",
-      description:
-        "This report is designed as an executive summary spanning repairs, procurement, access requests, and asset signals in one place.",
-    },
-    refresh: "Refresh",
+    heroBadge: "Asset Governance",
+    heroTitle: "Asset Status & Readiness",
+    heroDescription: "Track IT asset volume, condition, readiness, risk, and software licenses without mixing in repair tickets or service requests.",
+    refresh: "Refresh data",
     updated: "Last updated",
+    readiness: "Overall readiness",
+    metrics: {
+      total: "Total assets",
+      totalHint: "Equipment across every registry status",
+      active: "In use",
+      activeHint: "Assigned or currently deployed",
+      ready: "Ready / spare",
+      readyHint: "Available for new demand",
+      attention: "Broken / repairing",
+      attentionHint: "Equipment requiring follow-up",
+    },
+    sections: {
+      inventoryEyebrow: "Equipment Dashboard",
+      statusTitle: "Asset status distribution",
+      statusSubtitle: "See operational readiness and inactive inventory in one view.",
+      categoryTitle: "Assets by category",
+      categorySubtitle: "Use the portfolio mix for capacity and replacement planning.",
+      inventoryTitle: "All equipment",
+      inventorySubtitle: "Every device is shown as a visual block using its photo or category icon.",
+      licenseTitle: "Software license readiness",
+      licenseSubtitle: "Track seats, remaining capacity, and upcoming expirations.",
+    },
+    status: {
+      deployed: "In use",
+      ready: "Ready / spare",
+      attention: "Broken / repairing",
+      inactive: "Retired / lost",
+      other: "Other status",
+    },
+    asset: {
+      code: "Asset Code",
+      owner: "Owner",
+      location: "Location",
+      category: "Category",
+      noOwner: "Unassigned",
+      noLocation: "No location",
+      noCategory: "Uncategorized",
+      noPhoto: "No equipment photo",
+      empty: "No asset data yet",
+      noResults: "No equipment matches these filters",
+      searchPlaceholder: "Search Asset Code, equipment, serial number, or owner",
+      allStatuses: "All statuses",
+      allCategories: "All categories",
+      clearFilters: "Clear filters",
+      showing: "Showing {{shown}} of {{total}} assets",
+      photos: "{{count}} photos",
+      photoCoverage: "Photos for {{withPhoto}} of {{total}} assets",
+      records: "assets",
+      agingRisk: "Assets older than 3 years",
+      agingHint: "Review condition and replacement plans",
+    },
+    license: {
+      records: "License records",
+      totalSeats: "Total seats",
+      usedSeats: "Assigned",
+      availableSeats: "Available",
+      utilization: "Utilization",
+      expiring30: "Expiring within 30 days",
+      expiring90: "Expiring within 90 days",
+      latest: "Recently updated licenses",
+      seats: "seats",
+      empty: "No license data yet",
+    },
   },
   ko: {
-    heroBadge: "자산 및 운영 개요",
-    heroTitle: "임원을 위한 빠른 읽기형 IT 운영 개요",
-    heroDescription:
-      "수리, 조달, 접근 요청, 자산 상태, 핵심 운영 신호를 한 페이지에 모았습니다.",
-    benchmarkTitle: "Benchmark Summary / Executive Readiness",
-    sections: {
-      overviewEyebrow: "Executive Snapshot",
-      overviewTitle: "업무량 및 우선 신호",
-      overviewSubtitle: "핵심 업무량, 위험 및 자산 준비 상태를 먼저 확인합니다.",
-      activityEyebrow: "Operational Activity",
-      activityTitle: "서비스 수요 및 최근 활동",
-      activitySubtitle: "주요 요청 영역과 시스템의 최신 변화를 함께 확인합니다.",
-      healthEyebrow: "Asset & License Health",
-      healthTitle: "자산 및 라이선스 준비 상태",
-      healthSubtitle: "사용 가능성, 위험, 활용도 및 갱신 일정을 추적합니다.",
-      benchmarkEyebrow: "Advanced Insights",
-      benchmarkTitle: "벤치마크 및 경영 준비도",
-      benchmarkSubtitle: "운영 목표와의 심층 비교가 필요할 때 펼쳐 봅니다.",
-      showBenchmark: "고급 분석 열기",
-    },
-    metrics: {
-      tickets: "Tickets",
-      ticketsHint: "전체 서비스 기록",
-      openIssues: "Open Issues",
-      openIssuesHint: "아직 닫히지 않은 작업",
-      overdue: "Overdue",
-      overdueHint: "SLA 초과",
-      assets: "Assets",
-      assetsHint: "관리 중인 장비",
-      accessRequests: "Access Requests",
-      accessRequestsHint: "시스템 접근 요청",
-    },
-    requestMix: {
-      title: "Request Mix",
-      subtitle: "IT가 처리하는 업무 유형의 큰 흐름",
-      totalCases: "총 {{count}}건",
-      repair: "수리 / Service Desk",
-      procurement: "조달 요청",
-      access: "접근 요청",
-      other: "기타 IT 업무",
-      pending: "승인 대기 접근 요청",
-      approved: "승인 완료",
-      completed: "완료",
-    },
-    signals: {
-      title: "Operational Signals",
-      subtitle: "임원이 먼저 확인해야 할 핵심 지표",
-      availability: "Availability",
-      availabilityHint: "사용 가능한 자산",
-      licenses: "Licenses",
-      licensesHint: "추적 중인 라이선스",
-      trend: "Trend",
-    },
-    topService: {
-      title: "주요 서비스 영역",
-      subtitle: "시스템에서 가장 많이 발생한 요청 유형",
-      helper: "주요 요청 카테고리",
-      records: "건",
-      empty: "요청 유형 데이터가 없습니다.",
-    },
-    latest: {
-      title: "최근 활동",
-      subtitle: "시스템 전반의 최신 변경 사항",
-      empty: "최근 활동이 없습니다.",
-      asset: "Asset",
-      license: "License",
-      access: "Access",
-      unknownAsset: "자산 정보 없음",
-      unknownLocation: "위치 정보 없음",
-      unknownLicense: "라이선스 정보 없음",
-      unknownRequester: "요청자 정보 없음",
-      unknownDepartment: "부서 정보 없음",
-      accessFallback: "Access Request",
-      seatsInUse: "{{used}}/{{total}}석 사용 중",
-    },
-    assetHealth: {
-      title: "자산 상태",
-      subtitle: "자산 재고와 사용 가능 상태 요약",
-      active: "사용 가능",
-      risk: "검토 필요",
-      headers: {
-        category: "Category",
-        total: "Total",
-        usable: "Usable",
-        broken: "Broken",
-      },
-    },
-    licenseHealth: {
-      title: "라이선스 상태",
-      subtitle: "사용 현황과 갱신 요약",
-      seatsUsed: "사용 좌석",
-      expiring: "30일 이내 만료",
-      descriptionTitle: "설명",
-      description:
-        "이 보고서는 수리, 조달, 접근 요청, 자산 신호를 함께 보는 임원용 요약 화면입니다.",
-    },
+    heroBadge: "Asset Governance",
+    heroTitle: "자산 상태 및 준비도",
+    heroDescription: "수리 티켓이나 서비스 요청과 혼합하지 않고 IT 자산 수량, 상태, 준비도, 위험 및 라이선스를 확인합니다.",
     refresh: "새로고침",
     updated: "마지막 업데이트",
+    readiness: "전체 준비도",
+    metrics: {
+      total: "전체 자산",
+      totalHint: "자산 등록부의 모든 장비",
+      active: "사용 중",
+      activeHint: "배정 또는 사용 중인 장비",
+      ready: "사용 가능 / 예비",
+      readyHint: "신규 수요에 대응 가능",
+      attention: "고장 / 수리 중",
+      attentionHint: "후속 조치가 필요한 장비",
+    },
+    sections: {
+      inventoryEyebrow: "Equipment Dashboard",
+      statusTitle: "자산 상태 분포",
+      statusSubtitle: "운영 준비도와 비활성 자산을 한 화면에서 확인합니다.",
+      categoryTitle: "유형별 자산",
+      categorySubtitle: "용량 및 교체 계획에 활용합니다.",
+      inventoryTitle: "전체 장비",
+      inventorySubtitle: "모든 장비를 실제 사진 또는 유형별 아이콘이 포함된 블록으로 표시합니다.",
+      licenseTitle: "소프트웨어 라이선스 준비도",
+      licenseSubtitle: "수량, 잔여 용량 및 만료 예정 항목을 확인합니다.",
+    },
+    status: {
+      deployed: "사용 중",
+      ready: "사용 가능 / 예비",
+      attention: "고장 / 수리 중",
+      inactive: "폐기 / 분실",
+      other: "기타 상태",
+    },
+    asset: {
+      code: "Asset Code",
+      owner: "사용자",
+      location: "위치",
+      category: "유형",
+      noOwner: "미배정",
+      noLocation: "위치 미지정",
+      noCategory: "유형 미지정",
+      noPhoto: "장비 사진 없음",
+      empty: "자산 데이터가 없습니다",
+      noResults: "필터와 일치하는 장비가 없습니다",
+      searchPlaceholder: "Asset Code, 장비명, Serial Number 또는 사용자 검색",
+      allStatuses: "모든 상태",
+      allCategories: "모든 유형",
+      clearFilters: "필터 초기화",
+      showing: "전체 {{total}}개 중 {{shown}}개 표시",
+      photos: "사진 {{count}}장",
+      photoCoverage: "전체 {{total}}개 중 {{withPhoto}}개 사진 등록",
+      records: "개",
+      agingRisk: "3년 초과 자산",
+      agingHint: "상태 및 교체 계획 검토 필요",
+    },
+    license: {
+      records: "라이선스 항목",
+      totalSeats: "전체 수량",
+      usedSeats: "사용 중",
+      availableSeats: "사용 가능",
+      utilization: "사용률",
+      expiring30: "30일 이내 만료",
+      expiring90: "90일 이내 만료",
+      latest: "최근 업데이트 라이선스",
+      seats: "개",
+      empty: "라이선스 데이터가 없습니다",
+    },
   },
 };
 
-function statusTone(value) {
-  const text = String(value || "").toLowerCase();
-  if (text.includes("pending") || text.includes("new")) return "amber";
-  if (text.includes("approved") || text.includes("completed")) return "emerald";
-  if (text.includes("rejected") || text.includes("overdue")) return "rose";
-  return "indigo";
+const STATUS_GROUPS = [
+  { key: "deployed", statuses: new Set(["in_use", "assigned", "active"]), color: "#2563eb", tone: "border-blue-200 bg-blue-50 text-blue-700" },
+  { key: "ready", statuses: new Set(["spare", "available", "stock", "ready"]), color: "#10b981", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  { key: "attention", statuses: new Set(["broken", "repair", "damaged", "maintenance"]), color: "#f59e0b", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+  { key: "inactive", statuses: new Set(["retired", "lost", "disposed", "decommissioned"]), color: "#94a3b8", tone: "border-slate-200 bg-slate-100 text-slate-600" },
+  { key: "other", statuses: new Set(), color: "#a855f7", tone: "border-violet-200 bg-violet-50 text-violet-700" },
+];
+
+const normalizeStatus = (value) => String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+const toNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+
+const DEVICE_TYPES = [
+  { key: "notebook", icon: Laptop, keywords: ["notebook", "laptop", "macbook", "โน้ตบุ๊ก", "โน๊ตบุ๊ก", "노트북"] },
+  { key: "monitor", icon: Monitor, keywords: ["monitor", "display", "screen", "จอ", "มอนิเตอร์", "모니터"] },
+  { key: "printer", icon: Printer, keywords: ["printer", "print", "เครื่องพิมพ์", "พรินเตอร์", "프린터"] },
+  { key: "server", icon: Server, keywords: ["server", "nas", "storage", "เซิร์ฟเวอร์", "서버"] },
+  { key: "computer", icon: Computer, keywords: ["computer", "desktop", "workstation", "pc", "คอม", "데스크톱"] },
+  { key: "other", icon: HardDrive, keywords: [] },
+];
+
+function statusGroup(status) {
+  const normalized = normalizeStatus(status);
+  return STATUS_GROUPS.find((group) => group.statuses.has(normalized)) || STATUS_GROUPS[STATUS_GROUPS.length - 1];
 }
 
-function WorkstreamBar({ label, value, total, tone = "indigo", valueLabel }) {
-  const percent = total > 0 ? Math.round((value / total) * 100) : 0;
-  const barClass =
-    tone === "emerald"
-      ? "bg-emerald-500"
-      : tone === "amber"
-        ? "bg-amber-500"
-        : tone === "rose"
-          ? "bg-rose-500"
-          : "bg-indigo-500";
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-3 text-sm">
-        <span className="font-semibold text-slate-700">{label}</span>
-        <span className="font-black text-slate-900">{valueLabel}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-2 rounded-full ${barClass}`} style={{ width: `${Math.min(percent, 100)}%` }} />
-      </div>
-    </div>
-  );
+function deviceType(asset) {
+  const searchable = `${asset?.asset_category || ""} ${asset?.asset_name || ""} ${asset?.brand || ""} ${asset?.model || ""}`.toLowerCase();
+  return DEVICE_TYPES.find((type) => type.key !== "other" && type.keywords.some((keyword) => searchable.includes(keyword)))
+    || DEVICE_TYPES[DEVICE_TYPES.length - 1];
 }
 
-function DashboardSectionHeading({ eyebrow, title, subtitle }) {
-  return (
-    <div className="mb-3">
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{eyebrow}</p>
-      <h2 className="mt-1 text-lg font-bold text-slate-950">{title}</h2>
-      {subtitle ? <p className="mt-1 text-xs leading-5 text-slate-500">{subtitle}</p> : null}
-    </div>
-  );
+function assetAttachments(asset) {
+  return [...(Array.isArray(asset?.it_asset_attachments) ? asset.it_asset_attachments : [])]
+    .filter((item) => item?.file_url)
+    .sort((left, right) => new Date(right?.created_at || 0).getTime() - new Date(left?.created_at || 0).getTime());
 }
 
-function ActivityRow({ item }) {
-  const tone =
-    item.kind === "access"
-      ? "cyan"
-      : item.kind === "asset"
-        ? "emerald"
-        : item.kind === "license"
-          ? "indigo"
-          : statusTone(item.status);
-
-  const toneClass =
-    tone === "emerald"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : tone === "amber"
-        ? "border-amber-200 bg-amber-50 text-amber-700"
-        : tone === "rose"
-          ? "border-rose-200 bg-rose-50 text-rose-700"
-          : tone === "cyan"
-            ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-            : "border-indigo-200 bg-indigo-50 text-indigo-700";
-  const Icon = item.kind === "asset" ? Package : item.kind === "license" ? KeyRound : Ticket;
-
+function AssetVisual({ asset, emptyLabel }) {
+  const attachments = assetAttachments(asset);
+  const TypeIcon = deviceType(asset).icon;
   return (
-    <article className="flex items-start gap-3 border-b border-slate-100 py-3 first:pt-0 last:border-b-0 last:pb-0">
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${toneClass}`}>
-        <Icon size={17} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.kindLabel}</p>
-        <h4 className="mt-0.5 truncate text-sm font-semibold text-slate-900">{item.title}</h4>
-        <p className="mt-1 truncate text-xs text-slate-500">{item.detail}</p>
+    <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-400">
+        <span className="rounded-2xl border border-white/80 bg-white/75 p-4 shadow-sm"><TypeIcon size={34} strokeWidth={1.7} /></span>
+        <span className="text-[10px] font-black uppercase tracking-[0.12em]">{emptyLabel}</span>
       </div>
-      <div className="shrink-0 text-right">
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
-          <Clock3 size={11} />
-          {item.dateLabel}
+      {attachments[0] ? (
+        <img
+          src={attachments[0].file_url}
+          alt={attachments[0].file_name || asset?.asset_name || asset?.asset_tag || "IT asset"}
+          className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+          loading="lazy"
+          onError={(event) => { event.currentTarget.style.display = "none"; }}
+        />
+      ) : null}
+      {attachments.length > 1 ? (
+        <span className="absolute bottom-3 right-3 rounded-full bg-slate-950/75 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur">
+          +{attachments.length - 1}
         </span>
-        <p className="mt-1 max-w-[110px] truncate text-[11px] font-semibold text-slate-600">{item.statusLabel}</p>
-      </div>
-    </article>
+      ) : null}
+    </div>
   );
+}
+
+function formatDate(value, locale) {
+  const date = new Date(value || 0);
+  return Number.isNaN(date.getTime())
+    ? "-"
+    : new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(date);
 }
 
 export default function ExecutiveAssetOverviewDashboard({ data, onRefresh, loading }) {
-  const { language, tt } = useScopedI18n(EXECUTIVE_ASSET_OVERVIEW_TRANSLATIONS);
-  const benchmark = buildReportBenchmark(data, "executive");
-  const kpi = data?.kpi || {};
+  const { language, tt } = useScopedI18n(TRANSLATIONS);
+  const locale = getReportLocale(language);
+  const formatter = new Intl.NumberFormat(locale);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const assetSummary = data?.assetSummary || {};
   const licenseSummary = data?.licenseSummary || {};
-  const accessRequestSummary = data?.accessRequestSummary || {};
-  const topIssues = data?.topIssues || [];
-  const trend = data?.trend || [];
   const assetRows = Array.isArray(data?.assetRows) ? data.assetRows : [];
   const licenseRows = Array.isArray(data?.licenseRows) ? data.licenseRows : [];
-  const accessRequestRows = Array.isArray(data?.accessRequestRows) ? data.accessRequestRows : [];
-  const locale = getReportLocale(language);
-  const numberFormatter = new Intl.NumberFormat(locale);
 
-  const totalCases = Number(kpi.totalTickets || 0) + Number(accessRequestSummary.total || 0);
-  const combinedActivity = [
-    ...assetRows.slice(0, 4).map((item) => ({
-      kind: "asset",
-      kindLabel: tt("latest.asset"),
-      title: item.asset_name || item.asset_tag || tt("latest.unknownAsset"),
-      detail: `${item.asset_category || "-"} • ${item.location || tt("latest.unknownLocation")}`,
-      statusLabel: item.status || "-",
-      dateLabel: new Date(item.updated_at || item.created_at || Date.now()).toLocaleDateString(locale),
-      timestamp: new Date(item.updated_at || item.created_at || Date.now()).getTime(),
-      status: item.status,
-    })),
-    ...licenseRows.slice(0, 4).map((item) => ({
-      kind: "license",
-      kindLabel: tt("latest.license"),
-      title: item.license_name || tt("latest.unknownLicense"),
-      detail: `${item.vendor || "-"} • ${tt("latest.seatsInUse", {
-        used: numberFormatter.format(item.quantity_assigned || 0),
-        total: numberFormatter.format(item.quantity_total || 0),
-      })}`,
-      statusLabel: item.status || "-",
-      dateLabel: new Date(item.updated_at || item.created_at || Date.now()).toLocaleDateString(locale),
-      timestamp: new Date(item.updated_at || item.created_at || Date.now()).getTime(),
-      status: item.status,
-    })),
-    ...accessRequestRows.slice(0, 6).map((item) => ({
-      kind: "access",
-      kindLabel: tt("latest.access"),
-      title: item.system_name || tt("latest.accessFallback"),
-      detail: `${item.requester_name || tt("latest.unknownRequester")} • ${item.department || tt("latest.unknownDepartment")}`,
-      statusLabel: item.status || "-",
-      dateLabel: new Date(item.created_at || Date.now()).toLocaleDateString(locale),
-      timestamp: new Date(item.created_at || Date.now()).getTime(),
-      status: item.status,
-    })),
-  ]
-    .filter((item) => Number.isFinite(item.timestamp))
-    .sort((left, right) => right.timestamp - left.timestamp)
-    .slice(0, 8);
+  const categoryOptions = useMemo(() => [...new Set(assetRows
+    .map((asset) => String(asset?.asset_category || "").trim())
+    .filter(Boolean))].sort((left, right) => left.localeCompare(right, locale)), [assetRows, locale]);
+  const filteredAssets = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return assetRows.filter((asset) => {
+      const matchesStatus = statusFilter === "all" || statusGroup(asset?.status).key === statusFilter;
+      const matchesCategory = categoryFilter === "all" || String(asset?.asset_category || "").trim() === categoryFilter;
+      const matchesQuery = !query || [
+        asset?.asset_tag,
+        asset?.asset_name,
+        asset?.asset_category,
+        asset?.brand,
+        asset?.model,
+        asset?.serial_number,
+        asset?.owner_name,
+        asset?.department,
+        asset?.location,
+        asset?.factory,
+      ].some((value) => String(value || "").toLowerCase().includes(query));
+      return matchesStatus && matchesCategory && matchesQuery;
+    });
+  }, [assetRows, categoryFilter, searchQuery, statusFilter]);
+  const filtersActive = Boolean(searchQuery || statusFilter !== "all" || categoryFilter !== "all");
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setCategoryFilter("all");
+  };
 
-  const requestMix = [
-    { label: tt("requestMix.repair"), value: topIssues[0]?.value || 0, tone: "rose" },
-    { label: tt("requestMix.procurement"), value: topIssues[1]?.value || 0, tone: "amber" },
-    { label: tt("requestMix.access"), value: accessRequestSummary.total || 0, tone: "indigo" },
-    {
-      label: tt("requestMix.other"),
-      value: Math.max(Number(kpi.totalTickets || 0) - (topIssues[0]?.value || 0) - (topIssues[1]?.value || 0), 0),
-      tone: "emerald",
-    },
-  ];
-
-  const requestMixTotal = Math.max(requestMix.reduce((sum, item) => sum + item.value, 0), 1);
-  const availabilityRate = assetSummary.totalAssets > 0
-    ? Math.round((assetSummary.activeAssets / assetSummary.totalAssets) * 100)
+  const statusCounts = Object.fromEntries(STATUS_GROUPS.map((group) => [group.key, 0]));
+  assetRows.forEach((asset) => {
+    statusCounts[statusGroup(asset?.status).key] += 1;
+  });
+  const statusRows = STATUS_GROUPS.map((group) => ({ ...group, value: statusCounts[group.key] }));
+  const operationalAssets = statusCounts.deployed + statusCounts.ready;
+  const readinessRate = assetRows.length > 0 ? Math.round((operationalAssets / assetRows.length) * 100) : 0;
+  const photoAssetCount = assetRows.filter((asset) => assetAttachments(asset).length > 0).length;
+  const categoryRows = Array.isArray(assetSummary.byCategory) ? assetSummary.byCategory : [];
+  const statusTotal = Math.max(assetRows.length, 1);
+  let statusOffset = 0;
+  const statusGradient = statusRows.map((group) => {
+    const start = statusOffset;
+    statusOffset += (group.value / statusTotal) * 100;
+    return `${group.color} ${start}% ${statusOffset}%`;
+  }).join(", ");
+  const licenseUtilization = toNumber(licenseSummary.totalSeats) > 0
+    ? Math.round((toNumber(licenseSummary.usedSeats) / toNumber(licenseSummary.totalSeats)) * 100)
     : 0;
-  const maxTrendValue = Math.max(...trend.map((item) => Number(item.value || 0)), 1);
-  const maxIssueValue = Math.max(...topIssues.map((item) => Number(item.value || 0)), 1);
 
   return (
     <div className="space-y-5">
@@ -497,241 +390,235 @@ export default function ExecutiveAssetOverviewDashboard({ data, onRefresh, loadi
         )}
       />
 
-      <section>
-        <DashboardSectionHeading
-          eyebrow={tt("sections.overviewEyebrow")}
-          title={tt("sections.overviewTitle")}
-          subtitle={tt("sections.overviewSubtitle")}
-        />
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <ReportMetricCard title={tt("metrics.tickets")} value={numberFormatter.format(Number(kpi.totalTickets || 0))} hint={tt("metrics.ticketsHint")} icon={Ticket} tone="indigo" />
-          <ReportMetricCard title={tt("metrics.openIssues")} value={numberFormatter.format(Number(kpi.openTickets || 0))} hint={tt("metrics.openIssuesHint")} icon={Wrench} tone="amber" />
-          <ReportMetricCard title={tt("metrics.overdue")} value={numberFormatter.format(Number(kpi.overdueTickets || 0))} hint={tt("metrics.overdueHint")} icon={Clock3} tone="rose" />
-          <ReportMetricCard title={tt("metrics.assets")} value={numberFormatter.format(Number(assetSummary.totalAssets || 0))} hint={tt("metrics.assetsHint")} icon={Package} tone="emerald" />
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ReportMetricCard title={tt("metrics.total")} value={formatter.format(assetRows.length)} hint={tt("metrics.totalHint")} icon={Box} tone="indigo" />
+        <ReportMetricCard title={tt("metrics.active")} value={formatter.format(statusCounts.deployed)} hint={tt("metrics.activeHint")} icon={ShieldCheck} tone="emerald" />
+        <ReportMetricCard title={tt("metrics.ready")} value={formatter.format(statusCounts.ready)} hint={tt("metrics.readyHint")} icon={PackageCheck} tone="cyan" />
+        <ReportMetricCard title={tt("metrics.attention")} value={formatter.format(statusCounts.attention)} hint={tt("metrics.attentionHint")} icon={Wrench} tone={statusCounts.attention > 0 ? "amber" : "slate"} />
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
+        <header className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-5">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">{tt("sections.inventoryEyebrow")}</p>
+            <h2 className="mt-1.5 text-xl font-black tracking-tight text-slate-950">{tt("sections.inventoryTitle")}</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">{tt("sections.inventorySubtitle")}</p>
+          </div>
+          <span className="inline-flex self-start items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 sm:self-auto">
+            <HardDrive size={14} />
+            {tt("asset.photoCoverage", { withPhoto: formatter.format(photoAssetCount), total: formatter.format(assetRows.length) })}
+          </span>
+        </header>
+
+        <div className="border-b border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(300px,1fr)_190px_210px_auto]">
+            <label className="relative block md:col-span-2 xl:col-span-1">
+              <span className="sr-only">{tt("asset.searchPlaceholder")}</span>
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={tt("asset.searchPlaceholder")}
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+            <label>
+              <span className="sr-only">{tt("asset.allStatuses")}</span>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                <option value="all">{tt("asset.allStatuses")}</option>
+                {STATUS_GROUPS.map((group) => <option key={group.key} value={group.key}>{tt(`status.${group.key}`)}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">{tt("asset.allCategories")}</span>
+              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                <option value="all">{tt("asset.allCategories")}</option>
+                {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </label>
+            {filtersActive ? (
+              <button type="button" onClick={clearFilters} className="h-11 rounded-xl border border-blue-200 bg-blue-50 px-4 text-xs font-black text-blue-700 transition hover:bg-blue-100">
+                {tt("asset.clearFilters")}
+              </button>
+            ) : <span className="hidden xl:block" />}
+          </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <ReportSectionCard
-            title={tt("requestMix.title")}
-            subtitle={tt("requestMix.subtitle")}
-            actions={
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                {tt("requestMix.totalCases", { count: numberFormatter.format(totalCases) })}
-              </span>
-            }
-          >
-            <div className="space-y-4">
-              {requestMix.map((item) => (
-                <WorkstreamBar
-                  key={item.label}
-                  label={item.label}
-                  value={item.value}
-                  total={requestMixTotal}
-                  tone={item.tone}
-                  valueLabel={numberFormatter.format(item.value)}
-                />
+        <div className="xl:grid xl:grid-cols-[270px_minmax(0,1fr)]">
+          <aside className="border-b border-slate-200 bg-slate-50/60 p-4 sm:p-5 xl:border-b-0 xl:border-r">
+            <div className="rounded-2xl bg-slate-950 p-4 text-white shadow-lg">
+              <div className="flex items-center gap-4 xl:flex-col">
+                <div className="relative h-28 w-28 shrink-0 rounded-full" style={{ background: assetRows.length ? `conic-gradient(${statusGradient})` : "#334155" }}>
+                  <div className="absolute inset-[10px] flex flex-col items-center justify-center rounded-full bg-slate-950">
+                    <span className="text-2xl font-black">{formatter.format(readinessRate)}%</span>
+                    <span className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">{tt("readiness")}</span>
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 xl:text-center">
+                  <p className="text-sm font-black">{tt("sections.statusTitle")}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">{tt("sections.statusSubtitle")}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-1">
+              {statusRows.filter((group) => group.value > 0).map((group) => (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => setStatusFilter((current) => current === group.key ? "all" : group.key)}
+                  aria-pressed={statusFilter === group.key}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition ${statusFilter === group.key ? group.tone : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}
+                >
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: group.color }} />
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-black">{tt(`status.${group.key}`)}</span>
+                  <span className="text-sm font-black">{formatter.format(group.value)}</span>
+                </button>
               ))}
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
-              <div>
-                <p className="text-[11px] font-medium text-slate-500">{tt("requestMix.pending")}</p>
-                <p className="mt-1 text-xl font-bold text-slate-950">{numberFormatter.format(accessRequestSummary.pending || 0)}</p>
-              </div>
-              <div className="border-l border-slate-100 pl-3">
-                <p className="text-[11px] font-medium text-slate-500">{tt("requestMix.approved")}</p>
-                <p className="mt-1 text-xl font-bold text-slate-950">{numberFormatter.format(accessRequestSummary.approved || 0)}</p>
-              </div>
-              <div className="border-l border-slate-100 pl-3">
-                <p className="text-[11px] font-medium text-slate-500">{tt("requestMix.completed")}</p>
-                <p className="mt-1 text-xl font-bold text-slate-950">{numberFormatter.format(accessRequestSummary.completed || 0)}</p>
-              </div>
-            </div>
-          </ReportSectionCard>
 
-          <ReportSectionCard title={tt("signals.title")} subtitle={tt("signals.subtitle")}>
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold text-slate-600">{tt("signals.availability")}</p>
-                  <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{availabilityRate}%</p>
-                  <p className="mt-1 text-xs text-slate-500">{tt("signals.availabilityHint")}</p>
-                </div>
-                <p className="text-xs font-semibold text-emerald-700">
-                  {numberFormatter.format(Number(assetSummary.activeAssets || 0))}/{numberFormatter.format(Number(assetSummary.totalAssets || 0))}
-                </p>
-              </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(availabilityRate, 100)}%` }} />
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-slate-100 p-3">
-                <p className="text-[11px] font-medium text-slate-500">{tt("signals.licenses")}</p>
-                <p className="mt-1 text-2xl font-bold text-slate-950">{numberFormatter.format(Number(licenseSummary.totalLicenses || 0))}</p>
-                <p className="mt-1 text-[11px] text-slate-400">{tt("signals.licensesHint")}</p>
-              </div>
-              <div className="rounded-xl border border-slate-100 p-3">
-                <p className="text-[11px] font-medium text-slate-500">{tt("metrics.accessRequests")}</p>
-                <p className="mt-1 text-2xl font-bold text-slate-950">{numberFormatter.format(Number(accessRequestSummary.total || 0))}</p>
-                <p className="mt-1 text-[11px] text-slate-400">{tt("metrics.accessRequestsHint")}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 border-t border-slate-100 pt-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{tt("signals.trend")}</p>
-              <div className="mt-3 flex h-24 items-end gap-2 border-b border-slate-200 px-1">
-                {trend.slice(-6).map((item) => (
-                  <div key={item.key} className="flex h-full flex-1 flex-col justify-end gap-1.5">
-                    <div
-                      className="mx-auto w-full max-w-8 rounded-t bg-blue-700"
-                      style={{ height: `${Math.max(8, Math.round((Number(item.value || 0) / maxTrendValue) * 70))}px` }}
-                    />
-                    <p className="truncate text-center text-[9px] font-medium text-slate-400">{item.label}</p>
-                  </div>
+            <div className="mt-5 border-t border-slate-200 pt-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{tt("sections.categoryTitle")}</p>
+              <div className="mt-3 flex flex-wrap gap-2 xl:flex-col">
+                {categoryRows.slice(0, 6).map((category) => (
+                  <button
+                    key={category.label}
+                    type="button"
+                    onClick={() => setCategoryFilter((current) => current === category.label ? "all" : category.label)}
+                    aria-pressed={categoryFilter === category.label}
+                    className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition ${categoryFilter === category.label ? "border-blue-200 bg-blue-50 font-black text-blue-700" : "border-transparent bg-white text-slate-600 hover:border-slate-200"}`}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{category.label || tt("asset.noCategory")}</span>
+                    <span className="font-black">{formatter.format(toNumber(category.value))}</span>
+                  </button>
                 ))}
               </div>
             </div>
-          </ReportSectionCard>
-        </div>
-      </section>
 
-      <section>
-        <DashboardSectionHeading
-          eyebrow={tt("sections.activityEyebrow")}
-          title={tt("sections.activityTitle")}
-          subtitle={tt("sections.activitySubtitle")}
-        />
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <ReportSectionCard title={tt("topService.title")} subtitle={tt("topService.subtitle")}>
-            {topIssues.length ? (
-              <div>
-                {topIssues.map((item, index) => {
-                  const issuePercent = Math.round((Number(item.value || 0) / maxIssueValue) * 100);
+            <div className={`mt-5 flex items-center gap-3 rounded-xl border px-3 py-3 ${toNumber(assetSummary.riskyAssets) > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+              <Clock3 size={17} className="shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black">{tt("asset.agingRisk")}</p>
+                <p className="mt-0.5 truncate text-[10px] opacity-70">{tt("asset.agingHint")}</p>
+              </div>
+              <span className="text-xl font-black">{formatter.format(toNumber(assetSummary.riskyAssets))}</span>
+            </div>
+          </aside>
+
+          <main className="min-w-0 p-4 sm:p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold text-slate-500">{tt("asset.showing", { shown: formatter.format(filteredAssets.length), total: formatter.format(assetRows.length) })}</p>
+              {filtersActive ? (
+                <button type="button" onClick={clearFilters} className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black text-blue-700 transition hover:bg-blue-100">{tt("asset.clearFilters")}</button>
+              ) : null}
+            </div>
+
+            {filteredAssets.length ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                {filteredAssets.map((asset) => {
+                  const group = statusGroup(asset?.status);
+                  const TypeIcon = deviceType(asset).icon;
+                  const attachments = assetAttachments(asset);
                   return (
-                    <div key={`${item.label}-${index}`} className="border-b border-slate-100 py-3 first:pt-0 last:border-b-0 last:pb-0">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-900">{item.label}</p>
-                          <p className="text-[11px] text-slate-400">{tt("topService.helper")}</p>
+                    <article key={asset.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_3px_12px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_14px_30px_rgba(15,23,42,0.10)]">
+                      <div className="relative">
+                        <AssetVisual asset={asset} emptyLabel={tt("asset.noPhoto")} />
+                        <span className={`absolute left-3 top-3 rounded-full border px-2.5 py-1 text-[10px] font-black shadow-sm ${group.tone}`}>{tt(`status.${group.key}`)}</span>
+                        {attachments.length ? (
+                          <span className="absolute bottom-3 left-3 rounded-full bg-slate-950/75 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur">{tt("asset.photos", { count: formatter.format(attachments.length) })}</span>
+                        ) : null}
+                      </div>
+                      <div className="p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-500"><TypeIcon size={15} /></span>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-sm font-black text-slate-950">{asset.asset_name || asset.asset_tag || "-"}</h3>
+                            <p className="mt-1 truncate text-xs font-bold text-blue-700">{asset.asset_tag || "-"}</p>
+                          </div>
                         </div>
-                        <p className="shrink-0 text-lg font-bold text-slate-950">
-                          {numberFormatter.format(item.value)}
-                          <span className="ml-1 text-[10px] font-medium uppercase text-slate-400">{tt("topService.records")}</span>
-                        </p>
+                        <div className="mt-3 grid grid-cols-1 gap-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                          <p className="flex min-w-0 items-center gap-2"><UserRound size={12} className="shrink-0" /><span className="truncate">{asset.owner_name || asset.department || tt("asset.noOwner")}</span></p>
+                          <p className="flex min-w-0 items-center gap-2"><MapPin size={12} className="shrink-0" /><span className="truncate">{asset.location || asset.factory || tt("asset.noLocation")}</span></p>
+                          <p className="flex min-w-0 items-center gap-2"><Archive size={12} className="shrink-0" /><span className="truncate">{asset.asset_category || tt("asset.noCategory")}</span></p>
+                        </div>
+                        <p className="mt-3 text-[10px] font-semibold text-slate-400">{formatDate(asset.updated_at || asset.created_at, locale)}</p>
                       </div>
-                      <div className="ml-11 mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full rounded-full bg-blue-700" style={{ width: `${Math.max(issuePercent, 3)}%` }} />
-                      </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                {tt("topService.empty")}
+              <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 text-center">
+                <HardDrive size={36} className="text-slate-300" />
+                <p className="mt-3 text-sm font-bold text-slate-600">{filtersActive ? tt("asset.noResults") : tt("asset.empty")}</p>
+                {filtersActive ? (
+                  <button type="button" onClick={clearFilters} className="mt-4 rounded-xl bg-blue-700 px-4 py-2 text-xs font-black text-white">{tt("asset.clearFilters")}</button>
+                ) : null}
               </div>
             )}
-          </ReportSectionCard>
+          </main>
+        </div>
+      </section>
 
-          <ReportSectionCard title={tt("latest.title")} subtitle={tt("latest.subtitle")}>
-            {combinedActivity.length ? (
-              <div>
-                {combinedActivity.map((item) => (
-                  <ActivityRow key={`${item.kind}-${item.title}-${item.timestamp}`} item={item} />
+      <ReportSectionCard title={tt("sections.licenseTitle")} subtitle={tt("sections.licenseSubtitle")}>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            [tt("license.records"), licenseSummary.totalLicenses, "text-slate-950"],
+            [tt("license.totalSeats"), licenseSummary.totalSeats, "text-indigo-700"],
+            [tt("license.usedSeats"), licenseSummary.usedSeats, "text-blue-700"],
+            [tt("license.availableSeats"), licenseSummary.availableSeats, "text-emerald-700"],
+          ].map(([label, value, tone]) => (
+            <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3.5">
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{label}</p>
+              <p className={`mt-1 text-2xl font-black ${tone}`}>{formatter.format(toNumber(value))}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2 text-sm font-black text-indigo-900"><KeyRound size={17} />{tt("license.utilization")}</span>
+              <span className="text-2xl font-black text-indigo-900">{formatter.format(licenseUtilization)}%</span>
+            </div>
+            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white">
+              <div className="h-full rounded-full bg-indigo-600" style={{ width: `${Math.min(licenseUtilization, 100)}%` }} />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
+                <p className="text-[10px] font-bold text-slate-500">{tt("license.expiring30")}</p>
+                <p className="mt-1 text-xl font-black text-amber-700">{formatter.format(toNumber(licenseSummary.expiring30))}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white/80 p-3">
+                <p className="text-[10px] font-bold text-slate-500">{tt("license.expiring90")}</p>
+                <p className="mt-1 text-xl font-black text-slate-700">{formatter.format(toNumber(licenseSummary.expiring90))}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{tt("license.latest")}</p>
+            {licenseRows.length ? (
+              <div className="mt-3 space-y-2">
+                {licenseRows.slice(0, 5).map((license) => (
+                  <div key={license.id} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="inline-flex rounded-lg border border-slate-200 bg-white p-2 text-indigo-600"><KeyRound size={14} /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-slate-800">{license.license_name || "-"}</p>
+                      <p className="truncate text-[11px] text-slate-400">{license.vendor || license.license_type || "-"}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-black text-slate-700">{formatter.format(toNumber(license.quantity_assigned))}/{formatter.format(toNumber(license.quantity_total))}</p>
+                      <p className="mt-0.5 text-[10px] text-slate-400">{tt("license.seats")}</p>
+                    </div>
+                  </div>
                 ))}
               </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                {tt("latest.empty")}
-              </div>
-            )}
-          </ReportSectionCard>
+            ) : <p className="py-12 text-center text-sm font-semibold text-slate-400">{tt("license.empty")}</p>}
+          </div>
         </div>
-      </section>
-
-      <section>
-        <DashboardSectionHeading
-          eyebrow={tt("sections.healthEyebrow")}
-          title={tt("sections.healthTitle")}
-          subtitle={tt("sections.healthSubtitle")}
-        />
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <ReportSectionCard title={tt("assetHealth.title")} subtitle={tt("assetHealth.subtitle")}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-500">{tt("assetHealth.active")}</p>
-              <p className="mt-2 text-3xl font-black text-emerald-700">{numberFormatter.format(Number(assetSummary.activeAssets || 0))}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-500">{tt("assetHealth.risk")}</p>
-              <p className="mt-2 text-3xl font-black text-rose-700">{numberFormatter.format(Number(assetSummary.riskyAssets || 0))}</p>
-            </div>
-          </div>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-400">
-                <tr>
-                  <th className="px-3 py-2">{tt("assetHealth.headers.category")}</th>
-                  <th className="px-3 py-2 text-right">{tt("assetHealth.headers.total")}</th>
-                  <th className="px-3 py-2 text-right">{tt("assetHealth.headers.usable")}</th>
-                  <th className="px-3 py-2 text-right">{tt("assetHealth.headers.broken")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(data?.coreMenuSummary?.stock || {})
-                  .filter(([key]) => key !== "all")
-                  .map(([key, value]) => (
-                    <tr key={key} className="border-t border-slate-100">
-                      <td className="px-3 py-2 font-semibold text-slate-700">{key.toUpperCase()}</td>
-                      <td className="px-3 py-2 text-right">{numberFormatter.format(value?.total || 0)}</td>
-                      <td className="px-3 py-2 text-right text-emerald-700">{numberFormatter.format(value?.usable || 0)}</td>
-                      <td className="px-3 py-2 text-right text-rose-700">{numberFormatter.format(value?.broken || 0)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-          </ReportSectionCard>
-
-          <ReportSectionCard title={tt("licenseHealth.title")} subtitle={tt("licenseHealth.subtitle")}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-500">{tt("licenseHealth.seatsUsed")}</p>
-              <p className="mt-2 text-3xl font-black text-indigo-700">{numberFormatter.format(Number(licenseSummary.usedSeats || 0))}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-500">{tt("licenseHealth.expiring")}</p>
-              <p className="mt-2 text-3xl font-black text-amber-700">{numberFormatter.format(Number(licenseSummary.expiring30 || 0))}</p>
-            </div>
-          </div>
-          <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-700">{tt("licenseHealth.descriptionTitle")}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{tt("licenseHealth.description")}</p>
-          </div>
-          </ReportSectionCard>
-        </div>
-      </section>
-
-      <section>
-        <DashboardSectionHeading
-          eyebrow={tt("sections.benchmarkEyebrow")}
-          title={tt("sections.benchmarkTitle")}
-          subtitle={tt("sections.benchmarkSubtitle")}
-        />
-        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_5px_22px_rgba(15,23,42,0.04)]">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:px-6">
-            <span>{tt("sections.showBenchmark")}</span>
-            <ChevronDown size={17} className="shrink-0 text-slate-400 transition group-open:rotate-180" />
-          </summary>
-          <div className="border-t border-slate-200 bg-slate-50/60 p-3 sm:p-4">
-            <BenchmarkInsightsPanel analysis={benchmark} title={tt("benchmarkTitle")} />
-          </div>
-        </details>
-      </section>
+      </ReportSectionCard>
     </div>
   );
 }

@@ -643,6 +643,8 @@ export default function CentralChatDock({
   launcherMode = "pill",
   openSignalTarget = "support",
   onOpenChange,
+  onUnreadCountChange,
+  embeddedLauncher = false,
 }) {
   const { language, tt } = useScopedI18n(CENTRAL_CHAT_DOCK_TRANSLATIONS);
   const locale = CHAT_LOCALE[language] || CHAT_LOCALE.en;
@@ -2190,6 +2192,10 @@ export default function CentralChatDock({
   }, [isOpen, onOpenChange]);
 
   useEffect(() => {
+    onUnreadCountChange?.(totalUnreadCount);
+  }, [onUnreadCountChange, totalUnreadCount]);
+
+  useEffect(() => {
     return () => {
       if (pendingFilePreview) {
         URL.revokeObjectURL(pendingFilePreview);
@@ -2203,23 +2209,26 @@ export default function CentralChatDock({
   if (!currentUserId) return null;
 
   if (!isOpen) {
+    if (launcherMode === "hidden") return null;
+
     const compactLauncher = launcherMode === "icon";
+    const sidebarLauncher = launcherMode === "sidebar";
 
     return (
-      <div className={`fixed ${className} z-[90] pointer-events-none`} style={dockInlineStyle}>
+      <div className={`${embeddedLauncher ? "w-full" : `fixed ${className} z-[90] pointer-events-none`}`} style={embeddedLauncher ? undefined : dockInlineStyle}>
         <button
           type="button"
           onClick={handleLauncherClick}
-          onPointerDown={(event) => handleDockPointerDown(event, { allowInteractiveTarget: true })}
-          className={`pointer-events-auto inline-flex items-center gap-3 border border-[#12b981]/20 bg-white text-left shadow-[0_24px_60px_-28px_rgba(43,89,176,0.45)] transition hover:-translate-y-1 hover:border-[#12b981]/35 ${
-            isDraggingDock ? "cursor-grabbing" : "cursor-grab"
+          onPointerDown={sidebarLauncher ? undefined : (event) => handleDockPointerDown(event, { allowInteractiveTarget: true })}
+          className={`pointer-events-auto inline-flex items-center gap-3 border border-[#12b981]/20 bg-white text-left shadow-[0_24px_60px_-28px_rgba(43,89,176,0.45)] transition hover:-translate-y-1 hover:border-[#12b981]/35 ${sidebarLauncher ? "w-full justify-start rounded-2xl px-3 py-2.5" : ""} ${
+            !sidebarLauncher && (isDraggingDock ? "cursor-grabbing" : "cursor-grab")
           } ${
-            isMobileViewport || compactLauncher
+            !sidebarLauncher && (isMobileViewport || compactLauncher)
               ? "h-14 w-14 justify-center rounded-[1.25rem] px-0"
-              : "rounded-full px-4 py-3"
+              : !sidebarLauncher ? "rounded-full px-4 py-3" : ""
           }`}
           aria-label={tt("openChat")}
-          title={compactLauncher || isMobileViewport ? tt("openChat") : tt("dragToMove")}
+          title={sidebarLauncher || compactLauncher || isMobileViewport ? tt("openChat") : tt("dragToMove")}
         >
           <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 via-[#2b59b0] to-[#244a95] text-white shadow-[0_14px_26px_-14px_rgba(16,185,129,0.55)]">
             <span className="absolute inset-0 rounded-full bg-emerald-400/25 opacity-70 blur-[2px] animate-pulse" aria-hidden="true" />
@@ -2230,7 +2239,7 @@ export default function CentralChatDock({
               </span>
             )}
           </span>
-          {!isMobileViewport && !compactLauncher && (
+          {(!isMobileViewport || sidebarLauncher) && !compactLauncher && (
             <span className="min-w-0">
             <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
               {tt("centralChat")}
