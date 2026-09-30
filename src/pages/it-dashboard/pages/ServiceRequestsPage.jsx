@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import {
+  getAttachmentName,
+  isImageAttachmentUrl,
+} from "../../../lib/ticketAttachmentMetadata";
+import {
   getServiceRequestDisplayDescription,
   getStockRequestMetadata,
   normalizeServiceType,
@@ -99,20 +103,6 @@ function deriveEmployeeCodeFromEmail(email) {
   const localPart = String(email || "").trim().split("@")[0] || "";
   const match = localPart.match(/\d{3,}/);
   return match ? match[0] : "";
-}
-
-function isImageAttachmentUrl(url) {
-  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif)(?:[?#].*)?$/i.test(String(url || ""));
-}
-
-function getAttachmentName(url) {
-  try {
-    const pathname = new URL(String(url || "")).pathname;
-    return decodeURIComponent(pathname.split("/").pop() || "attachment");
-  } catch {
-    const cleanUrl = String(url || "").split("?")[0];
-    return decodeURIComponent(cleanUrl.split("/").pop() || "attachment");
-  }
 }
 
 function getRequestTypeLabel(request) {

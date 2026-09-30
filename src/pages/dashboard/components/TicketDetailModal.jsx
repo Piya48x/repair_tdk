@@ -3,8 +3,10 @@ import { CheckCircle2, FileText, X } from "lucide-react";
 import TicketChatPanel from "../../../components/TicketChatPanel";
 import { useScopedI18n } from "../../../i18n/useScopedI18n";
 import {
+  getAttachmentName,
   getTicketAttachmentEntries,
   getTicketDisplayNote,
+  isImageAttachmentUrl,
 } from "../../../lib/ticketAttachmentMetadata";
 
 const TICKET_DETAIL_MODAL_TRANSLATIONS = {
@@ -84,20 +86,6 @@ function deriveEmployeeCodeFromEmail(email) {
   const localPart = String(email || "").trim().split("@")[0] || "";
   const match = localPart.match(/\d{3,}/);
   return match ? match[0] : "";
-}
-
-function isImageAttachmentUrl(url) {
-  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)(?:[?#].*)?$/i.test(String(url || ""));
-}
-
-function getAttachmentName(url) {
-  try {
-    const pathname = new URL(String(url || "")).pathname;
-    return decodeURIComponent(pathname.split("/").pop() || "attachment");
-  } catch {
-    const cleanUrl = String(url || "").split("?")[0];
-    return decodeURIComponent(cleanUrl.split("/").pop() || "attachment");
-  }
 }
 
 function isWalkInTicket(ticket) {

@@ -9,6 +9,35 @@ function normalizeAttachmentType(value) {
   return String(value || "").toLowerCase() === "after" ? "after" : "before";
 }
 
+function getAttachmentPath(url) {
+  const rawUrl = normalizeText(url);
+  if (!rawUrl) return "";
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+    return parsedUrl.searchParams.get("key") || parsedUrl.pathname;
+  } catch {
+    return rawUrl.split(/[?#]/)[0];
+  }
+}
+
+export function isImageAttachmentUrl(url) {
+  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif)$/i.test(
+    getAttachmentPath(url),
+  );
+}
+
+export function getAttachmentName(url) {
+  const path = getAttachmentPath(url);
+  const name = path.split("/").filter(Boolean).pop() || "attachment";
+
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
+}
+
 function normalizeAttachmentEntry(entry, fallbackType = "before") {
   if (typeof entry === "string") {
     const url = normalizeText(entry);

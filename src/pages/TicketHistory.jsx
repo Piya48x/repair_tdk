@@ -31,9 +31,11 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { useScopedI18n } from "../i18n/useScopedI18n";
 import {
+  getAttachmentName,
   getTicketAttachmentEntries,
   getTicketAttachmentUrls,
   getTicketDisplayNote,
+  isImageAttachmentUrl,
 } from "../lib/ticketAttachmentMetadata";
 import {
   formatNotebookDuration,
@@ -436,19 +438,6 @@ const toTimeAgo = (dateString) => {
 };
 
 const getTicketImageUrls = (ticket) => getTicketAttachmentUrls(ticket);
-
-const isImageAttachmentUrl = (url) =>
-  /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)(?:[?#].*)?$/i.test(String(url || ""));
-
-const getAttachmentName = (url) => {
-  try {
-    const pathname = new URL(String(url || "")).pathname;
-    return decodeURIComponent(pathname.split("/").pop() || "attachment");
-  } catch {
-    const cleanUrl = String(url || "").split("?")[0];
-    return decodeURIComponent(cleanUrl.split("/").pop() || "attachment");
-  }
-};
 
 const getImageExtension = (url, mimeType = "") => {
   const mime = mimeType.toLowerCase();
