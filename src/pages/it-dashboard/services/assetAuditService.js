@@ -1,4 +1,10 @@
 import { supabase } from "../../../lib/supabaseClient";
+import {
+  deleteManagedR2Files,
+  isManagedR2ObjectKey,
+  isTicketHistoryStorageEnabled,
+  uploadManagedR2File,
+} from "../../../services/ticketHistoryStorageService";
 
 export const ASSET_AUDIT_EVIDENCE_BUCKET = "it-asset-audit-evidence";
 
@@ -20,6 +26,19 @@ const makeAuditCode = (year) => {
   const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
   return `AUDIT-${year}-${suffix}`;
 };
+
+async function cleanupAuditEvidencePaths(paths) {
+  const safePaths = (Array.isArray(paths) ? paths : []).filter(Boolean);
+  const r2Paths = safePaths.filter(isManagedR2ObjectKey);
+  const supabasePaths = safePaths.filter((path) => !isManagedR2ObjectKey(path));
+  if (r2Paths.length) await deleteManagedR2Files(r2Paths);
+  if (supabasePaths.length) {
+    const { error } = await supabase.storage
+      .from(ASSET_AUDIT_EVIDENCE_BUCKET)
+      .remove(supabasePaths);
+    if (error) throw error;
+  }
+}
 
 export const isAssetAuditSchemaError = (error) => {
   const code = String(error?.code || "").toUpperCase();
@@ -234,18 +253,39 @@ export async function uploadAssetAuditEvidence({ itemId, sessionId, files, curre
     for (const file of safeFiles) {
       const fileName = safeFileName(file.name);
       const path = `audits/${sessionId}/${itemId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${fileName}`;
-      const { error: uploadError } = await supabase.storage
-        .from(ASSET_AUDIT_EVIDENCE_BUCKET)
-        .upload(path, file, { contentType: file.type || undefined, upsert: false });
-      if (uploadError) throw uploadError;
+      let filePath = path;
+      let fileUrl = "";
 
-      uploadedPaths.push(path);
-      const { data: publicData } = supabase.storage.from(ASSET_AUDIT_EVIDENCE_BUCKET).getPublicUrl(path);
+      if (isTicketHistoryStorageEnabled()) {
+        try {
+          const result = await uploadManagedR2File({
+            scope: "asset-audits",
+            recordKey: itemId,
+            kind: sessionId,
+            file,
+          });
+          filePath = result.objectKey;
+          fileUrl = result.permanentUrl;
+        } catch (error) {
+          console.warn("R2 asset audit upload failed; using Supabase Storage fallback:", error);
+        }
+      }
+
+      if (!fileUrl) {
+        const { error: uploadError } = await supabase.storage
+          .from(ASSET_AUDIT_EVIDENCE_BUCKET)
+          .upload(path, file, { contentType: file.type || undefined, upsert: false });
+        if (uploadError) throw uploadError;
+        const { data: publicData } = supabase.storage.from(ASSET_AUDIT_EVIDENCE_BUCKET).getPublicUrl(path);
+        fileUrl = publicData?.publicUrl || "";
+      }
+
+      uploadedPaths.push(filePath);
       rows.push({
         audit_item_id: itemId,
         file_name: file.name || fileName,
-        file_path: path,
-        file_url: publicData?.publicUrl || "",
+        file_path: filePath,
+        file_url: fileUrl,
         mime_type: file.type || null,
         file_size: Number(file.size || 0),
         uploaded_by: currentUser?.id || null,
@@ -260,7 +300,7 @@ export async function uploadAssetAuditEvidence({ itemId, sessionId, files, curre
     return Array.isArray(data) ? data : [];
   } catch (error) {
     if (uploadedPaths.length) {
-      await supabase.storage.from(ASSET_AUDIT_EVIDENCE_BUCKET).remove(uploadedPaths);
+      await cleanupAuditEvidencePaths(uploadedPaths);
     }
     throw error;
   }
@@ -328,11 +368,12 @@ export async function deleteAssetAuditSession(sessionId) {
   if (deleteError) throw deleteError;
 
   let cleanupError = null;
-  for (let index = 0; index < evidencePaths.length; index += 100) {
-    const { error } = await supabase.storage
-      .from(ASSET_AUDIT_EVIDENCE_BUCKET)
-      .remove(evidencePaths.slice(index, index + 100));
-    if (error && !cleanupError) cleanupError = error;
+  try {
+    for (let index = 0; index < evidencePaths.length; index += 100) {
+      await cleanupAuditEvidencePaths(evidencePaths.slice(index, index + 100));
+    }
+  } catch (error) {
+    cleanupError = error;
   }
 
   return { cleanupError, removedEvidenceCount: evidencePaths.length };

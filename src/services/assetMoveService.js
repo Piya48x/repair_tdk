@@ -1,4 +1,8 @@
 import { supabase } from "../lib/supabaseClient";
+import {
+  isTicketHistoryStorageEnabled,
+  uploadManagedR2File,
+} from "./ticketHistoryStorageService";
 
 export const ASSET_MOVE_EVIDENCE_BUCKET = "asset-move-evidence";
 
@@ -18,6 +22,8 @@ export function normalizeAssetMoveImages(value) {
       name: normalizeAssetMoveText(item?.name) || null,
       mimeType: normalizeAssetMoveText(item?.mimeType) || null,
       size: Number(item?.size || 0) || null,
+      objectKey: normalizeAssetMoveText(item?.objectKey) || null,
+      storage: normalizeAssetMoveText(item?.storage) || null,
     }))
     .filter((item) => item.url);
 }
@@ -66,25 +72,50 @@ export async function uploadAssetMoveEvidenceFiles(files, kind, userId) {
   const safeUserId = sanitizePathSegment(userId);
   const safeKind = kind === "after" ? "after" : "before";
   const uploaded = [];
+  const batchKey = `${safeUserId}-${Date.now()}`;
 
   for (const [index, file] of safeFiles.entries()) {
     const safeName = sanitizePathSegment(file.name || `${safeKind}_${Date.now()}.jpg`);
     const path = `moves/${safeUserId}/${Date.now()}_${safeKind}_${index + 1}_${safeName}`;
-    const { error } = await supabase.storage
-      .from(ASSET_MOVE_EVIDENCE_BUCKET)
-      .upload(path, file, {
-        upsert: false,
-        contentType: file.type || "image/jpeg",
-      });
+    let url = "";
+    let objectKey = null;
+    let storage = "supabase";
 
-    if (error) throw error;
+    if (isTicketHistoryStorageEnabled()) {
+      try {
+        const result = await uploadManagedR2File({
+          scope: "asset-moves",
+          recordKey: batchKey,
+          kind: safeKind,
+          file,
+        });
+        url = result.permanentUrl;
+        objectKey = result.objectKey;
+        storage = "r2";
+      } catch (error) {
+        console.warn("R2 asset move upload failed; using Supabase Storage fallback:", error);
+      }
+    }
 
-    const { data } = supabase.storage.from(ASSET_MOVE_EVIDENCE_BUCKET).getPublicUrl(path);
+    if (!url) {
+      const { error } = await supabase.storage
+        .from(ASSET_MOVE_EVIDENCE_BUCKET)
+        .upload(path, file, {
+          upsert: false,
+          contentType: file.type || "image/jpeg",
+        });
+      if (error) throw error;
+      const { data } = supabase.storage.from(ASSET_MOVE_EVIDENCE_BUCKET).getPublicUrl(path);
+      url = data?.publicUrl || "";
+    }
+
     uploaded.push({
-      url: data?.publicUrl || "",
+      url,
       name: normalizeAssetMoveText(file.name) || null,
       mimeType: normalizeAssetMoveText(file.type) || null,
       size: Number(file.size || 0) || null,
+      objectKey,
+      storage,
     });
   }
 

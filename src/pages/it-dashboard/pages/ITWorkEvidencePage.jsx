@@ -733,6 +733,7 @@ export default function ITWorkEvidencePage({
       uploadedImages = await uploadITWorkEvidenceFiles(
         selectedFiles.map((entry) => entry.file),
         currentUser.id,
+        editingRecordId || `draft-${crypto.randomUUID()}`,
       );
 
       const nextImages = [...existingImages, ...uploadedImages];

@@ -1,4 +1,9 @@
 import { supabase } from "../lib/supabaseClient";
+import {
+  deleteITWorkEvidenceFiles as deleteITWorkEvidenceFilesFromR2,
+  isTicketHistoryStorageEnabled,
+  uploadITWorkEvidenceFile,
+} from "./ticketHistoryStorageService";
 
 export const IT_WORK_EVIDENCE_BUCKET = "it-work-evidence";
 
@@ -19,6 +24,8 @@ export function normalizeEvidenceImages(value) {
       name: normalizeText(item?.name) || null,
       mimeType: normalizeText(item?.mimeType) || null,
       size: Number(item?.size || 0) || null,
+      objectKey: normalizeText(item?.objectKey) || null,
+      storage: normalizeText(item?.storage) || null,
     }))
     .filter((item) => item.url);
 }
@@ -92,16 +99,39 @@ export async function loadITWorkRecords(options = {}) {
     .order("created_at", { ascending: false });
 }
 
-export async function uploadITWorkEvidenceFiles(files, createdBy) {
+export async function uploadITWorkEvidenceFiles(files, createdBy, recordKey = "") {
   const safeFiles = Array.isArray(files) ? files.filter(Boolean) : [];
   if (safeFiles.length === 0) return [];
 
   const safeUserId = sanitizePathSegment(createdBy || "unknown");
   const uploadedPaths = [];
+  const uploadedObjectKeys = [];
   const uploadedImages = [];
+  const safeRecordKey = sanitizePathSegment(recordKey || crypto.randomUUID());
 
   try {
     for (const [index, file] of safeFiles.entries()) {
+      if (isTicketHistoryStorageEnabled()) {
+        try {
+          const result = await uploadITWorkEvidenceFile({
+            recordKey: safeRecordKey,
+            file,
+          });
+          uploadedObjectKeys.push(result.objectKey);
+          uploadedImages.push({
+            url: result.permanentUrl,
+            name: normalizeText(file?.name || result.fileName) || null,
+            mimeType: normalizeText(file?.type || result.mimeType) || null,
+            size: Number(file?.size || result.size || 0) || null,
+            objectKey: result.objectKey,
+            storage: "r2",
+          });
+          continue;
+        } catch (workerUploadError) {
+          console.warn("R2 IT work evidence upload failed; using Supabase Storage fallback:", workerUploadError);
+        }
+      }
+
       const safeName = sanitizePathSegment(file?.name || `evidence_${Date.now()}.jpg`);
       const filePath = `records/${safeUserId}/${Date.now()}_${index}_${safeName}`;
 
@@ -121,12 +151,20 @@ export async function uploadITWorkEvidenceFiles(files, createdBy) {
         name: normalizeText(file?.name) || null,
         mimeType: normalizeText(file?.type) || null,
         size: Number(file?.size || 0) || null,
+        storage: "supabase",
       });
     }
 
     return uploadedImages;
   } catch (error) {
     await cleanupUploadedPaths(uploadedPaths);
+    if (uploadedObjectKeys.length > 0) {
+      try {
+        await deleteITWorkEvidenceFilesFromR2(uploadedObjectKeys);
+      } catch (cleanupError) {
+        console.warn("Cleanup R2 IT work evidence upload error:", cleanupError);
+      }
+    }
     throw error;
   }
 }
@@ -149,13 +187,21 @@ export async function deleteITWorkRecord(recordId) {
 }
 
 export async function removeITWorkEvidenceFiles(images) {
-  const paths = normalizeEvidenceImages(images)
+  const normalizedImages = normalizeEvidenceImages(images);
+  const objectKeys = normalizedImages
+    .map((item) => item.objectKey)
+    .filter((key) => key?.startsWith("it-work-records/"));
+  const paths = normalizedImages
     .map((item) => getStorageObjectPath(item.url, IT_WORK_EVIDENCE_BUCKET))
     .filter(Boolean);
 
-  if (paths.length === 0) {
-    return { data: [], error: null };
+  if (objectKeys.length > 0 && isTicketHistoryStorageEnabled()) {
+    await deleteITWorkEvidenceFilesFromR2(objectKeys);
   }
 
-  return supabase.storage.from(IT_WORK_EVIDENCE_BUCKET).remove(paths);
+  if (paths.length > 0) {
+    return supabase.storage.from(IT_WORK_EVIDENCE_BUCKET).remove(paths);
+  }
+
+  return { data: [], error: null };
 }

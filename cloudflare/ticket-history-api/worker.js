@@ -1,6 +1,8 @@
 const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_MANAGED_FILE_BYTES = 20 * 1024 * 1024;
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 15 * 60;
 const ALLOWED_ATTACHMENT_KINDS = new Set(["before", "after", "chat", "general"]);
+const MANAGED_FILE_SCOPES = new Set(["stock-files", "it-assets", "asset-audits", "asset-moves"]);
 
 function normalizeText(value) {
   return String(value ?? "").trim();
@@ -113,6 +115,12 @@ function ticketIdFromObjectKey(key) {
   return parts[1];
 }
 
+function isCapabilityObjectKey(key) {
+  const parts = normalizeText(key).split("/").filter(Boolean);
+  if (parts.length < 3) return false;
+  return ["tickets", "history", "it-work-records", ...MANAGED_FILE_SCOPES].includes(parts[0]);
+}
+
 function bytesToBase64Url(bytes) {
   let binary = "";
   for (const byte of new Uint8Array(bytes)) binary += String.fromCharCode(byte);
@@ -175,7 +183,7 @@ async function handleCapabilityFile(request, env) {
   const key = normalizeText(url.searchParams.get("key"));
   const suppliedSignature = normalizeText(url.searchParams.get("signature"));
 
-  if (!key || !ticketIdFromObjectKey(key)) {
+  if (!key || !isCapabilityObjectKey(key)) {
     return new Response("Invalid file link", { status: 403 });
   }
 
@@ -193,6 +201,156 @@ async function handleCapabilityFile(request, env) {
   headers.set("Cache-Control", "private, max-age=3600");
   headers.set("X-Content-Type-Options", "nosniff");
   return new Response(object.body, { headers });
+}
+
+async function canManageITWork(auth, env) {
+  const endpoint = new URL(`${normalizeText(env.SUPABASE_URL).replace(/\/$/, "")}/rest/v1/profiles`);
+  endpoint.searchParams.set("id", `eq.${auth.user.id}`);
+  endpoint.searchParams.set("select", "role");
+  endpoint.searchParams.set("limit", "1");
+
+  const response = await fetch(endpoint, {
+    headers: {
+      Accept: "application/json",
+      apikey: normalizeText(env.SUPABASE_ANON_KEY),
+      Authorization: `Bearer ${auth.token}`,
+    },
+  });
+
+  if (!response.ok) return false;
+  const rows = await response.json();
+  const role = normalizeText(rows?.[0]?.role).toLowerCase();
+  return ["admin", "it_support", "it_manager"].includes(role);
+}
+
+async function handleITWorkUpload(request, env, auth) {
+  if (!(await canManageITWork(auth, env))) {
+    return json(request, env, { error: "IT work evidence access denied" }, 403);
+  }
+
+  const formData = await request.formData();
+  const file = formData.get("file");
+  const recordKey = sanitizePathSegment(formData.get("recordKey"), "draft");
+
+  if (!file || typeof file.arrayBuffer !== "function") {
+    return json(request, env, { error: "file is required" }, 400);
+  }
+
+  const maxBytes = Number(env.MAX_FILE_BYTES || DEFAULT_MAX_FILE_BYTES);
+  if (Number(file.size || 0) > maxBytes) {
+    return json(request, env, { error: `File exceeds ${maxBytes} bytes` }, 413);
+  }
+
+  const fileName = sanitizePathSegment(file.name, "evidence.jpg");
+  const objectKey = `it-work-records/${sanitizePathSegment(auth.user.id, "unknown")}/${recordKey}/${crypto.randomUUID()}-${fileName}`;
+  const contentType = normalizeText(file.type) || "application/octet-stream";
+
+  await env.TICKET_HISTORY.put(objectKey, file.stream(), {
+    httpMetadata: { contentType },
+    customMetadata: {
+      recordKey,
+      originalName: normalizeText(file.name).slice(0, 500),
+      uploadedBy: auth.user.id,
+    },
+  });
+
+  return json(request, env, {
+    objectKey,
+    fileName: normalizeText(file.name) || fileName,
+    mimeType: contentType,
+    size: Number(file.size || 0),
+    permanentUrl: await buildCapabilityFileUrl(request, objectKey, env),
+  }, 201);
+}
+
+async function handleITWorkDelete(request, env, auth) {
+  if (!(await canManageITWork(auth, env))) {
+    return json(request, env, { error: "IT work evidence access denied" }, 403);
+  }
+
+  const payload = await request.json();
+  const objectKeys = [...new Set(
+    (Array.isArray(payload?.objectKeys) ? payload.objectKeys : [payload?.objectKey])
+      .map(normalizeText)
+      .filter((key) => key.startsWith("it-work-records/")),
+  )].slice(0, 100);
+
+  if (objectKeys.length === 0) {
+    return json(request, env, { error: "Valid objectKey is required" }, 400);
+  }
+
+  await env.TICKET_HISTORY.delete(objectKeys);
+  return json(request, env, { deleted: objectKeys.length });
+}
+
+async function handleManagedUpload(request, env, auth) {
+  if (!(await canManageITWork(auth, env))) {
+    return json(request, env, { error: "Managed file access denied" }, 403);
+  }
+
+  const formData = await request.formData();
+  const file = formData.get("file");
+  const scope = normalizeText(formData.get("scope")).toLowerCase();
+  const recordKey = sanitizePathSegment(formData.get("recordKey"), "draft");
+  const kind = sanitizePathSegment(formData.get("kind"), "general");
+
+  if (!MANAGED_FILE_SCOPES.has(scope)) {
+    return json(request, env, { error: "Invalid managed file scope" }, 400);
+  }
+  if (!file || typeof file.arrayBuffer !== "function") {
+    return json(request, env, { error: "file is required" }, 400);
+  }
+
+  const configuredMax = Number(env.MANAGED_MAX_FILE_BYTES || DEFAULT_MANAGED_FILE_BYTES);
+  const maxBytes = Number.isFinite(configuredMax) && configuredMax > 0
+    ? configuredMax
+    : DEFAULT_MANAGED_FILE_BYTES;
+  if (Number(file.size || 0) > maxBytes) {
+    return json(request, env, { error: `File exceeds ${maxBytes} bytes` }, 413);
+  }
+
+  const fileName = sanitizePathSegment(file.name, "attachment");
+  const objectKey = `${scope}/${sanitizePathSegment(auth.user.id, "unknown")}/${recordKey}/${kind}/${crypto.randomUUID()}-${fileName}`;
+  const contentType = normalizeText(file.type) || "application/octet-stream";
+
+  await env.TICKET_HISTORY.put(objectKey, file.stream(), {
+    httpMetadata: { contentType },
+    customMetadata: {
+      scope,
+      recordKey,
+      kind,
+      originalName: normalizeText(file.name).slice(0, 500),
+      uploadedBy: auth.user.id,
+    },
+  });
+
+  return json(request, env, {
+    objectKey,
+    fileName: normalizeText(file.name) || fileName,
+    mimeType: contentType,
+    size: Number(file.size || 0),
+    permanentUrl: await buildCapabilityFileUrl(request, objectKey, env),
+  }, 201);
+}
+
+async function handleManagedDelete(request, env, auth) {
+  if (!(await canManageITWork(auth, env))) {
+    return json(request, env, { error: "Managed file access denied" }, 403);
+  }
+
+  const payload = await request.json();
+  const objectKeys = [...new Set(
+    (Array.isArray(payload?.objectKeys) ? payload.objectKeys : [payload?.objectKey])
+      .map(normalizeText)
+      .filter((key) => MANAGED_FILE_SCOPES.has(key.split("/")[0])),
+  )].slice(0, 100);
+
+  if (objectKeys.length === 0) {
+    return json(request, env, { error: "Valid objectKey is required" }, 400);
+  }
+
+  await env.TICKET_HISTORY.delete(objectKeys);
+  return json(request, env, { deleted: objectKeys.length });
 }
 
 async function handleSignedFile(request, env) {
@@ -349,6 +507,18 @@ export default {
       }
       if (request.method === "POST" && url.pathname === "/sign") {
         return handleSign(request, env, auth);
+      }
+      if (request.method === "POST" && url.pathname === "/it-work/upload") {
+        return handleITWorkUpload(request, env, auth);
+      }
+      if (request.method === "DELETE" && url.pathname === "/it-work/files") {
+        return handleITWorkDelete(request, env, auth);
+      }
+      if (request.method === "POST" && url.pathname === "/managed/upload") {
+        return handleManagedUpload(request, env, auth);
+      }
+      if (request.method === "DELETE" && url.pathname === "/managed/files") {
+        return handleManagedDelete(request, env, auth);
       }
 
       return json(request, env, { error: "Not found" }, 404);

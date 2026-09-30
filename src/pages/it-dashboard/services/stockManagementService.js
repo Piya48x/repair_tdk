@@ -1,4 +1,10 @@
 import { supabase } from "../../../lib/supabaseClient";
+import {
+  deleteManagedR2Files,
+  isManagedR2ObjectKey,
+  isTicketHistoryStorageEnabled,
+  uploadManagedR2File,
+} from "../../../services/ticketHistoryStorageService";
 
 export const STOCK_ATTACHMENT_BUCKET = "it-stock-attachments";
 export const STOCK_ATTACHMENT_MAX_SIZE = 20 * 1024 * 1024;
@@ -60,10 +66,41 @@ async function cleanupUploadedPaths(paths) {
   const safePaths = (Array.isArray(paths) ? paths : []).filter(Boolean);
   if (safePaths.length === 0) return;
   try {
-    await supabase.storage.from(STOCK_ATTACHMENT_BUCKET).remove(safePaths);
+    const r2Paths = safePaths.filter(isManagedR2ObjectKey);
+    const supabasePaths = safePaths.filter((path) => !isManagedR2ObjectKey(path));
+    if (r2Paths.length > 0) await deleteManagedR2Files(r2Paths);
+    if (supabasePaths.length > 0) {
+      await supabase.storage.from(STOCK_ATTACHMENT_BUCKET).remove(supabasePaths);
+    }
   } catch (error) {
     console.warn("Cleanup stock attachment error:", error);
   }
+}
+
+async function uploadStockFile({ file, recordKey, kind, fallbackPath }) {
+  if (isTicketHistoryStorageEnabled()) {
+    try {
+      const result = await uploadManagedR2File({
+        scope: "stock-files",
+        recordKey,
+        kind,
+        file,
+      });
+      return { filePath: result.objectKey, fileUrl: result.permanentUrl };
+    } catch (error) {
+      console.warn("R2 stock upload failed; using Supabase Storage fallback:", error);
+    }
+  }
+
+  const { error } = await supabase.storage
+    .from(STOCK_ATTACHMENT_BUCKET)
+    .upload(fallbackPath, file, {
+      upsert: false,
+      contentType: file?.type || "application/octet-stream",
+    });
+  if (error) throw error;
+  const { data } = supabase.storage.from(STOCK_ATTACHMENT_BUCKET).getPublicUrl(fallbackPath);
+  return { filePath: fallbackPath, fileUrl: normalizeText(data?.publicUrl) };
 }
 
 export function isStockSchemaError(error) {
@@ -275,24 +312,19 @@ export async function uploadStockItemAttachments({ stockItemId, userId, files = 
       const safeUserId = sanitizePathSegment(userId || "unknown");
       const safeRole = sanitizePathSegment(role || "evidence");
       const safeName = sanitizePathSegment(file?.name || `stock_attachment_${Date.now()}`);
-      const filePath = `items/${safeUserId}/${stockItemId}/${safeRole}/${Date.now()}_${index}_${safeName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(STOCK_ATTACHMENT_BUCKET)
-        .upload(filePath, file, {
-          upsert: false,
-          contentType: file?.type || "application/octet-stream",
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from(STOCK_ATTACHMENT_BUCKET).getPublicUrl(filePath);
+      const fallbackPath = `items/${safeUserId}/${stockItemId}/${safeRole}/${Date.now()}_${index}_${safeName}`;
+      const { filePath, fileUrl } = await uploadStockFile({
+        file,
+        recordKey: stockItemId,
+        kind: `item-${safeRole}`,
+        fallbackPath,
+      });
       uploadedPaths.push(filePath);
       attachmentRows.push({
         stock_item_id: stockItemId,
         file_name: normalizeText(file?.name) || "attachment",
         file_path: filePath,
-        file_url: normalizeText(data?.publicUrl),
+        file_url: fileUrl,
         mime_type: normalizeText(file?.type),
         file_size: Number(file?.size || 0) || 0,
         uploaded_by: userId || null,
@@ -383,24 +415,19 @@ export async function uploadStockIssueAttachments({ issueLogId, userId, files = 
 
       const safeUserId = sanitizePathSegment(userId || "unknown");
       const safeName = sanitizePathSegment(file?.name || `issue_attachment_${Date.now()}`);
-      const filePath = `issues/${safeUserId}/${issueLogId}/${Date.now()}_${index}_${safeName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(STOCK_ATTACHMENT_BUCKET)
-        .upload(filePath, file, {
-          upsert: false,
-          contentType: file?.type || "application/octet-stream",
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from(STOCK_ATTACHMENT_BUCKET).getPublicUrl(filePath);
+      const fallbackPath = `issues/${safeUserId}/${issueLogId}/${Date.now()}_${index}_${safeName}`;
+      const { filePath, fileUrl } = await uploadStockFile({
+        file,
+        recordKey: issueLogId,
+        kind: "issue-evidence",
+        fallbackPath,
+      });
       uploadedPaths.push(filePath);
       attachmentRows.push({
         issue_log_id: issueLogId,
         file_name: normalizeText(file?.name) || "attachment",
         file_path: filePath,
-        file_url: normalizeText(data?.publicUrl),
+        file_url: fileUrl,
         mime_type: normalizeText(file?.type),
         file_size: Number(file?.size || 0) || 0,
         uploaded_by: userId || null,

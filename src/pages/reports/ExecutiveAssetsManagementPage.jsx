@@ -43,6 +43,12 @@ import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabaseClient";
 import ReportsTopbar from "../../components/reports/ReportsTopbar";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
+import {
+  deleteManagedR2Files,
+  isManagedR2ObjectKey,
+  isTicketHistoryStorageEnabled,
+  uploadManagedR2File,
+} from "../../services/ticketHistoryStorageService";
 import NotebookInventoryManagementPanel from "./NotebookInventoryManagementPanel";
 import AttachmentPreviewModal from "../work-notes/AttachmentPreviewModal";
 import { downloadAssetRegistryWorkbook } from "./assetRegistryExcelExport";
@@ -1752,7 +1758,12 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     const safePaths = (Array.isArray(paths) ? paths : []).filter(Boolean);
     if (safePaths.length === 0) return;
     try {
-      await supabase.storage.from(ASSET_EVIDENCE_BUCKET).remove(safePaths);
+      const r2Paths = safePaths.filter(isManagedR2ObjectKey);
+      const supabasePaths = safePaths.filter((path) => !isManagedR2ObjectKey(path));
+      if (r2Paths.length > 0) await deleteManagedR2Files(r2Paths);
+      if (supabasePaths.length > 0) {
+        await supabase.storage.from(ASSET_EVIDENCE_BUCKET).remove(supabasePaths);
+      }
     } catch (error) {
       console.warn("Cleanup asset evidence upload error:", error);
     }
@@ -1768,23 +1779,43 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       for (const [index, file] of safeFiles.entries()) {
         const safeAssetTag = sanitizePathSegment(assetTag || assetId);
         const safeName = sanitizePathSegment(file?.name || `asset-evidence-${Date.now()}.jpg`);
-        const filePath = `assets/${safeAssetTag}/${Date.now()}_${index}_${safeName}`;
-        const { error: uploadError } = await supabase.storage
-          .from(ASSET_EVIDENCE_BUCKET)
-          .upload(filePath, file, {
-            upsert: false,
-            contentType: file?.type || "image/jpeg",
-          });
+        const fallbackPath = `assets/${safeAssetTag}/${Date.now()}_${index}_${safeName}`;
+        let filePath = fallbackPath;
+        let fileUrl = "";
 
-        if (uploadError) throw uploadError;
+        if (isTicketHistoryStorageEnabled()) {
+          try {
+            const result = await uploadManagedR2File({
+              scope: "it-assets",
+              recordKey: assetId,
+              kind: "evidence",
+              file,
+            });
+            filePath = result.objectKey;
+            fileUrl = result.permanentUrl;
+          } catch (error) {
+            console.warn("R2 asset upload failed; using Supabase Storage fallback:", error);
+          }
+        }
 
-        const { data } = supabase.storage.from(ASSET_EVIDENCE_BUCKET).getPublicUrl(filePath);
+        if (!fileUrl) {
+          const { error: uploadError } = await supabase.storage
+            .from(ASSET_EVIDENCE_BUCKET)
+            .upload(fallbackPath, file, {
+              upsert: false,
+              contentType: file?.type || "image/jpeg",
+            });
+          if (uploadError) throw uploadError;
+          const { data } = supabase.storage.from(ASSET_EVIDENCE_BUCKET).getPublicUrl(fallbackPath);
+          fileUrl = normalizeText(data?.publicUrl);
+        }
+
         uploadedPaths.push(filePath);
         attachmentRows.push({
           asset_id: assetId,
           file_name: normalizeText(file?.name) || `asset-evidence-${index + 1}.jpg`,
           file_path: filePath,
-          file_url: normalizeText(data?.publicUrl),
+          file_url: fileUrl,
           mime_type: normalizeText(file?.type),
           file_size: Number(file?.size || 0) || 0,
           uploaded_by: currentProfile?.id || null,

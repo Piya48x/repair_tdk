@@ -1,5 +1,12 @@
 ﻿import { supabase } from "../lib/supabaseClient";
 
+import {
+  deleteManagedR2Files,
+  getR2ObjectKeyFromUrl,
+  isTicketHistoryStorageEnabled,
+  uploadManagedR2File,
+} from "./ticketHistoryStorageService";
+
 export const NOTEBOOK_PROOF_BUCKET = "notebook-borrow-proof";
 export const NOTEBOOK_ASSET_BUCKET = "notebook-assets";
 
@@ -352,6 +359,23 @@ export async function uploadNotebookReturnProof(file, userId) {
 export async function uploadNotebookAssetImage(file, assetCode) {
   if (!file) throw new Error("Missing file");
 
+  if (isTicketHistoryStorageEnabled()) {
+    try {
+      const result = await uploadManagedR2File({
+        scope: "it-assets",
+        recordKey: assetCode || "notebook",
+        kind: "notebook",
+        file,
+      });
+      return {
+        publicUrl: result.permanentUrl,
+        path: result.objectKey,
+      };
+    } catch (error) {
+      console.warn("R2 notebook asset upload failed; using Supabase Storage fallback:", error);
+    }
+  }
+
   const safeAssetCode = sanitizePathSegment(assetCode || "notebook");
   const safeName = sanitizePathSegment(file.name || `notebook_${Date.now()}`);
   const filePath = `assets/${safeAssetCode}/${Date.now()}_${safeName}`;
@@ -370,6 +394,16 @@ export async function uploadNotebookAssetImage(file, assetCode) {
 }
 
 export async function removeNotebookAssetImage(publicUrl) {
+  const r2ObjectKey = getR2ObjectKeyFromUrl(publicUrl);
+  if (r2ObjectKey) {
+    try {
+      await deleteManagedR2Files([r2ObjectKey]);
+      return { error: null };
+    } catch (error) {
+      return { error };
+    }
+  }
+
   const path = getStorageObjectPath(publicUrl, NOTEBOOK_ASSET_BUCKET);
   if (!path) return { error: null };
   return supabase.storage.from(NOTEBOOK_ASSET_BUCKET).remove([path]);

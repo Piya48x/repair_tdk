@@ -1,5 +1,11 @@
 import { supabase } from "../../../lib/supabaseClient";
 import { fetchProfilesWithCompatibility } from "../../../lib/profileSchemaCompat";
+import {
+  deleteManagedR2Files,
+  isManagedR2ObjectKey,
+  isTicketHistoryStorageEnabled,
+  uploadManagedR2File,
+} from "../../../services/ticketHistoryStorageService";
 
 export const ASSET_EVIDENCE_BUCKET = "it-asset-evidence";
 
@@ -145,18 +151,39 @@ async function uploadAssetEvidence({ assetId, assetTag, files, currentUserId }) 
       const file = safeFiles[index];
       const safeName = sanitizePathSegment(file.name || `asset_${Date.now()}.jpg`);
       const path = `assets/${sanitizePathSegment(assetTag)}/${Date.now()}_${index}_${safeName}`;
-      const { error: uploadError } = await supabase.storage
-        .from(ASSET_EVIDENCE_BUCKET)
-        .upload(path, file, { contentType: file.type || undefined, upsert: false });
-      if (uploadError) throw uploadError;
+      let filePath = path;
+      let fileUrl = "";
 
-      uploadedPaths.push(path);
-      const { data: publicData } = supabase.storage.from(ASSET_EVIDENCE_BUCKET).getPublicUrl(path);
+      if (isTicketHistoryStorageEnabled()) {
+        try {
+          const result = await uploadManagedR2File({
+            scope: "it-assets",
+            recordKey: assetId,
+            kind: "evidence",
+            file,
+          });
+          filePath = result.objectKey;
+          fileUrl = result.permanentUrl;
+        } catch (error) {
+          console.warn("R2 asset upload failed; using Supabase Storage fallback:", error);
+        }
+      }
+
+      if (!fileUrl) {
+        const { error: uploadError } = await supabase.storage
+          .from(ASSET_EVIDENCE_BUCKET)
+          .upload(path, file, { contentType: file.type || undefined, upsert: false });
+        if (uploadError) throw uploadError;
+        const { data: publicData } = supabase.storage.from(ASSET_EVIDENCE_BUCKET).getPublicUrl(path);
+        fileUrl = publicData?.publicUrl || "";
+      }
+
+      uploadedPaths.push(filePath);
       rows.push({
         asset_id: assetId,
         file_name: file.name || safeName,
-        file_path: path,
-        file_url: publicData?.publicUrl || "",
+        file_path: filePath,
+        file_url: fileUrl,
         mime_type: file.type || null,
         file_size: Number(file.size || 0),
         uploaded_by: currentUserId || null,
@@ -168,7 +195,12 @@ async function uploadAssetEvidence({ assetId, assetTag, files, currentUserId }) 
     return Array.isArray(data) ? data : [];
   } catch (error) {
     if (uploadedPaths.length) {
-      await supabase.storage.from(ASSET_EVIDENCE_BUCKET).remove(uploadedPaths);
+      const r2Paths = uploadedPaths.filter(isManagedR2ObjectKey);
+      const supabasePaths = uploadedPaths.filter((path) => !isManagedR2ObjectKey(path));
+      if (r2Paths.length) await deleteManagedR2Files(r2Paths);
+      if (supabasePaths.length) {
+        await supabase.storage.from(ASSET_EVIDENCE_BUCKET).remove(supabasePaths);
+      }
     }
     throw error;
   }

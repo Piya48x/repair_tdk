@@ -40,6 +40,12 @@ returns:
   `kind` (`before`, `after`, `chat`, or `general`).
 - `POST /archive` accepts `{ "ticketId": "...", "record": { ... } }`.
 - `POST /sign` accepts `{ "objectKey": "..." }` and returns a short-lived URL.
+- `POST /it-work/upload` stores evidence for General IT Work records.
+- `DELETE /it-work/files` removes General IT Work evidence by R2 object key.
+- `POST /managed/upload` stores files for the approved `stock-files`,
+  `it-assets`, `asset-audits`, and `asset-moves` scopes.
+- `DELETE /managed/files` removes files from those managed scopes by R2 object
+  key.
 - `GET /file?...` serves an object only through a valid short-lived signature.
 - `GET /asset?...` serves a stable, signed capability URL used by the current UI.
 
