@@ -1,0 +1,293 @@
+const COLORS = {
+  navy: "FF173B80",
+  blue: "FF2B59B0",
+  green: "FF059669",
+  amber: "FFD97706",
+  rose: "FFE11D48",
+  slate900: "FF0F172A",
+  slate700: "FF334155",
+  slate500: "FF64748B",
+  slate200: "FFE2E8F0",
+  slate100: "FFF1F5F9",
+  blue50: "FFEFF6FF",
+  green50: "FFECFDF5",
+  amber50: "FFFFFBEB",
+  rose50: "FFFFF1F2",
+  white: "FFFFFFFF",
+};
+
+const COPY = {
+  th: {
+    summarySheet: "สรุปผู้บริหาร",
+    registrySheet: "ทะเบียนปัจจุบัน",
+    changesSheet: "รายการเปลี่ยนแปลง",
+    title: "รายงานทะเบียนรถ TDK APPROVED",
+    subtitle: "สรุปทะเบียนรถประจำและการเปลี่ยนแปลงประจำเดือน",
+    period: "ประจำเดือน",
+    generated: "วันที่จัดทำ",
+    active: "ทะเบียนใช้งานปัจจุบัน",
+    added: "เพิ่มใหม่ / กลับมาใช้งาน",
+    removed: "ถอดออก",
+    updated: "แก้ไขข้อมูล",
+    net: "เพิ่มสุทธิ",
+    companySummary: "จำนวนทะเบียนแยกตามบริษัท",
+    changeSummary: "สรุปการเปลี่ยนแปลง",
+    company: "บริษัท",
+    vehicles: "จำนวนรถ",
+    no: "ลำดับ",
+    plate: "ทะเบียนรถ",
+    fullName: "ชื่อ / ผู้ขับขี่",
+    group: "กลุ่ม",
+    contact: "ผู้ติดต่อ",
+    purpose: "วัตถุประสงค์",
+    firstSeen: "เริ่มพบในระบบ",
+    lastSeen: "อัปเดตล่าสุด",
+    mapping: "สถานะ Mapping",
+    remark: "หมายเหตุ",
+    date: "วันที่",
+    changeType: "ประเภทการเปลี่ยนแปลง",
+    before: "ข้อมูลเดิม",
+    after: "ข้อมูลใหม่",
+    confidential: "Confidential - Internal Use",
+  },
+  en: {
+    summarySheet: "Executive Summary",
+    registrySheet: "Current Registry",
+    changesSheet: "Monthly Changes",
+    title: "TDK APPROVED VEHICLE REGISTRY REPORT",
+    subtitle: "Monthly regular-vehicle registry and change summary",
+    period: "Reporting month",
+    generated: "Generated at",
+    active: "Current active vehicles",
+    added: "Added / reactivated",
+    removed: "Removed",
+    updated: "Details updated",
+    net: "Net additions",
+    companySummary: "Active vehicles by company",
+    changeSummary: "Monthly change summary",
+    company: "Company",
+    vehicles: "Vehicles",
+    no: "No.",
+    plate: "License plate",
+    fullName: "Name / driver",
+    group: "Group",
+    contact: "Contact",
+    purpose: "Purpose",
+    firstSeen: "First seen",
+    lastSeen: "Last updated",
+    mapping: "Mapping status",
+    remark: "Remark",
+    date: "Date",
+    changeType: "Change type",
+    before: "Previous details",
+    after: "New details",
+    confidential: "Confidential - Internal Use",
+  },
+};
+
+const clean = (value) => String(value ?? "").trim();
+const displayChange = (change, copy) => {
+  const labels = {
+    BASELINE: copy.active,
+    ADDED: copy.added,
+    REACTIVATED: copy.added,
+    REMOVED: copy.removed,
+    UPDATED: copy.updated,
+  };
+  return labels[change] || change;
+};
+
+function styleHeader(row) {
+  row.height = 28;
+  row.eachCell((cell) => {
+    cell.font = { name: "Aptos", size: 10, bold: true, color: { argb: COLORS.white } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.blue } };
+    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    cell.border = { bottom: { style: "medium", color: { argb: COLORS.navy } } };
+  });
+}
+
+function setReportHeader(sheet, copy, monthLabel, generatedAt, lastColumn) {
+  sheet.mergeCells(`A1:${lastColumn}1`);
+  sheet.getCell("A1").value = copy.title;
+  sheet.getCell("A1").font = { name: "Aptos Display", size: 20, bold: true, color: { argb: COLORS.white } };
+  sheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.navy } };
+  sheet.getCell("A1").alignment = { vertical: "middle", horizontal: "left" };
+  sheet.getRow(1).height = 38;
+
+  sheet.mergeCells(`A2:${lastColumn}2`);
+  sheet.getCell("A2").value = copy.subtitle;
+  sheet.getCell("A2").font = { name: "Aptos", size: 11, color: { argb: COLORS.slate700 } };
+  sheet.getCell("A2").fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.blue50 } };
+  sheet.getRow(2).height = 24;
+
+  sheet.mergeCells(`A3:${lastColumn}3`);
+  sheet.getCell("A3").value = `${copy.period}: ${monthLabel}    ${copy.generated}: ${generatedAt.toLocaleString()}`;
+  sheet.getCell("A3").font = { name: "Aptos", size: 9, italic: true, color: { argb: COLORS.slate500 } };
+  sheet.getRow(3).height = 24;
+  sheet.headerFooter.oddFooter = `&LTDK&C${copy.confidential}&RPage &P of &N`;
+}
+
+function addKpi(sheet, range, label, value, color) {
+  const [from, to] = range.split(":");
+  const start = sheet.getCell(from);
+  const end = sheet.getCell(to);
+  sheet.mergeCells(start.row, start.col, start.row, end.col);
+  sheet.mergeCells(start.row + 1, start.col, end.row, end.col);
+  const labelCell = sheet.getCell(start.row, start.col);
+  const valueCell = sheet.getCell(start.row + 1, start.col);
+  labelCell.value = label;
+  labelCell.font = { name: "Aptos", size: 9, bold: true, color: { argb: COLORS.slate700 } };
+  labelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.slate100 } };
+  labelCell.alignment = { vertical: "middle", horizontal: "center" };
+  valueCell.value = value;
+  valueCell.font = { name: "Aptos Display", size: 20, bold: true, color: { argb: color } };
+  valueCell.alignment = { vertical: "middle", horizontal: "center" };
+  [labelCell, valueCell].forEach((cell) => {
+    cell.border = {
+      top: { style: "thin", color: { argb: COLORS.slate200 } },
+      bottom: { style: "thin", color: { argb: COLORS.slate200 } },
+      left: { style: "thin", color: { argb: COLORS.slate200 } },
+      right: { style: "thin", color: { argb: COLORS.slate200 } },
+    };
+  });
+}
+
+function styleSection(sheet, range, title) {
+  sheet.mergeCells(range);
+  const cell = sheet.getCell(range.split(":")[0]);
+  cell.value = title;
+  cell.font = { name: "Aptos", size: 10, bold: true, color: { argb: COLORS.white } };
+  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.navy } };
+  cell.alignment = { vertical: "middle", horizontal: "left" };
+}
+
+function detailsText(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  return [payload.full_name, payload.company_name, payload.purpose].map(clean).filter(Boolean).join(" | ");
+}
+
+export async function buildTdkApprovedMonthlyWorkbook({ language = "en", month, registry = [], changes = [] }) {
+  const excelJsModule = await import("exceljs");
+  const ExcelJS = excelJsModule.default || excelJsModule;
+  const copy = COPY[language] || COPY.en;
+  const generatedAt = new Date();
+  const activeRows = registry.filter((row) => row.is_active);
+  const added = changes.filter((row) => ["ADDED", "REACTIVATED"].includes(row.change_type)).length;
+  const removed = changes.filter((row) => row.change_type === "REMOVED").length;
+  const updated = changes.filter((row) => row.change_type === "UPDATED").length;
+  const monthDate = new Date(`${month}-01T00:00:00`);
+  const monthLabel = new Intl.DateTimeFormat(language === "th" ? "th-TH" : "en-GB", { month: "long", year: "numeric" }).format(monthDate);
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "TDK Gatepass Management";
+  workbook.company = "TDK";
+  workbook.created = generatedAt;
+  workbook.modified = generatedAt;
+  workbook.title = copy.title;
+  workbook.subject = `${copy.title} - ${monthLabel}`;
+
+  const summary = workbook.addWorksheet(copy.summarySheet, {
+    views: [{ state: "frozen", ySplit: 3, showGridLines: false }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  setReportHeader(summary, copy, monthLabel, generatedAt, "J");
+  addKpi(summary, "A5:B7", copy.active, activeRows.length, COLORS.blue);
+  addKpi(summary, "C5:D7", copy.added, added, COLORS.green);
+  addKpi(summary, "E5:F7", copy.removed, removed, COLORS.rose);
+  addKpi(summary, "G5:H7", copy.updated, updated, COLORS.amber);
+  addKpi(summary, "I5:J7", copy.net, added - removed, added - removed < 0 ? COLORS.rose : COLORS.green);
+
+  const companyCounts = [...activeRows.reduce((map, row) => {
+    const company = clean(row.company_name) || "Unmapped / Review";
+    map.set(company, (map.get(company) || 0) + 1);
+    return map;
+  }, new Map()).entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  styleSection(summary, "A10:D10", copy.companySummary);
+  summary.getRow(11).values = [copy.no, copy.company, copy.vehicles];
+  styleHeader(summary.getRow(11));
+  companyCounts.forEach(([company, count], index) => {
+    const row = summary.getRow(12 + index);
+    row.values = [index + 1, company, count];
+    row.eachCell((cell, column) => {
+      cell.font = { name: "Aptos", size: 10, color: { argb: COLORS.slate900 } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: index % 2 ? COLORS.white : COLORS.slate100 } };
+      cell.alignment = { vertical: "middle", horizontal: column === 3 ? "right" : "left" };
+    });
+  });
+
+  styleSection(summary, "F10:J10", copy.changeSummary);
+  summary.getRow(11).getCell(6).value = copy.changeType;
+  summary.getRow(11).getCell(7).value = copy.vehicles;
+  [6, 7].forEach((column) => {
+    const cell = summary.getRow(11).getCell(column);
+    cell.font = { name: "Aptos", size: 10, bold: true, color: { argb: COLORS.white } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.blue } };
+    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    cell.border = { bottom: { style: "medium", color: { argb: COLORS.navy } } };
+  });
+  [copy.added, copy.removed, copy.updated].forEach((label, index) => {
+    const row = summary.getRow(12 + index);
+    row.getCell(6).value = label;
+    row.getCell(7).value = [added, removed, updated][index];
+    row.getCell(6).font = { name: "Aptos", size: 10, bold: true, color: { argb: COLORS.slate700 } };
+    row.getCell(7).font = { name: "Aptos", size: 10, color: { argb: COLORS.slate900 } };
+  });
+  [8, 28, 14, 4, 4, 28, 14, 4, 4, 4].forEach((width, index) => { summary.getColumn(index + 1).width = width; });
+
+  const registrySheet = workbook.addWorksheet(copy.registrySheet, {
+    views: [{ state: "frozen", ySplit: 5, xSplit: 2, showGridLines: false }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  setReportHeader(registrySheet, copy, monthLabel, generatedAt, "K");
+  registrySheet.getRow(5).values = [copy.no, copy.plate, copy.fullName, copy.group, copy.company, copy.contact, copy.purpose, copy.firstSeen, copy.lastSeen, copy.mapping, copy.remark];
+  styleHeader(registrySheet.getRow(5));
+  activeRows.forEach((item, index) => {
+    const row = registrySheet.getRow(6 + index);
+    row.values = [index + 1, item.vehicle_plate || "", item.full_name || "", item.group_name || "TDK APPROVED", item.company_name || "", item.contact_name || "", item.purpose || "", item.first_seen_date || "", item.last_seen_date || "", item.mapping_status || "", item.remark || ""];
+    row.height = 23;
+    row.eachCell((cell, column) => {
+      cell.font = { name: "Aptos", size: 9.5, color: { argb: COLORS.slate900 } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: index % 2 ? COLORS.white : COLORS.slate100 } };
+      cell.alignment = { vertical: "middle", horizontal: [1, 8, 9].includes(column) ? "center" : "left", wrapText: column >= 3 };
+    });
+  });
+  [7, 16, 27, 17, 22, 24, 28, 14, 14, 25, 28].forEach((width, index) => { registrySheet.getColumn(index + 1).width = width; });
+  registrySheet.autoFilter = { from: "A5", to: `K${5 + Math.max(activeRows.length, 1)}` };
+
+  const changesSheet = workbook.addWorksheet(copy.changesSheet, {
+    views: [{ state: "frozen", ySplit: 5, xSplit: 2, showGridLines: false }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  setReportHeader(changesSheet, copy, monthLabel, generatedAt, "H");
+  changesSheet.getRow(5).values = [copy.no, copy.date, copy.changeType, copy.plate, copy.fullName, copy.company, copy.before, copy.after];
+  styleHeader(changesSheet.getRow(5));
+  changes.forEach((item, index) => {
+    const row = changesSheet.getRow(6 + index);
+    row.values = [index + 1, item.change_date || "", displayChange(item.change_type, copy), item.vehicle_plate || "", item.full_name || "", item.company_name || "", detailsText(item.before_data), detailsText(item.after_data)];
+    row.height = 25;
+    row.eachCell((cell, column) => {
+      cell.font = { name: "Aptos", size: 9.5, color: { argb: COLORS.slate900 } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: index % 2 ? COLORS.white : COLORS.slate100 } };
+      cell.alignment = { vertical: "middle", horizontal: [1, 2].includes(column) ? "center" : "left", wrapText: column >= 5 };
+    });
+    const statusCell = row.getCell(3);
+    const isRemoved = item.change_type === "REMOVED";
+    const isUpdated = item.change_type === "UPDATED";
+    statusCell.font = { name: "Aptos", size: 9.5, bold: true, color: { argb: isRemoved ? COLORS.rose : isUpdated ? COLORS.amber : COLORS.green } };
+    statusCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isRemoved ? COLORS.rose50 : isUpdated ? COLORS.amber50 : COLORS.green50 } };
+  });
+  [7, 14, 23, 16, 27, 22, 32, 32].forEach((width, index) => { changesSheet.getColumn(index + 1).width = width; });
+  changesSheet.autoFilter = { from: "A5", to: `H${5 + Math.max(changes.length, 1)}` };
+
+  const fileName = `TDK-Approved-Monthly-Report-${language.toUpperCase()}-${month}.xlsx`;
+  return { workbook, fileName, count: activeRows.length };
+}
+
+export async function downloadTdkApprovedMonthlyReport(payload) {
+  const { workbook, fileName } = await buildTdkApprovedMonthlyWorkbook(payload);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const fileSaverModule = await import("file-saver");
+  const saveAs = fileSaverModule.saveAs || fileSaverModule.default?.saveAs || fileSaverModule.default;
+  saveAs(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), fileName);
+  return fileName;
+}

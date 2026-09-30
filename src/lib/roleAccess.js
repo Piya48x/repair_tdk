@@ -23,7 +23,7 @@ export const ROLE_HOME_ROUTES = {
   [ROLES.AUDITOR]: "/audit-view",
   [ROLES.IT_MANAGER]: "/reports/it",
   [ROLES.EXECUTIVE]: "/reports",
-  [ROLES.SECURITY]: "/reports/gatepass",
+  [ROLES.SECURITY]: "/reports/gatepass/overview",
 };
 
 export const ROLE_WORKSPACE_ROUTES = {
@@ -33,7 +33,7 @@ export const ROLE_WORKSPACE_ROUTES = {
   [ROLES.AUDITOR]: "/audit-view",
   [ROLES.IT_MANAGER]: "/dashboard",
   [ROLES.EXECUTIVE]: "/dashboard",
-  [ROLES.SECURITY]: "/reports/gatepass",
+  [ROLES.SECURITY]: "/reports/gatepass/overview",
 };
 
 export const normalizeRole = (role) => String(role || "").trim().toLowerCase();

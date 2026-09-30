@@ -43,6 +43,7 @@ const COPY = {
     uniqueVehicles: "รถไม่ซ้ำ",
     approved: "TDK APPROVED",
     temporary: "TEMPORARY",
+    unspecified: "UNSPECIFIED",
     total: "รวมรายการ",
     no: "ลำดับ",
     gatepassNo: "เลข Gatepass",
@@ -50,12 +51,14 @@ const COPY = {
     province: "จังหวัด",
     vehicleType: "ประเภทรถ",
     entry: "เวลาเข้า",
+    exitDate: "วันที่ออก",
     exit: "เวลาออก",
     driver: "ผู้ขับขี่",
     company: "บริษัท",
     contact: "ผู้ติดต่อ",
     department: "แผนก",
     purpose: "วัตถุประสงค์",
+    phone: "เบอร์โทรศัพท์",
     gate: "ประตู",
     approvalRef: "เลขอ้างอิงอนุมัติ",
     notes: "หมายเหตุ",
@@ -88,6 +91,7 @@ const COPY = {
     uniqueVehicles: "Unique vehicles",
     approved: "TDK APPROVED",
     temporary: "TEMPORARY",
+    unspecified: "UNSPECIFIED",
     total: "Total records",
     no: "No.",
     gatepassNo: "Gatepass No.",
@@ -95,12 +99,14 @@ const COPY = {
     province: "Province",
     vehicleType: "Vehicle type",
     entry: "Entry time",
+    exitDate: "Exit date",
     exit: "Exit time",
     driver: "Driver",
     company: "Company",
     contact: "Contact person",
     department: "Department",
     purpose: "Purpose",
+    phone: "Telephone",
     gate: "Gate",
     approvalRef: "Approval reference",
     notes: "Notes",
@@ -216,11 +222,11 @@ function buildSummarySheet(workbook, payload, copy, generatedAt) {
   const trendStart = 14;
   styleSection(sheet, `A${trendStart}:H${trendStart}`, copy.trend);
   const trendHeader = trendStart + 1;
-  sheet.getRow(trendHeader).values = [copy.date, copy.uniqueVehicles, copy.approved, copy.temporary, copy.total];
+  sheet.getRow(trendHeader).values = [copy.date, copy.uniqueVehicles, copy.approved, copy.temporary, copy.unspecified, copy.total];
   styleHeader(sheet.getRow(trendHeader));
   trend.forEach((item, index) => {
     const row = sheet.getRow(trendHeader + 1 + index);
-    row.values = [item.label, item.unique, item.approved, item.temporary, item.total];
+    row.values = [item.label, item.unique, item.approved, item.temporary, item.unspecified, item.total];
     row.eachCell((cell, column) => {
       cell.font = { name: "Aptos", size: 9.5, color: { argb: COLORS.slate900 } };
       cell.alignment = { vertical: "middle", horizontal: column === 1 ? "left" : "right" };
@@ -229,7 +235,7 @@ function buildSummarySheet(workbook, payload, copy, generatedAt) {
   });
 
   [18, 15, 15, 15, 15, 4, 15, 15].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
-  sheet.autoFilter = { from: `A${trendHeader}`, to: `E${trendHeader + Math.max(trend.length, 1)}` };
+  sheet.autoFilter = { from: `A${trendHeader}`, to: `F${trendHeader + Math.max(trend.length, 1)}` };
   return sheet;
 }
 
@@ -238,26 +244,26 @@ function buildLogSheet(workbook, rows, copy, context, generatedAt) {
     views: [{ state: "frozen", ySplit: 5, xSplit: 3, showGridLines: false }],
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  setReportHeader(sheet, copy, context, generatedAt, "Q");
-  const headers = [copy.no, copy.date, copy.gatepassNo, copy.type, copy.plate, copy.province, copy.vehicleType, copy.entry, copy.exit, copy.driver, copy.company, copy.contact, copy.department, copy.purpose, copy.gate, copy.approvalRef, copy.notes];
+  setReportHeader(sheet, copy, context, generatedAt, "S");
+  const headers = [copy.no, copy.date, copy.gatepassNo, copy.type, copy.plate, copy.province, copy.vehicleType, copy.entry, copy.exitDate, copy.exit, copy.driver, copy.company, copy.contact, copy.phone, copy.department, copy.purpose, copy.gate, copy.approvalRef, copy.notes];
   const headerRow = sheet.getRow(5);
   headerRow.values = headers;
   styleHeader(headerRow);
   rows.forEach((item, index) => {
     const row = sheet.getRow(6 + index);
-    row.values = [index + 1, item.visit_date || "", item.gatepass_number || "", item.pass_type || "", item.vehicle_plate || "", item.province || "", item.vehicle_type || "", item.entry_time || "", item.exit_time || "", item.driver_name || "", item.company_name || "", item.contact_person || "", item.department || "", item.purpose || "", item.gate_name || "", item.approval_reference || "", item.notes || ""];
+    row.values = [index + 1, item.visit_date || "", item.gatepass_number || "", item.pass_type || "", item.vehicle_plate || "", item.province || "", item.vehicle_type || "", item.entry_time || "", item.exit_date || "", item.exit_time || "", item.driver_name || "", item.company_name || "", item.contact_person || "", item.telephone_number || "", item.department || "", item.purpose || "", item.gate_name || "", item.approval_reference || "", item.notes || ""];
     row.height = 22;
     row.eachCell((cell, column) => {
       cell.font = { name: "Aptos", size: 9, color: { argb: COLORS.slate900 } };
-      cell.alignment = { vertical: "middle", horizontal: [1, 2, 8, 9].includes(column) ? "center" : "left", wrapText: column >= 10 };
+      cell.alignment = { vertical: "middle", horizontal: [1, 2, 8, 9, 10].includes(column) ? "center" : "left", wrapText: column >= 11 };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: index % 2 ? COLORS.white : COLORS.slate100 } };
     });
     const typeCell = row.getCell(4);
-    typeCell.font = { name: "Aptos", size: 9, bold: true, color: { argb: item.pass_type === "TEMPORARY" ? COLORS.amber : COLORS.green } };
-    typeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: item.pass_type === "TEMPORARY" ? COLORS.amber50 : COLORS.green50 } };
+    typeCell.font = { name: "Aptos", size: 9, bold: true, color: { argb: item.pass_type === "TEMPORARY" ? COLORS.amber : item.pass_type === "UNSPECIFIED" ? COLORS.slate500 : COLORS.green } };
+    typeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: item.pass_type === "TEMPORARY" ? COLORS.amber50 : item.pass_type === "UNSPECIFIED" ? COLORS.slate100 : COLORS.green50 } };
   });
-  [7, 13, 17, 17, 15, 13, 15, 11, 11, 18, 20, 18, 18, 25, 14, 20, 25].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
-  sheet.autoFilter = { from: "A5", to: `Q${5 + Math.max(rows.length, 1)}` };
+  [7, 13, 17, 17, 15, 13, 15, 11, 13, 11, 18, 20, 18, 16, 18, 25, 14, 20, 25].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+  sheet.autoFilter = { from: "A5", to: `S${5 + Math.max(rows.length, 1)}` };
   return sheet;
 }
 
@@ -297,7 +303,7 @@ export async function buildGatepassWorkbook(payload) {
   workbook.modified = generatedAt;
   workbook.title = copy.title;
   workbook.subject = "TDK Gatepass vehicle management report";
-  workbook.description = "Monthly and daily comparison of TDK APPROVED and TEMPORARY gatepass vehicles.";
+  workbook.description = "Monthly and daily comparison of TDK APPROVED, TEMPORARY, and unclassified gatepass vehicles.";
   workbook.calcProperties.fullCalcOnLoad = true;
 
   buildSummarySheet(workbook, payload, copy, generatedAt);

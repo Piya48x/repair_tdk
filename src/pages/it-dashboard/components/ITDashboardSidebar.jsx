@@ -3,6 +3,7 @@ import {
   Activity,
   BarChart3,
   CalendarDays,
+  CarFront,
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
@@ -15,6 +16,7 @@ import {
   PanelLeftOpen,
   QrCode,
   Settings,
+  ShieldCheck,
   Ticket,
   Truck,
   X as XIcon,
@@ -55,6 +57,10 @@ const SIDEBAR_TRANSLATIONS = {
       assetStockAudit: "Stock Audit / ตรวจ PC & Monitor",
       calendar: "ปฏิทิน",
       reports: "รายงาน",
+      gatepassManagement: "จัดการ Gatepass",
+      gatepassInOut: "Gatepass In-Out",
+      gatepassDailyReport: "รายงานรถเข้า-ออกประจำวัน",
+      gatepassRegistry: "ทะเบียนรถ TDK APPROVED",
       settings: "ตั้งค่า",
     },
   },
@@ -89,6 +95,10 @@ const SIDEBAR_TRANSLATIONS = {
       assetStockAudit: "PC / Monitor stock audit",
       calendar: "Calendar",
       reports: "Reports",
+      gatepassManagement: "Gatepass management",
+      gatepassInOut: "Gatepass In-Out",
+      gatepassDailyReport: "Daily vehicle In-Out report",
+      gatepassRegistry: "TDK APPROVED vehicle registry",
       settings: "Settings",
     },
   },
@@ -123,6 +133,10 @@ const SIDEBAR_TRANSLATIONS = {
       assetStockAudit: "PC / Monitor 재고 실사",
       calendar: "캘린더",
       reports: "보고서",
+      gatepassManagement: "Gatepass 출입 관리",
+      gatepassInOut: "Gatepass In-Out",
+      gatepassDailyReport: "일일 차량 입출차 보고서",
+      gatepassRegistry: "TDK APPROVED 차량 원장",
       settings: "설정",
     },
   },
@@ -146,6 +160,12 @@ const WORK_LOG_SECTION_PAGE_IDS = [
   DASHBOARD_PAGE_IDS.IT_WORK_GENERAL,
   DASHBOARD_PAGE_IDS.IT_ASSET_MOVEMENTS,
   DASHBOARD_PAGE_IDS.IT_WORK_HISTORY,
+];
+
+const GATEPASS_SECTION_PAGE_IDS = [
+  DASHBOARD_PAGE_IDS.GATEPASS_MANAGEMENT,
+  DASHBOARD_PAGE_IDS.GATEPASS_DAILY_REPORT,
+  DASHBOARD_PAGE_IDS.GATEPASS_REGISTRY,
 ];
 
 function NotificationBadge({ count, tone = "rose" }) {
@@ -291,6 +311,9 @@ const ITDashboardSidebar = ({
   const [workLogMenuExpanded, setWorkLogMenuExpanded] = useState(
     WORK_LOG_SECTION_PAGE_IDS.includes(currentPage),
   );
+  const [gatepassMenuExpanded, setGatepassMenuExpanded] = useState(
+    GATEPASS_SECTION_PAGE_IDS.includes(currentPage),
+  );
 
   const repairSubItems = useMemo(() => [
     { id: DASHBOARD_PAGE_IDS.ACTIVE, label: tt("nav.active"), icon: Activity },
@@ -315,6 +338,12 @@ const ITDashboardSidebar = ({
     { id: DASHBOARD_PAGE_IDS.IT_WORK_HISTORY, label: tt("nav.workHistory"), icon: History },
   ], [tt]);
 
+  const gatepassSubItems = useMemo(() => [
+    { id: DASHBOARD_PAGE_IDS.GATEPASS_MANAGEMENT, label: tt("nav.gatepassInOut"), icon: CarFront },
+    { id: DASHBOARD_PAGE_IDS.GATEPASS_DAILY_REPORT, label: tt("nav.gatepassDailyReport"), icon: BarChart3 },
+    { id: DASHBOARD_PAGE_IDS.GATEPASS_REGISTRY, label: tt("nav.gatepassRegistry"), icon: ShieldCheck },
+  ], [tt]);
+
   const primaryItems = useMemo(() => [
     { id: DASHBOARD_PAGE_IDS.TICKETS, label: tt("nav.tickets"), icon: Ticket, group: "repair", badge: notificationCount, badgeTone: "rose" },
     { id: DASHBOARD_PAGE_IDS.SERVICE_REQUESTS, label: tt("nav.serviceRequests"), icon: Package, badge: serviceRequestNotificationCount, badgeTone: "violet" },
@@ -328,6 +357,7 @@ const ITDashboardSidebar = ({
     { id: "ASSET_MANAGEMENT_GROUP", label: tt("nav.assetManagementGroup"), icon: HardDrive, group: "assets" },
     { id: DASHBOARD_PAGE_IDS.CALENDAR, label: tt("nav.calendar"), icon: CalendarDays },
     { id: DASHBOARD_PAGE_IDS.REPORTS, label: tt("nav.reports"), icon: BarChart3 },
+    { id: "GATEPASS_MANAGEMENT_GROUP", label: tt("nav.gatepassManagement"), icon: CarFront, group: "gatepass" },
     { id: DASHBOARD_PAGE_IDS.SETTINGS, label: tt("nav.settings"), icon: Settings },
   ], [tt]);
 
@@ -344,6 +374,9 @@ const ITDashboardSidebar = ({
     if (WORK_LOG_SECTION_PAGE_IDS.includes(currentPage)) {
       setWorkLogMenuExpanded(true);
     }
+    if (GATEPASS_SECTION_PAGE_IDS.includes(currentPage)) {
+      setGatepassMenuExpanded(true);
+    }
   }, [currentPage]);
 
   const isRepairActive = currentPage === DASHBOARD_PAGE_IDS.TICKETS ||
@@ -352,6 +385,7 @@ const ITDashboardSidebar = ({
   const isStockActive = STOCK_SECTION_PAGE_IDS.includes(currentPage);
   const isAssetActive = ASSET_SECTION_PAGE_IDS.includes(currentPage);
   const isWorkLogActive = WORK_LOG_SECTION_PAGE_IDS.includes(currentPage);
+  const isGatepassActive = GATEPASS_SECTION_PAGE_IDS.includes(currentPage);
 
   const navigate = (pageId) => {
     onNavigatePage?.(pageId);
@@ -479,6 +513,31 @@ const ITDashboardSidebar = ({
       );
     }
 
+    if (item.group === "gatepass" && !sidebarCollapsed) {
+      return (
+        <li key={item.id}>
+          <NavButton
+            item={item}
+            active={isGatepassActive}
+            isDarkTheme={isDarkTheme}
+            expandable
+            expanded={gatepassMenuExpanded}
+            onClick={() => {
+              setGatepassMenuExpanded((previous) => !previous);
+              if (!isGatepassActive) onNavigatePage?.(DASHBOARD_PAGE_IDS.GATEPASS_MANAGEMENT);
+            }}
+          />
+          <SubMenu
+            open={gatepassMenuExpanded}
+            items={gatepassSubItems}
+            isDarkTheme={isDarkTheme}
+            isActive={(subItem) => currentPage === subItem.id}
+            onSelect={(subItem) => navigate(subItem.id)}
+          />
+        </li>
+      );
+    }
+
     return (
       <li key={item.id}>
         <NavButton
@@ -499,6 +558,10 @@ const ITDashboardSidebar = ({
             }
             if (item.group === "workLogs") {
               navigate(DASHBOARD_PAGE_IDS.IT_WORK_GENERAL);
+              return;
+            }
+            if (item.group === "gatepass") {
+              navigate(DASHBOARD_PAGE_IDS.GATEPASS_MANAGEMENT);
               return;
             }
             navigate(item.id);

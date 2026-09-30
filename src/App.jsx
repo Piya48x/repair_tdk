@@ -14,6 +14,9 @@ import ExecutiveReportPage from "./pages/reports/ExecutiveReportPage.jsx";
 import ExecutiveAssetOverviewPage from "./pages/reports/ExecutiveAssetOverviewPage.jsx";
 import ExecutiveNotebookApprovalsPage from "./pages/reports/ExecutiveNotebookApprovalsPage.jsx";
 import GatepassReportPage from "./pages/reports/GatepassReportPage.jsx";
+import GatepassExecutiveOverviewPage from "./pages/reports/GatepassExecutiveOverviewPage.jsx";
+import GatepassCompanySummaryPage from "./pages/reports/GatepassCompanySummaryPage.jsx";
+import TdkApprovedRegistryReportPage from "./pages/reports/TdkApprovedRegistryReportPage.jsx";
 import ReportsPageShell from "./components/reports/ReportsPageShell.jsx";
 import AssetQrDetailPage from "./pages/AssetQrDetailPage.jsx";
 import { REPORT_ROUTE_PERMISSIONS } from "./lib/roleAccess";
@@ -84,6 +87,16 @@ function AppInner() {
           <ITDashboard />
         </ProtectedRoute>
       } />
+      <Route path="/admin-dashboard/gatepass-daily-report" element={
+        <ProtectedRoute allowedRoles={['it_support', 'admin']}>
+          <Navigate to="/admin-dashboard" replace state={{ dashboardPage: "GATEPASS_DAILY_REPORT" }} />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin-dashboard/gatepass-registry" element={
+        <ProtectedRoute allowedRoles={['it_support', 'admin']}>
+          <Navigate to="/admin-dashboard" replace state={{ dashboardPage: "GATEPASS_REGISTRY" }} />
+        </ProtectedRoute>
+      } />
       <Route
         path="/admin-dashboard/assets-management"
         element={(
@@ -122,7 +135,27 @@ function AppInner() {
         } />
         <Route path="/reports/gatepass" element={
           <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.gatepass}>
-            <GatepassReportPage />
+            <Navigate to="/reports/gatepass/overview" replace />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/gatepass/overview" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.gatepass}>
+            <GatepassExecutiveOverviewPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/gatepass/daily" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.gatepass}>
+            <GatepassReportPage dailyOnly />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/gatepass/registry" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.gatepass}>
+            <TdkApprovedRegistryReportPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports/gatepass/company-summary" element={
+          <ProtectedRoute allowedRoles={REPORT_ROUTE_PERMISSIONS.gatepass}>
+            <GatepassCompanySummaryPage />
           </ProtectedRoute>
         } />
         <Route

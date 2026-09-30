@@ -1,7 +1,14 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
-import { insertTicketWithSchemaFallback } from "../lib/ticketSchemaCompat";
+import {
+  insertTicketWithSchemaFallback,
+  updateTicketWithSchemaFallback,
+} from "../lib/ticketSchemaCompat";
+import {
+  isTicketHistoryStorageEnabled,
+  uploadTicketHistoryFile,
+} from "../services/ticketHistoryStorageService";
 import { fetchAssetQrDetail } from "./it-dashboard/services/assetQrService";
 import { useScopedI18n } from "../i18n/useScopedI18n";
 import LanguageSwitcher from "../components/LanguageSwitcher.jsx";
@@ -946,22 +953,24 @@ const CreateTicket = ({ embedded = false }) => {
         const profileSnapshot = buildProfileSnapshot(profile || {}, user.user_metadata || {}, user);
         resolvedTicketLocation = resolveProfileLocation(profileSnapshot);
       }
-      if (hasProblemPhoto && form.attachment) {
-        try {
-          const ext = form.attachment.name.split('.').pop();
-          const fileName = `${user.id}/${Date.now()}_ticket.${ext}`;
-          const { error: uploadError } = await supabase
-            .storage
-            .from("ticket-attachments")
-            .upload(fileName, form.attachment);
+      const uploadToSupabaseStorage = async () => {
+        if (!hasProblemPhoto || !form.attachment) return "";
+        const ext = form.attachment.name.split(".").pop();
+        const fileName = `${user.id}/${Date.now()}_ticket.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("ticket-attachments")
+          .upload(fileName, form.attachment);
 
-          if (!uploadError) {
-            const { data: { publicUrl } } = supabase
-              .storage
-              .from("ticket-attachments")
-              .getPublicUrl(fileName);
-            fileUrl = publicUrl;
-          }
+        if (uploadError) throw uploadError;
+        const { data: publicData } = supabase.storage
+          .from("ticket-attachments")
+          .getPublicUrl(fileName);
+        return publicData?.publicUrl || "";
+      };
+
+      if (hasProblemPhoto && form.attachment && !isTicketHistoryStorageEnabled()) {
+        try {
+          fileUrl = await uploadToSupabaseStorage();
         } catch (uploadErr) {
           console.warn("Upload warning:", uploadErr?.message || uploadErr);
         }
@@ -1015,6 +1024,35 @@ const CreateTicket = ({ embedded = false }) => {
       );
 
       if (error) throw error;
+
+      if (hasProblemPhoto && form.attachment && isTicketHistoryStorageEnabled()) {
+        try {
+          const uploaded = await uploadTicketHistoryFile({
+            ticketId: data.id,
+            kind: "before",
+            file: form.attachment,
+          });
+          fileUrl = uploaded.publicUrl;
+        } catch (workerUploadError) {
+          console.warn("R2 upload failed; using Supabase Storage fallback:", workerUploadError);
+          try {
+            fileUrl = await uploadToSupabaseStorage();
+          } catch (fallbackUploadError) {
+            console.warn("Supabase Storage fallback failed:", fallbackUploadError);
+          }
+        }
+
+        if (fileUrl) {
+          const { error: imageUpdateError } = await updateTicketWithSchemaFallback(
+            supabase,
+            data.id,
+            { image_url: fileUrl, updated_at: new Date().toISOString() },
+          );
+          if (imageUpdateError) {
+            console.warn("Ticket image URL update failed:", imageUpdateError);
+          }
+        }
+      }
 
       const ref = data?.ticket_no || `T${String(data.id).padStart(6, "0")}`;
       setTicketRef(ref);

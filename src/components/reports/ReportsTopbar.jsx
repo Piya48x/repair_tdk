@@ -22,6 +22,10 @@ const COPY = {
     pages: {
       hub: "งาน IT ทั้งหมด",
       gatepass: "Gatepass Report",
+      gatepassOverview: "Gatepass Vehicle Overview",
+      gatepassDaily: "รถเข้า–ออกรายวัน",
+      gatepassRegistry: "ทะเบียนรถหลัก TDK APPROVED",
+      gatepassCompanies: "Company Summary",
       executive: "Executive IT Command Center",
       assets: "สถานะและความพร้อมของทรัพย์สิน",
       notebook: "อนุมัติยืม Notebook",
@@ -42,6 +46,10 @@ const COPY = {
     pages: {
       hub: "All IT Work",
       gatepass: "Gatepass Report",
+      gatepassOverview: "Gatepass Vehicle Overview",
+      gatepassDaily: "Daily vehicle In-Out",
+      gatepassRegistry: "TDK APPROVED master registry",
+      gatepassCompanies: "Company Summary",
       executive: "Executive IT Command Center",
       assets: "Asset Status & Readiness",
       notebook: "Notebook Approvals",
@@ -62,6 +70,10 @@ const COPY = {
     pages: {
       hub: "전체 IT 업무",
       gatepass: "Gatepass Report",
+      gatepassOverview: "Gatepass Vehicle Overview",
+      gatepassDaily: "일일 차량 입출차",
+      gatepassRegistry: "TDK APPROVED 차량 원장",
+      gatepassCompanies: "Company Summary",
       executive: "Executive IT Command Center",
       assets: "자산 상태 및 준비도",
       notebook: "노트북 승인",
@@ -139,6 +151,10 @@ export default function ReportsTopbar({
   }, [currentUser, reportIdentity?.id, setReportIdentity]);
 
   const pageTitle = useMemo(() => {
+    if (location.pathname === "/reports/gatepass/overview") return tt("pages.gatepassOverview");
+    if (location.pathname === "/reports/gatepass/daily") return tt("pages.gatepassDaily");
+    if (location.pathname === "/reports/gatepass/registry") return tt("pages.gatepassRegistry");
+    if (location.pathname === "/reports/gatepass/company-summary") return tt("pages.gatepassCompanies");
     if (location.pathname === "/reports/gatepass") return tt("pages.gatepass");
     if (location.pathname === "/reports/executive/assets-overview") return tt("pages.assets");
     if (location.pathname === "/reports/executive/notebook-approvals") return tt("pages.notebook");

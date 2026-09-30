@@ -134,6 +134,11 @@ import {
   getTicketDisplayNote,
 } from "../lib/ticketAttachmentMetadata";
 import { updateTicketWithSchemaFallback } from "../lib/ticketSchemaCompat";
+import {
+  archiveTicketHistory,
+  isTicketHistoryStorageEnabled,
+  uploadTicketHistoryFile,
+} from "../services/ticketHistoryStorageService";
 
 function buildStructuredRepairReport({
   problem,
@@ -217,17 +222,23 @@ const STOCK_PAGE_TO_SECTION = {
   [DASHBOARD_PAGE_IDS.STOCK_HISTORY]: "history",
 };
 
+const DASHBOARD_DEEP_LINK_PAGE_IDS = [
+  DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT,
+  DASHBOARD_PAGE_IDS.GATEPASS_DAILY_REPORT,
+  DASHBOARD_PAGE_IDS.GATEPASS_REGISTRY,
+];
+
 const ITDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [tickets, setTickets] = useState([]);
   const [serviceRequests, setServiceRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(() =>
-    location.state?.dashboardPage === DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT
-      ? DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT
-      : DASHBOARD_PAGE_IDS.DASHBOARD,
-  );
+  const [currentPage, setCurrentPage] = useState(() => (
+    DASHBOARD_DEEP_LINK_PAGE_IDS.includes(location.state?.dashboardPage)
+      ? location.state.dashboardPage
+      : DASHBOARD_PAGE_IDS.DASHBOARD
+  ));
   const [activeTab, setActiveTab] = useState("INCOMING");
   const [isOnline, setIsOnline] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -435,8 +446,8 @@ const ITDashboard = () => {
 
   useEffect(() => {
     const state = location.state;
-    if (state?.dashboardPage === DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT) {
-      setCurrentPage(DASHBOARD_PAGE_IDS.ASSET_MANAGEMENT);
+    if (DASHBOARD_DEEP_LINK_PAGE_IDS.includes(state?.dashboardPage)) {
+      setCurrentPage(state.dashboardPage);
       navigate(location.pathname, { replace: true, state: null });
       return;
     }
@@ -1236,6 +1247,22 @@ const ITDashboard = () => {
     const uploaded = [];
 
     for (const file of list) {
+      if (isTicketHistoryStorageEnabled()) {
+        try {
+          const result = await uploadTicketHistoryFile({ ticketId, kind: safeKind, file });
+          if (result.publicUrl) {
+            uploaded.push({
+              url: result.publicUrl,
+              type: safeKind,
+              name: file?.name || result.fileName || `${safeKind}.jpg`,
+            });
+            continue;
+          }
+        } catch (workerUploadError) {
+          console.warn("R2 upload failed; using Supabase Storage fallback:", workerUploadError);
+        }
+      }
+
       const extension = String(file?.name || "").split(".").pop() || "jpg";
       const fileName = `${createdBy || "it-support"}/${ticketId}/${safeKind}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
 
@@ -1338,6 +1365,39 @@ const ITDashboard = () => {
       );
 
       if (dbError) throw dbError;
+
+      if (isTicketHistoryStorageEnabled()) {
+        try {
+          const archived = await archiveTicketHistory({
+            ticketId: ticket.id,
+            record: {
+              ...ticket,
+              status: "CLOSED",
+              solution_note: noteWithAttachments,
+              parts_used: normalizedParts,
+              image_url: beforeUrls[0] || ticket?.image_url || null,
+              image_after_url: afterUrls[0] || ticket?.image_after_url || null,
+              attachments: mergedEntries.map((entry) => entry.url).filter(Boolean),
+              closed_at: nowIso,
+              closed_by: currentUser?.id,
+              closed_by_name: currentUser?.name,
+              updated_at: nowIso,
+            },
+          });
+
+          await updateTicketWithSchemaFallback(
+            supabase,
+            ticket.id,
+            {
+              archive_object_key: archived.objectKey,
+              archived_at: archived.archivedAt,
+            },
+            { maxRetries: 2 },
+          );
+        } catch (archiveError) {
+          console.warn("Ticket archive to R2 was skipped:", archiveError);
+        }
+      }
 
       if (detailTicket?.id === ticket.id) {
         setDetailTicket(null);

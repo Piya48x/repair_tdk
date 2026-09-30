@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3,
+  Building2,
   CarFront,
+  ChevronDown,
+  ChevronRight,
   ClipboardCheck,
   Gauge,
   HardDrive,
@@ -35,6 +38,14 @@ const COPY = {
       workspace: "หน้าหลักของฉัน",
       reportHub: "งาน IT ทั้งหมด",
       gatepass: "Gatepass Report",
+      gatepassOverview: "Executive Overview",
+      gatepassOverviewHint: "ภาพรวมสำหรับ MD",
+      gatepassDaily: "รถเข้า–ออกรายวัน",
+      gatepassDailyHint: "การผ่านประตูและปริมาณ Gatepass",
+      gatepassRegistry: "ทะเบียนรถหลัก TDK APPROVED",
+      gatepassRegistryHint: "สถานะรถหลักและการเปลี่ยนแปลงรายเดือน",
+      gatepassCompanies: "Company Summary",
+      gatepassCompaniesHint: "รถลงทะเบียนแยกตามบริษัท",
       assetOverview: "สถานะทรัพย์สิน",
       executive: "Executive Command Center",
       itManager: "รายงานการปฏิบัติงาน IT",
@@ -53,6 +64,14 @@ const COPY = {
       workspace: "My workspace",
       reportHub: "All IT Work",
       gatepass: "Gatepass Report",
+      gatepassOverview: "Executive Overview",
+      gatepassOverviewHint: "At-a-glance MD dashboard",
+      gatepassDaily: "Daily vehicle In-Out",
+      gatepassDailyHint: "Gate activity and Gatepass volume",
+      gatepassRegistry: "TDK APPROVED master registry",
+      gatepassRegistryHint: "Current fleet and monthly changes",
+      gatepassCompanies: "Company Summary",
+      gatepassCompaniesHint: "Registered fleet by company",
       assetOverview: "Asset Status & Readiness",
       executive: "Executive Command Center",
       itManager: "IT Operations Report",
@@ -71,6 +90,14 @@ const COPY = {
       workspace: "내 작업 공간",
       reportHub: "전체 IT 업무",
       gatepass: "Gatepass Report",
+      gatepassOverview: "Executive Overview",
+      gatepassOverviewHint: "MD 요약 대시보드",
+      gatepassDaily: "일일 차량 입출차",
+      gatepassDailyHint: "출입 및 Gatepass 현황",
+      gatepassRegistry: "TDK APPROVED 차량 원장",
+      gatepassRegistryHint: "현재 차량 및 월별 변경",
+      gatepassCompanies: "Company Summary",
+      gatepassCompaniesHint: "회사별 등록 차량",
       assetOverview: "자산 상태 및 준비도",
       executive: "Executive Command Center",
       itManager: "IT 운영 보고서",
@@ -111,6 +138,55 @@ function SidebarLink({ item, active, collapsed, onNavigate }) {
   );
 }
 
+function SidebarCollapsibleMenu({
+  label,
+  icon: Icon,
+  items,
+  active,
+  expanded,
+  collapsed,
+  onToggle,
+  onNavigate,
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        title={collapsed ? label : undefined}
+        aria-expanded={expanded}
+        onClick={onToggle}
+        className={`group relative flex min-h-11 w-full items-center rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-all duration-200 ${collapsed ? "lg:justify-center lg:px-2.5" : ""} ${active ? "border-[#9bbcff] bg-[#eef4ff] text-[#16448d] shadow-sm shadow-blue-100/60" : "border-transparent text-slate-700 hover:bg-[#f4f8ff] hover:text-[#16448d]"}`}
+      >
+        <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center ${active ? "text-[#2b59b0]" : "text-slate-500 group-hover:text-[#2b59b0]"}`}>
+          <Icon size={17} strokeWidth={2.15} />
+        </span>
+        <span className={`ml-2.5 min-w-0 flex-1 truncate ${collapsed ? "lg:hidden" : ""}`}>{label}</span>
+        <span className={collapsed ? "lg:hidden" : ""}>{expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</span>
+      </button>
+      {expanded ? (
+        <ul className={`ml-4 mt-1 space-y-1 border-l border-blue-100 pl-3 ${collapsed ? "lg:hidden" : ""}`}>
+          {items.map((item) => (
+            <li key={item.key}>
+              <Link
+                to={item.to}
+                aria-current={item.active ? "page" : undefined}
+                onClick={onNavigate}
+                className={`group flex min-h-14 items-center gap-2.5 rounded-xl border px-3 py-2 transition ${item.active ? "border-blue-200 bg-blue-50 text-blue-900" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-blue-800"}`}
+              >
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${item.active ? "bg-white text-[#2b59b0] shadow-sm" : "bg-slate-100 text-slate-500 group-hover:text-[#2b59b0]"}`}><item.icon size={15} /></span>
+                <span className="min-w-0">
+                  <strong className="block truncate text-xs font-bold">{item.label}</strong>
+                  <small className="mt-0.5 block truncate text-[9px] font-medium text-slate-400">{item.description}</small>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
 export default function ReportsSidebar({
   sidebarOpen,
   setSidebarOpen,
@@ -121,6 +197,12 @@ export default function ReportsSidebar({
   const { tt } = useScopedI18n(COPY);
   const { chatOpenSignal, chatOpenSignalTarget, reportIdentity } = useReportsLayout();
   const [currentUser, setCurrentUser] = useState(null);
+  const gatepassActive = location.pathname.startsWith("/reports/gatepass");
+  const [gatepassExpanded, setGatepassExpanded] = useState(gatepassActive);
+
+  useEffect(() => {
+    if (gatepassActive) setGatepassExpanded(true);
+  }, [gatepassActive]);
 
   useEffect(() => {
     let mounted = true;
@@ -161,8 +243,43 @@ export default function ReportsSidebar({
     { key: "hub", label: tt("nav.reportHub"), to: "/reports", icon: Gauge, visible: canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.index) || location.pathname === "/reports" },
   ].filter((item) => item.visible), [currentRole, location.pathname, tt]);
 
+  const canSeeGatepass = canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.gatepass) || gatepassActive;
+  const gatepassItems = useMemo(() => [
+    {
+      key: "gatepass-overview",
+      label: tt("nav.gatepassOverview"),
+      description: tt("nav.gatepassOverviewHint"),
+      to: "/reports/gatepass/overview",
+      icon: LayoutDashboard,
+      active: location.pathname === "/reports/gatepass" || location.pathname === "/reports/gatepass/overview",
+    },
+    {
+      key: "gatepass-daily",
+      label: tt("nav.gatepassDaily"),
+      description: tt("nav.gatepassDailyHint"),
+      to: "/reports/gatepass/daily",
+      icon: CarFront,
+      active: location.pathname === "/reports/gatepass/daily",
+    },
+    {
+      key: "gatepass-registry",
+      label: tt("nav.gatepassRegistry"),
+      description: tt("nav.gatepassRegistryHint"),
+      to: "/reports/gatepass/registry",
+      icon: ShieldCheck,
+      active: location.pathname === "/reports/gatepass/registry",
+    },
+    {
+      key: "gatepass-companies",
+      label: tt("nav.gatepassCompanies"),
+      description: tt("nav.gatepassCompaniesHint"),
+      to: "/reports/gatepass/company-summary",
+      icon: Building2,
+      active: location.pathname === "/reports/gatepass/company-summary",
+    },
+  ], [location.pathname, tt]);
+
   const reportItems = useMemo(() => [
-    { key: "gatepass", label: tt("nav.gatepass"), to: "/reports/gatepass", icon: CarFront, visible: canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.gatepass) || location.pathname === "/reports/gatepass" },
     { key: "assets", label: tt("nav.assetOverview"), to: "/reports/executive/assets-overview", icon: HardDrive, visible: canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.executive) || location.pathname === "/reports/executive/assets-overview" },
     { key: "executive", label: tt("nav.executive"), to: "/reports/executive", icon: LayoutDashboard, visible: canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.executive) || location.pathname === "/reports/executive" },
     { key: "it", label: tt("nav.itManager"), to: "/reports/it", icon: BarChart3, visible: canAccessRoute(currentRole, REPORT_ROUTE_PERMISSIONS.it) || location.pathname === "/reports/it" },
@@ -223,6 +340,21 @@ export default function ReportsSidebar({
               {workspaceItems.map((item) => <SidebarLink key={item.key} item={item} active={isActive(item)} collapsed={sidebarCollapsed} onNavigate={() => setSidebarOpen(false)} />)}
             </SidebarSection>
             <SidebarSection label={tt("sectionReports")} collapsed={sidebarCollapsed}>
+              {canSeeGatepass ? (
+                <SidebarCollapsibleMenu
+                  label={tt("nav.gatepass")}
+                  icon={CarFront}
+                  items={gatepassItems}
+                  active={gatepassActive}
+                  expanded={gatepassExpanded}
+                  collapsed={sidebarCollapsed}
+                  onToggle={() => {
+                    if (sidebarCollapsed) setSidebarCollapsed(false);
+                    setGatepassExpanded((value) => !value || sidebarCollapsed);
+                  }}
+                  onNavigate={() => setSidebarOpen(false)}
+                />
+              ) : null}
               {reportItems.map((item) => <SidebarLink key={item.key} item={item} active={isActive(item)} collapsed={sidebarCollapsed} onNavigate={() => setSidebarOpen(false)} />)}
             </SidebarSection>
           </nav>

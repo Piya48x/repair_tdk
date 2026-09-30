@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { useScopedI18n } from "../i18n/useScopedI18n";
 import { supabase } from "../lib/supabaseClient";
+import {
+  isTicketHistoryStorageEnabled,
+  uploadTicketHistoryFile,
+} from "../services/ticketHistoryStorageService";
 
 const REMOTE_MODE = "remote";
 const LOCAL_MODE = "local";
@@ -834,6 +838,19 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
 
   const uploadImageToStorage = useCallback(
     async (file) => {
+      if (isTicketHistoryStorageEnabled()) {
+        try {
+          const result = await uploadTicketHistoryFile({
+            ticketId,
+            kind: "chat",
+            file,
+          });
+          if (result.publicUrl) return result.publicUrl;
+        } catch (workerUploadError) {
+          console.warn("R2 chat upload failed; using Supabase Storage fallback:", workerUploadError);
+        }
+      }
+
       const ext = String(file?.name?.split(".").pop() || "jpg").replace(/[^a-zA-Z0-9]/g, "") || "jpg";
       const safeTicketId = sanitizePathSegment(ticketId);
       const safeUserId = sanitizePathSegment(activeUserId || "unknown");

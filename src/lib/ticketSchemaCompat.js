@@ -16,6 +16,8 @@ const OPTIONAL_TICKET_COLUMNS = new Set([
   "assigned_employee_id",
   "asset_id",
   "asset_code",
+  "archive_object_key",
+  "archived_at",
 ]);
 
 function extractMissingTicketColumn(error) {

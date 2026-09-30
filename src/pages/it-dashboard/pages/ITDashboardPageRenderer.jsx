@@ -14,6 +14,9 @@ import AccessRequestsPage from "./AccessRequestsPage";
 import NotebookBorrowRequestsPage from "./NotebookBorrowRequestsPage";
 import ITWorkEvidencePage from "./ITWorkEvidencePage";
 import ReportsPage from "./ReportsPage";
+import GatepassManagementPage from "./GatepassManagementPage";
+import GatepassRegistryPage from "./GatepassRegistryPage";
+import GatepassReportPage from "../../reports/GatepassReportPage";
 import SettingsPage from "./SettingsPage";
 
 const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
@@ -61,6 +64,12 @@ const ITDashboardPageRenderer = ({ currentPage, ...workspaceProps }) => {
       return <ITWorkEvidencePage {...workspaceProps} viewMode="history" />;
     case DASHBOARD_PAGE_IDS.REPORTS:
       return <ReportsPage {...workspaceProps} />;
+    case DASHBOARD_PAGE_IDS.GATEPASS_MANAGEMENT:
+      return <GatepassManagementPage {...workspaceProps} />;
+    case DASHBOARD_PAGE_IDS.GATEPASS_DAILY_REPORT:
+      return <GatepassReportPage dailyOnly embedded />;
+    case DASHBOARD_PAGE_IDS.GATEPASS_REGISTRY:
+      return <GatepassRegistryPage {...workspaceProps} />;
     case DASHBOARD_PAGE_IDS.SETTINGS:
       return (
         <SettingsPage
