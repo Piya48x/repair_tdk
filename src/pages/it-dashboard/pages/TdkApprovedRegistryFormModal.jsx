@@ -18,12 +18,14 @@ const TEXT = {
     editTitle: "แก้ไขทะเบียนรถ",
     hint: "ข้อมูลที่บันทึกจะอัปเดตทะเบียนหลักและสรุปการเปลี่ยนแปลงรายเดือนของ MD ทันที",
     effectiveDate: "วันที่มีผล",
+    effectiveDateMin: "ต้องไม่ก่อนวันที่อัปเดตล่าสุด: {{date}}",
     plate: "ทะเบียนรถ",
     name: "ชื่อผู้ใช้งาน / ผู้ขับขี่",
     company: "บริษัท",
     contact: "ผู้ติดต่อ",
     purpose: "วัตถุประสงค์",
-    status: "สถานะ Mapping",
+    status: "สถานะ Mapping (ไม่บังคับ)",
+    statusHint: "ใช้ระบุผลการจับคู่ทะเบียนกับระบบอื่น เช่น Matched หรือ Pending หากไม่ได้ใช้งานให้เว้นว่าง",
     source: "ผู้บันทึกจากต้นทาง",
     remark: "หมายเหตุ",
     cancel: "ยกเลิก",
@@ -36,12 +38,14 @@ const TEXT = {
     editTitle: "Edit vehicle registry",
     hint: "Saving updates the master registry and the MD monthly change report immediately.",
     effectiveDate: "Effective date",
+    effectiveDateMin: "Must be on or after the latest update: {{date}}",
     plate: "License plate",
     name: "User / driver name",
     company: "Company",
     contact: "Contact",
     purpose: "Purpose",
-    status: "Mapping status",
+    status: "Mapping status (optional)",
+    statusHint: "Tracks matching with another system, such as Matched or Pending. Leave blank when not used.",
     source: "Source creator",
     remark: "Remark",
     cancel: "Cancel",
@@ -54,6 +58,7 @@ const TEXT = {
 export default function TdkApprovedRegistryFormModal({
   record,
   effectiveDate,
+  minimumEffectiveDate = "",
   language = "th",
   theme = "light",
   saving = false,
@@ -97,7 +102,7 @@ export default function TdkApprovedRegistryFormModal({
     : "border-slate-300 bg-white text-slate-800 placeholder:text-slate-400";
   const muted = dark ? "text-slate-400" : "text-slate-500";
 
-  const field = (key, label, placeholder = "") => (
+  const field = (key, label, placeholder = "", description = "") => (
     <label className={key === "remark" ? "sm:col-span-2" : ""}>
       <span className={`mb-1.5 block text-xs font-bold ${muted}`}>{label}{key === "vehicle_plate" ? " *" : ""}</span>
       {key === "remark" ? (
@@ -105,6 +110,7 @@ export default function TdkApprovedRegistryFormModal({
       ) : (
         <input value={form[key]} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} placeholder={placeholder} className={`h-11 w-full rounded-xl border px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${input}`} />
       )}
+      {description ? <span className={`mt-1.5 block text-[11px] leading-4 ${muted}`}>{description}</span> : null}
     </label>
   );
 
@@ -125,7 +131,8 @@ export default function TdkApprovedRegistryFormModal({
         <div className="space-y-5 p-5 sm:p-6">
           <label className="block max-w-xs">
             <span className={`mb-1.5 block text-xs font-bold ${muted}`}>{copy.effectiveDate}</span>
-            <span className="relative block"><CalendarDays size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="date" required value={date} onChange={(event) => setDate(event.target.value)} className={`h-11 w-full rounded-xl border pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${input}`} /></span>
+            <span className="relative block"><CalendarDays size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="date" required min={minimumEffectiveDate || undefined} value={date} onChange={(event) => setDate(event.target.value)} className={`h-11 w-full rounded-xl border pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${input}`} /></span>
+            {minimumEffectiveDate ? <span className={`mt-1.5 block text-[11px] ${muted}`}>{copy.effectiveDateMin.replace("{{date}}", minimumEffectiveDate)}</span> : null}
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -134,7 +141,7 @@ export default function TdkApprovedRegistryFormModal({
             {field("company_name", copy.company)}
             {field("contact_name", copy.contact)}
             {field("purpose", copy.purpose)}
-            {field("mapping_status", copy.status)}
+            {field("mapping_status", copy.status, "Matched / Pending", copy.statusHint)}
             {field("source_created_by", copy.source)}
             {field("remark", copy.remark)}
           </div>

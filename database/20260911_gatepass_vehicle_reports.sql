@@ -1085,13 +1085,16 @@ begin
   end if;
 
   -- Delete dependent audit rows first, then the registry rows, then imports.
-  delete from public.tdk_approved_registry_changes;
+  delete from public.tdk_approved_registry_changes
+  where id is not null;
   get diagnostics deleted_changes = row_count;
 
-  delete from public.tdk_approved_registry;
+  delete from public.tdk_approved_registry
+  where id is not null;
   get diagnostics deleted_registry = row_count;
 
-  delete from public.tdk_approved_registry_imports;
+  delete from public.tdk_approved_registry_imports
+  where id is not null;
   get diagnostics deleted_imports = row_count;
 
   return jsonb_build_object(

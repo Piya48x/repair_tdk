@@ -238,6 +238,33 @@ export async function fetchTdkApprovedRegistryChanges({ from, to } = {}) {
   return Array.isArray(data) ? data : [];
 }
 
+export async function fetchTdkApprovedRegistryAddedChanges(importIds = [], limit = 500) {
+  const normalizedIds = [...new Set((importIds || []).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!normalizedIds.length) return [];
+  const { data, error } = await supabase
+    .from("tdk_approved_registry_changes")
+    .select("id, import_id, change_date, change_type, vehicle_plate, full_name, company_name, created_at")
+    .in("import_id", normalizedIds)
+    .in("change_type", ["ADDED", "REACTIVATED"])
+    .order("change_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchTdkApprovedRegistryQuickFilterChanges(limit = 5000) {
+  const { data, error } = await supabase
+    .from("tdk_approved_registry_changes")
+    .select("id, plate_key, change_type, change_date, created_at")
+    .in("change_type", ["ADDED", "UPDATED"])
+    .order("change_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
 async function manageTdkApprovedRegistry({ action, recordId = null, payload = {}, effectiveDate }) {
   if (!/^(ADD|UPDATE|REMOVE|REACTIVATE)$/.test(String(action || "").toUpperCase())) {
     throw new Error("Invalid TDK APPROVED registry action");
@@ -256,8 +283,16 @@ async function manageTdkApprovedRegistry({ action, recordId = null, payload = {}
   return data || {};
 }
 
-export function addTdkApprovedRegistryVehicle(payload, effectiveDate) {
-  return manageTdkApprovedRegistry({ action: "ADD", payload, effectiveDate });
+export async function addTdkApprovedRegistryVehicle(payload, effectiveDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(effectiveDate || ""))) {
+    throw new Error("กรุณาระบุวันที่มีผล");
+  }
+  const { data, error } = await supabase.rpc("add_tdk_approved_registry_vehicle", {
+    p_payload: payload || {},
+    p_effective_date: effectiveDate,
+  });
+  if (error) throw error;
+  return data || {};
 }
 
 export function updateTdkApprovedRegistryVehicle(recordId, payload, effectiveDate) {
@@ -285,5 +320,6 @@ export function isTdkApprovedRegistrySchemaError(error) {
     || message.includes("tdk_approved_registry")
     || message.includes("sync_tdk_approved_registry")
     || message.includes("manage_tdk_approved_registry")
+    || message.includes("add_tdk_approved_registry_vehicle")
     || message.includes("reset_tdk_approved_registry");
 }
