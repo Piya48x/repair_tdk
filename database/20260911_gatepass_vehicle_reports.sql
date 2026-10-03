@@ -378,7 +378,7 @@ declare
   min_visit_date date;
   max_visit_date date;
 begin
-  select lower(coalesce(to_jsonb(p) ->> 'role', ''))
+  select lower(trim(coalesce(to_jsonb(p) ->> 'role', '')))
   into actor_role
   from public.profiles p
   where p.id = auth.uid()
@@ -560,7 +560,7 @@ declare
   updated_total integer := 0;
   unchanged_total integer := 0;
 begin
-  select lower(coalesce(to_jsonb(p) ->> 'role', ''))
+  select lower(trim(coalesce(to_jsonb(p) ->> 'role', '')))
   into actor_role
   from public.profiles p
   where p.id = auth.uid()
@@ -850,7 +850,7 @@ declare
   after_payload jsonb;
   active_total integer := 0;
 begin
-  select lower(coalesce(to_jsonb(p) ->> 'role', ''))
+  select lower(trim(coalesce(to_jsonb(p) ->> 'role', '')))
   into actor_role
   from public.profiles p
   where p.id = auth.uid()
@@ -1074,7 +1074,7 @@ declare
   deleted_registry integer := 0;
   deleted_imports integer := 0;
 begin
-  select lower(coalesce(to_jsonb(p) ->> 'role', ''))
+  select lower(trim(coalesce(to_jsonb(p) ->> 'role', '')))
   into actor_role
   from public.profiles p
   where p.id = auth.uid()

@@ -22,7 +22,7 @@ const COPY = {
     registrySheet: "ทะเบียนปัจจุบัน",
     changesSheet: "รายการเปลี่ยนแปลง",
     title: "รายงานทะเบียนรถ TDK APPROVED",
-    subtitle: "สรุปทะเบียนรถประจำและการเปลี่ยนแปลงประจำเดือน",
+    subtitle: "สรุปทะเบียนตั้งต้น รถที่เพิ่มภายหลัง และทะเบียนที่ใช้งานปัจจุบัน",
     period: "ประจำเดือน",
     generated: "วันที่จัดทำ",
     active: "ทะเบียนใช้งานปัจจุบัน",
@@ -49,13 +49,19 @@ const COPY = {
     before: "ข้อมูลเดิม",
     after: "ข้อมูลใหม่",
     confidential: "Confidential - Internal Use",
+    baseline: "ทะเบียนตั้งต้น",
+    addedSinceBaseline: "เพิ่มหลังวันตั้งต้น",
+    fleetJourney: "ภาพรวมทะเบียนตั้งแต่วันเริ่มต้น",
+    addedVehiclesDetail: "รายละเอียดรถที่เพิ่มหลังทะเบียนตั้งต้น",
+    addedDate: "วันที่เพิ่ม",
+    addedListHint: "เรียงตามวันที่เพิ่มจากเก่าไปใหม่",
   },
   en: {
     summarySheet: "Executive Summary",
     registrySheet: "Current Registry",
     changesSheet: "Monthly Changes",
     title: "TDK APPROVED VEHICLE REGISTRY REPORT",
-    subtitle: "Monthly regular-vehicle registry and change summary",
+    subtitle: "Official baseline, later additions, and current active registry",
     period: "Reporting month",
     generated: "Generated at",
     active: "Current active vehicles",
@@ -82,10 +88,26 @@ const COPY = {
     before: "Previous details",
     after: "New details",
     confidential: "Confidential - Internal Use",
+    baseline: "Official baseline",
+    addedSinceBaseline: "Added after baseline",
+    fleetJourney: "Registry growth since the official baseline",
+    addedVehiclesDetail: "Vehicles added after the official baseline",
+    addedDate: "Date added",
+    addedListHint: "Sorted by date added, oldest first",
   },
 };
 
 const clean = (value) => String(value ?? "").trim();
+const toExcelDate = (value) => {
+  const normalized = clean(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
+  const [year, month, day] = normalized.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+const formatIsoDate = (value) => {
+  const [year, month, day] = clean(value).split("-");
+  return year && month && day ? `${day}-${month}-${year}` : clean(value);
+};
 const displayChange = (change, copy) => {
   const labels = {
     BASELINE: copy.active,
@@ -139,7 +161,7 @@ function addKpi(sheet, range, label, value, color) {
   labelCell.value = label;
   labelCell.font = { name: "Aptos", size: 9, bold: true, color: { argb: COLORS.slate700 } };
   labelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.slate100 } };
-  labelCell.alignment = { vertical: "middle", horizontal: "center" };
+  labelCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   valueCell.value = value;
   valueCell.font = { name: "Aptos Display", size: 20, bold: true, color: { argb: color } };
   valueCell.alignment = { vertical: "middle", horizontal: "center" };
@@ -167,7 +189,16 @@ function detailsText(payload) {
   return [payload.full_name, payload.company_name, payload.purpose].map(clean).filter(Boolean).join(" | ");
 }
 
-export async function buildTdkApprovedMonthlyWorkbook({ language = "en", month, registry = [], changes = [] }) {
+export async function buildTdkApprovedMonthlyWorkbook(payload = {}) {
+  const {
+    language = "en",
+    month,
+    registry = [],
+    changes = [],
+    allChanges = changes,
+    baselineDate = "2026-09-08",
+    baselineCount = 39,
+  } = payload;
   const excelJsModule = await import("exceljs");
   const ExcelJS = excelJsModule.default || excelJsModule;
   const copy = COPY[language] || COPY.en;
@@ -176,6 +207,16 @@ export async function buildTdkApprovedMonthlyWorkbook({ language = "en", month, 
   const added = changes.filter((row) => ["ADDED", "REACTIVATED"].includes(row.change_type)).length;
   const removed = changes.filter((row) => row.change_type === "REMOVED").length;
   const updated = changes.filter((row) => row.change_type === "UPDATED").length;
+  const historyChanges = Array.isArray(allChanges) ? allChanges : changes;
+  const addedSinceBaselineMap = new Map();
+  [...historyChanges]
+    .filter((row) => row.change_type === "ADDED" && clean(row.change_date) >= baselineDate)
+    .sort((a, b) => `${a.change_date}|${a.created_at || ""}`.localeCompare(`${b.change_date}|${b.created_at || ""}`))
+    .forEach((row) => {
+      const key = clean(row.plate_key) || clean(row.vehicle_plate).replace(/[\s-]+/g, "").toUpperCase();
+      if (key && !addedSinceBaselineMap.has(key)) addedSinceBaselineMap.set(key, row);
+    });
+  const addedSinceBaselineRows = [...addedSinceBaselineMap.values()];
   const monthDate = new Date(`${month}-01T00:00:00`);
   const monthLabel = new Intl.DateTimeFormat(language === "th" ? "th-TH" : "en-GB", { month: "long", year: "numeric" }).format(monthDate);
   const workbook = new ExcelJS.Workbook();
@@ -187,52 +228,96 @@ export async function buildTdkApprovedMonthlyWorkbook({ language = "en", month, 
   workbook.subject = `${copy.title} - ${monthLabel}`;
 
   const summary = workbook.addWorksheet(copy.summarySheet, {
-    views: [{ state: "frozen", ySplit: 3, showGridLines: false }],
+    views: [{ state: "frozen", ySplit: 13, showGridLines: false }],
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  setReportHeader(summary, copy, monthLabel, generatedAt, "J");
-  addKpi(summary, "A5:B7", copy.active, activeRows.length, COLORS.blue);
-  addKpi(summary, "C5:D7", copy.added, added, COLORS.green);
-  addKpi(summary, "E5:F7", copy.removed, removed, COLORS.rose);
-  addKpi(summary, "G5:H7", copy.updated, updated, COLORS.amber);
-  addKpi(summary, "I5:J7", copy.net, added - removed, added - removed < 0 ? COLORS.rose : COLORS.green);
+  setReportHeader(summary, copy, monthLabel, generatedAt, "N");
+  addKpi(summary, "A5:B7", `${copy.baseline} (${formatIsoDate(baselineDate)})`, baselineCount, COLORS.blue);
+  addKpi(summary, "C5:D7", `${copy.addedSinceBaseline} (${formatIsoDate(baselineDate)})`, addedSinceBaselineRows.length, COLORS.green);
+  addKpi(summary, "E5:F7", copy.active, activeRows.length, COLORS.blue);
+  addKpi(summary, "G5:H7", copy.added, added, COLORS.green);
+  addKpi(summary, "I5:J7", copy.removed, removed, COLORS.rose);
+  addKpi(summary, "K5:L7", copy.updated, updated, COLORS.amber);
+  addKpi(summary, "M5:N7", copy.net, added - removed, added - removed < 0 ? COLORS.rose : COLORS.green);
 
   const companyCounts = [...activeRows.reduce((map, row) => {
     const company = clean(row.company_name) || "Unmapped / Review";
     map.set(company, (map.get(company) || 0) + 1);
     return map;
   }, new Map()).entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  styleSection(summary, "A10:D10", copy.companySummary);
-  summary.getRow(11).values = [copy.no, copy.company, copy.vehicles];
-  styleHeader(summary.getRow(11));
-  companyCounts.forEach(([company, count], index) => {
-    const row = summary.getRow(12 + index);
-    row.values = [index + 1, company, count];
-    row.eachCell((cell, column) => {
-      cell.font = { name: "Aptos", size: 10, color: { argb: COLORS.slate900 } };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: index % 2 ? COLORS.white : COLORS.slate100 } };
-      cell.alignment = { vertical: "middle", horizontal: column === 3 ? "right" : "left" };
-    });
-  });
+  styleSection(summary, "A9:N9", copy.fleetJourney);
+  summary.mergeCells("A10:N10");
+  summary.getCell("A10").value = `${copy.baseline}: ${Number(baselineCount).toLocaleString()}  |  ${formatIsoDate(baselineDate)}     ${copy.addedSinceBaseline}: ${addedSinceBaselineRows.length.toLocaleString()}     ${copy.active}: ${activeRows.length.toLocaleString()}`;
+  summary.getCell("A10").font = { name: "Aptos", size: 10, bold: true, color: { argb: COLORS.slate700 } };
+  summary.getCell("A10").fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.blue50 } };
+  summary.getCell("A10").alignment = { vertical: "middle", horizontal: "left" };
+  summary.getRow(10).height = 25;
+  summary.mergeCells("A11:G11");
+  summary.getCell("A11").value = copy.addedListHint;
+  summary.getCell("A11").font = { name: "Aptos", size: 9, italic: true, color: { argb: COLORS.slate500 } };
+  summary.getCell("A11").alignment = { vertical: "middle", horizontal: "left" };
 
-  styleSection(summary, "F10:J10", copy.changeSummary);
-  summary.getRow(11).getCell(6).value = copy.changeType;
-  summary.getRow(11).getCell(7).value = copy.vehicles;
-  [6, 7].forEach((column) => {
-    const cell = summary.getRow(11).getCell(column);
-    cell.font = { name: "Aptos", size: 10, bold: true, color: { argb: COLORS.white } };
+  styleSection(summary, "A12:G12", `${copy.addedVehiclesDetail} (${addedSinceBaselineRows.length.toLocaleString()})`);
+  styleSection(summary, "I12:K12", copy.companySummary);
+  styleSection(summary, "M12:N12", copy.changeSummary);
+
+  const addedHeaders = [copy.no, copy.addedDate, copy.plate, copy.company, copy.fullName, copy.contact, copy.purpose];
+  addedHeaders.forEach((label, index) => { summary.getRow(13).getCell(index + 1).value = label; });
+  [copy.no, copy.company, copy.vehicles].forEach((label, index) => { summary.getRow(13).getCell(index + 9).value = label; });
+  [copy.changeType, copy.vehicles].forEach((label, index) => { summary.getRow(13).getCell(index + 13).value = label; });
+  [...Array.from({ length: 7 }, (_, index) => index + 1), 9, 10, 11, 13, 14].forEach((column) => {
+    const cell = summary.getRow(13).getCell(column);
+    cell.font = { name: "Aptos", size: 9, bold: true, color: { argb: COLORS.white } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.blue } };
     cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     cell.border = { bottom: { style: "medium", color: { argb: COLORS.navy } } };
   });
-  [copy.added, copy.removed, copy.updated].forEach((label, index) => {
-    const row = summary.getRow(12 + index);
-    row.getCell(6).value = label;
-    row.getCell(7).value = [added, removed, updated][index];
-    row.getCell(6).font = { name: "Aptos", size: 10, bold: true, color: { argb: COLORS.slate700 } };
-    row.getCell(7).font = { name: "Aptos", size: 10, color: { argb: COLORS.slate900 } };
+  summary.getRow(13).height = 28;
+
+  addedSinceBaselineRows.forEach((item, index) => {
+    const after = item.after_data && typeof item.after_data === "object" ? item.after_data : {};
+    const row = summary.getRow(14 + index);
+    row.getCell(1).value = index + 1;
+    row.getCell(2).value = toExcelDate(item.change_date);
+    row.getCell(3).value = item.vehicle_plate || after.vehicle_plate || "";
+    row.getCell(4).value = item.company_name || after.company_name || "";
+    row.getCell(5).value = item.full_name || after.full_name || "";
+    row.getCell(6).value = after.contact_name || "";
+    row.getCell(7).value = after.purpose || after.remark || "";
+    row.getCell(2).numFmt = "dd-mm-yyyy";
+    row.height = 23;
+    for (let column = 1; column <= 7; column += 1) {
+      const cell = row.getCell(column);
+      cell.font = { name: "Aptos", size: 9.5, color: { argb: COLORS.slate900 } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: index % 2 ? COLORS.white : COLORS.slate100 } };
+      cell.alignment = { vertical: "middle", horizontal: [1, 2].includes(column) ? "center" : "left", wrapText: column >= 4 };
+    }
+    row.getCell(3).font = { name: "Aptos", size: 9.5, bold: true, color: { argb: COLORS.green } };
   });
-  [8, 28, 14, 4, 4, 28, 14, 4, 4, 4].forEach((width, index) => { summary.getColumn(index + 1).width = width; });
+
+  companyCounts.forEach(([company, count], index) => {
+    const row = summary.getRow(14 + index);
+    row.getCell(9).value = index + 1;
+    row.getCell(10).value = company;
+    row.getCell(11).value = count;
+    [9, 10, 11].forEach((column) => {
+      const cell = row.getCell(column);
+      cell.font = { name: "Aptos", size: 9.5, color: { argb: COLORS.slate900 } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: index % 2 ? COLORS.white : COLORS.slate100 } };
+      cell.alignment = { vertical: "middle", horizontal: column === 11 ? "right" : "left" };
+    });
+  });
+
+  [copy.added, copy.removed, copy.updated].forEach((label, index) => {
+    const row = summary.getRow(14 + index);
+    row.getCell(13).value = label;
+    row.getCell(14).value = [added, removed, updated][index];
+    row.getCell(13).font = { name: "Aptos", size: 9.5, bold: true, color: { argb: COLORS.slate700 } };
+    row.getCell(14).font = { name: "Aptos", size: 9.5, color: { argb: COLORS.slate900 } };
+    row.getCell(14).alignment = { horizontal: "right" };
+  });
+  [6, 13, 15, 22, 24, 20, 30, 3, 6, 24, 10, 3, 27, 10].forEach((width, index) => { summary.getColumn(index + 1).width = width; });
+  summary.autoFilter = { from: "A13", to: `G${13 + Math.max(addedSinceBaselineRows.length, 1)}` };
 
   const registrySheet = workbook.addWorksheet(copy.registrySheet, {
     views: [{ state: "frozen", ySplit: 5, xSplit: 2, showGridLines: false }],

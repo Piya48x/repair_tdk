@@ -15,7 +15,7 @@ declare
   deleted_registry integer := 0;
   deleted_imports integer := 0;
 begin
-  select lower(coalesce(to_jsonb(p) ->> 'role', ''))
+  select lower(trim(coalesce(to_jsonb(p) ->> 'role', '')))
   into actor_role
   from public.profiles p
   where p.id = auth.uid()

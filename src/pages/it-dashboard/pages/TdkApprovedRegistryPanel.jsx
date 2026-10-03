@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Download,
   FileSpreadsheet,
   History,
@@ -19,6 +20,7 @@ import {
   UploadCloud,
   UserMinus,
   UserPlus,
+  X,
 } from "lucide-react";
 import { useScopedI18n } from "../../../i18n/useScopedI18n";
 import { supabase } from "../../../lib/supabaseClient";
@@ -46,8 +48,10 @@ const COPY = {
     title: "จัดการทะเบียนรถ TDK APPROVED",
     subtitle: "เพิ่ม แก้ไข ถอดออก หรือเปิดใช้งานทะเบียนรถได้ทันที และยังอัปโหลด Master list เพื่อเทียบการเปลี่ยนแปลงทั้งชุดได้",
     reportMonth: "เดือนรายงาน MD",
-    exportTh: "Export ภาษาไทย",
-    exportEn: "Export English",
+    export: "Export รายงานทะเบียน",
+    exportHint: "เลือกภาษารายงาน",
+    exportThai: "ภาษาไทย (TH)",
+    exportEnglish: "English (EN)",
     refresh: "รีเฟรช",
     stats: { active: "ทะเบียนใช้งานปัจจุบัน", added: "เพิ่มเดือนนี้", removed: "ถอดออกเดือนนี้", companies: "บริษัทปัจจุบัน" },
     upload: { title: "อัปเดต Master list", hint: "รองรับไฟล์รูปแบบ Car List ที่มี Fullname, GroupName และ Licenseplate", date: "วันที่มีผล", choose: "เลือกไฟล์ทะเบียน", reading: "กำลังตรวจไฟล์...", reset: "ล้าง Master เดิม" },
@@ -61,8 +65,10 @@ const COPY = {
     title: "TDK APPROVED Vehicle Registry",
     subtitle: "Add, edit, remove, or reactivate vehicles directly, or upload the latest master list to compare the complete snapshot.",
     reportMonth: "MD report month",
-    exportTh: "Export Thai",
-    exportEn: "Export English",
+    export: "Export registry report",
+    exportHint: "Choose report language",
+    exportThai: "Thai (TH)",
+    exportEnglish: "English (EN)",
     refresh: "Refresh",
     stats: { active: "Current active vehicles", added: "Added this month", removed: "Removed this month", companies: "Current companies" },
     upload: { title: "Update master list", hint: "Supports the Car List format with Fullname, GroupName, and Licenseplate columns.", date: "Effective date", choose: "Choose registry file", reading: "Checking file...", reset: "Clear old master" },
@@ -147,6 +153,7 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
   const { language, tt } = useScopedI18n(COPY);
   const dark = theme === "dark";
   const fileInputRef = useRef(null);
+  const exportMenuRef = useRef(null);
   const realtimeRefreshRef = useRef(null);
   const pendingFileTokenRef = useRef("");
   const today = useMemo(() => new Date(), []);
@@ -165,6 +172,7 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
   const [updating, setUpdating] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [exporting, setExporting] = useState("");
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [error, setError] = useState("");
   const [formRecord, setFormRecord] = useState(undefined);
@@ -206,6 +214,21 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
   }, [reportMonth]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return undefined;
+    const closeMenu = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && exportMenuRef.current?.contains(event.target)) return;
+      setExportMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeMenu);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeMenu);
+    };
+  }, [exportMenuOpen]);
 
   useEffect(() => {
     const scheduleRefresh = () => {
@@ -332,7 +355,13 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
     } catch (updateError) {
       console.error("TDK APPROVED registry update failed", updateError);
       if (isTdkApprovedRegistrySchemaError(updateError)) setSchemaMissing(true);
-      toast.error(updateError?.message || "อัปเดตทะเบียนไม่สำเร็จ");
+      if (String(updateError?.code || "") === "42501") {
+        toast.error("บัญชีนี้ไม่มีสิทธิ์อัปเดต Master list กรุณาตรวจ role ใน Profiles ให้เป็น IT Support, Security หรือ Admin แล้วเข้าระบบใหม่");
+      } else if (String(updateError?.code || "") === "22023" && String(updateError?.message || "").includes("older than")) {
+        toast.error(`วันที่มีผลต้องไม่ก่อน ${minimumEffectiveDate || "วันที่อัปเดตล่าสุด"}`);
+      } else {
+        toast.error(updateError?.message || "อัปเดตทะเบียนไม่สำเร็จ");
+      }
     } finally {
       setUpdating(false);
     }
@@ -343,14 +372,18 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
     try {
       const result = await resetTdkApprovedRegistry();
       setPreview(null);
-      toast.success(`ล้างทะเบียนเดิมแล้ว ${Number(result.deleted_registry || 0).toLocaleString()} รายการ`);
+      setSnapshotDate(TDK_APPROVED_INCEPTION_DATE);
+      toast.success(`ล้างทะเบียนเดิมแล้ว ${Number(result.deleted_registry || 0).toLocaleString()} รายการ · เลือกไฟล์ Master ตั้งต้นชุดใหม่ได้ทันที`);
       setResetDialogOpen(false);
       await loadData({ silent: true });
+      setMasterModalOpen(true);
     } catch (resetError) {
       console.error("Reset TDK APPROVED registry failed", resetError);
       if (isTdkApprovedRegistrySchemaError(resetError)) {
         setSchemaMissing(true);
         toast.error("ฐานข้อมูลยังไม่มีคำสั่งล้าง Master กรุณารัน database/20261001_tdk_approved_registry_reset.sql ใน Supabase");
+      } else if (String(resetError?.code || "") === "42501") {
+        toast.error("บัญชีนี้ไม่มีสิทธิ์ล้าง Master กรุณาตรวจ role ใน Profiles ให้เป็น IT Support, Security หรือ Admin แล้วเข้าระบบใหม่");
       } else {
         toast.error(resetError?.message || "ล้างทะเบียน TDK APPROVED ไม่สำเร็จ");
       }
@@ -360,14 +393,31 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
   };
 
   const handleExport = async (exportLanguage) => {
+    setExportMenuOpen(false);
     setExporting(exportLanguage);
     try {
       const bounds = monthBounds(reportMonth);
-      const [currentRows, monthChanges] = await Promise.all([
+      const currentMonth = localDateKey(new Date()).slice(0, 7);
+      const historyEndMonth = reportMonth > currentMonth ? reportMonth : currentMonth;
+      const historyBounds = { from: TDK_APPROVED_INCEPTION_DATE, to: monthBounds(historyEndMonth).to };
+      const [currentRows, monthChanges, allChanges, allImports] = await Promise.all([
         fetchTdkApprovedRegistry({ includeInactive: false }),
         fetchTdkApprovedRegistryChanges(bounds),
+        fetchTdkApprovedRegistryChanges(historyBounds),
+        fetchTdkApprovedRegistryImports(500),
       ]);
-      await downloadTdkApprovedMonthlyReport({ language: exportLanguage, month: bounds.from.slice(0, 7), registry: currentRows, changes: monthChanges });
+      const baselineImport = allImports
+        .filter((item) => Number(item.baseline_count || 0) > 0)
+        .sort((a, b) => String(a.snapshot_date || "").localeCompare(String(b.snapshot_date || "")))[0];
+      await downloadTdkApprovedMonthlyReport({
+        language: exportLanguage,
+        month: bounds.from.slice(0, 7),
+        registry: currentRows,
+        changes: monthChanges,
+        allChanges,
+        baselineDate: baselineImport?.snapshot_date || TDK_APPROVED_INCEPTION_DATE,
+        baselineCount: Number(baselineImport?.baseline_count || 39),
+      });
       toast.success(exportLanguage === "th" ? "สร้างรายงานภาษาไทยสำเร็จ" : "English report created");
     } catch (exportError) {
       console.error("Export TDK APPROVED monthly report failed", exportError);
@@ -451,7 +501,23 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
 
   return <div className="space-y-5">
     <section className={`rounded-2xl border p-5 shadow-sm ${shell}`}>
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between"><div><p className="flex items-center gap-2 text-[10px] font-black tracking-[0.18em] text-[#2b59b0]"><ShieldCheck size={14} />{tt("eyebrow")}</p><h2 className={`mt-2 text-2xl font-black ${title}`}>{tt("title")}</h2><p className={`mt-2 max-w-3xl text-sm leading-6 ${muted}`}>{tt("subtitle")}</p></div><div className="flex flex-wrap items-end gap-2"><button type="button" onClick={openAddForm} className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700"><Plus size={16} />{tt("registry.add")}</button><button type="button" onClick={() => setMasterModalOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#173b80] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#102f66]"><FileSpreadsheet size={16} />{tt("upload.title")}</button><button type="button" onClick={() => setResetDialogOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 text-xs font-black text-rose-700 transition hover:bg-rose-100"><Trash2 size={15} />{tt("upload.reset")}</button><label><span className={`mb-1 block text-[10px] font-bold ${muted}`}>{tt("reportMonth")}</span><input type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className={`h-10 rounded-xl border px-3 text-xs font-bold ${soft}`} /></label><button type="button" onClick={() => void handleExport("th")} disabled={Boolean(exporting) || !activeRegistry.length} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#173b80] px-4 text-xs font-black text-white disabled:opacity-40">{exporting === "th" ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{tt("exportTh")}</button><button type="button" onClick={() => void handleExport("en")} disabled={Boolean(exporting) || !activeRegistry.length} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-xs font-black disabled:opacity-40 ${soft}`}>{exporting === "en" ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{tt("exportEn")}</button></div></div>
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+        <div><p className="flex items-center gap-2 text-[10px] font-black tracking-[0.18em] text-[#2b59b0]"><ShieldCheck size={14} />{tt("eyebrow")}</p><h2 className={`mt-2 text-2xl font-black ${title}`}>{tt("title")}</h2><p className={`mt-2 max-w-3xl text-sm leading-6 ${muted}`}>{tt("subtitle")}</p></div>
+        <div className="flex flex-wrap items-end gap-2">
+          <button type="button" onClick={openAddForm} className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700"><Plus size={16} />{tt("registry.add")}</button>
+          <button type="button" onClick={() => setMasterModalOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#173b80] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#102f66]"><FileSpreadsheet size={16} />{tt("upload.title")}</button>
+          <button type="button" onClick={() => setResetDialogOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 text-xs font-black text-rose-700 transition hover:bg-rose-100"><Trash2 size={15} />{tt("upload.reset")}</button>
+          <label><span className={`mb-1 block text-[10px] font-bold ${muted}`}>{tt("reportMonth")}</span><input type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className={`h-10 rounded-xl border px-3 text-xs font-bold ${soft}`} /></label>
+          <div ref={exportMenuRef} className="relative">
+            <button type="button" onClick={() => setExportMenuOpen((current) => !current)} aria-haspopup="menu" aria-expanded={exportMenuOpen} disabled={Boolean(exporting) || !activeRegistry.length} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#173b80] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#102f66] disabled:opacity-40">{exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{tt("export")}<ChevronDown size={13} className={`transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} /></button>
+            {exportMenuOpen ? <div role="menu" aria-label={tt("exportHint")} className={`absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-xl border p-1.5 shadow-xl ${shell}`}>
+              <p className={`px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] ${muted}`}>{tt("exportHint")}</p>
+              <button type="button" role="menuitem" onClick={() => void handleExport("th")} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${dark ? "text-slate-200 hover:bg-slate-800" : "text-slate-700 hover:bg-slate-100"}`}><span className={`flex h-6 w-7 items-center justify-center rounded text-[9px] font-black ${dark ? "bg-slate-800 text-blue-300" : "bg-slate-100 text-[#173b80]"}`}>TH</span>{tt("exportThai")}</button>
+              <button type="button" role="menuitem" onClick={() => void handleExport("en")} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${dark ? "text-slate-200 hover:bg-slate-800" : "text-slate-700 hover:bg-slate-100"}`}><span className={`flex h-6 w-7 items-center justify-center rounded text-[9px] font-black ${dark ? "bg-slate-800 text-blue-300" : "bg-slate-100 text-[#173b80]"}`}>EN</span>{tt("exportEnglish")}</button>
+            </div> : null}
+          </div>
+        </div>
+      </div>
     </section>
 
     {schemaMissing ? <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900"><div className="flex items-start gap-3"><AlertTriangle size={19} className="mt-0.5 shrink-0" /><div><p className="font-black">{tt("setup.title")}</p><p className="mt-1 text-sm text-amber-700">{tt("setup.hint")}</p></div></div></section> : null}
