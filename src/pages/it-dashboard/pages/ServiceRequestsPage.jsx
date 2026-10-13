@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import {
+  archiveTicketHistory,
+  requireTicketHistoryStorage,
+} from "../../../services/ticketHistoryStorageService";
+import {
   getAttachmentName,
   isImageAttachmentUrl,
 } from "../../../lib/ticketAttachmentMetadata";
@@ -488,6 +492,17 @@ export default function ServiceRequestsPage({
         payload.closed_at = now;
         payload.closed_by = currentUser?.id || null;
         payload.closed_by_name = currentUser?.name || "IT Admin";
+
+        requireTicketHistoryStorage();
+        const archived = await archiveTicketHistory({
+          ticketId: request.id,
+          record: {
+            ...request,
+            ...payload,
+          },
+        });
+        payload.archive_object_key = archived.objectKey;
+        payload.archived_at = archived.archivedAt;
       }
 
       const { error } = await supabase.from("tickets").update(payload).eq("id", request.id);
@@ -496,7 +511,11 @@ export default function ServiceRequestsPage({
       await onRefreshData?.();
     } catch (error) {
       console.error("Update service request status error:", error);
-      setErrorMessage("อัปเดตสถานะคำขอไม่สำเร็จ");
+      setErrorMessage(
+        nextStatus === "CLOSED"
+          ? `ปิดคำขอไม่ได้ เนื่องจากบันทึกประวัติลง Cloudflare R2 ไม่สำเร็จ: ${error?.message || "กรุณาลองใหม่"}`
+          : "อัปเดตสถานะคำขอไม่สำเร็จ",
+      );
     } finally {
       setUpdatingId("");
     }

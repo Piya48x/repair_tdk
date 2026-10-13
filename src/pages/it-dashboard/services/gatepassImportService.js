@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../lib/supabaseClient.js";
 
 const MAX_IMPORT_ROWS = 5000;
 

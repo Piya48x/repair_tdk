@@ -45,6 +45,7 @@ const COPY = {
     export: "Export รายงานทะเบียน",
     exportHint: "เลือกภาษารายงาน",
     exportThai: "ภาษาไทย (TH)",
+    exportKorean: "ภาษาเกาหลี (KO)",
     exportEnglish: "English (EN)",
     active: "รถหลักที่ใช้งานปัจจุบัน",
     added: "เพิ่ม / กลับมาใช้ในเดือนที่เลือก",
@@ -102,6 +103,7 @@ const COPY = {
     export: "Export registry report",
     exportHint: "Choose report language",
     exportThai: "Thai (TH)",
+    exportKorean: "Korean (KO)",
     exportEnglish: "English (EN)",
     active: "Current active fleet",
     added: "Added / reactivated this month",
@@ -150,6 +152,64 @@ const COPY = {
     trendEyebrow: "Month over month",
     changesEyebrow: "Change log",
     currentEyebrow: "Current master list",
+  },
+  ko: {
+    heading: "TDK APPROVED 차량 원장 현황",
+    subtitle: "현재 운행 중인 등록 차량과 월별 추가, 해제 및 정보 변경 내역을 한눈에 확인합니다.",
+    month: "조회 월",
+    refresh: "새로고침",
+    export: "차량 원장 보고서 내보내기",
+    exportHint: "보고서 언어 선택",
+    exportThai: "태국어 (TH)",
+    exportKorean: "한국어 (KO)",
+    exportEnglish: "영어 (EN)",
+    active: "현재 운행 차량",
+    added: "선택 월 추가·재등록",
+    removed: "선택 월 등록 해제",
+    updated: "선택 월 정보 변경",
+    companies: "현재 등록 업체",
+    trendTitle: "최근 6개월 차량 원장 변동",
+    trendHint: "Gatepass 통과 차량 수가 아닌 차량 원장 변경 이력을 기준으로 집계합니다.",
+    additions: "추가·재등록",
+    removals: "등록 해제",
+    updates: "정보 변경",
+    changesTitle: "선택 월 변경 이력",
+    changesCount: "{{count}}건",
+    noChanges: "선택한 월에는 차량 추가, 등록 해제 또는 정보 변경 내역이 없습니다.",
+    registryTitle: "현재 운행 차량 원장",
+    registryHint: "경영진용 최신 현황",
+    search: "차량 번호, 이름 또는 업체 검색...",
+    noRegistry: "현재 운행 중인 등록 차량이 없습니다.",
+    plate: "차량 번호",
+    person: "이름 / 연락 담당자",
+    company: "업체",
+    purpose: "방문 목적",
+    since: "등록 시작일",
+    changeDate: "날짜",
+    changeAction: "변경 내용",
+    type: { ADDED: "신규 추가", REACTIVATED: "재등록", REMOVED: "등록 해제", UPDATED: "정보 변경", BASELINE: "기준 자료" },
+    loadError: "차량 원장 보고서를 불러오지 못했습니다.",
+    exportSuccess: "차량 원장 보고서를 생성했습니다.",
+    setup: "차량 원장 보고서를 사용하기 전에 최신 Gatepass SQL 파일을 실행해 주세요.",
+    journeyEyebrow: "차량 원장 흐름",
+    journeyTitle: "공식 기준 자료부터 현재 운행 차량까지",
+    baselineStep: "1. 공식 기준 자료",
+    baselineVehicles: "{{count}}대",
+    baselineDate: "{{date}} 기준",
+    additionsStep: "2. 기준일 이후 추가",
+    additionsVehicles: "+{{count}}대",
+    additionsHint: "클릭하면 이후 추가된 차량만 표시합니다.",
+    currentStep: "3. 현재 운행 차량",
+    currentVehicles: "{{count}}대",
+    addedListTitle: "기준 자료 이후 추가 차량",
+    addedListHint: "최근 추가 순으로 표시",
+    noAdditions: "기준 자료 이후 추가된 차량이 없습니다.",
+    quickAll: "현재 차량 전체",
+    quickAdded: "기준일 이후 추가",
+    masterEyebrow: "차량 원장",
+    trendEyebrow: "월별 변동",
+    changesEyebrow: "변경 이력",
+    currentEyebrow: "현재 차량 목록",
   },
 };
 
@@ -328,7 +388,7 @@ export default function TdkApprovedRegistryReportSection() {
     return scopedRows.filter((row) => [row.vehicle_plate, row.full_name, row.company_name, row.contact_name, row.purpose].some((value) => String(value || "").toLowerCase().includes(needle)));
   }, [activeRegistry, addedPlateKeys, registryFilter, search]);
 
-  const handleExport = async (exportLanguage = language === "th" ? "th" : "en") => {
+  const handleExport = async (exportLanguage = ["th", "ko", "en"].includes(language) ? language : "en") => {
     setExportMenuOpen(false);
     setExporting(true);
     try {
@@ -366,6 +426,7 @@ export default function TdkApprovedRegistryReportSection() {
             {exportMenuOpen ? <div role="menu" aria-label={tt("exportHint")} className="absolute right-0 z-30 mt-1.5 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10">
               <p className="px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">{tt("exportHint")}</p>
               <button type="button" role="menuitem" onClick={() => void handleExport("th")} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100"><span className="flex h-6 w-7 items-center justify-center rounded bg-slate-100 text-[9px] font-black text-[#173f70]">TH</span>{tt("exportThai")}</button>
+              <button type="button" role="menuitem" onClick={() => void handleExport("ko")} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100"><span className="flex h-6 w-7 items-center justify-center rounded bg-slate-100 text-[9px] font-black text-[#173f70]">KO</span>{tt("exportKorean")}</button>
               <button type="button" role="menuitem" onClick={() => void handleExport("en")} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100"><span className="flex h-6 w-7 items-center justify-center rounded bg-slate-100 text-[9px] font-black text-[#173f70]">EN</span>{tt("exportEnglish")}</button>
             </div> : null}
           </div>

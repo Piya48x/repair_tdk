@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "gatepass:sync": "node scripts/sync-gatepass-report.mjs",
+    "gatepass:sync:dry-run": "node scripts/sync-gatepass-report.mjs --dry-run",
+    "gatepass:task:install": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-gatepass-sync-task.ps1"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.93.3",

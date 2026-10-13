@@ -47,7 +47,7 @@ const COPY = {
     eyebrow: "TDK APPROVED MASTER REGISTRY",
     title: "จัดการทะเบียนรถ TDK APPROVED",
     subtitle: "เพิ่ม แก้ไข ถอดออก หรือเปิดใช้งานทะเบียนรถได้ทันที และยังอัปโหลด Master list เพื่อเทียบการเปลี่ยนแปลงทั้งชุดได้",
-    reportMonth: "เดือนรายงาน MD",
+    reportMonth: "เดือนรายงาน",
     export: "Export รายงานทะเบียน",
     exportHint: "เลือกภาษารายงาน",
     exportThai: "ภาษาไทย (TH)",
@@ -64,7 +64,7 @@ const COPY = {
     eyebrow: "TDK APPROVED MASTER REGISTRY",
     title: "TDK APPROVED Vehicle Registry",
     subtitle: "Add, edit, remove, or reactivate vehicles directly, or upload the latest master list to compare the complete snapshot.",
-    reportMonth: "MD report month",
+    reportMonth: "Report month",
     export: "Export registry report",
     exportHint: "Choose report language",
     exportThai: "Thai (TH)",
@@ -500,17 +500,22 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
   const muted = dark ? "text-slate-400" : "text-slate-500";
 
   return <div className="space-y-5">
-    <section className={`rounded-2xl border p-5 shadow-sm ${shell}`}>
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-        <div><p className="flex items-center gap-2 text-[10px] font-black tracking-[0.18em] text-[#2b59b0]"><ShieldCheck size={14} />{tt("eyebrow")}</p><h2 className={`mt-2 text-2xl font-black ${title}`}>{tt("title")}</h2><p className={`mt-2 max-w-3xl text-sm leading-6 ${muted}`}>{tt("subtitle")}</p></div>
-        <div className="flex flex-wrap items-end gap-2">
-          <button type="button" onClick={openAddForm} className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700"><Plus size={16} />{tt("registry.add")}</button>
-          <button type="button" onClick={() => setMasterModalOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#173b80] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#102f66]"><FileSpreadsheet size={16} />{tt("upload.title")}</button>
-          <button type="button" onClick={() => setResetDialogOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 text-xs font-black text-rose-700 transition hover:bg-rose-100"><Trash2 size={15} />{tt("upload.reset")}</button>
-          <label><span className={`mb-1 block text-[10px] font-bold ${muted}`}>{tt("reportMonth")}</span><input type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className={`h-10 rounded-xl border px-3 text-xs font-bold ${soft}`} /></label>
-          <div ref={exportMenuRef} className="relative">
-            <button type="button" onClick={() => setExportMenuOpen((current) => !current)} aria-haspopup="menu" aria-expanded={exportMenuOpen} disabled={Boolean(exporting) || !activeRegistry.length} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#173b80] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#102f66] disabled:opacity-40">{exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{tt("export")}<ChevronDown size={13} className={`transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} /></button>
-            {exportMenuOpen ? <div role="menu" aria-label={tt("exportHint")} className={`absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-xl border p-1.5 shadow-xl ${shell}`}>
+    <section className={`relative rounded-2xl border shadow-sm ${shell}`}>
+      <div className="h-1 rounded-t-2xl bg-gradient-to-r from-[#183f88] via-[#2b59b0] to-cyan-500" />
+      <div className="p-5 sm:p-6">
+        <div className="max-w-3xl"><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#2b59b0]"><ShieldCheck size={14} />{tt("eyebrow")}</p><h2 className={`mt-2 text-2xl font-black tracking-tight sm:text-3xl ${title}`}>{tt("title")}</h2><p className={`mt-2 max-w-2xl text-sm leading-6 ${muted}`}>{tt("subtitle")}</p></div>
+      </div>
+      <div className={`flex flex-wrap items-end gap-3 rounded-b-2xl border-t border-inherit px-5 py-4 sm:px-6 ${dark ? "bg-slate-950/30" : "bg-slate-50/80"}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={openAddForm} className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"><Plus size={16} className="shrink-0" />{tt("registry.add")}</button>
+          <button type="button" onClick={() => setMasterModalOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#173b80] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#102f66] focus:outline-none focus:ring-2 focus:ring-blue-500/40"><FileSpreadsheet size={16} className="shrink-0" />{tt("upload.title")}</button>
+          <button type="button" onClick={() => setResetDialogOpen(true)} title={tt("upload.reset")} aria-label={tt("upload.reset")} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rose-300 bg-rose-50 text-rose-700 transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-500/30"><Trash2 size={16} /></button>
+        </div>
+        <div className="ml-auto flex w-full flex-wrap items-end gap-2 sm:w-auto">
+          <label className="min-w-[155px] flex-1 sm:flex-none"><span className={`mb-1 block text-[10px] font-bold ${muted}`}>{tt("reportMonth")}</span><input type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className={`h-11 w-full rounded-xl border px-3 text-xs font-bold outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 ${soft}`} /></label>
+          <div ref={exportMenuRef} className="relative z-20 min-w-[180px] flex-1 sm:flex-none">
+            <button type="button" onClick={() => setExportMenuOpen((current) => !current)} aria-haspopup="menu" aria-expanded={exportMenuOpen} disabled={Boolean(exporting) || !activeRegistry.length} className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#173b80] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#102f66] focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-40">{exporting ? <Loader2 size={15} className="shrink-0 animate-spin" /> : <Download size={15} className="shrink-0" />}{tt("export")}<ChevronDown size={13} className={`shrink-0 transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} /></button>
+            {exportMenuOpen ? <div role="menu" aria-label={tt("exportHint")} className={`absolute right-0 top-full z-50 mt-1.5 w-52 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border p-1.5 shadow-xl ${shell}`}>
               <p className={`px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] ${muted}`}>{tt("exportHint")}</p>
               <button type="button" role="menuitem" onClick={() => void handleExport("th")} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${dark ? "text-slate-200 hover:bg-slate-800" : "text-slate-700 hover:bg-slate-100"}`}><span className={`flex h-6 w-7 items-center justify-center rounded text-[9px] font-black ${dark ? "bg-slate-800 text-blue-300" : "bg-slate-100 text-[#173b80]"}`}>TH</span>{tt("exportThai")}</button>
               <button type="button" role="menuitem" onClick={() => void handleExport("en")} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${dark ? "text-slate-200 hover:bg-slate-800" : "text-slate-700 hover:bg-slate-100"}`}><span className={`flex h-6 w-7 items-center justify-center rounded text-[9px] font-black ${dark ? "bg-slate-800 text-blue-300" : "bg-slate-100 text-[#173b80]"}`}>EN</span>{tt("exportEnglish")}</button>

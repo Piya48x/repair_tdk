@@ -17,10 +17,10 @@ const COPY = {
     companies: "Company Summary",
   },
   ko: {
-    overview: "Overview",
-    daily: "Daily Gatepass",
-    registry: "TDK Approved Registry",
-    companies: "Company Summary",
+    overview: "전체 현황",
+    daily: "일일 Gatepass",
+    registry: "TDK Approved 등록 차량",
+    companies: "업체별 요약",
   },
 };
 

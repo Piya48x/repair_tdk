@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Download,
   Edit3,
+  Eye,
   ExternalLink,
   Factory,
   FileSpreadsheet,
@@ -525,6 +526,10 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
     }
   };
 
+  const handleViewQr = (asset) => {
+    setQrAsset(asset);
+  };
+
   const shell = isDark ? "border-slate-700 bg-slate-900/70 text-slate-100" : "border-slate-200 bg-white text-slate-900";
   const muted = isDark ? "text-slate-400" : "text-slate-500";
   const input = isDark ? "border-slate-700 bg-slate-950 text-white" : "border-slate-300 bg-white text-slate-800";
@@ -628,7 +633,22 @@ export default function AssetQrCenterPage({ theme = "light", currentUser, onNavi
             <div className="flex min-w-0 items-start gap-3">{image ? <img src={image.file_url} alt={asset.asset_name} className="h-14 w-14 shrink-0 rounded-xl border border-slate-200 object-cover" /> : <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${isDark ? "bg-slate-800 text-violet-300" : "bg-violet-50 text-violet-600"}`}>{/monitor/i.test(asset.asset_category || "") ? <Monitor size={24} /> : <Laptop size={24} />}</span>}<div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-black">{asset.asset_tag}</p><StatusChip status={asset.status} /></div><p className={`mt-1 truncate text-sm font-bold ${muted}`}>{asset.asset_name}</p><p className={`mt-1 text-xs ${muted}`}>{asset.brand || "-"} {asset.model || ""} • S/N {asset.serial_number || "-"}</p></div></div>
             <div className="space-y-1.5 text-sm"><p className="flex items-center gap-2"><Factory size={15} className="text-slate-400" /><span className="truncate">{asset.factory || asset.location || "ไม่ระบุสถานที่"}</span></p><p className="flex items-center gap-2"><Building2 size={15} className="text-slate-400" /><span className="truncate">{[asset.building, asset.floor, asset.room].filter(Boolean).join(" / ") || "-"}</span></p><p className="flex items-center gap-2"><UserRound size={15} className="text-slate-400" /><span className="truncate">{asset.owner_name || "ไม่ระบุผู้ใช้"}</span></p></div>
             <div><p className={`text-xs font-bold ${muted}`}>ตรวจพบล่าสุด</p><p className="mt-1 text-sm font-bold">{formatDateTime(asset.last_verified_at)}</p><p className={`mt-1 text-xs ${muted}`}>{asset.owner_employee_code ? `${asset.owner_employee_code} • ` : ""}{asset.department || "ไม่ระบุแผนก"}</p></div>
-            <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => navigate(`/asset-qr/${encodeURIComponent(asset.asset_tag)}`)} className={`rounded-lg border p-2 ${isDark ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`} title="เปิดข้อมูล"><ExternalLink size={16} /></button><button type="button" onClick={() => setEditingAsset(asset)} className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-blue-700" title="แก้ไข"><Edit3 size={16} /></button><button type="button" onClick={() => void handleOpenQr(asset)} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white"><QrCode size={15} />สร้าง/พิมพ์ QR</button></div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => navigate(`/asset-qr/${encodeURIComponent(asset.asset_tag)}`)} className={`rounded-lg border p-2 ${isDark ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`} title="เปิดข้อมูล" aria-label="เปิดข้อมูล Asset"><ExternalLink size={16} /></button>
+              <button type="button" onClick={() => setEditingAsset(asset)} className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-blue-700" title="แก้ไข" aria-label="แก้ไข Asset"><Edit3 size={16} /></button>
+              {asset.qr_created_at ? (
+                <>
+                  <button type="button" disabled className="inline-flex cursor-default items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 opacity-100" title="สร้าง QR แล้ว">
+                    <CheckCircle2 size={15} />สร้างแล้ว
+                  </button>
+                  <button type="button" onClick={() => handleViewQr(asset)} className="inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-2 text-violet-700 transition hover:bg-violet-100" title="ดู QR Code" aria-label={`ดู QR Code ${asset.asset_tag}`}>
+                    <Eye size={17} />
+                  </button>
+                </>
+              ) : (
+                <button type="button" onClick={() => void handleOpenQr(asset)} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-violet-700"><QrCode size={15} />สร้าง/พิมพ์ QR</button>
+              )}
+            </div>
           </article>;
         })}</div> : <div className={`py-16 text-center ${muted}`}><Search className="mx-auto mb-3 opacity-50" /><p className="font-bold">ไม่พบรายการ Asset</p></div>}
       </section>

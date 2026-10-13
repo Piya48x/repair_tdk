@@ -136,7 +136,7 @@ import {
 import { updateTicketWithSchemaFallback } from "../lib/ticketSchemaCompat";
 import {
   archiveTicketHistory,
-  isTicketHistoryStorageEnabled,
+  requireTicketHistoryStorage,
   uploadTicketHistoryFile,
 } from "../services/ticketHistoryStorageService";
 
@@ -1199,6 +1199,17 @@ const ITDashboard = () => {
         updatePayload.closed_at = new Date().toISOString();
         updatePayload.closed_by = currentUser?.id;
         updatePayload.closed_by_name = currentUser?.name;
+
+        requireTicketHistoryStorage();
+        const archived = await archiveTicketHistory({
+          ticketId: ticket.id,
+          record: {
+            ...ticket,
+            ...updatePayload,
+          },
+        });
+        updatePayload.archive_object_key = archived.objectKey;
+        updatePayload.archived_at = archived.archivedAt;
       } else if (!ticket?.started_at) {
         updatePayload.started_at = new Date().toISOString();
       }
@@ -1233,56 +1244,30 @@ const ITDashboard = () => {
       fireThemedSwal({
         icon: "error",
         title: "เกิดข้อผิดพลาด",
-        text: "ไม่สามารถบันทึกสถานะงานได้ กรุณาลองใหม่อีกครั้ง",
+        text: `ไม่สามารถบันทึกสถานะงานหรือสำรองประวัติลง Cloudflare R2 ได้: ${error?.message || "กรุณาลองใหม่อีกครั้ง"}`,
       }, "danger");
     }
   };
 
-  const uploadCloseJobAttachments = async ({ ticketId, kind, files, createdBy }) => {
+  const uploadCloseJobAttachments = async ({ ticketId, kind, files }) => {
     const safeKind = kind === "after" ? "after" : "before";
     const list = (Array.isArray(files) ? files : []).filter(Boolean);
 
     if (list.length === 0) return [];
 
+    requireTicketHistoryStorage();
     const uploaded = [];
 
     for (const file of list) {
-      if (isTicketHistoryStorageEnabled()) {
-        try {
-          const result = await uploadTicketHistoryFile({ ticketId, kind: safeKind, file });
-          if (result.publicUrl) {
-            uploaded.push({
-              url: result.publicUrl,
-              type: safeKind,
-              name: file?.name || result.fileName || `${safeKind}.jpg`,
-            });
-            continue;
-          }
-        } catch (workerUploadError) {
-          console.warn("R2 upload failed; using Supabase Storage fallback:", workerUploadError);
-        }
+      const result = await uploadTicketHistoryFile({ ticketId, kind: safeKind, file });
+      if (!result.publicUrl) {
+        throw new Error("Cloudflare R2 ไม่ได้ส่ง URL ของไฟล์กลับมา");
       }
-
-      const extension = String(file?.name || "").split(".").pop() || "jpg";
-      const fileName = `${createdBy || "it-support"}/${ticketId}/${safeKind}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("ticket-attachments")
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("ticket-attachments").getPublicUrl(fileName);
-
-      if (publicUrl) {
-        uploaded.push({
-          url: publicUrl,
-          type: safeKind,
-          name: file?.name || fileName.split("/").pop() || `${safeKind}.${extension}`,
-        });
-      }
+      uploaded.push({
+        url: result.publicUrl,
+        type: safeKind,
+        name: file?.name || result.fileName || `${safeKind}.jpg`,
+      });
     }
 
     return uploaded;
@@ -1301,6 +1286,7 @@ const ITDashboard = () => {
     setIsCloseJobSubmitting(true);
 
     try {
+      requireTicketHistoryStorage();
       const normalizedParts = String(payload?.partsUsed || "").trim() || "ไม่มีการเปลี่ยนอะไหล่";
       const report = buildStructuredRepairReport({
         problem: String(payload?.problem || "").trim(),
@@ -1310,19 +1296,16 @@ const ITDashboard = () => {
         result: String(payload?.result || "").trim(),
       });
 
-      const createdBy = currentUser?.id || ticket?.assigned_to || "it-support";
       const existingEntries = getTicketAttachmentEntries(ticket);
       const uploadedBeforeEntries = await uploadCloseJobAttachments({
         ticketId: ticket.id,
         kind: "before",
         files: payload?.before_attachments,
-        createdBy,
       });
       const uploadedAfterEntries = await uploadCloseJobAttachments({
         ticketId: ticket.id,
         kind: "after",
         files: payload?.after_attachments,
-        createdBy,
       });
 
       const mergedEntries = [...existingEntries, ...uploadedBeforeEntries, ...uploadedAfterEntries]
@@ -1345,59 +1328,44 @@ const ITDashboard = () => {
         .filter(Boolean);
       const noteWithAttachments = buildTicketAttachmentNote(report, mergedEntries);
       const nowIso = new Date().toISOString();
+      const closedRecord = {
+        ...ticket,
+        status: "CLOSED",
+        solution_note: noteWithAttachments,
+        parts_used: normalizedParts,
+        image_url: beforeUrls[0] || ticket?.image_url || null,
+        image_after_url: afterUrls[0] || ticket?.image_after_url || null,
+        attachments: mergedEntries.map((entry) => entry.url).filter(Boolean),
+        closed_at: nowIso,
+        closed_by: currentUser?.id,
+        closed_by_name: currentUser?.name,
+        updated_at: nowIso,
+      };
 
-      const { error: dbError } = await updateTicketWithSchemaFallback(
-        supabase,
-        ticket.id,
-        {
-          status: "CLOSED",
-          solution_note: noteWithAttachments,
-          parts_used: normalizedParts,
-          image_url: beforeUrls[0] || ticket?.image_url || null,
-          image_after_url: afterUrls[0] || ticket?.image_after_url || null,
-          attachments: mergedEntries.map((entry) => entry.url).filter(Boolean),
-          closed_at: nowIso,
-          closed_by: currentUser?.id,
-          closed_by_name: currentUser?.name,
-          updated_at: nowIso,
-        },
-        { maxRetries: 12 },
-      );
+      const archived = await archiveTicketHistory({
+        ticketId: ticket.id,
+        record: closedRecord,
+      });
+
+      const { error: dbError } = await supabase
+        .from("tickets")
+        .update({
+          status: closedRecord.status,
+          solution_note: closedRecord.solution_note,
+          parts_used: closedRecord.parts_used,
+          image_url: closedRecord.image_url,
+          image_after_url: closedRecord.image_after_url,
+          attachments: closedRecord.attachments,
+          closed_at: closedRecord.closed_at,
+          closed_by: closedRecord.closed_by,
+          closed_by_name: closedRecord.closed_by_name,
+          updated_at: closedRecord.updated_at,
+          archive_object_key: archived.objectKey,
+          archived_at: archived.archivedAt,
+        })
+        .eq("id", ticket.id);
 
       if (dbError) throw dbError;
-
-      if (isTicketHistoryStorageEnabled()) {
-        try {
-          const archived = await archiveTicketHistory({
-            ticketId: ticket.id,
-            record: {
-              ...ticket,
-              status: "CLOSED",
-              solution_note: noteWithAttachments,
-              parts_used: normalizedParts,
-              image_url: beforeUrls[0] || ticket?.image_url || null,
-              image_after_url: afterUrls[0] || ticket?.image_after_url || null,
-              attachments: mergedEntries.map((entry) => entry.url).filter(Boolean),
-              closed_at: nowIso,
-              closed_by: currentUser?.id,
-              closed_by_name: currentUser?.name,
-              updated_at: nowIso,
-            },
-          });
-
-          await updateTicketWithSchemaFallback(
-            supabase,
-            ticket.id,
-            {
-              archive_object_key: archived.objectKey,
-              archived_at: archived.archivedAt,
-            },
-            { maxRetries: 2 },
-          );
-        } catch (archiveError) {
-          console.warn("Ticket archive to R2 was skipped:", archiveError);
-        }
-      }
 
       if (detailTicket?.id === ticket.id) {
         setDetailTicket(null);
@@ -1410,13 +1378,13 @@ const ITDashboard = () => {
       await fireThemedSwal({
         icon: "success",
         title: "ปิดงานสำเร็จ",
-        text: "อัปเดตสถานะและบันทึกรายงานเรียบร้อยแล้ว",
+        text: "บันทึกข้อความและรูปใน Cloudflare R2 พร้อมอัปเดตสถานะเรียบร้อยแล้ว",
         timer: 2200,
         showConfirmButton: false,
       }, "success");
     } catch (error) {
       console.error("Error closing job:", error);
-      throw new Error("ไม่สามารถบันทึกและปิดงานได้ กรุณาลองใหม่อีกครั้ง");
+      throw new Error(`ไม่สามารถบันทึกประวัติลง Cloudflare R2 และปิดงานได้: ${error?.message || "กรุณาลองใหม่อีกครั้ง"}`);
     } finally {
       setIsCloseJobSubmitting(false);
     }

@@ -8,6 +8,13 @@ export function isTicketHistoryStorageEnabled() {
   return Boolean(API_BASE_URL);
 }
 
+export function requireTicketHistoryStorage() {
+  if (!API_BASE_URL) {
+    throw new Error("ยังไม่ได้ตั้งค่า Cloudflare R2 สำหรับเก็บประวัติ กรุณาตั้งค่า VITE_TICKET_HISTORY_API_URL");
+  }
+  return API_BASE_URL;
+}
+
 async function getAccessToken() {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
@@ -18,9 +25,7 @@ async function getAccessToken() {
 }
 
 async function workerRequest(path, options = {}) {
-  if (!API_BASE_URL) {
-    throw new Error("ยังไม่ได้ตั้งค่า VITE_TICKET_HISTORY_API_URL");
-  }
+  requireTicketHistoryStorage();
 
   const token = await getAccessToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -60,11 +65,16 @@ export async function uploadTicketHistoryFile({ ticketId, kind = "general", file
 }
 
 export async function archiveTicketHistory({ ticketId, record }) {
-  return workerRequest("/archive", {
+  const result = await workerRequest("/archive", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticketId, record }),
   });
+
+  if (!result.objectKey || !result.archivedAt) {
+    throw new Error("Cloudflare R2 ไม่ได้ยืนยันตำแหน่งไฟล์ประวัติ");
+  }
+  return result;
 }
 
 export async function uploadITWorkEvidenceFile({ recordKey, file }) {

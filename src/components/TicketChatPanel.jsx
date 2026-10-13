@@ -13,7 +13,7 @@ import {
 import { useScopedI18n } from "../i18n/useScopedI18n";
 import { supabase } from "../lib/supabaseClient";
 import {
-  isTicketHistoryStorageEnabled,
+  requireTicketHistoryStorage,
   uploadTicketHistoryFile,
 } from "../services/ticketHistoryStorageService";
 
@@ -281,10 +281,6 @@ function formatDateTime(value, locale = "en-US") {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function sanitizePathSegment(value) {
-  return String(value || "unknown").replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
 function deriveEmployeeCodeFromEmail(email) {
@@ -838,34 +834,16 @@ export default function TicketChatPanel({ ticket, currentUser, embedded = false 
 
   const uploadImageToStorage = useCallback(
     async (file) => {
-      if (isTicketHistoryStorageEnabled()) {
-        try {
-          const result = await uploadTicketHistoryFile({
-            ticketId,
-            kind: "chat",
-            file,
-          });
-          if (result.publicUrl) return result.publicUrl;
-        } catch (workerUploadError) {
-          console.warn("R2 chat upload failed; using Supabase Storage fallback:", workerUploadError);
-        }
-      }
-
-      const ext = String(file?.name?.split(".").pop() || "jpg").replace(/[^a-zA-Z0-9]/g, "") || "jpg";
-      const safeTicketId = sanitizePathSegment(ticketId);
-      const safeUserId = sanitizePathSegment(activeUserId || "unknown");
-      const filePath = `chat/${safeTicketId}/${safeUserId}_${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("ticket-attachments")
-        .upload(filePath, file, { upsert: false });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicData } = supabase.storage.from("ticket-attachments").getPublicUrl(filePath);
-      return publicData?.publicUrl || "";
+      requireTicketHistoryStorage();
+      const result = await uploadTicketHistoryFile({
+        ticketId,
+        kind: "chat",
+        file,
+      });
+      if (!result.publicUrl) throw new Error("Cloudflare R2 ไม่ได้ส่ง URL ของไฟล์กลับมา");
+      return result.publicUrl;
     },
-    [activeUserId, ticketId]
+    [ticketId]
   );
 
   const onSelectImage = useCallback(

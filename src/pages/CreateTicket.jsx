@@ -6,7 +6,7 @@ import {
   updateTicketWithSchemaFallback,
 } from "../lib/ticketSchemaCompat";
 import {
-  isTicketHistoryStorageEnabled,
+  requireTicketHistoryStorage,
   uploadTicketHistoryFile,
 } from "../services/ticketHistoryStorageService";
 import { fetchAssetQrDetail } from "./it-dashboard/services/assetQrService";
@@ -940,6 +940,7 @@ const CreateTicket = ({ embedded = false }) => {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) throw new Error(tt("errors.userNotFound"));
+      requireTicketHistoryStorage();
 
       let fileUrl = null;
       let resolvedTicketLocation = String(form.location || "").trim();
@@ -953,29 +954,6 @@ const CreateTicket = ({ embedded = false }) => {
         const profileSnapshot = buildProfileSnapshot(profile || {}, user.user_metadata || {}, user);
         resolvedTicketLocation = resolveProfileLocation(profileSnapshot);
       }
-      const uploadToSupabaseStorage = async () => {
-        if (!hasProblemPhoto || !form.attachment) return "";
-        const ext = form.attachment.name.split(".").pop();
-        const fileName = `${user.id}/${Date.now()}_ticket.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("ticket-attachments")
-          .upload(fileName, form.attachment);
-
-        if (uploadError) throw uploadError;
-        const { data: publicData } = supabase.storage
-          .from("ticket-attachments")
-          .getPublicUrl(fileName);
-        return publicData?.publicUrl || "";
-      };
-
-      if (hasProblemPhoto && form.attachment && !isTicketHistoryStorageEnabled()) {
-        try {
-          fileUrl = await uploadToSupabaseStorage();
-        } catch (uploadErr) {
-          console.warn("Upload warning:", uploadErr?.message || uploadErr);
-        }
-      }
-
       const issueText = form.issue.trim();
       const linkedAssetCode = String(linkedAsset?.asset_tag || "").trim();
       const linkedAssetName = String(linkedAsset?.asset_name || "").trim();
@@ -1025,7 +1003,7 @@ const CreateTicket = ({ embedded = false }) => {
 
       if (error) throw error;
 
-      if (hasProblemPhoto && form.attachment && isTicketHistoryStorageEnabled()) {
+      if (hasProblemPhoto && form.attachment) {
         try {
           const uploaded = await uploadTicketHistoryFile({
             ticketId: data.id,
@@ -1034,12 +1012,8 @@ const CreateTicket = ({ embedded = false }) => {
           });
           fileUrl = uploaded.publicUrl;
         } catch (workerUploadError) {
-          console.warn("R2 upload failed; using Supabase Storage fallback:", workerUploadError);
-          try {
-            fileUrl = await uploadToSupabaseStorage();
-          } catch (fallbackUploadError) {
-            console.warn("Supabase Storage fallback failed:", fallbackUploadError);
-          }
+          await supabase.from("tickets").delete().eq("id", data.id);
+          throw new Error(`อัปโหลดรูปไป Cloudflare R2 ไม่สำเร็จ: ${workerUploadError?.message || "กรุณาลองใหม่"}`);
         }
 
         if (fileUrl) {
@@ -1048,9 +1022,7 @@ const CreateTicket = ({ embedded = false }) => {
             data.id,
             { image_url: fileUrl, updated_at: new Date().toISOString() },
           );
-          if (imageUpdateError) {
-            console.warn("Ticket image URL update failed:", imageUpdateError);
-          }
+          if (imageUpdateError) throw imageUpdateError;
         }
       }
 

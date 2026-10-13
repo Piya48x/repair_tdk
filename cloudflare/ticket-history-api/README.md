@@ -3,6 +3,12 @@
 Cloudflare Worker for private ticket attachments and archived ticket JSON in the
 `ticket-history` R2 bucket.
 
+R2 is the required primary store for ticket images and closed-ticket JSON.
+The application must not fall back to Supabase Storage for ticket files. A
+ticket is marked `CLOSED` only after `/archive` succeeds; Supabase keeps the
+searchable ticket row plus `archive_object_key` and `archived_at` as the R2
+index/pointer.
+
 ## Cloudflare configuration
 
 Bind the R2 bucket with this exact binding name:

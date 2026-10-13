@@ -1,6 +1,11 @@
 import { supabase } from "../../../lib/supabaseClient";
 import { insertTicketWithSchemaFallback } from "../../../lib/ticketSchemaCompat";
 import { buildTicketAttachmentNote } from "../../../lib/ticketAttachmentMetadata";
+import {
+  archiveTicketHistory,
+  requireTicketHistoryStorage,
+  uploadTicketHistoryFile,
+} from "../../../services/ticketHistoryStorageService";
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -37,42 +42,29 @@ function normalizeAttachmentGroup(attachments, type) {
     .filter(Boolean);
 }
 
-async function uploadWalkInAttachments({ attachments, createdBy }) {
+async function uploadWalkInAttachments({ ticketId, attachments }) {
   const safeAttachments = (Array.isArray(attachments) ? attachments : []).filter(
     (entry) => entry?.file instanceof File,
   );
 
   if (safeAttachments.length === 0) return [];
 
-  const safePrefix = String(createdBy || "walkin").replace(/[^a-zA-Z0-9_-]/g, "") || "walkin";
   const uploadedEntries = [];
 
-  for (let index = 0; index < safeAttachments.length; index += 1) {
-    const attachment = safeAttachments[index];
-    const fileExt = String(attachment.file.name || "").split(".").pop() || "jpg";
-    const filePath = `${safePrefix}/${Date.now()}_${attachment.type}_${index + 1}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("ticket-attachments")
-      .upload(filePath, attachment.file, {
-        contentType: attachment.file.type || "image/jpeg",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      throw new Error(uploadError.message || "ไม่สามารถอัปโหลดไฟล์ได้");
+  for (const attachment of safeAttachments) {
+    const uploaded = await uploadTicketHistoryFile({
+      ticketId,
+      kind: attachment.type,
+      file: attachment.file,
+    });
+    if (!uploaded.publicUrl) {
+      throw new Error("Cloudflare R2 ไม่ได้ส่ง URL ของไฟล์กลับมา");
     }
-
-    const { data } = supabase.storage.from("ticket-attachments").getPublicUrl(filePath);
-    const publicUrl = data?.publicUrl || "";
-
-    if (publicUrl) {
-      uploadedEntries.push({
-        url: publicUrl,
-        type: attachment.type,
-        name: normalizeText(attachment.file.name),
-      });
-    }
+    uploadedEntries.push({
+      url: uploaded.publicUrl,
+      type: attachment.type,
+      name: normalizeText(attachment.file.name) || uploaded.fileName,
+    });
   }
 
   return uploadedEntries;
@@ -112,6 +104,8 @@ export async function createWalkInTicket({
     throw new Error("กรุณาระบุหัวข้อปัญหา");
   }
 
+  requireTicketHistoryStorage();
+
   const startTimeIso = toIsoString(start_time) || new Date().toISOString();
   const endTimeIso = toIsoString(end_time);
   const closedAtIso = endTimeIso || startTimeIso || new Date().toISOString();
@@ -125,24 +119,7 @@ export async function createWalkInTicket({
     normalizeText(closed_by_name) ||
     normalizeText(created_by_name) ||
     assignedNameValue;
-  const uploadedAttachments = await uploadWalkInAttachments({
-    attachments: [
-      ...normalizeAttachmentGroup(before_attachments, "before"),
-      ...normalizeAttachmentGroup(after_attachments, "after"),
-    ],
-    createdBy: created_by,
-  });
-  const beforeUrls = uploadedAttachments
-    .filter((entry) => entry.type === "before")
-    .map((entry) => entry.url)
-    .filter(Boolean);
-  const afterUrls = uploadedAttachments
-    .filter((entry) => entry.type === "after")
-    .map((entry) => entry.url)
-    .filter(Boolean);
-  const noteWithAttachments = buildTicketAttachmentNote(note, uploadedAttachments);
-
-  const payload = {
+  const basePayload = {
     creator_id: created_by || null,
     created_by: created_by || null,
     reporter_name: requesterName,
@@ -156,7 +133,7 @@ export async function createWalkInTicket({
     description: normalizeText(issue_description) || null,
     service_type: "walk-in",
     priority: systemPriority,
-    status: "CLOSED",
+    status: "IN_PROGRESS",
     channel: "walk-in",
     started_at: startTimeIso,
     start_time: startTimeIso,
@@ -164,23 +141,74 @@ export async function createWalkInTicket({
     assigned_to: assigned_to || created_by || null,
     assigned_name: assignedNameValue,
     assigned_employee_id: normalizeText(assigned_employee_id) || null,
-    resolution_note: noteWithAttachments || null,
-    solution_note: noteWithAttachments || null,
-    image_url: beforeUrls[0] || null,
-    image_after_url: afterUrls[0] || null,
-    attachments: uploadedAttachments.map((entry) => entry.url).filter(Boolean),
-    closed_at: closedAtIso,
-    closed_by: closed_by || created_by || null,
-    closed_by_name: closedByNameValue || null,
-    updated_at: closedAtIso,
+    updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await insertTicketWithSchemaFallback(supabase, payload, {
-    select: "id,ticket_no",
+  const { data: pendingTicket, error } = await insertTicketWithSchemaFallback(supabase, basePayload, {
+    select: "id,ticket_no,created_at",
     single: true,
     maxRetries: 12,
   });
 
   if (error) throw error;
-  return data;
+
+  let archiveCreated = false;
+  try {
+    const uploadedAttachments = await uploadWalkInAttachments({
+      ticketId: pendingTicket.id,
+      attachments: [
+        ...normalizeAttachmentGroup(before_attachments, "before"),
+        ...normalizeAttachmentGroup(after_attachments, "after"),
+      ],
+    });
+    const beforeUrls = uploadedAttachments
+      .filter((entry) => entry.type === "before")
+      .map((entry) => entry.url)
+      .filter(Boolean);
+    const afterUrls = uploadedAttachments
+      .filter((entry) => entry.type === "after")
+      .map((entry) => entry.url)
+      .filter(Boolean);
+    const noteWithAttachments = buildTicketAttachmentNote(note, uploadedAttachments);
+    const closedPayload = {
+      status: "CLOSED",
+      resolution_note: noteWithAttachments || null,
+      solution_note: noteWithAttachments || null,
+      image_url: beforeUrls[0] || null,
+      image_after_url: afterUrls[0] || null,
+      attachments: uploadedAttachments.map((entry) => entry.url).filter(Boolean),
+      closed_at: closedAtIso,
+      closed_by: closed_by || created_by || null,
+      closed_by_name: closedByNameValue || null,
+      updated_at: closedAtIso,
+    };
+    const archived = await archiveTicketHistory({
+      ticketId: pendingTicket.id,
+      record: {
+        ...basePayload,
+        ...pendingTicket,
+        ...closedPayload,
+      },
+    });
+    archiveCreated = true;
+
+    const { data: closedTicket, error: closeError } = await supabase
+      .from("tickets")
+      .update({
+        ...closedPayload,
+        archive_object_key: archived.objectKey,
+        archived_at: archived.archivedAt,
+      })
+      .eq("id", pendingTicket.id)
+      .select("id,ticket_no")
+      .single();
+
+    if (closeError) throw closeError;
+    return closedTicket;
+  } catch (archiveError) {
+    if (!archiveCreated && pendingTicket?.id) {
+      await supabase.from("tickets").delete().eq("id", pendingTicket.id);
+    }
+    throw new Error(`ไม่สามารถบันทึก Walk-in ลง Cloudflare R2 ได้: ${archiveError?.message || "กรุณาลองใหม่อีกครั้ง"}`);
+  }
 }

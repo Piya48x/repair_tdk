@@ -7,7 +7,6 @@ import {
   fetchTdkApprovedRegistry,
   isTdkApprovedRegistrySchemaError,
 } from "../it-dashboard/services/tdkApprovedRegistryService";
-import GatepassExecutiveTabs from "./GatepassExecutiveTabs";
 
 const COPY = {
   th: {
@@ -102,7 +101,6 @@ export default function GatepassCompanySummaryPage() {
   return (
     <>
       <ReportsTopbar currentUser={null} />
-      <GatepassExecutiveTabs />
       <main className="space-y-4">
         <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

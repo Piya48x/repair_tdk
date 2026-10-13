@@ -253,6 +253,9 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       assetUpdated: "อัปเดตข้อมูลอุปกรณ์แล้ว",
       assetCreated: "เพิ่มอุปกรณ์ใหม่แล้ว",
       saveAssetError: "บันทึกข้อมูลไม่สำเร็จ",
+      assetSessionExpired: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่แล้วลองอีกครั้ง",
+      assetUpdateDenied: "บัญชีนี้ไม่มีสิทธิ์แก้ไขข้อมูลอุปกรณ์",
+      assetNotFound: "ไม่พบอุปกรณ์รายการนี้ กรุณารีเฟรชข้อมูล",
       requireLicense: "กรุณากรอกชื่อไลเซนส์",
       licenseUpdated: "อัปเดตไลเซนส์แล้ว",
       licenseCreated: "เพิ่มไลเซนส์ใหม่แล้ว",
@@ -496,6 +499,9 @@ const EXECUTIVE_ASSETS_TRANSLATIONS = {
       assetUpdated: "Asset updated",
       assetCreated: "Asset added",
       saveAssetError: "Unable to save asset",
+      assetSessionExpired: "Your session has expired. Please sign in again and retry.",
+      assetUpdateDenied: "This account is not allowed to edit assets.",
+      assetNotFound: "This asset no longer exists. Please refresh the data.",
       requireLicense: "Please enter a license name",
       licenseUpdated: "License updated",
       licenseCreated: "License added",
@@ -788,6 +794,49 @@ function isAssetEvidenceSchemaError(error) {
     text.includes("bucket not found") ||
     text.includes("could not find a relationship")
   );
+}
+
+function createAssetMutationError(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+async function updateAssetRecord(assetId, payload) {
+  const executeUpdate = () => supabase
+    .from("it_assets")
+    .update(payload)
+    .eq("id", assetId)
+    .select("*")
+    .maybeSingle();
+
+  let result = await executeUpdate();
+  if (result.error && result.error.code !== "PGRST116") throw result.error;
+  if (result.data) return result.data;
+
+  const { data: refreshedAuth, error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError || !refreshedAuth?.session) {
+    throw createAssetMutationError("ASSET_SESSION_EXPIRED");
+  }
+
+  result = await executeUpdate();
+  if (result.error && result.error.code !== "PGRST116") throw result.error;
+  if (result.data) return result.data;
+
+  const { data: existingAsset, error: lookupError } = await supabase
+    .from("it_assets")
+    .select("id")
+    .eq("id", assetId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  throw createAssetMutationError(existingAsset ? "ASSET_UPDATE_DENIED" : "ASSET_NOT_FOUND");
+}
+
+function getAssetMutationErrorMessage(error, tt, fallbackKey = "toast.saveAssetError") {
+  if (error?.code === "ASSET_SESSION_EXPIRED") return tt("toast.assetSessionExpired");
+  if (error?.code === "ASSET_UPDATE_DENIED") return tt("toast.assetUpdateDenied");
+  if (error?.code === "ASSET_NOT_FOUND") return tt("toast.assetNotFound");
+  return error?.message || tt(fallbackKey);
 }
 
 function getStorageObjectPath(publicUrl, bucketName) {
@@ -1268,6 +1317,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
     [numberFormatter],
   );
   const assetInputClass = "min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-[#2b59b0] focus:ring-4 focus:ring-blue-100/70";
+  const detailAssetInputClass = `${assetInputClass} read-only:cursor-default read-only:border-slate-200 read-only:bg-slate-50 read-only:font-semibold read-only:text-slate-800 read-only:hover:border-slate-200 disabled:cursor-default disabled:border-slate-200 disabled:bg-slate-50 disabled:font-semibold disabled:text-slate-800 disabled:opacity-100 disabled:hover:border-slate-200`;
   const assetFilterInputClass = "min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-[#2b59b0] focus:ring-2 focus:ring-blue-100/80 sm:text-sm";
   const assetStickyTopClass = embedded ? "top-[61px] sm:top-[65px]" : "top-2";
   const assetStatusOptions = useMemo(
@@ -1917,9 +1967,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       let savedAsset = null;
 
       if (editingId) {
-        const { data, error } = await supabase.from("it_assets").update(payload).eq("id", editingId).select("*").single();
-        if (error) throw error;
-        savedAsset = data;
+        savedAsset = await updateAssetRecord(editingId, payload);
         toast.success(tt("toast.assetUpdated"));
       } else {
         const { data, error } = await supabase.from("it_assets").insert(payload).select("*").single();
@@ -1952,7 +2000,11 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       await loadAssets({ silent: true });
     } catch (error) {
       console.error("Save it_asset error:", error);
-      toast.error(error?.message || (pendingAssetEvidence.length > 0 ? tt("toast.evidenceUploadError") : tt("toast.saveAssetError")));
+      toast.error(getAssetMutationErrorMessage(
+        error,
+        tt,
+        pendingAssetEvidence.length > 0 ? "toast.evidenceUploadError" : "toast.saveAssetError",
+      ));
     } finally {
       setSaving(false);
     }
@@ -2089,7 +2141,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
 
   const handleSaveDetailAsset = async (event) => {
     event.preventDefault();
-    if (detailSaving || !selectedAsset?.id) return;
+    if (!detailEditMode || detailSaving || !selectedAsset?.id) return;
 
     const payload = {
       asset_tag: normalizeText(detailFormData.asset_tag),
@@ -2119,13 +2171,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
         statusLabels: assetStatusLabels,
         locale,
       });
-      const { data, error } = await supabase
-        .from("it_assets")
-        .update(payload)
-        .eq("id", selectedAsset.id)
-        .select("*")
-        .single();
-      if (error) throw error;
+      const data = await updateAssetRecord(selectedAsset.id, payload);
 
       const savedAsset = normalizeAssetRecord({
         ...beforeAsset,
@@ -2149,7 +2195,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
       await loadAssets({ silent: true });
     } catch (error) {
       console.error("Save asset from detail popup error:", error);
-      toast.error(error?.message || tt("toast.saveAssetError"));
+      toast.error(getAssetMutationErrorMessage(error, tt));
     } finally {
       setDetailSaving(false);
     }
@@ -4006,15 +4052,19 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
         ) : null}
 
         {selectedAsset ? (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" onClick={handleCloseAssetDetail}>
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="asset-detail-title"
+          >
             <article
-              className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
+              className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
+              <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-white px-4 py-4 shadow-sm sm:px-5">
+                <div className="min-w-0">
                   <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">{tt("assets.detailTitle")}</p>
-                  <h3 className="mt-1 text-2xl font-black text-slate-900">{selectedAsset.asset_name || "-"}</h3>
+                  <h3 id="asset-detail-title" className="mt-1 truncate text-xl font-black text-slate-900 sm:text-2xl">{selectedAsset.asset_name || "-"}</h3>
                   <p className="mt-1 text-sm text-slate-500">{tt("assets.detailCode")}: {selectedAsset.asset_tag || "-"}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -4064,66 +4114,55 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                 </div>
               </div>
 
-              {detailEditMode ? (
-                <form id="asset-detail-edit-form" className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4" onSubmit={handleSaveDetailAsset}>
+              <div className="p-4 sm:p-5">
+                <form
+                  id="asset-detail-edit-form"
+                  className={`rounded-2xl border p-4 transition-colors ${detailEditMode ? "border-blue-200 bg-blue-50/50 shadow-[0_12px_36px_-28px_rgba(37,99,235,0.55)]" : "border-slate-200 bg-slate-50/60"}`}
+                  onSubmit={handleSaveDetailAsset}
+                >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <AssetFormField icon={Tag} label={tt("assetFields.asset_tag")} required>
-                      <input value={detailFormData.asset_tag} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_tag: event.target.value }))} className={assetInputClass} required autoFocus />
+                      <input value={detailFormData.asset_tag} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_tag: event.target.value }))} className={detailAssetInputClass} required readOnly={!detailEditMode} autoFocus={detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={HardDrive} label={tt("assetFields.asset_name")} required>
-                      <input value={detailFormData.asset_name} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_name: event.target.value }))} className={assetInputClass} required />
+                      <input value={detailFormData.asset_name} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_name: event.target.value }))} className={detailAssetInputClass} required readOnly={!detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={LayoutGrid} label={tt("assetFields.asset_category")} required>
-                      <select value={detailFormData.asset_category} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_category: event.target.value }))} className={assetInputClass} required>
+                      <select value={detailFormData.asset_category} onChange={(event) => setDetailFormData((prev) => ({ ...prev, asset_category: event.target.value }))} className={detailAssetInputClass} required disabled={!detailEditMode}>
                         {categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                       </select>
                     </AssetFormField>
                     <AssetFormField icon={CheckCircle2} label={tt("assetFields.status")}>
-                      <select value={detailFormData.status} onChange={(event) => setDetailFormData((prev) => ({ ...prev, status: event.target.value }))} className={assetInputClass}>
+                      <select value={detailFormData.status} onChange={(event) => setDetailFormData((prev) => ({ ...prev, status: event.target.value }))} className={detailAssetInputClass} disabled={!detailEditMode}>
                         {assetStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                       </select>
                     </AssetFormField>
                     <AssetFormField icon={Cpu} label={tt("assetFields.brand")}>
-                      <input value={detailFormData.brand} onChange={(event) => setDetailFormData((prev) => ({ ...prev, brand: event.target.value }))} className={assetInputClass} />
+                      <input value={detailFormData.brand} onChange={(event) => setDetailFormData((prev) => ({ ...prev, brand: event.target.value }))} className={detailAssetInputClass} readOnly={!detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={SlidersHorizontal} label={tt("assetFields.model")}>
-                      <input value={detailFormData.model} onChange={(event) => setDetailFormData((prev) => ({ ...prev, model: event.target.value }))} className={assetInputClass} />
+                      <input value={detailFormData.model} onChange={(event) => setDetailFormData((prev) => ({ ...prev, model: event.target.value }))} className={detailAssetInputClass} readOnly={!detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={Barcode} label={tt("assetFields.serial_number")}>
-                      <input value={detailFormData.serial_number} onChange={(event) => setDetailFormData((prev) => ({ ...prev, serial_number: event.target.value }))} className={assetInputClass} />
+                      <input value={detailFormData.serial_number} onChange={(event) => setDetailFormData((prev) => ({ ...prev, serial_number: event.target.value }))} className={detailAssetInputClass} readOnly={!detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={MapPin} label={tt("assetFields.location")}>
-                      <input value={detailFormData.location} onChange={(event) => setDetailFormData((prev) => ({ ...prev, location: event.target.value }))} className={assetInputClass} />
+                      <input value={detailFormData.location} onChange={(event) => setDetailFormData((prev) => ({ ...prev, location: event.target.value }))} className={detailAssetInputClass} readOnly={!detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={UserRound} label={tt("assetFields.owner_name")}>
-                      <input value={detailFormData.owner_name} onChange={(event) => setDetailFormData((prev) => ({ ...prev, owner_name: event.target.value }))} className={assetInputClass} />
+                      <input value={detailFormData.owner_name} onChange={(event) => setDetailFormData((prev) => ({ ...prev, owner_name: event.target.value }))} className={detailAssetInputClass} readOnly={!detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={CalendarDays} label={tt("assetFields.purchase_date")}>
-                      <input type="date" value={detailFormData.purchase_date} onChange={(event) => setDetailFormData((prev) => ({ ...prev, purchase_date: event.target.value }))} className={assetInputClass} />
+                      <input type="date" value={detailFormData.purchase_date} onChange={(event) => setDetailFormData((prev) => ({ ...prev, purchase_date: event.target.value }))} className={detailAssetInputClass} readOnly={!detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={ShieldCheck} label={tt("assetFields.warranty_end_date")}>
-                      <input type="date" value={detailFormData.warranty_end_date} onChange={(event) => setDetailFormData((prev) => ({ ...prev, warranty_end_date: event.target.value }))} className={assetInputClass} />
+                      <input type="date" value={detailFormData.warranty_end_date} onChange={(event) => setDetailFormData((prev) => ({ ...prev, warranty_end_date: event.target.value }))} className={detailAssetInputClass} readOnly={!detailEditMode} />
                     </AssetFormField>
                     <AssetFormField icon={ClipboardList} label={tt("assetFields.notes")} className="sm:col-span-2">
-                      <textarea value={detailFormData.notes} onChange={(event) => setDetailFormData((prev) => ({ ...prev, notes: event.target.value }))} className={`${assetInputClass} min-h-[88px] resize-y`} />
+                      <textarea value={detailFormData.notes} onChange={(event) => setDetailFormData((prev) => ({ ...prev, notes: event.target.value }))} className={`${detailAssetInputClass} min-h-[88px] resize-y read-only:resize-none`} readOnly={!detailEditMode} />
                     </AssetFormField>
                   </div>
                 </form>
-              ) : (
-                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {assetDetailFields.map((field) => (
-                    <div key={field.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{field.label}</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-800">
-                        {formatDetailValue(selectedAsset, field.key, {
-                          locale,
-                          statusLabels: assetStatusLabels,
-                        })}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {(() => {
                 const evidenceAttachments = getAssetEvidenceAttachments(selectedAsset);
@@ -4262,6 +4301,7 @@ export default function AssetsManagementWorkspace({ embedded = false, theme = "l
                   </>
                 );
               })()}
+              </div>
             </article>
           </div>
         ) : null}

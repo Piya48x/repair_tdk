@@ -20,10 +20,11 @@ const COLORS = {
 
 const COPY = {
   th: {
-    summarySheet: "Executive Summary",
-    logSheet: "Vehicle Log",
-    changesSheet: "Vehicle Changes",
-    title: "GATEPASS VEHICLE REPORT",
+    locale: "th-TH",
+    summarySheet: "สรุปผู้บริหาร",
+    logSheet: "รายการรถเข้าออก",
+    changesSheet: "รถเพิ่มลด",
+    title: "รายงานรถเข้าออก GATEPASS",
     subtitle: "รายงานรถเข้า-ออกสำหรับผู้บริหาร",
     generatedAt: "วันที่จัดทำ",
     preparedBy: "จัดทำโดย",
@@ -53,6 +54,7 @@ const COPY = {
     entry: "เวลาเข้า",
     exitDate: "วันที่ออก",
     exit: "เวลาออก",
+    duration: "เวลาอยู่ในบริษัท",
     driver: "ผู้ขับขี่",
     company: "บริษัท",
     contact: "ผู้ติดต่อ",
@@ -65,9 +67,11 @@ const COPY = {
     changeStatus: "สถานะเทียบช่วงก่อน",
     added: "รถเพิ่ม",
     reduced: "รถลด/ไม่พบในช่วงปัจจุบัน",
-    confidential: "Confidential - Internal Use",
+    confidential: "เอกสารภายใน - ห้ามเผยแพร่",
+    page: "หน้า",
   },
   en: {
+    locale: "en-GB",
     summarySheet: "Executive Summary",
     logSheet: "Vehicle Log",
     changesSheet: "Vehicle Changes",
@@ -101,6 +105,7 @@ const COPY = {
     entry: "Entry time",
     exitDate: "Exit date",
     exit: "Exit time",
+    duration: "Time on site",
     driver: "Driver",
     company: "Company",
     contact: "Contact person",
@@ -114,11 +119,75 @@ const COPY = {
     added: "Added vehicle",
     reduced: "Reduced / absent in current period",
     confidential: "Confidential - Internal Use",
+    page: "Page",
+  },
+  ko: {
+    locale: "ko-KR",
+    summarySheet: "경영진 요약",
+    logSheet: "차량 출입 내역",
+    changesSheet: "차량 증감",
+    title: "GATEPASS 차량 출입 보고서",
+    subtitle: "경영진용 차량 출입 현황 보고서",
+    generatedAt: "작성 일시",
+    preparedBy: "작성자",
+    period: "보고 기간",
+    compareWith: "비교 기간",
+    currentVehicles: "현재 기간 차량",
+    previousVehicles: "이전 기간 차량",
+    netChange: "순증감",
+    totalPasses: "Gatepass 기록",
+    typeSummary: "Gatepass 유형별 요약",
+    trend: "기간별 추이",
+    type: "유형",
+    current: "현재 기간",
+    previous: "이전 기간",
+    difference: "차이",
+    date: "날짜",
+    uniqueVehicles: "고유 차량",
+    approved: "TDK APPROVED",
+    temporary: "TEMPORARY",
+    unspecified: "미지정",
+    total: "전체 기록",
+    no: "번호",
+    gatepassNo: "Gatepass 번호",
+    plate: "차량 번호",
+    province: "지역",
+    vehicleType: "차량 유형",
+    entry: "입차 시간",
+    exitDate: "출차 날짜",
+    exit: "출차 시간",
+    duration: "회사 체류 시간",
+    driver: "운전자",
+    company: "업체",
+    contact: "연락 담당자",
+    department: "부서",
+    purpose: "방문 목적",
+    phone: "전화번호",
+    gate: "게이트",
+    approvalRef: "승인 참조번호",
+    notes: "비고",
+    changeStatus: "이전 기간 대비",
+    added: "추가 차량",
+    reduced: "감소·현재 기간 미확인",
+    confidential: "대외비 - 내부용",
+    page: "페이지",
   },
 };
 
 function textValue(value) {
   return String(value ?? "").trim();
+}
+
+function durationMinutes(item) {
+  const entryDate = textValue(item.visit_date);
+  const entryTime = textValue(item.entry_time);
+  const exitTime = textValue(item.exit_time);
+  if (!entryDate || !entryTime || !exitTime) return "";
+  const entry = new Date(`${entryDate}T${entryTime.length === 5 ? `${entryTime}:00` : entryTime}`);
+  let exit = new Date(`${textValue(item.exit_date) || entryDate}T${exitTime.length === 5 ? `${exitTime}:00` : exitTime}`);
+  if (Number.isNaN(entry.getTime()) || Number.isNaN(exit.getTime())) return "";
+  if (!item.exit_date && exit < entry) exit = new Date(exit.getTime() + 24 * 60 * 60 * 1000);
+  return Math.max(0, Math.floor((exit.getTime() - entry.getTime()) / 60000));
 }
 
 function styleHeader(row, color = COLORS.blue) {
@@ -184,11 +253,11 @@ function setReportHeader(sheet, copy, context, generatedAt, lastColumn) {
   sheet.getRow(2).height = 24;
 
   sheet.mergeCells(`A3:${lastColumn}3`);
-  sheet.getCell("A3").value = `${copy.period}: ${context.periodLabel}    ${copy.compareWith}: ${context.compareLabel}    ${copy.generatedAt}: ${generatedAt.toLocaleString()}    ${copy.preparedBy}: ${context.preparedBy || "TDK"}`;
+  sheet.getCell("A3").value = `${copy.period}: ${context.periodLabel}    ${copy.compareWith}: ${context.compareLabel}    ${copy.generatedAt}: ${generatedAt.toLocaleString(copy.locale)}    ${copy.preparedBy}: ${context.preparedBy || "TDK"}`;
   sheet.getCell("A3").font = { name: "Aptos", size: 9, italic: true, color: { argb: COLORS.slate500 } };
   sheet.getCell("A3").alignment = { vertical: "middle", horizontal: "left", wrapText: true };
   sheet.getRow(3).height = 28;
-  sheet.headerFooter.oddFooter = `&LTDK&C${copy.confidential}&RPage &P of &N`;
+  sheet.headerFooter.oddFooter = `&LTDK&C${copy.confidential}&R${copy.page} &P / &N`;
 }
 
 function buildSummarySheet(workbook, payload, copy, generatedAt) {
@@ -210,7 +279,7 @@ function buildSummarySheet(workbook, payload, copy, generatedAt) {
   styleHeader(sheet.getRow(10));
   typeSummary.forEach((item, index) => {
     const row = sheet.getRow(11 + index);
-    row.values = [item.label, item.current, item.previous, item.current - item.previous];
+    row.values = [copy[item.key] || item.label, item.current, item.previous, item.current - item.previous];
     row.eachCell((cell, column) => {
       cell.font = { name: "Aptos", size: 10, bold: column === 1, color: { argb: COLORS.slate900 } };
       cell.alignment = { vertical: "middle", horizontal: column === 1 ? "left" : "right" };
@@ -226,7 +295,10 @@ function buildSummarySheet(workbook, payload, copy, generatedAt) {
   styleHeader(sheet.getRow(trendHeader));
   trend.forEach((item, index) => {
     const row = sheet.getRow(trendHeader + 1 + index);
-    row.values = [item.label, item.unique, item.approved, item.temporary, item.unspecified, item.total];
+    const localizedLabel = item.key
+      ? new Intl.DateTimeFormat(copy.locale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${item.key}T00:00:00`))
+      : item.label;
+    row.values = [localizedLabel, item.unique, item.approved, item.temporary, item.unspecified, item.total];
     row.eachCell((cell, column) => {
       cell.font = { name: "Aptos", size: 9.5, color: { argb: COLORS.slate900 } };
       cell.alignment = { vertical: "middle", horizontal: column === 1 ? "left" : "right" };
@@ -244,26 +316,28 @@ function buildLogSheet(workbook, rows, copy, context, generatedAt) {
     views: [{ state: "frozen", ySplit: 5, xSplit: 3, showGridLines: false }],
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  setReportHeader(sheet, copy, context, generatedAt, "S");
-  const headers = [copy.no, copy.date, copy.gatepassNo, copy.type, copy.plate, copy.province, copy.vehicleType, copy.entry, copy.exitDate, copy.exit, copy.driver, copy.company, copy.contact, copy.phone, copy.department, copy.purpose, copy.gate, copy.approvalRef, copy.notes];
+  setReportHeader(sheet, copy, context, generatedAt, "R");
+  const headers = [copy.no, copy.date, copy.type, copy.plate, copy.province, copy.vehicleType, copy.entry, copy.exitDate, copy.exit, copy.duration, copy.driver, copy.company, copy.contact, copy.phone, copy.department, copy.purpose, copy.approvalRef, copy.notes];
   const headerRow = sheet.getRow(5);
   headerRow.values = headers;
   styleHeader(headerRow);
   rows.forEach((item, index) => {
     const row = sheet.getRow(6 + index);
-    row.values = [index + 1, item.visit_date || "", item.gatepass_number || "", item.pass_type || "", item.vehicle_plate || "", item.province || "", item.vehicle_type || "", item.entry_time || "", item.exit_date || "", item.exit_time || "", item.driver_name || "", item.company_name || "", item.contact_person || "", item.telephone_number || "", item.department || "", item.purpose || "", item.gate_name || "", item.approval_reference || "", item.notes || ""];
+    const minutes = durationMinutes(item);
+    row.values = [index + 1, item.visit_date || "", item.pass_type || "", item.vehicle_plate || "", item.province || "", item.vehicle_type || "", item.entry_time || "", item.exit_date || "", item.exit_time || "", minutes === "" ? "" : minutes / 1440, item.driver_name || "", item.company_name || "", item.contact_person || "", item.telephone_number || "", item.department || "", item.purpose || "", item.approval_reference || "", item.notes || ""];
+    if (minutes !== "") row.getCell(10).numFmt = "[h]\" h \"mm\" m\"";
     row.height = 22;
     row.eachCell((cell, column) => {
       cell.font = { name: "Aptos", size: 9, color: { argb: COLORS.slate900 } };
-      cell.alignment = { vertical: "middle", horizontal: [1, 2, 8, 9, 10].includes(column) ? "center" : "left", wrapText: column >= 11 };
+      cell.alignment = { vertical: "middle", horizontal: [1, 2, 7, 8, 9, 10].includes(column) ? "center" : "left", wrapText: column >= 11 };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: index % 2 ? COLORS.white : COLORS.slate100 } };
     });
-    const typeCell = row.getCell(4);
+    const typeCell = row.getCell(3);
     typeCell.font = { name: "Aptos", size: 9, bold: true, color: { argb: item.pass_type === "TEMPORARY" ? COLORS.amber : item.pass_type === "UNSPECIFIED" ? COLORS.slate500 : COLORS.green } };
     typeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: item.pass_type === "TEMPORARY" ? COLORS.amber50 : item.pass_type === "UNSPECIFIED" ? COLORS.slate100 : COLORS.green50 } };
   });
-  [7, 13, 17, 17, 15, 13, 15, 11, 13, 11, 18, 20, 18, 16, 18, 25, 14, 20, 25].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
-  sheet.autoFilter = { from: "A5", to: `S${5 + Math.max(rows.length, 1)}` };
+  [7, 13, 17, 15, 13, 15, 11, 13, 11, 16, 18, 20, 18, 16, 18, 25, 20, 25].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+  sheet.autoFilter = { from: "A5", to: `R${5 + Math.max(rows.length, 1)}` };
   return sheet;
 }
 
@@ -312,7 +386,8 @@ export async function buildGatepassWorkbook(payload) {
 
   const stamp = generatedAt.toISOString().slice(0, 16).replace(/\D/g, "");
   const period = textValue(payload.context?.periodKey).replace(/[^0-9-]/g, "") || "all";
-  const fileName = `gatepass-executive-report-${period}-${stamp}.xlsx`;
+  const languageTag = textValue(payload.language || "en").toUpperCase();
+  const fileName = `gatepass-executive-report-${languageTag}-${period}-${stamp}.xlsx`;
   return { workbook, fileName, count: payload.rows.length };
 }
 

@@ -16,7 +16,7 @@ const TEXT = {
   th: {
     addTitle: "เพิ่มทะเบียนรถ TDK APPROVED",
     editTitle: "แก้ไขทะเบียนรถ",
-    hint: "ข้อมูลที่บันทึกจะอัปเดตทะเบียนหลักและสรุปการเปลี่ยนแปลงรายเดือนของ MD ทันที",
+    hint: "ข้อมูลที่บันทึกจะอัปเดตทะเบียนหลักและสรุปการเปลี่ยนแปลงรายเดือนทันที",
     effectiveDate: "วันที่มีผล",
     effectiveDateMin: "ต้องไม่ก่อนวันที่อัปเดตล่าสุด: {{date}}",
     plate: "ทะเบียนรถ",
@@ -36,7 +36,7 @@ const TEXT = {
   en: {
     addTitle: "Add TDK APPROVED vehicle",
     editTitle: "Edit vehicle registry",
-    hint: "Saving updates the master registry and the MD monthly change report immediately.",
+    hint: "Saving updates the master registry and monthly change summary immediately.",
     effectiveDate: "Effective date",
     effectiveDateMin: "Must be on or after the latest update: {{date}}",
     plate: "License plate",

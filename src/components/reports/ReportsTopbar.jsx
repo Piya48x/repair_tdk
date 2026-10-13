@@ -22,7 +22,7 @@ const COPY = {
     pages: {
       hub: "งาน IT ทั้งหมด",
       gatepass: "Gatepass Report",
-      gatepassOverview: "Gatepass Vehicle Overview",
+      gatepassOverview: "ภาพรวมทั้งหมด",
       gatepassDaily: "รถเข้า–ออกรายวัน",
       gatepassRegistry: "ทะเบียนรถหลัก TDK APPROVED",
       gatepassCompanies: "Company Summary",
@@ -46,7 +46,7 @@ const COPY = {
     pages: {
       hub: "All IT Work",
       gatepass: "Gatepass Report",
-      gatepassOverview: "Gatepass Vehicle Overview",
+      gatepassOverview: "All Gatepass Overview",
       gatepassDaily: "Daily vehicle In-Out",
       gatepassRegistry: "TDK APPROVED master registry",
       gatepassCompanies: "Company Summary",
@@ -70,7 +70,7 @@ const COPY = {
     pages: {
       hub: "전체 IT 업무",
       gatepass: "Gatepass Report",
-      gatepassOverview: "Gatepass Vehicle Overview",
+      gatepassOverview: "전체 Gatepass 개요",
       gatepassDaily: "일일 차량 입출차",
       gatepassRegistry: "TDK APPROVED 차량 원장",
       gatepassCompanies: "Company Summary",

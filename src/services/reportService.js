@@ -7,8 +7,7 @@ const DEFAULT_SLA_HOURS = {
   low: 24,
 };
 
-const REPORT_TICKET_COLUMNS =
-  "id,title,category,service_type,channel,priority,status,department,reporter_name,assigned_to,assigned_name,created_at,started_at,closed_at,updated_at";
+const REPORT_TICKET_COLUMNS = "*";
 
 function normalizeText(value) {
   return String(value || "").trim();

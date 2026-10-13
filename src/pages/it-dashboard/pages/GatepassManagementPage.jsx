@@ -15,6 +15,7 @@ import {
   RefreshCw,
   ShieldCheck,
   UploadCloud,
+  X,
 } from "lucide-react";
 import { useScopedI18n } from "../../../i18n/useScopedI18n";
 import { supabase } from "../../../lib/supabaseClient";
@@ -32,8 +33,8 @@ const COPY = {
   th: {
     eyebrow: "Security Operations",
     title: "จัดการ Gatepass In-Out",
-    subtitle: "นำเข้ารายงานรถเข้า-ออกประจำวันจาก Excel ตรวจสอบข้อมูลก่อนบันทึก และส่งข้อมูลไปยังรายงานผู้บริหารโดยอัตโนมัติ",
-    openReport: "เปิดรายงานสำหรับ MD",
+    subtitle: "นำเข้ารายงานรถเข้า-ออกประจำวันจาก Excel ตรวจสอบข้อมูลก่อนบันทึก และอัปเดตรายงาน Gatepass โดยอัตโนมัติ",
+    openReport: "เปิดรายงาน Gatepass",
     template: "ดาวน์โหลดไฟล์ต้นแบบ",
     refresh: "รีเฟรชข้อมูล",
     stats: { today: "รถเข้าวันนี้", month: "รายการเดือนนี้", approved: "TDK APPROVED", temporary: "TEMPORARY", unspecified: "ไม่ระบุประเภท" },
@@ -60,7 +61,7 @@ const COPY = {
       showing: "แสดงตัวอย่าง {{shown}} รายการแรกจาก {{total}} รายการ (ระบบจะ Import ครบทั้งหมด)",
     },
     table: { row: "แถว", date: "วันที่ / เวลา", vehicle: "รถ", type: "ประเภท", contact: "คนขับ / บริษัท", status: "ผลตรวจ" },
-    recent: { title: "รายการ Gatepass ล่าสุด", subtitle: "ข้อมูลที่บันทึกแล้วและพร้อมแสดงในรายงาน MD", empty: "ยังไม่มีข้อมูล Gatepass" },
+    recent: { title: "รายการ Gatepass ล่าสุด", subtitle: "ข้อมูลที่บันทึกแล้วและพร้อมแสดงในรายงาน Gatepass", empty: "ยังไม่มีข้อมูล Gatepass" },
     history: { title: "ประวัติ Import", empty: "ยังไม่มีประวัติการนำเข้า", records: "{{count}} รายการ", added: "เพิ่ม {{count}}", updated: "อัปเดต {{count}}" },
     setup: { title: "ต้องติดตั้งฐานข้อมูล Gatepass ก่อน", hint: "รัน database/20260911_gatepass_vehicle_reports.sql ใน Supabase SQL Editor แล้วกดรีเฟรช" },
     sections: { daily: "รายงานรถเข้า-ออกประจำวัน", registry: "ทะเบียนรถ TDK APPROVED" },
@@ -68,15 +69,15 @@ const COPY = {
   en: {
     eyebrow: "Security Operations",
     title: "Gatepass In-Out Management",
-    subtitle: "Import the daily vehicle access report from Excel, validate every row before saving, and publish it automatically to the executive report.",
-    openReport: "Open MD report",
+    subtitle: "Import the daily vehicle access report from Excel, validate every row, and update the Gatepass report automatically.",
+    openReport: "Open Gatepass report",
     template: "Download template",
     refresh: "Refresh data",
     stats: { today: "Vehicles today", month: "Records this month", approved: "TDK APPROVED", temporary: "TEMPORARY", unspecified: "Unspecified" },
     upload: { title: "Import daily report", hint: "Daily gate files require a date. TDK APPROVED master files are routed to the master registry automatically.", action: "Choose Excel file", reading: "Validating file...", drop: "Select a Gatepass report from this device" },
     preview: { title: "Review before import", total: "Total", ready: "Ready", invalid: "Needs correction", approved: "Approved", temporary: "Temporary", unspecified: "Unspecified", validTitle: "All records passed validation and are ready to import", invalidTitle: "Import is blocked until the flagged source rows are corrected", import: "Confirm import", importing: "Importing...", clear: "Choose another file", showing: "Showing the first {{shown}} of {{total}} records (all records will be imported)" },
     table: { row: "Row", date: "Date / time", vehicle: "Vehicle", type: "Type", contact: "Driver / company", status: "Validation" },
-    recent: { title: "Latest Gatepass records", subtitle: "Saved records available in the MD report", empty: "No Gatepass records yet" },
+    recent: { title: "Latest Gatepass records", subtitle: "Saved records available in the Gatepass report", empty: "No Gatepass records yet" },
     history: { title: "Import history", empty: "No import history yet", records: "{{count}} records", added: "{{count}} added", updated: "{{count}} updated" },
     setup: { title: "Gatepass database setup is required", hint: "Run database/20260911_gatepass_vehicle_reports.sql in Supabase SQL Editor, then refresh." },
     sections: { daily: "Daily In-Out Reports", registry: "TDK APPROVED Registry" },
@@ -88,12 +89,12 @@ const localDateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)
 const formatTime = (value) => String(value || "").slice(0, 5) || "-";
 
 function SummaryCard({ icon: Icon, label, value, tone, dark }) {
-  const tones = {
-    blue: dark ? "border-blue-400/25 bg-blue-500/10 text-blue-300" : "border-blue-200 bg-blue-50 text-blue-700",
-    emerald: dark ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-700",
-    amber: dark ? "border-amber-400/25 bg-amber-500/10 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-700",
-    violet: dark ? "border-violet-400/25 bg-violet-500/10 text-violet-300" : "border-violet-200 bg-violet-50 text-violet-700",
-    slate: dark ? "border-slate-500/40 bg-slate-500/10 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
+  const iconTones = {
+    blue: dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-700",
+    emerald: dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700",
+    amber: dark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700",
+    violet: dark ? "bg-violet-500/15 text-violet-300" : "bg-violet-50 text-violet-700",
+    slate: dark ? "bg-slate-500/15 text-slate-300" : "bg-slate-100 text-slate-600",
   };
   return (
     <article className={`rounded-2xl border p-4 shadow-sm ${dark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white"}`}>
@@ -102,7 +103,7 @@ function SummaryCard({ icon: Icon, label, value, tone, dark }) {
           <p className={`text-xs font-semibold ${dark ? "text-slate-400" : "text-slate-500"}`}>{label}</p>
           <p className={`mt-2 text-2xl font-black ${dark ? "text-slate-100" : "text-slate-950"}`}>{Number(value || 0).toLocaleString()}</p>
         </div>
-        <span className={`flex h-11 w-11 items-center justify-center rounded-xl border ${tones[tone]}`}><Icon size={20} /></span>
+        <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconTones[tone]}`}><Icon size={20} /></span>
       </div>
     </article>
   );
@@ -125,6 +126,7 @@ export default function GatepassManagementPage({ theme = "light" }) {
   const [error, setError] = useState("");
   const [activeSection, setActiveSection] = useState("daily");
   const [pendingRegistryFile, setPendingRegistryFile] = useState(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const locale = language === "th" ? "th-TH" : language === "ko" ? "ko-KR" : "en-GB";
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short", year: "numeric" }), [locale]);
@@ -199,6 +201,7 @@ export default function GatepassManagementPage({ theme = "light" }) {
         && registryPlateRows.every((row) => row.pass_type === "TDK_APPROVED");
       if (looksLikeMasterRegistry) {
         setPreview(null);
+        setImportModalOpen(false);
         setPendingRegistryFile(file);
         setActiveSection("registry");
         toast.success("ตรวจพบไฟล์ทะเบียนหลัก TDK APPROVED ระบบย้ายไปหน้าจัดการทะเบียนให้อัตโนมัติ");
@@ -224,6 +227,7 @@ export default function GatepassManagementPage({ theme = "light" }) {
       const result = await applyGatepassExcelImport(preview);
       toast.success(`Import สำเร็จ: เพิ่ม ${result.inserted || 0}, อัปเดต ${result.updated || 0}`);
       setPreview(null);
+      setImportModalOpen(false);
       await loadData({ silent: true });
     } catch (importError) {
       console.error("Gatepass import failed", importError);
@@ -246,16 +250,18 @@ export default function GatepassManagementPage({ theme = "light" }) {
     <div className="space-y-5">
       <section className={`overflow-hidden rounded-2xl border shadow-sm ${shell}`}>
         <div className="h-1 bg-gradient-to-r from-[#183f88] via-[#2b59b0] to-cyan-500" />
-        <div className="flex flex-col gap-5 p-5 sm:p-6 xl:flex-row xl:items-end xl:justify-between">
+        <div className="p-5 sm:p-6">
           <div className="max-w-3xl">
             <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#2b59b0]"><ShieldCheck size={14} />{tt("eyebrow")}</p>
             <h1 className={`mt-2 text-2xl font-black tracking-tight sm:text-3xl ${title}`}>{tt("title")}</h1>
             <p className={`mt-2 max-w-2xl text-sm leading-6 ${muted}`}>{tt("subtitle")}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {activeSection === "daily" ? <button type="button" onClick={() => downloadGatepassImportTemplate()} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-xs font-bold transition ${soft}`}><Download size={15} />{tt("template")}</button> : null}
-            <button type="button" onClick={() => navigate("/reports/gatepass/daily")} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#2b59b0] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[#244a95]"><ArrowUpRight size={15} />{tt("openReport")}</button>
-          </div>
+        </div>
+        <div className={`grid grid-cols-2 items-center gap-2 border-t border-inherit px-5 py-4 sm:px-6 lg:flex ${dark ? "bg-slate-950/30" : "bg-slate-50/80"}`}>
+          {activeSection === "daily" ? <button type="button" onClick={() => setImportModalOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"><UploadCloud size={16} />{tt("upload.title")}</button> : null}
+          {activeSection === "daily" ? <button type="button" onClick={() => downloadGatepassImportTemplate()} className={`inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-4 text-xs font-black transition focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${soft}`}><Download size={15} />{tt("template")}</button> : null}
+          <button type="button" onClick={() => void loadData()} disabled={loading} className={`inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-4 text-xs font-black transition focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 ${soft}`}><RefreshCw size={15} className={loading ? "animate-spin" : ""} />{tt("refresh")}</button>
+          <button type="button" onClick={() => navigate("/reports/gatepass/daily")} className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#173b80] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#102f66] focus:outline-none focus:ring-2 focus:ring-blue-500/40"><ArrowUpRight size={15} />{tt("openReport")}</button>
         </div>
       </section>
 
@@ -270,7 +276,7 @@ export default function GatepassManagementPage({ theme = "light" }) {
         <button
           type="button"
           onClick={() => navigate("/admin-dashboard/gatepass-registry")}
-          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black transition ${activeSection === "registry" ? "bg-emerald-600 text-white shadow-sm" : `${muted} hover:bg-slate-100 dark:hover:bg-slate-800`}`}
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black transition ${activeSection === "registry" ? "bg-[#2b59b0] text-white shadow-sm" : `${muted} hover:bg-slate-100 dark:hover:bg-slate-800`}`}
         >
           <ShieldCheck size={18} />{tt("sections.registry")}
         </button>
@@ -289,14 +295,14 @@ export default function GatepassManagementPage({ theme = "light" }) {
         <SummaryCard dark={dark} icon={AlertTriangle} label={tt("stats.unspecified")} value={metrics.unspecified} tone="slate" />
       </section>
 
-      <section className={`rounded-2xl border shadow-sm ${shell}`}>
-        <div className="flex flex-col gap-4 border-b border-inherit p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className={`flex items-center gap-2 text-lg font-black ${title}`}><FileSpreadsheet size={20} className="text-emerald-600" />{tt("upload.title")}</h2>
-            <p className={`mt-1 text-xs leading-5 ${muted}`}>{tt("upload.hint")}</p>
-          </div>
-          <button type="button" onClick={() => void loadData()} disabled={loading} className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-xs font-bold ${soft}`}><RefreshCw size={15} className={loading ? "animate-spin" : ""} />{tt("refresh")}</button>
+      {importModalOpen ? <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="gatepass-import-title"><div className={`flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border shadow-2xl ${shell}`}>
+        <div className="flex items-start justify-between gap-3 border-b border-inherit px-5 py-4">
+          <div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#2b59b0]">GATEPASS DAILY REPORT</p><h2 id="gatepass-import-title" className={`mt-1 flex items-center gap-2 text-lg font-black ${title}`}><FileSpreadsheet size={20} className="text-[#2b59b0]" />{tt("upload.title")}</h2><p className={`mt-1 text-xs leading-5 ${muted}`}>{tt("upload.hint")}</p></div>
+          <button type="button" onClick={() => { if (!reading && !importing) setImportModalOpen(false); }} disabled={reading || importing} aria-label="Close" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition disabled:opacity-40 ${soft}`}><X size={17} /></button>
         </div>
+
+        <div className="overflow-y-auto">
+      <section>
 
         <div className="p-5">
           <button
@@ -305,7 +311,7 @@ export default function GatepassManagementPage({ theme = "light" }) {
             disabled={reading || importing}
             className={`flex min-h-44 w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 py-8 text-center transition ${dark ? "border-slate-600 bg-slate-950/40 hover:border-blue-400 hover:bg-blue-500/5" : "border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50/60"}`}
           >
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">{reading ? <Loader2 size={25} className="animate-spin" /> : <UploadCloud size={25} />}</span>
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">{reading ? <Loader2 size={25} className="animate-spin" /> : <UploadCloud size={25} />}</span>
             <p className={`mt-4 font-black ${title}`}>{reading ? tt("upload.reading") : tt("upload.action")}</p>
             <p className={`mt-1 text-xs ${muted}`}>{tt("upload.drop")}</p>
           </button>
@@ -345,6 +351,8 @@ export default function GatepassManagementPage({ theme = "light" }) {
           </div>
         ) : null}
       </section>
+        </div>
+      </div></div> : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
         <article className={`overflow-hidden rounded-2xl border shadow-sm ${shell}`}>

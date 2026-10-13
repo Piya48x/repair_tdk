@@ -18,6 +18,7 @@ const COLORS = {
 
 const COPY = {
   th: {
+    locale: "th-TH",
     summarySheet: "สรุปผู้บริหาร",
     registrySheet: "ทะเบียนปัจจุบัน",
     changesSheet: "รายการเปลี่ยนแปลง",
@@ -48,15 +49,17 @@ const COPY = {
     changeType: "ประเภทการเปลี่ยนแปลง",
     before: "ข้อมูลเดิม",
     after: "ข้อมูลใหม่",
-    confidential: "Confidential - Internal Use",
+    confidential: "เอกสารภายใน - ห้ามเผยแพร่",
     baseline: "ทะเบียนตั้งต้น",
     addedSinceBaseline: "เพิ่มหลังวันตั้งต้น",
     fleetJourney: "ภาพรวมทะเบียนตั้งแต่วันเริ่มต้น",
     addedVehiclesDetail: "รายละเอียดรถที่เพิ่มหลังทะเบียนตั้งต้น",
     addedDate: "วันที่เพิ่ม",
     addedListHint: "เรียงตามวันที่เพิ่มจากเก่าไปใหม่",
+    page: "หน้า",
   },
   en: {
+    locale: "en-GB",
     summarySheet: "Executive Summary",
     registrySheet: "Current Registry",
     changesSheet: "Monthly Changes",
@@ -94,6 +97,48 @@ const COPY = {
     addedVehiclesDetail: "Vehicles added after the official baseline",
     addedDate: "Date added",
     addedListHint: "Sorted by date added, oldest first",
+    page: "Page",
+  },
+  ko: {
+    locale: "ko-KR",
+    summarySheet: "경영진 요약",
+    registrySheet: "현재 차량 원장",
+    changesSheet: "월별 변경 내역",
+    title: "TDK APPROVED 차량 원장 보고서",
+    subtitle: "공식 기준 자료, 이후 추가 차량 및 현재 운행 차량 원장",
+    period: "보고 월",
+    generated: "작성 일시",
+    active: "현재 운행 차량",
+    added: "신규 추가·재등록",
+    removed: "등록 해제",
+    updated: "정보 변경",
+    net: "순증가",
+    companySummary: "업체별 운행 차량",
+    changeSummary: "월별 변경 요약",
+    company: "업체",
+    vehicles: "차량 수",
+    no: "번호",
+    plate: "차량 번호",
+    fullName: "이름 / 운전자",
+    group: "그룹",
+    contact: "연락 담당자",
+    purpose: "방문 목적",
+    firstSeen: "최초 등록일",
+    lastSeen: "최근 변경일",
+    mapping: "매핑 상태",
+    remark: "비고",
+    date: "날짜",
+    changeType: "변경 유형",
+    before: "변경 전 정보",
+    after: "변경 후 정보",
+    confidential: "대외비 - 내부용",
+    baseline: "공식 기준 자료",
+    addedSinceBaseline: "기준일 이후 추가",
+    fleetJourney: "공식 기준일 이후 차량 원장 변화",
+    addedVehiclesDetail: "공식 기준일 이후 추가 차량 상세",
+    addedDate: "추가일",
+    addedListHint: "추가일 기준 오래된 순으로 정렬",
+    page: "페이지",
   },
 };
 
@@ -144,10 +189,10 @@ function setReportHeader(sheet, copy, monthLabel, generatedAt, lastColumn) {
   sheet.getRow(2).height = 24;
 
   sheet.mergeCells(`A3:${lastColumn}3`);
-  sheet.getCell("A3").value = `${copy.period}: ${monthLabel}    ${copy.generated}: ${generatedAt.toLocaleString()}`;
+  sheet.getCell("A3").value = `${copy.period}: ${monthLabel}    ${copy.generated}: ${generatedAt.toLocaleString(copy.locale)}`;
   sheet.getCell("A3").font = { name: "Aptos", size: 9, italic: true, color: { argb: COLORS.slate500 } };
   sheet.getRow(3).height = 24;
-  sheet.headerFooter.oddFooter = `&LTDK&C${copy.confidential}&RPage &P of &N`;
+  sheet.headerFooter.oddFooter = `&LTDK&C${copy.confidential}&R${copy.page} &P / &N`;
 }
 
 function addKpi(sheet, range, label, value, color) {
@@ -218,7 +263,7 @@ export async function buildTdkApprovedMonthlyWorkbook(payload = {}) {
     });
   const addedSinceBaselineRows = [...addedSinceBaselineMap.values()];
   const monthDate = new Date(`${month}-01T00:00:00`);
-  const monthLabel = new Intl.DateTimeFormat(language === "th" ? "th-TH" : "en-GB", { month: "long", year: "numeric" }).format(monthDate);
+  const monthLabel = new Intl.DateTimeFormat(copy.locale, { month: "long", year: "numeric" }).format(monthDate);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "TDK Gatepass Management";
   workbook.company = "TDK";

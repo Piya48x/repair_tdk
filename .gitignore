@@ -1,1 +1,5 @@
 node_modules
+.env.gatepass-sync
+.gatepass-sync-state.json
+.gatepass-sync.lock
+logs/

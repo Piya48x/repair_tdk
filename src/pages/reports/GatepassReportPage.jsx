@@ -4,10 +4,15 @@ import {
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
+  BarChart3,
+  Building2,
   CalendarDays,
   CarFront,
+  ChevronDown,
   Download,
   FileSpreadsheet,
+  FilterX,
+  MapPin,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -31,7 +36,6 @@ import {
 } from "../../services/gatepassReportService";
 import { downloadGatepassReport } from "./gatepassExcelExport";
 import TdkApprovedRegistryReportSection from "./TdkApprovedRegistryReportSection";
-import GatepassExecutiveTabs from "./GatepassExecutiveTabs";
 
 const COPY = {
   th: {
@@ -39,25 +43,38 @@ const COPY = {
       eyebrow: "Security & Administration",
       title: "Gatepass Vehicle Report",
       subtitle: "รายงานผู้บริหารที่แยกชัดเจนระหว่างรถเข้า-ออกประจำวัน และสถานะทะเบียนรถหลัก TDK APPROVED รายเดือน",
-      live: "ข้อมูลจาก Gatepass Registry",
-      refreshed: "อัปเดตล่าสุด",
+      live: "ข้อมูลจากรอบนำเข้า Excel",
+      refreshed: "นำเข้าล่าสุด",
+      reportDate: "วันที่รายงานล่าสุด",
       refresh: "รีเฟรช",
       export: "Export Excel",
       exporting: "กำลังสร้างรายงาน...",
+      exportHint: "เลือกภาษารายงาน",
+      exportThai: "ภาษาไทย (TH)",
+      exportKorean: "ภาษาเกาหลี (KO)",
+      exportEnglish: "English (EN)",
     },
-    sections: { daily: "รถเข้า–ออกรายวัน", dailyHint: "การผ่านประตูและปริมาณ Gatepass", registry: "ทะเบียนรถหลัก TDK APPROVED", registryHint: "รถปัจจุบันและการเปลี่ยนแปลงรายเดือน" },
+    sections: { daily: "รถเข้า–ออกรายวัน", dailyHint: "รายการรถเข้า–ออกจากไฟล์ Gatepass ที่ IT Support อัปโหลด", registry: "ทะเบียนรถหลัก TDK APPROVED", registryHint: "รถปัจจุบันและการเปลี่ยนแปลงรายเดือน" },
     filters: {
       view: "มุมมองรายงาน",
       month: "เดือนต่อเดือน",
       day: "วันต่อวัน",
       period: "ช่วงข้อมูล",
       type: "ประเภท Gatepass",
+      company: "บริษัท",
+      gate: "ประตู",
+      sort: "เรียงลำดับ",
+      latest: "ล่าสุดก่อน",
+      oldest: "เก่าสุดก่อน",
       all: "ทั้งหมด",
+      allCompanies: "ทุกบริษัท",
+      allGates: "ทุกประตู",
+      clear: "ล้างตัวกรอง",
       search: "ค้นหารถหรือข้อมูลที่เกี่ยวข้อง",
       searchPlaceholder: "ทะเบียนรถ, บริษัท, คนขับ, เลข Gatepass...",
     },
     metrics: {
-      vehicles: "รถไม่ซ้ำในช่วงนี้",
+      vehicles: "ยอดรวมทะเบียนในช่วงที่รายงาน",
       compared: "ช่วงก่อน {{count}} คัน",
       change: "เพิ่ม / ลด",
       changeHint: "เทียบกับ {{period}}",
@@ -68,7 +85,9 @@ const COPY = {
       unspecified: "ไม่ระบุประเภท",
       unspecifiedHint: "ไฟล์ต้นทางไม่ได้ระบุ GroupName",
       noChange: "ไม่เปลี่ยนแปลง",
+      share: "{{percent}}% ของรายการในช่วงนี้",
     },
+    headline: { today: "รถเข้ารอบล่าสุด", exited: "รถออกรอบล่าสุด", inside: "ยังไม่มีเวลาออก", month: "สะสมเดือนนี้" },
     chart: {
       eyebrow: "Volume Trend",
       titleMonth: "แนวโน้มรถรายวันในเดือนที่เลือก",
@@ -96,16 +115,32 @@ const COPY = {
       eyebrow: "Gatepass Register",
       title: "รายละเอียดรถในช่วงที่เลือก",
       records: "{{count}} รายการ",
+      source: "ข้อมูลตามรายการที่ IT Support อัปโหลด (แสดงทุกรายการ ไม่ตัดรถซ้ำ)",
+      number: "ลำดับ",
       date: "วันที่",
       plate: "ทะเบียนรถ",
       type: "ประเภท",
       gatepass: "เลข Gatepass",
-      time: "เวลาเข้า–ออก",
-      driver: "ผู้ขับขี่ / บริษัท",
-      purpose: "วัตถุประสงค์ / ผู้ติดต่อ",
+      entry: "เวลาเข้า",
+      exit: "เวลาออก",
+      duration: "เวลาอยู่ในบริษัท",
+      inside: "ยังอยู่ภายใน",
+      noExit: "ยังไม่บันทึกออก",
+      hourShort: "ชม.",
+      minuteShort: "นาที",
+      driver: "ผู้ขับขี่",
+      company: "บริษัท",
+      purpose: "วัตถุประสงค์",
+      contact: "ผู้ติดต่อ / แผนก",
+      gate: "ประตู",
       noDataTitle: "ยังไม่มีข้อมูลรถในช่วงนี้",
       noDataHint: "นำเข้ารายงานประจำวันจากเมนู จัดการ Gatepass In-Out ใน Admin Dashboard แล้วรายงานและกราฟจะอัปเดตอัตโนมัติ",
       notSpecified: "ไม่ระบุ",
+    },
+    insights: {
+      show: "ดูกราฟและการเปรียบเทียบ",
+      hide: "ซ่อนกราฟและการเปรียบเทียบ",
+      hint: "สรุปรถไม่ซ้ำ แนวโน้ม และความเปลี่ยนแปลงจากช่วงก่อน",
     },
     setup: {
       title: "ต้องติดตั้งฐานข้อมูล Gatepass ก่อน",
@@ -123,25 +158,38 @@ const COPY = {
       eyebrow: "Security & Administration",
       title: "Gatepass Vehicle Report",
       subtitle: "Executive reporting clearly separated between daily gate activity and monthly TDK APPROVED master-registry status.",
-      live: "Gatepass Registry data",
-      refreshed: "Last updated",
+      live: "Imported Excel data",
+      refreshed: "Last imported",
+      reportDate: "Latest report date",
       refresh: "Refresh",
       export: "Export Excel",
       exporting: "Building report...",
+      exportHint: "Choose report language",
+      exportThai: "Thai (TH)",
+      exportKorean: "Korean (KO)",
+      exportEnglish: "English (EN)",
     },
-    sections: { daily: "Daily In-Out Activity", dailyHint: "Gate activity and access volume", registry: "TDK APPROVED Master Registry", registryHint: "Current fleet and monthly changes" },
+    sections: { daily: "Daily In-Out Activity", dailyHint: "Vehicle in-out records from Gatepass files uploaded by IT Support", registry: "TDK APPROVED Master Registry", registryHint: "Current fleet and monthly changes" },
     filters: {
       view: "Report view",
       month: "Month over month",
       day: "Day over day",
       period: "Reporting period",
       type: "Gatepass type",
+      company: "Company",
+      gate: "Gate",
+      sort: "Sort",
+      latest: "Latest first",
+      oldest: "Oldest first",
       all: "All types",
+      allCompanies: "All companies",
+      allGates: "All gates",
+      clear: "Clear filters",
       search: "Search vehicle details",
       searchPlaceholder: "Plate, company, driver, gatepass no...",
     },
     metrics: {
-      vehicles: "Unique vehicles",
+      vehicles: "Total plates in reporting period",
       compared: "Prior period {{count}} vehicles",
       change: "Net change",
       changeHint: "Compared with {{period}}",
@@ -152,7 +200,9 @@ const COPY = {
       unspecified: "Unspecified",
       unspecifiedHint: "No GroupName in the source file",
       noChange: "No change",
+      share: "{{percent}}% of records in this period",
     },
+    headline: { today: "Latest entries", exited: "Latest exits", inside: "No exit time", month: "Month total" },
     chart: {
       eyebrow: "Volume Trend",
       titleMonth: "Daily vehicle trend for selected month",
@@ -180,17 +230,29 @@ const COPY = {
       eyebrow: "Gatepass Register",
       title: "Vehicle details for selected period",
       records: "{{count}} records",
+      source: "Records uploaded by IT Support (all rows shown, including repeat vehicles)",
+      number: "No.",
       date: "Date",
       plate: "Vehicle plate",
       type: "Type",
       gatepass: "Gatepass no.",
-      time: "Entry–exit",
-      driver: "Driver / company",
-      purpose: "Purpose / contact",
+      entry: "Entry",
+      exit: "Exit",
+      duration: "Time on site",
+      inside: "Still inside",
+      noExit: "No exit recorded",
+      hourShort: "hr",
+      minuteShort: "min",
+      driver: "Driver",
+      company: "Company",
+      purpose: "Purpose",
+      contact: "Contact / department",
+      gate: "Gate",
       noDataTitle: "No vehicle data for this period",
       noDataHint: "Import the daily report from Gatepass In-Out Management in the Admin Dashboard. This report updates automatically.",
       notSpecified: "Not specified",
     },
+    insights: { show: "Show charts and comparison", hide: "Hide charts and comparison", hint: "Unique vehicles, trend, and changes from the prior period" },
     setup: {
       title: "Gatepass database setup is required",
       hint: "Run database/20260911_gatepass_vehicle_reports.sql in the Supabase SQL Editor, then refresh.",
@@ -207,18 +269,25 @@ const COPY = {
       eyebrow: "Security & Administration",
       title: "Gatepass Vehicle Report",
       subtitle: "일일 출입 활동과 TDK APPROVED 차량 원장의 월별 현황을 구분한 경영진 보고서입니다.",
-      live: "Gatepass Registry 데이터",
-      refreshed: "최근 업데이트",
+      live: "Excel 가져오기 데이터",
+      refreshed: "최근 가져오기",
+      reportDate: "최근 보고서 날짜",
       refresh: "새로고침",
       export: "Excel 내보내기",
       exporting: "보고서 생성 중...",
+      exportHint: "보고서 언어 선택",
+      exportThai: "태국어 (TH)",
+      exportKorean: "한국어 (KO)",
+      exportEnglish: "영어 (EN)",
     },
-    sections: { daily: "일일 입출차", dailyHint: "Gatepass 활동 및 출입량", registry: "TDK APPROVED 차량 원장", registryHint: "현재 차량 및 월별 변경" },
-    filters: { view: "보고서 보기", month: "월간 비교", day: "일간 비교", period: "보고 기간", type: "Gatepass 유형", all: "전체", search: "차량 검색", searchPlaceholder: "차량번호, 회사, 운전자, Gatepass 번호..." },
-    metrics: { vehicles: "고유 차량", compared: "이전 기간 {{count}}대", change: "증감", changeHint: "{{period}} 대비", approved: "TDK APPROVED", approvedHint: "승인 차량", temporary: "TEMPORARY", temporaryHint: "임시 출입 차량", unspecified: "미지정", unspecifiedHint: "원본 파일에 GroupName 없음", noChange: "변동 없음" },
+    sections: { daily: "일일 입출차", dailyHint: "IT Support가 업로드한 Gatepass 차량 출입 목록", registry: "TDK APPROVED 차량 원장", registryHint: "현재 차량 및 월별 변경" },
+    filters: { view: "보고서 보기", month: "월간 비교", day: "일간 비교", period: "보고 기간", type: "Gatepass 유형", company: "회사", gate: "게이트", sort: "정렬", latest: "최신순", oldest: "오래된순", all: "전체", allCompanies: "전체 회사", allGates: "전체 게이트", clear: "필터 초기화", search: "차량 검색", searchPlaceholder: "차량번호, 회사, 운전자, Gatepass 번호..." },
+    metrics: { vehicles: "보고 기간 전체 차량번호", compared: "이전 기간 {{count}}대", change: "증감", changeHint: "{{period}} 대비", approved: "TDK APPROVED", approvedHint: "승인 차량", temporary: "TEMPORARY", temporaryHint: "임시 출입 차량", unspecified: "미지정", unspecifiedHint: "원본 파일에 GroupName 없음", noChange: "변동 없음", share: "이 기간 기록의 {{percent}}%" },
+    headline: { today: "최근 입차", exited: "최근 출차", inside: "출차 미기록", month: "월 누계" },
     chart: { eyebrow: "Volume Trend", titleMonth: "선택 월의 일별 차량 추이", titleDay: "최근 14일 차량 추이", subtitle: "기간별 고유 차량을 Gatepass 유형으로 구분합니다.", unique: "고유 차량", approved: "TDK APPROVED", temporary: "TEMPORARY", unspecified: "UNSPECIFIED" },
     compare: { eyebrow: "Period Comparison", title: "이전 기간 비교", current: "현재 기간", previous: "이전 기간", totalRecords: "Gatepass 기록", uniqueVehicles: "고유 차량", added: "증가 차량", reduced: "감소 차량", addedHint: "현재 기간에 새로 확인된 차량", reducedHint: "이전 기간에만 확인된 차량", noVehicles: "변경 차량 없음" },
-    table: { eyebrow: "Gatepass Register", title: "선택 기간 차량 상세", records: "{{count}}건", date: "날짜", plate: "차량번호", type: "유형", gatepass: "Gatepass 번호", time: "입차–출차", driver: "운전자 / 회사", purpose: "목적 / 담당자", noDataTitle: "이 기간의 차량 데이터가 없습니다", noDataHint: "Admin Dashboard의 Gatepass In-Out 관리 메뉴에서 일일 보고서를 가져오면 자동으로 업데이트됩니다.", notSpecified: "미지정" },
+    table: { eyebrow: "Gatepass Register", title: "선택 기간 차량 상세", records: "{{count}}건", source: "IT Support 업로드 원본 행 (중복 차량 포함)", number: "번호", date: "날짜", plate: "차량번호", type: "유형", gatepass: "Gatepass 번호", entry: "입차", exit: "출차", duration: "회사 체류 시간", inside: "현재 체류 중", noExit: "출차 미기록", hourShort: "시간", minuteShort: "분", driver: "운전자", company: "회사", purpose: "목적", contact: "담당자 / 부서", gate: "게이트", noDataTitle: "이 기간의 차량 데이터가 없습니다", noDataHint: "Admin Dashboard의 Gatepass In-Out 관리 메뉴에서 일일 보고서를 가져오면 자동으로 업데이트됩니다.", notSpecified: "미지정" },
+    insights: { show: "차트 및 비교 보기", hide: "차트 및 비교 숨기기", hint: "고유 차량, 추이 및 이전 기간 대비 변화" },
     setup: { title: "Gatepass 데이터베이스 설정이 필요합니다", hint: "Supabase SQL Editor에서 database/20260911_gatepass_vehicle_reports.sql을 실행한 뒤 새로고침하세요." },
     toast: { loadError: "Gatepass 데이터를 불러올 수 없습니다", noExportData: "내보낼 데이터가 없습니다", exportSuccess: "Excel 보고서를 생성했습니다", exportError: "Excel 보고서를 생성할 수 없습니다" },
   },
@@ -257,12 +326,14 @@ function uniqueVehicleMap(rows) {
   return map;
 }
 
-function filterRows(rows, type, search) {
+function filterRows(rows, type, search, company = "ALL", gate = "ALL") {
   const needle = String(search || "").trim().toLowerCase();
   return rows.filter((row) => {
     if (type !== "ALL" && row.pass_type !== type) return false;
+    if (company !== "ALL" && String(row.company_name || "").trim() !== company) return false;
+    if (gate !== "ALL" && String(row.gate_name || "").trim() !== gate) return false;
     if (!needle) return true;
-    return [row.vehicle_plate, row.province, row.driver_name, row.company_name, row.gatepass_number, row.contact_person, row.department, row.purpose, row.telephone_number, row.source_group_name]
+    return [row.vehicle_plate, row.province, row.driver_name, row.company_name, row.gatepass_number, row.contact_person, row.department, row.purpose, row.telephone_number, row.source_group_name, row.gate_name, row.approval_reference, row.notes]
       .some((value) => String(value || "").toLowerCase().includes(needle));
   });
 }
@@ -271,28 +342,78 @@ function formatTime(value) {
   return String(value || "").slice(0, 5) || "-";
 }
 
-function MetricCard({ icon: Icon, label, value, hint, tone = "blue", change = 0 }) {
+function parseGatepassDateTime(dateValue, timeValue) {
+  const date = String(dateValue || "").slice(0, 10);
+  const time = String(timeValue || "").slice(0, 8);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{1,2}:\d{2}/.test(time)) return null;
+  const parsed = new Date(`${date}T${time.length === 5 ? `${time}:00` : time}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getGatepassDuration(row, now = new Date()) {
+  const entry = parseGatepassDateTime(row.visit_date, row.entry_time);
+  if (!entry) return { label: "-", minutes: null, active: false, missingExit: false };
+
+  const hasExit = Boolean(String(row.exit_time || "").trim());
+  let exit = hasExit
+    ? parseGatepassDateTime(row.exit_date || row.visit_date, row.exit_time)
+    : now;
+
+  if (!exit) return { label: "-", minutes: null, active: false, missingExit: true };
+  if (hasExit && !row.exit_date && exit < entry) exit = new Date(exit.getTime() + 24 * 60 * 60 * 1000);
+  const minutes = Math.max(0, Math.floor((exit.getTime() - entry.getTime()) / 60000));
+  return { minutes, active: !hasExit, missingExit: false };
+}
+
+function formatGatepassDuration(duration, tt) {
+  if (duration.minutes === null) return duration.missingExit ? tt("table.noExit") : "-";
+  const hours = Math.floor(duration.minutes / 60);
+  const minutes = duration.minutes % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours} ${tt("table.hourShort")}`);
+  if (minutes || !hours) parts.push(`${minutes} ${tt("table.minuteShort")}`);
+  return parts.join(" ");
+}
+
+function sortGatepassRows(rows, order) {
+  const direction = order === "OLDEST" ? 1 : -1;
+  return [...rows].sort((left, right) => {
+    const leftKey = `${left.visit_date || ""} ${left.entry_time || ""} ${left.id || ""}`;
+    const rightKey = `${right.visit_date || ""} ${right.entry_time || ""} ${right.id || ""}`;
+    return leftKey.localeCompare(rightKey) * direction;
+  });
+}
+
+function uniqueOptions(values) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+}
+
+function displayPassType(value, fallback) {
+  if (value === "TDK_APPROVED") return "TDK APPROVED";
+  if (value === "TEMPORARY") return "TEMPORARY";
+  if (value === "UNSPECIFIED") return fallback;
+  return String(value || fallback).replaceAll("_", " ");
+}
+
+function MetricCard({ icon: Icon, label, value, hint, tone = "blue" }) {
   const tones = {
-    blue: "bg-[#102a56]",
-    green: "bg-emerald-600",
-    amber: "bg-amber-500",
-    rose: "bg-rose-500",
-    slate: "bg-slate-400",
+    blue: "border-blue-200 bg-blue-50/60 text-blue-700",
+    green: "border-emerald-200 bg-emerald-50/60 text-emerald-700",
+    amber: "border-amber-200 bg-amber-50/60 text-amber-700",
+    rose: "border-rose-200 bg-rose-50/60 text-rose-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-600",
   };
   return (
-    <article className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4">
-      <span className={`absolute inset-y-0 left-0 w-1 ${tones[tone]}`} />
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Icon size={17} /></div>
-        {change !== 0 ? (
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-bold ${change > 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
-            {change > 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}{change > 0 ? "+" : ""}{change}
-          </span>
-        ) : null}
+    <article className={`flex min-h-[76px] items-center gap-3 rounded-lg border px-3 py-2.5 ${tones[tone]}`}>
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/80 shadow-sm"><Icon size={15} /></div>
+      <div className="min-w-0">
+        <div className="flex items-baseline gap-2">
+          <p className="truncate text-[10px] font-bold uppercase tracking-wide opacity-80">{label}</p>
+          <p className="shrink-0 text-xl font-bold tracking-tight text-slate-950">{value}</p>
+        </div>
+        <p className="mt-0.5 truncate text-[10px] text-slate-500" title={hint}>{hint}</p>
       </div>
-      <p className="mt-3 text-[11px] font-semibold text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">{value}</p>
-      <p className="mt-1 text-[11px] leading-5 text-slate-500">{hint}</p>
     </article>
   );
 }
@@ -300,15 +421,23 @@ function MetricCard({ icon: Icon, label, value, hint, tone = "blue", change = 0 
 export default function GatepassReportPage({ dailyOnly = false, embedded = false } = {}) {
   const { tt, language } = useScopedI18n(COPY);
   const realtimeRefreshRef = useRef(null);
+  const exportMenuRef = useRef(null);
   const today = useMemo(() => new Date(), []);
   const [viewMode, setViewMode] = useState("month");
   const [selectedMonth, setSelectedMonth] = useState(monthKey(today));
   const [selectedDate, setSelectedDate] = useState(dateKey(today));
   const [passType, setPassType] = useState("ALL");
+  const [companyFilter, setCompanyFilter] = useState("ALL");
+  const [gateFilter, setGateFilter] = useState("ALL");
+  const [sortOrder, setSortOrder] = useState("LATEST");
   const [search, setSearch] = useState("");
+  const [showInsights, setShowInsights] = useState(false);
+  const [durationNow, setDurationNow] = useState(() => new Date());
   const [rows, setRows] = useState([]);
+  const [headlineRows, setHeadlineRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [error, setError] = useState("");
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(null);
@@ -316,8 +445,10 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
   const [reportSection, setReportSection] = useState("daily");
 
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat(language === "th" ? "th-TH" : language === "ko" ? "ko-KR" : "en-GB", { day: "2-digit", month: "short", year: "numeric" }), [language]);
+  const compactDateFormatter = useMemo(() => new Intl.DateTimeFormat(language === "th" ? "th-TH" : language === "ko" ? "ko-KR" : "en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }), [language]);
   const monthFormatter = useMemo(() => new Intl.DateTimeFormat(language === "th" ? "th-TH" : language === "ko" ? "ko-KR" : "en-GB", { month: "long", year: "numeric" }), [language]);
   const dateTimeFormatter = useMemo(() => new Intl.DateTimeFormat(language === "th" ? "th-TH" : language === "ko" ? "ko-KR" : "en-GB", { dateStyle: "medium", timeStyle: "short" }), [language]);
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(language === "th" ? "th-TH" : language === "ko" ? "ko-KR" : "en-GB"), [language]);
   const formatPeriod = useCallback((value, mode = viewMode) => mode === "month" ? monthFormatter.format(parseDateKey(`${String(value).slice(0, 7)}-01`)) : dateFormatter.format(parseDateKey(value)), [dateFormatter, monthFormatter, viewMode]);
 
   const range = useMemo(() => {
@@ -330,12 +461,19 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
       if (!silent) setLoading(true);
       setError("");
       setSchemaMissing(false);
-      const [records, sessionResult] = await Promise.all([
+      const [records, currentMonthRecords, sessionResult] = await Promise.all([
         fetchGatepassVehicleRecords(range),
+        fetchGatepassVehicleRecords({ from: `${monthKey(today)}-01`, to: dateKey(today) }),
         supabase.auth.getSession(),
       ]);
       setRows(records);
-      setUpdatedAt(new Date());
+      setHeadlineRows(currentMonthRecords);
+      const latestDataTimestamp = currentMonthRecords
+        .map((row) => row.updated_at || row.created_at)
+        .filter(Boolean)
+        .sort()
+        .at(-1);
+      setUpdatedAt(latestDataTimestamp ? new Date(latestDataTimestamp) : null);
       const session = sessionResult?.data?.session;
       if (session?.user?.id) {
         const { data: profile } = await supabase.from("profiles").select("full_name, employee_code").eq("id", session.user.id).maybeSingle();
@@ -351,9 +489,30 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [range, tt]);
+  }, [range, today, tt]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setDurationNow(new Date()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!exportMenuRef.current?.contains(event.target)) setExportMenuOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setExportMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [exportMenuOpen]);
 
   useEffect(() => {
     const scheduleRefresh = () => {
@@ -371,12 +530,41 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
     };
   }, [loadData]);
 
+  const periodRows = useMemo(() => {
+    const currentPeriodKey = viewMode === "month" ? selectedMonth : selectedDate;
+    return rows.filter((row) => viewMode === "month"
+      ? String(row.visit_date || "").startsWith(currentPeriodKey)
+      : row.visit_date === currentPeriodKey);
+  }, [rows, selectedDate, selectedMonth, viewMode]);
+
+  const headline = useMemo(() => {
+    const reportDate = headlineRows.map((row) => row.visit_date).filter(Boolean).sort().at(-1) || "";
+    return {
+      reportDate,
+      today: headlineRows.filter((row) => row.visit_date === reportDate).length,
+      exited: headlineRows.filter((row) => Boolean(row.exit_time) && (row.exit_date || row.visit_date) === reportDate).length,
+      inside: headlineRows.filter((row) => row.visit_date === reportDate && !row.exit_time).length,
+      month: headlineRows.length,
+    };
+  }, [headlineRows]);
+
+  const companyOptions = useMemo(() => uniqueOptions(periodRows.map((row) => row.company_name)), [periodRows]);
+  const gateOptions = useMemo(() => uniqueOptions(periodRows.map((row) => row.gate_name)), [periodRows]);
+
+  useEffect(() => {
+    if (companyFilter !== "ALL" && !companyOptions.includes(companyFilter)) setCompanyFilter("ALL");
+    if (gateFilter !== "ALL" && !gateOptions.includes(gateFilter)) setGateFilter("ALL");
+  }, [companyFilter, companyOptions, gateFilter, gateOptions]);
+
   const report = useMemo(() => {
     const currentPeriodKey = viewMode === "month" ? selectedMonth : selectedDate;
     const previousPeriodKey = viewMode === "month" ? shiftMonths(selectedMonth, -1) : shiftDays(selectedDate, -1);
     const matchesPeriod = (row, key) => viewMode === "month" ? String(row.visit_date || "").startsWith(key) : row.visit_date === key;
-    const currentRows = filterRows(rows.filter((row) => matchesPeriod(row, currentPeriodKey)), passType, search);
-    const previousRows = filterRows(rows.filter((row) => matchesPeriod(row, previousPeriodKey)), passType, search);
+    const currentRows = sortGatepassRows(
+      filterRows(rows.filter((row) => matchesPeriod(row, currentPeriodKey)), passType, search, companyFilter, gateFilter),
+      sortOrder,
+    );
+    const previousRows = filterRows(rows.filter((row) => matchesPeriod(row, previousPeriodKey)), passType, search, companyFilter, gateFilter);
     const currentMap = uniqueVehicleMap(currentRows);
     const previousMap = uniqueVehicleMap(previousRows);
     const approvedRows = currentRows.filter((row) => row.pass_type === "TDK_APPROVED");
@@ -392,7 +580,7 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
       for (let offset = -13; offset <= 0; offset += 1) trendKeys.push(shiftDays(selectedDate, offset));
     }
     const trend = trendKeys.map((key) => {
-      const dayRows = filterRows(rows.filter((row) => row.visit_date === key), passType, search);
+      const dayRows = filterRows(rows.filter((row) => row.visit_date === key), passType, search, companyFilter, gateFilter);
       return {
         key,
         label: dateFormatter.format(parseDateKey(key)).replace(/\s\d{4}$/, ""),
@@ -414,35 +602,55 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
       approved: uniqueVehicleMap(approvedRows).size,
       temporary: uniqueVehicleMap(temporaryRows).size,
       unspecified: uniqueVehicleMap(unspecifiedRows).size,
+      approvedRecords: approvedRows.length,
+      temporaryRecords: temporaryRows.length,
+      unspecifiedRecords: unspecifiedRows.length,
       added,
       reduced,
       trend,
       currentPeriodKey,
       previousPeriodKey,
     };
-  }, [dateFormatter, passType, rows, search, selectedDate, selectedMonth, viewMode]);
+  }, [companyFilter, dateFormatter, gateFilter, passType, rows, search, selectedDate, selectedMonth, sortOrder, viewMode]);
+
+  const activeFilterCount = [passType !== "ALL", companyFilter !== "ALL", gateFilter !== "ALL", Boolean(search.trim())]
+    .filter(Boolean).length;
+
+  const clearFilters = () => {
+    setPassType("ALL");
+    setCompanyFilter("ALL");
+    setGateFilter("ALL");
+    setSortOrder("LATEST");
+    setSearch("");
+  };
 
   const periodLabel = formatPeriod(report.currentPeriodKey);
   const compareLabel = formatPeriod(report.previousPeriodKey);
-  const handleExport = async () => {
+  const handleExport = async (exportLanguage) => {
+    setExportMenuOpen(false);
     if (!report.currentRows.length) {
       toast.error(tt("toast.noExportData"));
       return;
     }
     try {
       setExporting(true);
+      const exportLocale = exportLanguage === "th" ? "th-TH" : exportLanguage === "ko" ? "ko-KR" : "en-GB";
+      const exportFormatter = new Intl.DateTimeFormat(exportLocale, viewMode === "month"
+        ? { month: "long", year: "numeric" }
+        : { day: "2-digit", month: "short", year: "numeric" });
+      const formatExportPeriod = (value) => exportFormatter.format(parseDateKey(viewMode === "month" ? `${String(value).slice(0, 7)}-01` : value));
       await downloadGatepassReport({
-        language,
+        language: exportLanguage,
         rows: report.currentRows,
         summary: { currentVehicles: report.currentVehicles, previousVehicles: report.previousVehicles, difference: report.difference, totalRecords: report.currentRows.length },
         typeSummary: [
-          { label: "TDK APPROVED", current: report.approved, previous: uniqueVehicleMap(report.previousRows.filter((row) => row.pass_type === "TDK_APPROVED")).size },
-          { label: "TEMPORARY", current: report.temporary, previous: uniqueVehicleMap(report.previousRows.filter((row) => row.pass_type === "TEMPORARY")).size },
-          { label: "UNSPECIFIED", current: report.unspecified, previous: uniqueVehicleMap(report.previousRows.filter((row) => row.pass_type === "UNSPECIFIED")).size },
+          { key: "approved", label: "TDK APPROVED", current: report.approved, previous: uniqueVehicleMap(report.previousRows.filter((row) => row.pass_type === "TDK_APPROVED")).size },
+          { key: "temporary", label: "TEMPORARY", current: report.temporary, previous: uniqueVehicleMap(report.previousRows.filter((row) => row.pass_type === "TEMPORARY")).size },
+          { key: "unspecified", label: "UNSPECIFIED", current: report.unspecified, previous: uniqueVehicleMap(report.previousRows.filter((row) => row.pass_type === "UNSPECIFIED")).size },
         ],
         trend: report.trend,
         changes: { added: report.added, reduced: report.reduced },
-        context: { periodLabel, compareLabel, periodKey: report.currentPeriodKey, preparedBy },
+        context: { periodLabel: formatExportPeriod(report.currentPeriodKey), compareLabel: formatExportPeriod(report.previousPeriodKey), periodKey: report.currentPeriodKey, preparedBy },
       });
       toast.success(tt("toast.exportSuccess"));
     } catch (err) {
@@ -456,35 +664,54 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
   return (
     <>
       {!embedded ? <ReportsTopbar currentUser={null} /> : null}
-      {!embedded ? <GatepassExecutiveTabs /> : null}
-      <main className="space-y-4">
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+      <main className="space-y-3">
+        <section className="relative overflow-visible rounded-xl border border-slate-200 bg-white shadow-[0_3px_16px_rgba(15,23,42,0.04)]">
+          <div className="h-1 rounded-t-xl bg-gradient-to-r from-blue-700 via-blue-500 to-cyan-400" />
+          <div className="grid gap-3 px-4 py-3 sm:px-5 xl:grid-cols-[minmax(300px,1fr)_minmax(390px,1.05fr)_auto] xl:items-center">
             <div className="max-w-3xl">
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700"><ShieldCheck size={14} />{tt("page.eyebrow")}</div>
-              <h1 className="mt-1.5 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{dailyOnly ? tt("sections.daily") : tt("page.title")}</h1>
-              <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500 sm:text-sm">{dailyOnly ? tt("sections.dailyHint") : tt("page.subtitle")}</p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-slate-500">
+              <h1 className="mt-1 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">{dailyOnly ? tt("sections.daily") : tt("page.title")}</h1>
+              {reportSection === "daily" ? <div className="mt-1 flex flex-wrap items-center gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700">{tt("table.eyebrow")}</span><span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">{tt("table.records", { count: report.currentRows.length })}</span><span className="truncate text-[11px] text-slate-500 sm:text-xs">{tt("table.title")}</span></div> : <p className="mt-0.5 max-w-2xl truncate text-[11px] text-slate-500 sm:text-xs">{tt("page.subtitle")}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
                 <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-emerald-500" />{tt("page.live")}</span>
                 <span>{tt("page.refreshed")}: {updatedAt ? dateTimeFormatter.format(updatedAt) : "-"}</span>
+                <span>{tt("page.reportDate")}: {headline.reportDate ? dateFormatter.format(parseDateKey(headline.reportDate)) : "-"}</span>
                 {reportSection === "daily" ? <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{report.currentRows.length} {tt("compare.totalRecords")}</span> : <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">TDK APPROVED MASTER</span>}
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            {reportSection === "daily" ? <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {[
+                { key: "today", value: headline.today, tone: "border-blue-200 bg-blue-50 text-blue-700" },
+                { key: "exited", value: headline.exited, tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+                { key: "inside", value: headline.inside, tone: "border-amber-200 bg-amber-50 text-amber-700" },
+                { key: "month", value: headline.month, tone: "border-slate-200 bg-slate-50 text-slate-700" },
+              ].map((item) => <div key={item.key} className={`min-w-0 rounded-lg border px-2.5 py-2 ${item.tone}`} title={tt(`headline.${item.key}`)}><p className="truncate text-[9px] font-bold sm:text-[10px]">{tt(`headline.${item.key}`)}</p><p className="mt-1 text-base font-black leading-none text-slate-950">{loading && !headlineRows.length ? "…" : numberFormatter.format(item.value)}</p></div>)}
+            </div> : null}
+            <div className="flex flex-wrap gap-2 xl:justify-end">
+              {reportSection === "daily" ? <button type="button" onClick={clearFilters} disabled={!activeFilterCount && sortOrder === "LATEST"} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"><FilterX size={14} />{tt("filters.clear")}{activeFilterCount ? <span className="rounded-full bg-blue-100 px-1.5 text-[9px] text-blue-700">{activeFilterCount}</span> : null}</button> : null}
               {reportSection === "daily" ? <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"><RefreshCw size={14} className={loading ? "animate-spin" : ""} />{tt("page.refresh")}</button> : null}
-              {reportSection === "daily" ? <button type="button" onClick={() => void handleExport()} disabled={exporting || loading || !report.currentRows.length} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#102a56] px-3.5 text-xs font-bold text-white transition hover:bg-[#183b73] disabled:cursor-not-allowed disabled:opacity-50"><Download size={14} />{exporting ? tt("page.exporting") : tt("page.export")}</button> : null}
+              {reportSection === "daily" ? <div ref={exportMenuRef} className="relative z-30">
+                <button type="button" onClick={() => setExportMenuOpen((current) => !current)} aria-haspopup="menu" aria-expanded={exportMenuOpen} disabled={exporting || loading || !report.currentRows.length} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#102a56] px-3.5 text-xs font-bold text-white transition hover:bg-[#183b73] disabled:cursor-not-allowed disabled:opacity-50"><Download size={14} />{exporting ? tt("page.exporting") : tt("page.export")}<ChevronDown size={13} className={`transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} /></button>
+                {exportMenuOpen ? <div role="menu" aria-label={tt("page.exportHint")} className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-xl shadow-slate-900/10">
+                  <p className="px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">{tt("page.exportHint")}</p>
+                  {[["th", "TH", "page.exportThai"], ["ko", "KO", "page.exportKorean"], ["en", "EN", "page.exportEnglish"]].map(([code, badge, labelKey]) => <button key={code} type="button" role="menuitem" onClick={() => void handleExport(code)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100"><span className="flex h-6 w-7 items-center justify-center rounded bg-slate-100 text-[9px] font-black text-[#173f70]">{badge}</span>{tt(labelKey)}</button>)}
+                </div> : null}
+              </div> : null}
             </div>
           </div>
-          {reportSection === "daily" ? <div className="grid gap-3 border-t border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-2 xl:grid-cols-[auto_180px_180px_minmax(220px,1fr)] sm:px-5">
+          {reportSection === "daily" ? <div className="grid gap-2 border-t border-slate-200 bg-slate-50/70 p-2.5 sm:grid-cols-2 sm:px-4 lg:grid-cols-3 2xl:grid-cols-7">
             <div>
               <span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.view")}</span>
-              <div className="inline-flex h-10 rounded-xl border border-slate-300 bg-white p-1">
-                {["month", "day"].map((mode) => <button key={mode} type="button" onClick={() => setViewMode(mode)} className={`rounded-lg px-3 text-xs font-bold transition ${viewMode === mode ? "bg-blue-700 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}>{tt(`filters.${mode}`)}</button>)}
+              <div className="flex h-10 rounded-lg border border-slate-300 bg-white p-1">
+                {["month", "day"].map((mode) => <button key={mode} type="button" onClick={() => setViewMode(mode)} className={`flex-1 rounded-md px-2 text-xs font-bold transition ${viewMode === mode ? "bg-blue-700 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}>{tt(`filters.${mode}`)}</button>)}
               </div>
             </div>
-            <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.period")}</span><span className="relative block"><CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type={viewMode === "month" ? "month" : "date"} value={viewMode === "month" ? selectedMonth : selectedDate} onChange={(event) => { if (!event.target.value) return; if (viewMode === "month") setSelectedMonth(event.target.value); else setSelectedDate(event.target.value); }} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></span></label>
-            <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.type")}</span><select value={passType} onChange={(event) => setPassType(event.target.value)} className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><option value="ALL">{tt("filters.all")}</option><option value="TDK_APPROVED">TDK APPROVED</option><option value="TEMPORARY">TEMPORARY</option><option value="UNSPECIFIED">{tt("metrics.unspecified")}</option></select></label>
-            <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.search")}</span><span className="relative block"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tt("filters.searchPlaceholder")} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-xs text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></span></label>
+            <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.period")}</span><span className="relative block"><CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type={viewMode === "month" ? "month" : "date"} value={viewMode === "month" ? selectedMonth : selectedDate} onChange={(event) => { if (!event.target.value) return; if (viewMode === "month") setSelectedMonth(event.target.value); else setSelectedDate(event.target.value); }} className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></span></label>
+            <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.type")}</span><select value={passType} onChange={(event) => setPassType(event.target.value)} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><option value="ALL">{tt("filters.all")}</option><option value="TDK_APPROVED">TDK APPROVED</option><option value="TEMPORARY">TEMPORARY</option><option value="UNSPECIFIED">{tt("metrics.unspecified")}</option></select></label>
+            <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.company")}</span><span className="relative block"><Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)} className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white pl-9 pr-8 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><option value="ALL">{tt("filters.allCompanies")}</option>{companyOptions.map((company) => <option key={company} value={company}>{company}</option>)}</select><ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" /></span></label>
+            <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.gate")}</span><span className="relative block"><MapPin size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select value={gateFilter} onChange={(event) => setGateFilter(event.target.value)} className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white pl-9 pr-8 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><option value="ALL">{tt("filters.allGates")}</option>{gateOptions.map((gate) => <option key={gate} value={gate}>{gate}</option>)}</select><ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" /></span></label>
+            <label><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.sort")}</span><select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><option value="LATEST">{tt("filters.latest")}</option><option value="OLDEST">{tt("filters.oldest")}</option></select></label>
+            <label className="sm:col-span-2 lg:col-span-1"><span className="mb-1.5 block text-[11px] font-semibold text-slate-600">{tt("filters.search")}</span><span className="relative block"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tt("filters.searchPlaceholder")} className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-xs text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></span></label>
           </div> : null}
         </section>
 
@@ -497,14 +724,81 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
         {schemaMissing ? <section className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4"><p className="font-bold text-amber-900">{tt("setup.title")}</p><p className="mt-1 text-sm text-amber-700">{tt("setup.hint")}</p></section> : null}
         {error ? <section className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-800">{error}</section> : null}
 
-        <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-          <MetricCard icon={CarFront} label={tt("metrics.vehicles")} value={report.currentVehicles} hint={tt("metrics.compared", { count: report.previousVehicles })} tone="blue" />
-          <MetricCard icon={report.difference < 0 ? ArrowDownRight : ArrowUpRight} label={tt("metrics.change")} value={`${report.difference > 0 ? "+" : ""}${report.difference}`} hint={tt("metrics.changeHint", { period: compareLabel })} tone={report.difference < 0 ? "rose" : report.difference > 0 ? "green" : "slate"} />
-          <MetricCard icon={ShieldCheck} label={tt("metrics.approved")} value={report.approved} hint={tt("metrics.approvedHint")} tone="green" />
-          <MetricCard icon={FileSpreadsheet} label={tt("metrics.temporary")} value={report.temporary} hint={tt("metrics.temporaryHint")} tone="amber" />
-          <MetricCard icon={AlertTriangle} label={tt("metrics.unspecified")} value={report.unspecified} hint={tt("metrics.unspecifiedHint")} tone="slate" />
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_5px_22px_rgba(15,23,42,0.04)]">
+          {loading && !rows.length ? (
+            <div className="space-y-px bg-slate-100 p-px">{Array.from({ length: 7 }).map((_, index) => <div key={index} className="grid h-11 grid-cols-[48px_110px_130px_1fr] items-center gap-4 bg-white px-4"><span className="h-2 rounded bg-slate-100" /><span className="h-2 rounded bg-slate-100" /><span className="h-2 rounded bg-slate-100" /><span className="h-2 max-w-xl rounded bg-slate-100" /></div>)}</div>
+          ) : report.currentRows.length ? (
+            <>
+            <div className="hidden max-h-[600px] overflow-y-auto overflow-x-hidden lg:block">
+              <table className="w-full table-fixed border-separate border-spacing-0 text-left text-[10px] xl:text-[11px]">
+                <colgroup>
+                  <col className="w-[4%]" /><col className="w-[7.5%]" /><col className="w-[10%]" />
+                  <col className="w-[9%]" /><col className="w-[6%]" /><col className="w-[6%]" />
+                  <col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[12%]" />
+                  <col className="w-[14%]" /><col className="w-[11.5%]" />
+                </colgroup>
+                <thead className="text-[10px] uppercase tracking-wide text-slate-600">
+                  <tr>
+                    {["number", "date", "plate", "type", "entry", "exit", "duration", "driver", "company", "purpose", "contact"].map((key, index) => <th key={key} className={`sticky top-0 z-10 border-b border-r border-slate-200 bg-slate-100 px-1.5 py-2 font-bold leading-3 ${index === 0 ? "left-0 z-20 text-center" : ""}`}>{tt(`table.${key}`)}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.currentRows.map((row, index) => {
+                    const duration = getGatepassDuration(row, durationNow);
+                    return (
+                      <tr key={row.id || `${row.visit_date}-${row.gatepass_number}-${index}`} className="group odd:bg-white even:bg-slate-50/70 hover:bg-blue-50/70">
+                        <td className="sticky left-0 z-[5] border-b border-r border-slate-200 bg-white px-1 py-2 text-center font-mono text-[9px] text-slate-400 group-hover:bg-blue-50">{index + 1}</td>
+                        <td className="truncate whitespace-nowrap border-b border-r border-slate-100 px-1.5 py-2 font-semibold text-slate-700" title={dateFormatter.format(parseDateKey(row.visit_date))}>{compactDateFormatter.format(parseDateKey(row.visit_date))}</td>
+                        <td className="border-b border-r border-slate-100 px-1.5 py-2" title={[row.vehicle_plate, row.province, row.vehicle_type].filter(Boolean).join(" · ")}><p className="truncate font-bold text-slate-950">{row.vehicle_plate || tt("table.notSpecified")}</p><p className="truncate text-[9px] text-slate-500">{row.province || row.vehicle_type || "-"}</p></td>
+                        <td className="overflow-hidden border-b border-r border-slate-100 px-1.5 py-2" title={[displayPassType(row.pass_type, tt("table.notSpecified")), row.source_group_name].filter(Boolean).join(" · ")}><span className={`block truncate rounded-md px-1.5 py-0.5 text-center text-[8px] font-bold ${row.pass_type === "TEMPORARY" ? "bg-amber-100 text-amber-800" : row.pass_type === "UNSPECIFIED" ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-800"}`}>{displayPassType(row.pass_type, tt("table.notSpecified"))}</span><p className="mt-0.5 truncate text-[8px] text-slate-400">{row.source_group_name || "-"}</p></td>
+                        <td className="whitespace-nowrap border-b border-r border-slate-100 px-1.5 py-2 font-semibold text-emerald-700">{formatTime(row.entry_time)}</td>
+                        <td className="whitespace-nowrap border-b border-r border-slate-100 px-1.5 py-2 font-semibold text-rose-700"><span>{formatTime(row.exit_time)}</span>{row.exit_date && row.exit_date !== row.visit_date ? <p className="truncate text-[8px] font-normal text-slate-400">{compactDateFormatter.format(parseDateKey(row.exit_date))}</p> : null}</td>
+                        <td className="overflow-hidden border-b border-r border-slate-100 px-1.5 py-2" title={`${formatGatepassDuration(duration, tt)}${duration.active ? ` · ${tt("table.inside")}` : ""}`}><p className={`truncate whitespace-nowrap font-bold ${duration.active ? "text-amber-700" : "text-blue-700"}`}>{formatGatepassDuration(duration, tt)}</p>{duration.active ? <p className="truncate text-[8px] font-semibold text-amber-600">{tt("table.inside")}</p> : null}</td>
+                        <td className="truncate border-b border-r border-slate-100 px-1.5 py-2 font-semibold text-slate-700" title={row.driver_name || tt("table.notSpecified")}>{row.driver_name || tt("table.notSpecified")}</td>
+                        <td className="truncate border-b border-r border-slate-100 px-1.5 py-2 text-slate-700" title={row.company_name || "-"}>{row.company_name || "-"}</td>
+                        <td className="border-b border-r border-slate-100 px-1.5 py-2 text-slate-700"><p className="line-clamp-2 leading-3" title={row.purpose || ""}>{row.purpose || tt("table.notSpecified")}</p></td>
+                        <td className="overflow-hidden border-b border-slate-100 px-1.5 py-2" title={[row.contact_person, row.department, row.telephone_number].filter(Boolean).join(" · ")}><p className="truncate font-medium text-slate-700">{row.contact_person || "-"}</p><p className="truncate text-[8px] text-slate-500">{[row.department, row.telephone_number].filter(Boolean).join(" · ") || "-"}</p></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="max-h-[600px] divide-y divide-slate-100 overflow-y-auto lg:hidden">
+              {report.currentRows.map((row, index) => {
+                const duration = getGatepassDuration(row, durationNow);
+                return <article key={`mobile-${row.id || `${row.visit_date}-${row.gatepass_number}-${index}`}`} className="px-3 py-3 odd:bg-white even:bg-slate-50/60">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-950">{row.vehicle_plate || tt("table.notSpecified")}</p><p className="text-[10px] text-slate-500">#{index + 1} · {dateFormatter.format(parseDateKey(row.visit_date))}</p></div>
+                    <span className={`shrink-0 rounded-md px-2 py-1 text-[9px] font-bold ${row.pass_type === "TEMPORARY" ? "bg-amber-100 text-amber-800" : row.pass_type === "UNSPECIFIED" ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-800"}`}>{displayPassType(row.pass_type, tt("table.notSpecified"))}</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-slate-100/80 p-2 text-[10px]"><div><p className="text-slate-400">{tt("table.entry")}</p><p className="font-bold text-emerald-700">{formatTime(row.entry_time)}</p></div><div><p className="text-slate-400">{tt("table.exit")}</p><p className="font-bold text-rose-700">{formatTime(row.exit_time)}</p></div><div><p className="text-slate-400">{tt("table.duration")}</p><p className={`font-bold ${duration.active ? "text-amber-700" : "text-blue-700"}`}>{formatGatepassDuration(duration, tt)}</p></div></div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-slate-600"><p className="truncate"><strong>{tt("table.driver")}:</strong> {row.driver_name || "-"}</p><p className="truncate"><strong>{tt("table.company")}:</strong> {row.company_name || "-"}</p><p className="truncate"><strong>{tt("table.purpose")}:</strong> {row.purpose || "-"}</p><p className="truncate"><strong>{tt("table.contact")}:</strong> {[row.contact_person, row.department].filter(Boolean).join(" · ") || "-"}</p></div>
+                </article>;
+              })}
+            </div>
+            </>
+          ) : (
+            <div className="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400"><CarFront size={23} /></div><p className="mt-3 font-bold text-slate-700">{tt("table.noDataTitle")}</p><p className="mt-1 max-w-lg text-xs leading-5 text-slate-500">{tt("table.noDataHint")}</p>{activeFilterCount ? <button type="button" onClick={clearFilters} className="mt-3 text-xs font-bold text-blue-700 hover:underline">{tt("filters.clear")}</button> : null}</div>
+          )}
         </section>
 
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+          <MetricCard icon={CarFront} label={tt("metrics.vehicles")} value={report.currentVehicles} hint={tt("metrics.compared", { count: report.previousVehicles })} tone="blue" />
+          <MetricCard icon={report.difference < 0 ? ArrowDownRight : ArrowUpRight} label={tt("metrics.change")} value={`${report.difference > 0 ? "+" : ""}${report.difference}`} hint={tt("metrics.changeHint", { period: compareLabel })} tone={report.difference < 0 ? "rose" : report.difference > 0 ? "green" : "slate"} />
+          <MetricCard icon={ShieldCheck} label={tt("metrics.approved")} value={report.approvedRecords} hint={tt("metrics.share", { count: report.approvedRecords, percent: report.currentRows.length ? Math.round((report.approvedRecords / report.currentRows.length) * 100) : 0 })} tone="green" />
+          <MetricCard icon={FileSpreadsheet} label={tt("metrics.temporary")} value={report.temporaryRecords} hint={tt("metrics.share", { count: report.temporaryRecords, percent: report.currentRows.length ? Math.round((report.temporaryRecords / report.currentRows.length) * 100) : 0 })} tone="amber" />
+          <MetricCard icon={AlertTriangle} label={tt("metrics.unspecified")} value={report.unspecifiedRecords} hint={tt("metrics.share", { count: report.unspecifiedRecords, percent: report.currentRows.length ? Math.round((report.unspecifiedRecords / report.currentRows.length) * 100) : 0 })} tone="slate" />
+        </section>
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <button type="button" onClick={() => setShowInsights((value) => !value)} aria-expanded={showInsights} className="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left transition hover:bg-slate-50">
+            <span className="flex min-w-0 items-center gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><BarChart3 size={15} /></span><span className="min-w-0"><strong className="block text-xs text-slate-800">{tt(showInsights ? "insights.hide" : "insights.show")}</strong><small className="block truncate text-[10px] text-slate-500">{tt("insights.hint")}</small></span></span>
+            <ChevronDown size={16} className={`shrink-0 text-slate-400 transition ${showInsights ? "rotate-180" : ""}`} />
+          </button>
+        </section>
+
+        {showInsights ? <>
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
           <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{tt("chart.eyebrow")}</p><h2 className="mt-1 text-lg font-bold text-slate-950">{tt(viewMode === "month" ? "chart.titleMonth" : "chart.titleDay")}</h2><p className="mt-1 text-xs text-slate-500">{tt("chart.subtitle")}</p></div>
@@ -524,11 +818,7 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
         <section className="grid gap-4 lg:grid-cols-2">
           {[{ title: tt("compare.added"), hint: tt("compare.addedHint"), rows: report.added, tone: "emerald" }, { title: tt("compare.reduced"), hint: tt("compare.reducedHint"), rows: report.reduced, tone: "rose" }].map((group) => <article key={group.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)]"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold text-slate-950">{group.title}</h3><p className="mt-1 text-xs text-slate-500">{group.hint}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${group.tone === "emerald" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{group.rows.length}</span></div><div className="mt-4 flex max-h-32 flex-wrap gap-2 overflow-y-auto">{group.rows.length ? group.rows.map((item) => <span key={`${group.title}-${item.plate}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700">{item.plate}<small className="ml-2 text-[9px] text-slate-400">{item.passType}</small></span>) : <p className="text-xs text-slate-400">{tt("compare.noVehicles")}</p>}</div></article>)}
         </section>
-
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="flex items-end justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:px-6"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{tt("table.eyebrow")}</p><h2 className="mt-1 text-lg font-bold text-slate-950">{tt("table.title")}</h2></div><span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">{tt("table.records", { count: report.currentRows.length })}</span></div>
-          {report.currentRows.length ? <div className="overflow-x-auto"><table className="min-w-[1100px] w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr>{["date", "plate", "type", "gatepass", "time", "driver", "purpose"].map((key) => <th key={key} className="border-b border-slate-200 px-4 py-3 font-bold">{tt(`table.${key}`)}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{report.currentRows.map((row) => <tr key={row.id} className="transition hover:bg-blue-50/40"><td className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">{dateFormatter.format(parseDateKey(row.visit_date))}</td><td className="px-4 py-3"><p className="font-bold text-slate-950">{row.vehicle_plate}</p><p className="mt-0.5 text-[10px] text-slate-500">{row.province || row.vehicle_type || "-"}</p></td><td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${row.pass_type === "TEMPORARY" ? "bg-amber-50 text-amber-700" : row.pass_type === "UNSPECIFIED" ? "bg-slate-100 text-slate-600" : "bg-emerald-50 text-emerald-700"}`}>{row.pass_type}</span><p className="mt-1 text-[9px] text-slate-400">{row.source_group_name || "-"}</p></td><td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.gatepass_number || "-"}</td><td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatTime(row.entry_time)} – {row.exit_date && row.exit_date !== row.visit_date ? `${row.exit_date} ` : ""}{formatTime(row.exit_time)}</td><td className="px-4 py-3"><p className="font-semibold text-slate-700">{row.driver_name || tt("table.notSpecified")}</p><p className="mt-0.5 text-[10px] text-slate-500">{row.company_name || "-"}</p></td><td className="px-4 py-3"><p className="max-w-[260px] truncate font-semibold text-slate-700">{row.purpose || tt("table.notSpecified")}</p><p className="mt-0.5 text-[10px] text-slate-500">{row.contact_person || row.telephone_number || row.department || "-"}</p></td></tr>)}</tbody></table></div> : <div className="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400"><CarFront size={23} /></div><p className="mt-3 font-bold text-slate-700">{tt("table.noDataTitle")}</p><p className="mt-1 max-w-lg text-xs leading-5 text-slate-500">{tt("table.noDataHint")}</p></div>}
-        </section>
+        </> : null}
         </>}
       </main>
     </>
