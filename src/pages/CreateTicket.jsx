@@ -43,7 +43,6 @@ import {
   FileText,
   Briefcase,
   Hash,
-  Crown,
   Gem,
   Heart,
   Sparkles,
@@ -1178,7 +1177,7 @@ const CreateTicket = ({ embedded = false }) => {
       </header>
       ) : null}
 
-      <main className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-3 py-3 pb-28 sm:px-6 sm:py-5 lg:grid-cols-12 lg:gap-8 lg:py-8 lg:pb-8">
+      <main className="relative z-10 mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-4 px-3 py-4 pb-28 sm:px-6 sm:py-5 lg:grid-cols-12 lg:gap-5 lg:px-8 lg:py-6 lg:pb-8">
         {/* Left Column - Main Form */}
         <div className="space-y-4 lg:col-span-8 sm:space-y-6">
           <form id="create-ticket-form" onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
@@ -1186,11 +1185,11 @@ const CreateTicket = ({ embedded = false }) => {
             <motion.section
               {...sectionAnim}
               transition={{ duration: 0.4, delay: 0.05 }}
-              className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-[0_12px_32px_-22px_rgba(15,23,42,0.3)] sm:p-6"
+               className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
             >
               <div className="relative flex items-start gap-3 sm:gap-8">
                 <div className="relative shrink-0">
-                  <div className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-md shadow-slate-200/70 sm:h-24 sm:w-24">
+                  <div className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-100 p-1 sm:h-16 sm:w-16">
                     <div className="h-full w-full overflow-hidden rounded-[14px] border border-white bg-white">
                       {form.profilePic ? (
                         <img
@@ -1224,7 +1223,7 @@ const CreateTicket = ({ embedded = false }) => {
                       <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#2b59b0]">
                         {tt("profileLabel")}
                       </p>
-                      <h2 className="truncate text-base font-black text-slate-800 sm:text-2xl">
+                      <h2 className="truncate text-base font-black text-slate-800 sm:text-xl">
                         {form.employeeName || tt("employeeFallback")}
                       </h2>
                     </div>
@@ -1268,9 +1267,9 @@ const CreateTicket = ({ embedded = false }) => {
               <motion.section
                 {...sectionAnim}
                 transition={{ duration: 0.4, delay: 0.08 }}
-                className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-[0_12px_32px_-22px_rgba(37,99,235,0.38)]"
+                className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm"
               >
-                <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500" />
+                <div className="h-1 bg-[#2b59b0]" />
                 <div className="p-3.5 sm:p-5">
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-100 sm:h-11 sm:w-11 sm:rounded-2xl">
@@ -1337,10 +1336,7 @@ const CreateTicket = ({ embedded = false }) => {
               <div className="relative">
                 <div className="mb-4 flex items-center justify-between sm:mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-indigo-600 to-purple-600" />
-                      <div className="absolute -inset-1 animate-pulse rounded-full bg-indigo-500/20 blur-sm" />
-                    </div>
+                    <div className="h-8 w-1 rounded-full bg-[#2b59b0]" />
                     <div>
                       <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("categoryTitle")}</h3>
                       <p className="text-xs text-slate-500 mt-0.5">{tt("categorySubtitle")}</p>
@@ -1359,24 +1355,24 @@ const CreateTicket = ({ embedded = false }) => {
                       <motion.button
                         key={cat.id}
                         type="button"
-                        whileHover={{ y: -2, scale: 1.01 }}
+                        whileHover={{ y: -1 }}
                         whileTap={{ scale: 0.99 }}
                         onClick={() => setForm((p) => ({ ...p, category: cat.id, issue: "" }))}
                         className={`
-                          relative min-h-[104px] overflow-hidden rounded-xl border-2 p-3 text-left transition-all duration-300 sm:min-h-0 sm:rounded-2xl sm:p-5
+                          relative min-h-[104px] overflow-hidden rounded-xl border p-3 text-left transition-all duration-200 sm:min-h-0 sm:p-4
                           ${selected
-                            ? `bg-gradient-to-br ${cat.selectedClass} text-white shadow-md`
-                            : "bg-white border-slate-200/80 hover:border-slate-400 hover:shadow-sm"
+                            ? "border-[#2b59b0] bg-[#2b59b0] text-white shadow-sm"
+                            : "border-slate-200 bg-white hover:border-[#2b59b0]/50 hover:bg-blue-50/40"
                           }
                         `}
                       >
                         <div className="absolute top-0 right-0 h-20 w-20 translate-x-7 -translate-y-7 rounded-full bg-white/5 blur-2xl sm:h-24 sm:w-24 sm:translate-x-8 sm:-translate-y-8" />
 
                         <div className="relative">
-                          <div className="mb-2 flex items-center justify-between sm:mb-4">
+                          <div className="mb-2 flex items-center justify-between sm:mb-3">
                             <div className={`
                               rounded-xl p-2 transition-all duration-300 sm:p-2.5
-                              ${selected ? 'bg-white' : cat.softClass}
+                              ${selected ? 'bg-white' : 'bg-[#2b59b0]/10'}
                             `}>
                               <Icon size={20} className={cat.iconClass} />
                             </div>
@@ -1394,7 +1390,7 @@ const CreateTicket = ({ embedded = false }) => {
                           <p className={`text-sm font-bold mb-1 ${selected ? 'text-white' : 'text-slate-800'}`}>
                             {cat.label}
                           </p>
-                          <p className={`hidden text-xs sm:block ${selected ? 'text-white/80' : 'text-slate-500'}`}>
+                          <p className={`hidden text-xs leading-5 sm:block ${selected ? 'text-white/80' : 'text-slate-500'}`}>
                             {cat.desc}
                           </p>
                         </div>
@@ -1417,10 +1413,7 @@ const CreateTicket = ({ embedded = false }) => {
                   <div className="relative">
                     <div className="mb-4 flex items-center justify-between sm:mb-6">
                       <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-amber-500 to-orange-500" />
-                          <div className="absolute -inset-1 animate-pulse rounded-full bg-amber-500/20 blur-sm" />
-                        </div>
+                        <div className="h-8 w-1 rounded-full bg-[#2b59b0]" />
                         <div>
                           <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("issueTitle")}</h3>
                           <p className="text-xs text-slate-500 mt-0.5">{tt("issueSubtitle")}</p>
@@ -1433,7 +1426,7 @@ const CreateTicket = ({ embedded = false }) => {
 
                     <div className="mb-5">
                       <label className="mb-3 flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
-                        <Sparkles size={14} className="text-amber-500" />
+                        <Sparkles size={14} className="text-[#2b59b0]" />
                         {tt("commonIssues")}
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -1448,10 +1441,10 @@ const CreateTicket = ({ embedded = false }) => {
                             whileTap={{ scale: 0.97 }}
                             onClick={() => setForm((p) => ({ ...p, issue: item }))}
                             className={`
-                              rounded-full border-2 px-3 py-1.5 text-[11px] font-bold transition-all duration-200 sm:px-4 sm:py-2 sm:text-xs
+                              rounded-full border px-3 py-1.5 text-[11px] font-bold transition-all duration-200 sm:px-4 sm:py-2 sm:text-xs
                               ${form.issue === item
-                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-lg shadow-amber-200/50"
-                                : "bg-slate-100 border-transparent text-slate-700 hover:bg-amber-50 hover:border-amber-300"
+                                ? "border-[#2b59b0] bg-[#2b59b0] text-white shadow-sm"
+                                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-[#2b59b0]/40 hover:bg-blue-50"
                               }
                             `}
                           >
@@ -1480,7 +1473,7 @@ const CreateTicket = ({ embedded = false }) => {
                             outline-none transition-all duration-300 resize-none
                             bg-slate-50/80 placeholder:text-slate-400
                             ${focusedField === 'description'
-                              ? 'border-indigo-500 bg-white ring-4 ring-indigo-100/50 shadow-md'
+                              ? 'border-[#2b59b0] bg-white ring-4 ring-[#2b59b0]/10'
                               : 'border-slate-200/80 hover:border-slate-300'
                             }
                           `}
@@ -1495,7 +1488,7 @@ const CreateTicket = ({ embedded = false }) => {
                             <motion.div
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
-                              className="h-7 w-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500"
                             >
                               <CheckCircle2 size={14} className="text-white" />
                             </motion.div>
@@ -1530,10 +1523,7 @@ const CreateTicket = ({ embedded = false }) => {
                 <div className="mb-5 flex flex-col gap-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div className="flex items-start gap-3">
-                      <div className="relative">
-                        <div className="h-7 w-1.5 rounded-full bg-gradient-to-b from-cyan-600 to-teal-600 sm:h-8" />
-                        <div className="absolute -inset-1 animate-pulse rounded-full bg-cyan-500/20 blur-sm" />
-                      </div>
+                        <div className="h-7 w-1 rounded-full bg-[#2b59b0] sm:h-8" />
                       <div>
                         <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("attachmentsTitle")}</h3>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -1543,7 +1533,7 @@ const CreateTicket = ({ embedded = false }) => {
                               ? "border-cyan-200 bg-cyan-50 text-cyan-700"
                               : "border-amber-200 bg-amber-50 text-amber-700"
                           }`}>
-                            {hasProblemPhoto ? tt("attached") : tt("optional")}
+                            {hasProblemPhoto ? tt("attached") : tt("required")}
                           </span>
                         </div>
                       </div>
@@ -1555,7 +1545,7 @@ const CreateTicket = ({ embedded = false }) => {
                       <button
                         type="button"
                         onClick={() => setIsCameraActive(true)}
-                        className={`${ATTACHMENT_ACTION_BUTTON_CLASS} border-indigo-200 bg-indigo-50 px-3 py-2.5 text-xs text-indigo-700 hover:bg-indigo-100 sm:text-sm`}
+                        className={`${ATTACHMENT_ACTION_BUTTON_CLASS} border-[#2b59b0]/25 bg-[#2b59b0]/5 px-3 py-2.5 text-xs text-[#244a95] hover:bg-[#2b59b0]/10 sm:text-sm`}
                       >
                         <Camera size={16} />
                         {tt("attachFromCamera")}
@@ -1563,7 +1553,7 @@ const CreateTicket = ({ embedded = false }) => {
                       <button
                         type="button"
                         onClick={() => imageInputRef.current?.click()}
-                        className={`${ATTACHMENT_ACTION_BUTTON_CLASS} border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700 hover:bg-emerald-100 sm:text-sm`}
+                        className={`${ATTACHMENT_ACTION_BUTTON_CLASS} border-[#2b59b0]/25 bg-white px-3 py-2.5 text-xs text-[#244a95] hover:bg-[#2b59b0]/5 sm:text-sm`}
                       >
                         <ImageIcon size={16} />
                         {tt("attachFromGallery")}
@@ -1734,10 +1724,7 @@ const CreateTicket = ({ embedded = false }) => {
           >
             <div className="relative">
               <div className="mb-4 flex items-center gap-3 sm:mb-6">
-                <div className="relative">
-                  <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-amber-500 to-red-500" />
-                  <div className="absolute -inset-1 animate-pulse rounded-full bg-amber-500/20 blur-sm" />
-                </div>
+                <div className="h-8 w-1 rounded-full bg-[#2b59b0]" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 sm:text-base">{tt("urgencyTitle")}</h3>
                   <p className="text-xs text-slate-500 mt-0.5">{tt("urgencySubtitle")}</p>
@@ -1758,10 +1745,10 @@ const CreateTicket = ({ embedded = false }) => {
                       whileTap={{ scale: 0.99 }}
                       onClick={() => setForm((p) => ({ ...p, urgency: item.id }))}
                       className={`
-                        w-full rounded-xl border-2 p-2.5 text-left transition-all duration-300 sm:p-3 lg:p-4
+                        w-full rounded-xl border p-2.5 text-left transition-all duration-200 sm:p-3 lg:p-4
                         ${active
-                          ? `${item.border} ${item.selectedBg} shadow-lg`
-                          : "bg-white border-slate-200/80 hover:border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-white"
+                          ? `${item.border} ${item.selectedBg} shadow-sm`
+                          : "border-slate-200 bg-white hover:border-[#2b59b0]/40 hover:bg-blue-50/40"
                         }
                       `}
                     >
@@ -1827,7 +1814,7 @@ const CreateTicket = ({ embedded = false }) => {
             </div>
           </motion.section>
 
-          {/* Premium Summary Card */}
+          {/* Request summary */}
           <motion.section
             {...sectionAnim}
             transition={{ duration: 0.4, delay: 0.25 }}
@@ -1835,32 +1822,29 @@ const CreateTicket = ({ embedded = false }) => {
           >
             <div className="relative">
               <div className="mb-6 flex items-center gap-3">
-                <div className="relative">
-                  <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-indigo-600 to-purple-600" />
-                  <div className="absolute -inset-1 animate-pulse rounded-full bg-indigo-500/20 blur-sm" />
-                </div>
+                <div className="h-8 w-1 rounded-full bg-[#2b59b0]" />
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                    <FileText size={16} className="text-white" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2b59b0]/10">
+                    <FileText size={16} className="text-[#2b59b0]" />
                   </div>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                  <h3 className="text-sm font-bold text-slate-800">
                     {tt("summaryTitle")}
                   </h3>
                 </div>
                 {canSubmit && (
-                  <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
-                    <Sparkles size={12} className="text-amber-600" />
-                    <span className="text-[9px] font-bold text-amber-700 uppercase tracking-wider">{tt("readyToSubmit")}</span>
+                  <div className="ml-auto flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5">
+                    <CheckCircle2 size={12} className="text-emerald-600" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">{tt("readyToSubmit")}</span>
                   </div>
                 )}
               </div>
 
               {/* Summary Grid */}
               <div className="space-y-3">
-                <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-4 border border-slate-200/80 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
-                      <User size={16} className="text-indigo-600" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2b59b0]/10">
+                      <User size={16} className="text-[#2b59b0]" />
                     </div>
                     <div>
                       <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">{tt("reporter")}</p>
@@ -1871,7 +1855,7 @@ const CreateTicket = ({ embedded = false }) => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 min-[430px]:grid-cols-2">
-                  <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">{tt("category")}</p>
                     {selectedCategory ? (
                       <div className="flex items-center gap-1.5">
@@ -1885,7 +1869,7 @@ const CreateTicket = ({ embedded = false }) => {
                     )}
                   </div>
 
-                  <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">{tt("urgency")}</p>
                     {selectedUrgency ? (
                       <div className="flex items-center gap-1.5">
@@ -1901,12 +1885,12 @@ const CreateTicket = ({ embedded = false }) => {
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">{tt("attachmentSummary")}</p>
                   {hasProblemPhoto ? (
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-100 to-teal-100">
-                        <ImageIcon size={16} className="text-cyan-600" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2b59b0]/10">
+                        <ImageIcon size={16} className="text-[#2b59b0]" />
                       </div>
                       <div>
                         <p className="max-w-[12rem] truncate text-xs font-bold text-slate-800">
@@ -1928,7 +1912,7 @@ const CreateTicket = ({ embedded = false }) => {
                 </div>
 
                 {form.issue && (
-                  <div className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-3 border border-slate-200/80">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">{tt("detail")}</p>
                     <p className="text-xs text-slate-700 line-clamp-2">{form.issue}</p>
                     <p className="text-[8px] text-slate-400 mt-1">{form.issue.length}/500 {tt("characters")}</p>
@@ -1936,7 +1920,7 @@ const CreateTicket = ({ embedded = false }) => {
                 )}
               </div>
 
-              {/* Premium Submit Button */}
+              {/* Primary submit action */}
               <div className="relative mt-6">
                 <button
                   type="submit"
@@ -1945,32 +1929,23 @@ const CreateTicket = ({ embedded = false }) => {
                   className={`
                     relative w-full py-4 px-6 rounded-xl font-bold text-sm
                     flex items-center justify-center gap-3 transition-all duration-300
-                    overflow-hidden group/btn
+                    group/btn
                     ${canSubmit && !loading
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]'
+                      ? 'bg-[#2b59b0] text-white shadow-sm hover:bg-[#244a95] active:scale-[0.99]'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     }
                   `}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000" />
-
                   {loading ? (
                     <>
                       <Loader2 className="animate-spin" size={18} />
-                      <span className="bg-gradient-to-r from-white via-indigo-100 to-white bg-clip-text text-transparent">
-                        {tt("submitting")}
-                      </span>
+                      <span>{tt("submitting")}</span>
                     </>
                   ) : (
                     <>
-                      <div className="relative">
-                        <Zap size={18} className="text-yellow-300 fill-yellow-300 group-hover/btn:rotate-12 group-hover/btn:scale-125 transition-all duration-300" />
-                        <div className="absolute -inset-1 bg-white/30 rounded-full blur-sm animate-ping opacity-0 group-hover/btn:opacity-100" />
-                      </div>
-                      <span className="bg-gradient-to-r from-white via-indigo-100 to-white bg-clip-text text-transparent">
-                        {tt("submit")}
-                      </span>
-                      <ChevronRight size={18} className="group-hover/btn:translate-x-2 transition-transform duration-300" />
+                      <FileText size={18} />
+                      <span>{tt("submit")}</span>
+                      <ChevronRight size={18} className="transition-transform group-hover/btn:translate-x-1" />
                     </>
                   )}
                 </button>
@@ -1978,16 +1953,16 @@ const CreateTicket = ({ embedded = false }) => {
 
               {/* Security & Time Footer */}
               <div className="mt-5 flex items-center justify-center gap-4">
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/80 backdrop-blur rounded-lg border border-slate-200/80 shadow-sm">
+                <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
                   <Shield size={12} className="text-indigo-600" />
                   <span className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">{tt("secure")}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/80 backdrop-blur rounded-lg border border-slate-200/80 shadow-sm">
+                <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
                   <Clock size={12} className="text-indigo-600" />
                   <span className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">{thaiDateTime.time}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 rounded-lg border border-slate-200 shadow-sm">
-                  <Crown size={12} className="text-amber-600" />
+                <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+                  <CheckCircle2 size={12} className="text-emerald-600" />
                   <span className="text-[8px] font-bold text-slate-700 uppercase tracking-wider">{tt("standard")}</span>
                 </div>
               </div>
@@ -1998,10 +1973,10 @@ const CreateTicket = ({ embedded = false }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="hidden rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur-sm lg:block"
+            className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:block"
           >
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b59b0]/10 to-cyan-100 text-[#244a95]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2b59b0]/10 text-[#244a95]">
                 <Phone size={16} />
               </div>
               <div className="min-w-0">
@@ -2045,7 +2020,7 @@ const CreateTicket = ({ embedded = false }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
-            className="hidden rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur-sm lg:block"
+            className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:block"
           >
             <div className="flex items-start gap-3">
               <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -2063,7 +2038,7 @@ const CreateTicket = ({ embedded = false }) => {
       </main>
 
       {/* Mobile submit dock keeps the primary action within thumb reach. */}
-      <div className="app-safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_-14px_35px_-24px_rgba(15,23,42,0.55)] backdrop-blur-xl lg:hidden">
+       <div className="app-safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_-10px_24px_-20px_rgba(15,23,42,0.5)] backdrop-blur-xl lg:hidden">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
@@ -2078,7 +2053,7 @@ const CreateTicket = ({ embedded = false }) => {
             form="create-ticket-form"
             disabled={!canSubmit}
             className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black transition ${canSubmit && !loading
-              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200 active:scale-[0.98]"
+              ? "bg-[#2b59b0] text-white shadow-sm hover:bg-[#244a95] active:scale-[0.98]"
               : "cursor-not-allowed bg-slate-200 text-slate-400"
             }`}
           >

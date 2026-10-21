@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { ExternalLink, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ExternalLink, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import tdkLogo from "../../../assets/2.png";
 
 function DashboardSidebar({
@@ -17,6 +17,12 @@ function DashboardSidebar({
   collapseLabel,
   expandLabel,
 }) {
+  const activeGroupId = useMemo(
+    () => groups.find((group) => group.items.some((item) => item.active))?.id || null,
+    [groups],
+  );
+  const [openGroupId, setOpenGroupId] = useState(() => activeGroupId || "main");
+
   useEffect(() => {
     if (!open) return undefined;
 
@@ -32,6 +38,10 @@ function DashboardSidebar({
       window.removeEventListener("keydown", handleEscape);
     };
   }, [onClose, open]);
+
+  useEffect(() => {
+    if (activeGroupId) setOpenGroupId(activeGroupId);
+  }, [activeGroupId]);
 
   const handleItemClick = (item) => {
     onClose();
@@ -85,43 +95,96 @@ function DashboardSidebar({
         </header>
 
         <nav className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-8 pt-2.5 ${isDarkTheme ? "[scrollbar-width:thin] [scrollbar-color:#475569_transparent]" : "[scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent]"}`}>
-          <div className="space-y-3">
-            {groups.map((group) => (
-              <section key={group.id} aria-labelledby={`dashboard-sidebar-${group.id}`}>
-                <h2
-                  id={`dashboard-sidebar-${group.id}`}
-                  className={`px-3 pt-3.5 text-[10px] font-black uppercase tracking-[0.18em] ${theme.sidebarToolsLabel} ${collapsed ? "lg:sr-only" : ""}`}
-                >
-                  {group.label}
-                </h2>
-                <div className="mt-1 space-y-1">
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = item.active;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        title={collapsed ? item.label : undefined}
-                        onClick={() => handleItemClick(item)}
-                        className={`group relative flex w-full items-center rounded-xl border border-transparent px-3 py-2 text-left text-sm font-semibold transition-all duration-200 ${isActive ? theme.sidebarNavActive : theme.sidebarNavIdle} ${collapsed ? "lg:justify-center lg:px-2.5" : ""}`}
-                      >
-                        <span className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center">
-                          <Icon size={17} strokeWidth={2.25} />
-                          {item.badgeCount > 0 ? (
-                            <span className={`absolute -right-2 -top-2 inline-flex min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-none text-white shadow-sm ring-2 ${isDarkTheme ? "ring-[#0f172a]" : "ring-white"}`}>
-                              {item.badgeCount > 9 ? "9+" : item.badgeCount}
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className={`ml-2.5 min-w-0 flex-1 truncate ${collapsed ? "lg:hidden" : ""}`}>{item.label}</span>
-                        {item.external ? <ExternalLink size={13} className={`shrink-0 opacity-60 ${collapsed ? "lg:hidden" : ""}`} /> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+          <div className="space-y-2">
+            {groups.map((group) => {
+              const isExpanded = openGroupId === group.id;
+              const hasActiveItem = group.items.some((item) => item.active);
+              const panelId = `dashboard-sidebar-panel-${group.id}`;
+              const GroupIcon = group.icon;
+              const groupButtonClass = hasActiveItem
+                ? isDarkTheme
+                  ? "border-[#5f86d8]/45 bg-[#162136] text-[#dbe7ff]"
+                  : "border-[#9bbcff] bg-[#eef4ff] text-[#16448d]"
+                : isDarkTheme
+                  ? "border-transparent text-slate-300 hover:bg-[#162136] hover:text-slate-100"
+                  : "border-transparent text-slate-700 hover:bg-[#f4f8ff] hover:text-[#16448d]";
+
+              return (
+                <section key={group.id}>
+                  <h2>
+                    <button
+                      type="button"
+                      title={collapsed ? group.label : undefined}
+                      onClick={() => {
+                        if (collapsed) {
+                          setOpenGroupId(group.id);
+                          onToggleCollapsed();
+                          return;
+                        }
+                        setOpenGroupId((current) => (current === group.id ? null : group.id));
+                      }}
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      className={`group flex w-full items-center rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 ${collapsed ? "lg:justify-center lg:px-2.5" : ""} ${groupButtonClass} ${isDarkTheme ? "focus-visible:ring-indigo-400" : "focus-visible:ring-blue-300"}`}
+                    >
+                      <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center transition-colors ${hasActiveItem
+                        ? isDarkTheme ? "text-[#9bbcff]" : "text-[#2b59b0]"
+                        : isDarkTheme ? "text-slate-400 group-hover:text-[#9bbcff]" : "text-slate-500 group-hover:text-[#2b59b0]"
+                      }`}>
+                        {GroupIcon ? <GroupIcon size={17} strokeWidth={2.25} /> : null}
+                      </span>
+                      <span className={`ml-2.5 min-w-0 flex-1 truncate ${collapsed ? "lg:hidden" : ""}`}>
+                        {group.label}
+                      </span>
+                      <ChevronDown
+                        size={15}
+                        strokeWidth={2.25}
+                        className={`ml-2 shrink-0 text-slate-400 transition-transform duration-300 ${isExpanded ? "rotate-180 text-[#2b59b0]" : ""} ${collapsed ? "lg:hidden" : ""}`}
+                      />
+                    </button>
+                  </h2>
+
+                  <div
+                    id={panelId}
+                    className={`grid transition-[grid-template-rows] duration-300 ease-out ${isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"} ${collapsed ? "lg:grid-rows-[0fr]" : ""}`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className={`ml-5 mt-1 space-y-1 border-l pl-2.5 transition-[visibility] ${isExpanded ? "visible" : "invisible"} ${collapsed ? "lg:invisible" : ""} ${isDarkTheme ? "border-slate-700" : "border-[#d8e4f8]"}`}>
+                        {group.items.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = item.active;
+                          const itemClass = isActive
+                            ? "bg-[#2b59b0] text-white"
+                            : isDarkTheme
+                              ? "text-slate-400 hover:bg-[#162136] hover:text-[#9bbcff]"
+                              : "text-slate-600 hover:bg-[#f4f8ff] hover:text-[#2b59b0]";
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              title={collapsed ? item.label : undefined}
+                              onClick={() => handleItemClick(item)}
+                              className={`group relative flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm font-semibold transition-all duration-200 ${itemClass}`}
+                            >
+                              <span className="relative inline-flex shrink-0 items-center justify-center">
+                                <Icon size={14} strokeWidth={2.25} className={isActive ? "text-white" : isDarkTheme ? "text-slate-500 group-hover:text-[#9bbcff]" : "text-slate-400 group-hover:text-[#2b59b0]"} />
+                                {item.badgeCount > 0 ? (
+                                  <span className={`absolute -right-2 -top-2 inline-flex min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-none text-white shadow-sm ring-2 ${isDarkTheme ? "ring-[#0f172a]" : "ring-white"}`}>
+                                    {item.badgeCount > 9 ? "9+" : item.badgeCount}
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate leading-5">{item.label}</span>
+                              {item.external ? <ExternalLink size={13} className="shrink-0 opacity-60" /> : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
           </div>
         </nav>
       </aside>

@@ -3169,6 +3169,7 @@ export default function Dashboard() {
     {
       id: "main",
       label: dt("nav.sidebarMain"),
+      icon: BarChart3,
       items: [
         {
           id: "dashboard-home",
@@ -3189,6 +3190,7 @@ export default function Dashboard() {
     {
       id: "services",
       label: dt("nav.sidebarServices"),
+      icon: SlidersHorizontal,
       items: [
         {
           id: "central-chat",
@@ -3210,6 +3212,7 @@ export default function Dashboard() {
     {
       id: "organization",
       label: dt("nav.sidebarOrganization"),
+      icon: Building2,
       items: localizedNavMoreLinks
         .filter((item) => item.href)
         .map((item, index) => ({
