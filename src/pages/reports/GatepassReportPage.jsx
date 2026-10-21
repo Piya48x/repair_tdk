@@ -87,7 +87,7 @@ const COPY = {
       noChange: "ไม่เปลี่ยนแปลง",
       share: "{{percent}}% ของรายการในช่วงนี้",
     },
-    headline: { today: "รถเข้ารอบล่าสุด", exited: "รถออกรอบล่าสุด", inside: "ยังไม่มีเวลาออก", month: "สะสมเดือนนี้" },
+    headline: { today: "รถเข้ารอบล่าสุด", exited: "รถออกรอบล่าสุด", periodTotal: "รวม", month: "สะสมเดือนนี้" },
     chart: {
       eyebrow: "Volume Trend",
       titleMonth: "แนวโน้มรถรายวันในเดือนที่เลือก",
@@ -202,7 +202,7 @@ const COPY = {
       noChange: "No change",
       share: "{{percent}}% of records in this period",
     },
-    headline: { today: "Latest entries", exited: "Latest exits", inside: "No exit time", month: "Month total" },
+    headline: { today: "Latest entries", exited: "Latest exits", periodTotal: "Total", month: "Month total" },
     chart: {
       eyebrow: "Volume Trend",
       titleMonth: "Daily vehicle trend for selected month",
@@ -283,7 +283,7 @@ const COPY = {
     sections: { daily: "일일 입출차", dailyHint: "IT Support가 업로드한 Gatepass 차량 출입 목록", registry: "TDK APPROVED 차량 원장", registryHint: "현재 차량 및 월별 변경" },
     filters: { view: "보고서 보기", month: "월간 비교", day: "일간 비교", period: "보고 기간", type: "Gatepass 유형", company: "회사", gate: "게이트", sort: "정렬", latest: "최신순", oldest: "오래된순", all: "전체", allCompanies: "전체 회사", allGates: "전체 게이트", clear: "필터 초기화", search: "차량 검색", searchPlaceholder: "차량번호, 회사, 운전자, Gatepass 번호..." },
     metrics: { vehicles: "보고 기간 전체 차량번호", compared: "이전 기간 {{count}}대", change: "증감", changeHint: "{{period}} 대비", approved: "TDK APPROVED", approvedHint: "승인 차량", temporary: "TEMPORARY", temporaryHint: "임시 출입 차량", unspecified: "미지정", unspecifiedHint: "원본 파일에 GroupName 없음", noChange: "변동 없음", share: "이 기간 기록의 {{percent}}%" },
-    headline: { today: "최근 입차", exited: "최근 출차", inside: "출차 미기록", month: "월 누계" },
+    headline: { today: "최근 입차", exited: "최근 출차", periodTotal: "합계", month: "월 누계" },
     chart: { eyebrow: "Volume Trend", titleMonth: "선택 월의 일별 차량 추이", titleDay: "최근 14일 차량 추이", subtitle: "기간별 고유 차량을 Gatepass 유형으로 구분합니다.", unique: "고유 차량", approved: "TDK APPROVED", temporary: "TEMPORARY", unspecified: "UNSPECIFIED" },
     compare: { eyebrow: "Period Comparison", title: "이전 기간 비교", current: "현재 기간", previous: "이전 기간", totalRecords: "Gatepass 기록", uniqueVehicles: "고유 차량", added: "증가 차량", reduced: "감소 차량", addedHint: "현재 기간에 새로 확인된 차량", reducedHint: "이전 기간에만 확인된 차량", noVehicles: "변경 차량 없음" },
     table: { eyebrow: "Gatepass Register", title: "선택 기간 차량 상세", records: "{{count}}건", source: "IT Support 업로드 원본 행 (중복 차량 포함)", number: "번호", date: "날짜", plate: "차량번호", type: "유형", gatepass: "Gatepass 번호", entry: "입차", exit: "출차", duration: "회사 체류 시간", inside: "현재 체류 중", noExit: "출차 미기록", hourShort: "시간", minuteShort: "분", driver: "운전자", company: "회사", purpose: "목적", contact: "담당자 / 부서", gate: "게이트", noDataTitle: "이 기간의 차량 데이터가 없습니다", noDataHint: "Admin Dashboard의 Gatepass In-Out 관리 메뉴에서 일일 보고서를 가져오면 자동으로 업데이트됩니다.", notSpecified: "미지정" },
@@ -543,7 +543,6 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
       reportDate,
       today: headlineRows.filter((row) => row.visit_date === reportDate).length,
       exited: headlineRows.filter((row) => Boolean(row.exit_time) && (row.exit_date || row.visit_date) === reportDate).length,
-      inside: headlineRows.filter((row) => row.visit_date === reportDate && !row.exit_time).length,
       month: headlineRows.length,
     };
   }, [headlineRows]);
@@ -683,7 +682,7 @@ export default function GatepassReportPage({ dailyOnly = false, embedded = false
               {[
                 { key: "today", value: headline.today, tone: "border-blue-200 bg-blue-50 text-blue-700" },
                 { key: "exited", value: headline.exited, tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-                { key: "inside", value: headline.inside, tone: "border-amber-200 bg-amber-50 text-amber-700" },
+                { key: "periodTotal", value: report.currentVehicles, tone: "border-amber-200 bg-amber-50 text-amber-700" },
                 { key: "month", value: headline.month, tone: "border-slate-200 bg-slate-50 text-slate-700" },
               ].map((item) => <div key={item.key} className={`min-w-0 rounded-lg border px-2.5 py-2 ${item.tone}`} title={tt(`headline.${item.key}`)}><p className="truncate text-[9px] font-bold sm:text-[10px]">{tt(`headline.${item.key}`)}</p><p className="mt-1 text-base font-black leading-none text-slate-950">{loading && !headlineRows.length ? "…" : numberFormatter.format(item.value)}</p></div>)}
             </div> : null}

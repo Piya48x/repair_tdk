@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
 import {
   Building2,
-  CarFront,
   ChevronDown,
   ChevronRight,
   Clock3,
@@ -18,10 +16,11 @@ import {
 import {
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
   Legend,
-  Line,
-  LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -31,6 +30,7 @@ import ReportsTopbar from "../../components/reports/ReportsTopbar";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
 import { supabase } from "../../lib/supabaseClient";
 import { fetchGatepassVehicleRecords, isGatepassSchemaMissing } from "../../services/gatepassReportService";
+import { fetchGatepassImportBatches } from "../it-dashboard/services/gatepassImportService";
 import {
   fetchTdkApprovedRegistry,
   fetchTdkApprovedRegistryChanges,
@@ -52,20 +52,27 @@ const COPY = {
     exportEnglish: "English (EN)",
     active: "ทะเบียน TDK Approved",
     activeHint: "ทะเบียนที่ใช้งานอยู่",
-    entryToday: "รถเข้าวันนี้",
-    exitToday: "รถออกวันนี้",
-    inside: "รถยังอยู่ภายใน",
-    insideHint: "เข้าวันนี้และยังไม่บันทึกเวลาออก",
+    entryToday: "ทะเบียนรถเข้ารอบล่าสุด",
+    exitToday: "ทะเบียนรถออกรอบล่าสุด",
+    inside: "ทะเบียนยังไม่มีเวลาออก",
+    insideHint: "นับทะเบียนไม่ซ้ำจากรายงานล่าสุด",
     added: "เพิ่มเดือนนี้",
     removed: "ถอดออกเดือนนี้",
     companies: "บริษัทที่ลงทะเบียน",
     vehicles: "คัน",
     entries: "เข้า {{count}}",
     exits: "ออก {{count}}",
-    trend: "แนวโน้มรถเข้า–ออกย้อนหลัง 7 วัน",
-    trendHint: "เปรียบเทียบจำนวนรายการเข้าและออกในแต่ละวัน",
-    gatepassTrend: "รถเข้า",
-    registryTrend: "รถออก",
+    trend: "แนวโน้มทะเบียนเข้า–ออก 7 วันล่าสุด",
+    trendHint: "นับจำนวนทะเบียนไม่ซ้ำในแต่ละวันตามรอบรายงาน",
+    gatepassTrend: "ทะเบียนเข้า",
+    registryTrend: "ทะเบียนออก",
+    typeTitle: "ประเภททะเบียนในรายงานล่าสุด",
+    typeHint: "จำแนกทะเบียนไม่ซ้ำตาม GroupName",
+    purposeTitle: "วัตถุประสงค์ที่พบมากที่สุด",
+    purposeHint: "จำนวนทะเบียนไม่ซ้ำแยกตามวัตถุประสงค์",
+    unspecifiedPurpose: "ไม่ระบุวัตถุประสงค์",
+    reportRound: "รอบข้อมูล {{date}}",
+    uniquePlates: "{{count}} ทะเบียน",
     activity: "Gatepass Activity วันนี้",
     unique: "รถไม่ซ้ำ",
     peak: "ช่วงเวลาหนาแน่น",
@@ -122,20 +129,27 @@ const COPY = {
     exportEnglish: "English (EN)",
     active: "TDK Approved registry",
     activeHint: "Active master records",
-    entryToday: "Vehicles in today",
-    exitToday: "Vehicles out today",
-    inside: "Vehicles still inside",
-    insideHint: "Entered today with no exit recorded",
+    entryToday: "Unique entries — latest report",
+    exitToday: "Unique exits — latest report",
+    inside: "Plates without exit time",
+    insideHint: "Unique plates from the latest report",
     added: "Added this month",
     removed: "Removed this month",
     companies: "Registered companies",
     vehicles: "vehicles",
     entries: "In {{count}}",
     exits: "Out {{count}}",
-    trend: "7-day vehicle in–out trend",
-    trendHint: "Daily entry and exit records for the latest seven days.",
-    gatepassTrend: "Entries",
-    registryTrend: "Exits",
+    trend: "7-day unique plate in–out trend",
+    trendHint: "Unique plates per day based on the latest report cycle.",
+    gatepassTrend: "Unique entries",
+    registryTrend: "Unique exits",
+    typeTitle: "Plate types in latest report",
+    typeHint: "Unique plates grouped by GroupName",
+    purposeTitle: "Top visit purposes",
+    purposeHint: "Unique plates grouped by purpose",
+    unspecifiedPurpose: "Purpose not specified",
+    reportRound: "Report cycle {{date}}",
+    uniquePlates: "{{count}} plates",
     activity: "Gatepass Activity Today",
     unique: "Unique vehicles",
     peak: "Peak entry time",
@@ -192,20 +206,27 @@ const COPY = {
     exportEnglish: "영어 (EN)",
     active: "TDK Approved 등록 차량",
     activeHint: "현재 사용 중인 등록 차량",
-    entryToday: "오늘 입차",
-    exitToday: "오늘 출차",
-    inside: "현재 내부 차량",
-    insideHint: "오늘 입차 후 출차 시간이 없는 차량",
+    entryToday: "최신 보고 입차 차량번호",
+    exitToday: "최신 보고 출차 차량번호",
+    inside: "출차 시간 미등록 차량번호",
+    insideHint: "최신 보고서의 중복 없는 차량번호",
     added: "이번 달 추가",
     removed: "이번 달 해제",
     companies: "등록 업체",
     vehicles: "대",
     entries: "입차 {{count}}",
     exits: "출차 {{count}}",
-    trend: "최근 7일 차량 출입 추이",
-    trendHint: "날짜별 입차 및 출차 건수를 비교합니다.",
-    gatepassTrend: "입차",
-    registryTrend: "출차",
+    trend: "최근 7일 차량번호 입출차 추이",
+    trendHint: "보고 기준일별 중복 없는 차량번호를 집계합니다.",
+    gatepassTrend: "입차 차량번호",
+    registryTrend: "출차 차량번호",
+    typeTitle: "최신 보고 차량 유형",
+    typeHint: "GroupName별 중복 없는 차량번호",
+    purposeTitle: "주요 방문 목적",
+    purposeHint: "방문 목적별 중복 없는 차량번호",
+    unspecifiedPurpose: "목적 미지정",
+    reportRound: "보고 기준 {{date}}",
+    uniquePlates: "{{count}}대",
     activity: "오늘 Gatepass 활동",
     unique: "고유 차량",
     peak: "입차 집중 시간",
@@ -265,6 +286,20 @@ const monthBounds = (month) => {
 };
 const plateKey = (value) => String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "");
 const formatTime = (value) => String(value || "").slice(0, 5) || "-";
+const uniqueVehicleRows = (rows = []) => {
+  const unique = new Map();
+  rows.forEach((row) => {
+    const key = plateKey(row.vehicle_plate);
+    if (key && !unique.has(key)) unique.set(key, row);
+  });
+  return [...unique.values()];
+};
+
+const PASS_TYPE_COLORS = {
+  TDK_APPROVED: "#16a34a",
+  TEMPORARY: "#f59e0b",
+  UNSPECIFIED: "#94a3b8",
+};
 
 const CHANGE_STYLE = {
   ADDED: "bg-emerald-50 text-emerald-700",
@@ -307,7 +342,8 @@ export default function GatepassExecutiveOverviewPage() {
   const exportMenuRef = useRef(null);
   const [selectedMonth, setSelectedMonth] = useState(monthKey(new Date()));
   const [weekRows, setWeekRows] = useState([]);
-  const [todayRows, setTodayRows] = useState([]);
+  const [reportRows, setReportRows] = useState([]);
+  const [reportDate, setReportDate] = useState("");
   const [registry, setRegistry] = useState([]);
   const [changes, setChanges] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -324,17 +360,19 @@ export default function GatepassExecutiveOverviewPage() {
   const loadData = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const currentDate = new Date();
-      const today = dateKey(currentDate);
-      const weekRange = { from: dateKey(shiftDay(currentDate, -6)), to: today };
-      const [weekData, todayData, registryData, changeData] = await Promise.all([
+      const importBatches = await fetchGatepassImportBatches(1);
+      const latestDate = importBatches[0]?.date_to || dateKey(new Date());
+      const reportDay = new Date(`${latestDate}T00:00:00`);
+      const weekRange = { from: dateKey(shiftDay(reportDay, -7)), to: latestDate };
+      const [weekData, latestReportData, registryData, changeData] = await Promise.all([
         fetchGatepassVehicleRecords(weekRange),
-        fetchGatepassVehicleRecords({ from: today, to: today }),
+        fetchGatepassVehicleRecords({ from: latestDate, to: latestDate }),
         fetchTdkApprovedRegistry({ includeInactive: true }),
         fetchTdkApprovedRegistryChanges(monthBounds(selectedMonth)),
       ]);
       setWeekRows(weekData);
-      setTodayRows(todayData);
+      setReportRows(latestReportData);
+      setReportDate(latestDate);
       setRegistry(registryData);
       setChanges(changeData);
       setSchemaMissing(false);
@@ -383,21 +421,40 @@ export default function GatepassExecutiveOverviewPage() {
 
   const activeRegistry = useMemo(() => registry.filter((row) => row.is_active), [registry]);
   const selectedChanges = useMemo(() => changes.filter((row) => String(row.change_date || "").startsWith(selectedMonth) && row.change_type !== "BASELINE"), [changes, selectedMonth]);
-  const entriesToday = useMemo(() => todayRows.filter((row) => row.entry_time).length, [todayRows]);
-  const exitsToday = useMemo(() => todayRows.filter((row) => row.exit_time).length, [todayRows]);
-  const insideToday = useMemo(() => todayRows.filter((row) => row.entry_time && !row.exit_time).length, [todayRows]);
+  const entryRows = useMemo(() => uniqueVehicleRows(reportRows.filter((row) => row.entry_time)), [reportRows]);
+  const exitRows = useMemo(() => uniqueVehicleRows(reportRows.filter((row) => row.exit_time)), [reportRows]);
+  const insideRows = useMemo(() => uniqueVehicleRows(reportRows.filter((row) => row.entry_time && !row.exit_time)), [reportRows]);
+  const entriesToday = entryRows.length;
+  const exitsToday = exitRows.length;
+  const insideToday = insideRows.length;
   const approvedPlateSet = useMemo(() => new Set(activeRegistry.map((row) => plateKey(row.vehicle_plate)).filter(Boolean)), [activeRegistry]);
   const kpiRows = useMemo(() => ({
-    entryToday: todayRows.filter((row) => row.entry_time),
-    exitToday: todayRows.filter((row) => row.exit_time),
-    inside: todayRows.filter((row) => row.entry_time && !row.exit_time),
+    entryToday: entryRows,
+    exitToday: exitRows,
+    inside: insideRows,
     active: activeRegistry,
-  }), [activeRegistry, todayRows]);
+  }), [activeRegistry, entryRows, exitRows, insideRows]);
   const selectedKpiRows = selectedKpi ? kpiRows[selectedKpi] || [] : [];
 
-  const recentActivity = useMemo(() => [...weekRows]
-    .sort((left, right) => `${right.visit_date || ""} ${right.entry_time || ""} ${right.id || ""}`.localeCompare(`${left.visit_date || ""} ${left.entry_time || ""} ${left.id || ""}`))
-    .slice(0, 4), [weekRows]);
+  const reportVehicleRows = useMemo(() => uniqueVehicleRows(reportRows), [reportRows]);
+  const typeDistribution = useMemo(() => [
+    { key: "TDK_APPROVED", label: tt("approved"), value: reportVehicleRows.filter((row) => row.pass_type === "TDK_APPROVED").length },
+    { key: "TEMPORARY", label: tt("temporary"), value: reportVehicleRows.filter((row) => row.pass_type === "TEMPORARY").length },
+    { key: "UNSPECIFIED", label: tt("unregistered"), value: reportVehicleRows.filter((row) => !["TDK_APPROVED", "TEMPORARY"].includes(row.pass_type)).length },
+  ], [reportVehicleRows, tt]);
+  const unspecifiedPurpose = tt("unspecifiedPurpose");
+  const purposeDistribution = useMemo(() => {
+    const counts = new Map();
+    reportVehicleRows.forEach((row) => {
+      const purpose = String(row.purpose || unspecifiedPurpose).trim() || unspecifiedPurpose;
+      counts.set(purpose, (counts.get(purpose) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .map(([purpose, value]) => ({ purpose, value }))
+      .sort((a, b) => b.value - a.value || a.purpose.localeCompare(b.purpose))
+      .slice(0, 6);
+  }, [reportVehicleRows, unspecifiedPurpose]);
+  const maxPurposeValue = Math.max(...purposeDistribution.map((item) => item.value), 1);
 
   const unspecifiedCompany = tt("unspecifiedCompany");
   const companies = useMemo(() => {
@@ -410,17 +467,21 @@ export default function GatepassExecutiveOverviewPage() {
   }, [activeRegistry, unspecifiedCompany]);
 
   const trend = useMemo(() => {
-    const currentDate = new Date();
-    return Array.from({ length: 7 }, (_, index) => shiftDay(currentDate, index - 6)).map((day) => {
+    const endDate = reportDate ? new Date(`${reportDate}T00:00:00`) : new Date();
+    return Array.from({ length: 7 }, (_, index) => shiftDay(endDate, index - 6)).map((day) => {
       const key = dateKey(day);
+      const entryDayRows = weekRows.filter((row) => row.visit_date === key && row.entry_time);
+      const exitDayRows = weekRows.filter((row) => (row.exit_date || row.visit_date) === key && row.exit_time);
       return {
         date: key,
         label: weekdayFormatter.format(day),
-        gatepass: weekRows.filter((row) => row.visit_date === key && row.entry_time).length,
-        registry: weekRows.filter((row) => (row.exit_date || row.visit_date) === key && row.exit_time).length,
+        gatepass: uniqueVehicleRows(entryDayRows).length,
+        registry: uniqueVehicleRows(exitDayRows).length,
       };
     });
-  }, [weekRows, weekdayFormatter]);
+  }, [reportDate, weekRows, weekdayFormatter]);
+
+  const reportDateLabel = reportDate ? dateFormatter.format(new Date(`${reportDate}T00:00:00`)) : "-";
 
   const metrics = useMemo(() => ({
     active: activeRegistry.length,
@@ -471,8 +532,8 @@ export default function GatepassExecutiveOverviewPage() {
         {error ? <section className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error}</section> : null}
 
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <KpiCard icon={LogIn} label={tt("entryToday")} value={entriesToday.toLocaleString()} detail={dateFormatter.format(new Date())} accent="emerald" selected={selectedKpi === "entryToday"} onClick={() => setSelectedKpi((current) => current === "entryToday" ? "" : "entryToday")} viewHint={tt("clickToView")} />
-          <KpiCard icon={LogOut} label={tt("exitToday")} value={exitsToday.toLocaleString()} detail={dateFormatter.format(new Date())} accent="rose" selected={selectedKpi === "exitToday"} onClick={() => setSelectedKpi((current) => current === "exitToday" ? "" : "exitToday")} viewHint={tt("clickToView")} />
+          <KpiCard icon={LogIn} label={tt("entryToday")} value={entriesToday.toLocaleString()} detail={tt("reportRound", { date: reportDateLabel })} accent="emerald" selected={selectedKpi === "entryToday"} onClick={() => setSelectedKpi((current) => current === "entryToday" ? "" : "entryToday")} viewHint={tt("clickToView")} />
+          <KpiCard icon={LogOut} label={tt("exitToday")} value={exitsToday.toLocaleString()} detail={tt("reportRound", { date: reportDateLabel })} accent="rose" selected={selectedKpi === "exitToday"} onClick={() => setSelectedKpi((current) => current === "exitToday" ? "" : "exitToday")} viewHint={tt("clickToView")} />
           <KpiCard icon={Clock3} label={tt("inside")} value={insideToday.toLocaleString()} detail={tt("insideHint")} accent="slate" selected={selectedKpi === "inside"} onClick={() => setSelectedKpi((current) => current === "inside" ? "" : "inside")} viewHint={tt("clickToView")} />
           <KpiCard icon={ShieldCheck} label={tt("active")} value={metrics.active.toLocaleString()} detail={tt("activeHint")} accent="navy" selected={selectedKpi === "active"} onClick={() => setSelectedKpi((current) => current === "active" ? "" : "active")} viewHint={tt("clickToView")} />
         </section>
@@ -484,27 +545,30 @@ export default function GatepassExecutiveOverviewPage() {
           </div>
           {selectedKpiRows.length ? <div className="max-h-[320px] overflow-auto"><table className="min-w-[720px] w-full text-left text-xs"><thead className="sticky top-0 z-[1] bg-slate-50 text-[9px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-2">{tt("plate")}</th><th className="px-4 py-2">{tt("time")}</th><th className="px-4 py-2">{tt("detail")}</th><th className="px-4 py-2">{tt("status")}</th></tr></thead><tbody className="divide-y divide-slate-100">{selectedKpiRows.map((row, index) => {
             const registryRow = selectedKpi === "active";
-            const isApproved = registryRow || approvedPlateSet.has(plateKey(row.vehicle_plate));
+            const isApproved = registryRow || row.pass_type === "TDK_APPROVED" || approvedPlateSet.has(plateKey(row.vehicle_plate));
             const statusLabel = registryRow ? tt("activeStatus") : isApproved ? tt("approved") : row.pass_type === "TEMPORARY" ? tt("temporary") : tt("unregistered");
             const statusClass = registryRow || isApproved ? "bg-emerald-100 text-emerald-800" : row.pass_type === "TEMPORARY" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-700";
             return <tr key={row.id || `${row.vehicle_plate}-${index}`} className="hover:bg-blue-50/40"><td className="px-4 py-2.5"><p className="font-bold text-slate-950">{row.vehicle_plate || "-"}</p><p className="mt-0.5 text-[10px] text-slate-400">{row.province || row.gate_name || "-"}</p></td><td className="whitespace-nowrap px-4 py-2.5"><p className="font-bold"><span className="text-emerald-700">{registryRow ? "-" : formatTime(row.entry_time)}</span>{!registryRow ? <><span className="mx-1.5 text-slate-300">→</span><span className="text-rose-700">{formatTime(row.exit_time)}</span></> : null}</p><p className="mt-0.5 text-[10px] text-slate-400">{registryRow ? row.first_seen_date || "-" : row.visit_date || "-"}</p></td><td className="px-4 py-2.5"><p className="font-semibold text-slate-800">{row.full_name || row.driver_name || "-"}</p><p className="mt-0.5 text-[10px] text-slate-500">{row.company_name || row.purpose || row.contact_person || "-"}</p></td><td className="px-4 py-2.5"><span className={`inline-flex rounded-md px-2 py-1 text-[9px] font-bold ${statusClass}`}>{statusLabel}</span></td></tr>;
           })}</tbody></table></div> : <div className="flex min-h-[150px] items-center justify-center p-6 text-center text-xs text-slate-400">{tt("noKpiRows")}</div>}
         </section> : null}
 
-        <section className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
+        <section className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.8fr)_minmax(300px,1fr)]">
           <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
             <div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-bold text-slate-900">{tt("trend")}</h2><p className="mt-0.5 text-[10px] text-slate-500">{tt("trendHint")}</p></div>
-            <div className="h-[220px] p-2.5 sm:p-3"><ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf4" /><XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} /><YAxis allowDecimals={false} tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 11 }} /><Legend wrapperStyle={{ fontSize: 10 }} /><Line type="monotone" dataKey="gatepass" name={tt("gatepassTrend")} stroke="#059669" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} /><Line type="monotone" dataKey="registry" name={tt("registryTrend")} stroke="#e11d48" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div>
+            <div className="h-[240px] p-2.5 sm:p-3"><ResponsiveContainer width="100%" height="100%"><BarChart data={trend} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf4" /><XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} /><YAxis allowDecimals={false} tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} /><Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 11 }} /><Legend wrapperStyle={{ fontSize: 10 }} /><Bar dataKey="gatepass" name={tt("gatepassTrend")} fill="#059669" radius={[4, 4, 0, 0]} maxBarSize={22} /><Bar dataKey="registry" name={tt("registryTrend")} fill="#e11d48" radius={[4, 4, 0, 0]} maxBarSize={22} /></BarChart></ResponsiveContainer></div>
           </article>
 
           <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3"><div><h2 className="text-sm font-bold text-slate-900">{tt("latestActivity")}</h2><p className="mt-0.5 text-[10px] text-slate-500">{tt("latestActivityHint")}</p></div><Link to="/reports/gatepass/daily" className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 transition hover:bg-blue-100">{tt("viewAll")}</Link></div>
-            {recentActivity.length ? <div className="overflow-x-auto"><table className="w-full table-fixed text-left text-[11px]"><thead className="bg-slate-50 text-[9px] uppercase tracking-wide text-slate-500"><tr><th className="w-[28%] px-3 py-2 font-bold">{tt("time")}</th><th className="w-[43%] px-3 py-2 font-bold">{tt("plate")}</th><th className="w-[29%] px-3 py-2 font-bold">{tt("status")}</th></tr></thead><tbody>{recentActivity.map((row, index) => {
-              const isApproved = approvedPlateSet.has(plateKey(row.vehicle_plate));
-              const statusLabel = isApproved ? tt("approved") : row.pass_type === "TEMPORARY" ? tt("temporary") : tt("unregistered");
-              const statusClass = isApproved ? "bg-emerald-100 text-emerald-800" : row.pass_type === "TEMPORARY" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-700";
-              return <tr key={row.id || `${row.vehicle_plate}-${index}`} className="border-t border-slate-100 align-top hover:bg-blue-50/50"><td className="px-3 py-2.5"><p className="whitespace-nowrap font-bold"><span className="text-emerald-700">{formatTime(row.entry_time)}</span><span className="mx-1 text-slate-300">→</span><span className="text-rose-700">{formatTime(row.exit_time)}</span></p><p className="mt-0.5 text-[9px] text-slate-400">{dateFormatter.format(new Date(`${row.visit_date}T00:00:00`))} · {row.gate_name || "-"}</p></td><td className="px-3 py-2.5"><p className="font-bold text-slate-950">{row.vehicle_plate || "-"}</p><p className="mt-0.5 truncate text-[9px] text-slate-500">{row.company_name || row.driver_name || row.purpose || "-"}</p></td><td className="px-3 py-2.5"><span className={`inline-flex max-w-full rounded-md px-2 py-1 text-[9px] font-bold leading-3 ${statusClass}`}>{statusLabel}</span></td></tr>;
-            })}</tbody></table></div> : <div className="flex min-h-[170px] flex-col items-center justify-center px-5 py-7 text-center"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-400">{loading ? <Loader2 size={19} className="animate-spin" /> : <CarFront size={19} />}</span><p className="mt-2 text-xs font-bold text-slate-600">{tt("noActivity")}</p></div>}
+            <div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-bold text-slate-900">{tt("typeTitle")}</h2><p className="mt-0.5 text-[10px] text-slate-500">{tt("typeHint")}</p></div>
+            <div className="grid min-h-[240px] grid-cols-[minmax(120px,0.9fr)_minmax(130px,1.1fr)] items-center gap-1 px-3 py-3">
+              <div className="relative h-[165px] min-w-0"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={typeDistribution} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={46} outerRadius={68} paddingAngle={2} stroke="none">{typeDistribution.map((item) => <Cell key={item.key} fill={PASS_TYPE_COLORS[item.key]} />)}</Pie><Tooltip contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 11 }} /></PieChart></ResponsiveContainer><div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><strong className="text-2xl font-black text-slate-950">{reportVehicleRows.length.toLocaleString()}</strong><span className="text-[9px] font-semibold text-slate-400">{tt("plate")}</span></div></div>
+              <div className="space-y-3">{typeDistribution.map((item) => <div key={item.key} className="grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: PASS_TYPE_COLORS[item.key] }} /><span className="truncate text-[10px] font-semibold text-slate-600" title={item.label}>{item.label}</span><strong className="text-sm text-slate-900">{item.value.toLocaleString()}</strong></div>)}</div>
+            </div>
+          </article>
+
+          <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+            <div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-bold text-slate-900">{tt("purposeTitle")}</h2><p className="mt-0.5 text-[10px] text-slate-500">{tt("purposeHint")}</p></div>
+            {purposeDistribution.length ? <div className="space-y-3 px-4 py-3">{purposeDistribution.map((item) => <div key={item.purpose}><div className="mb-1 flex items-center justify-between gap-3 text-[10px]"><span className="truncate font-semibold text-slate-700" title={item.purpose}>{item.purpose}</span><strong className="shrink-0 text-slate-950">{item.value.toLocaleString()}</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-[#2b59b0] to-[#7ba2ef]" style={{ width: `${Math.max((item.value / maxPurposeValue) * 100, 4)}%` }} /></div></div>)}</div> : <div className="flex min-h-[240px] items-center justify-center p-5 text-xs text-slate-400">{tt("noActivity")}</div>}
           </article>
         </section>
 

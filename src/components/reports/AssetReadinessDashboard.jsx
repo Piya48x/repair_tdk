@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import {
   AlertTriangle,
@@ -23,19 +23,13 @@ import {
   ShieldCheck,
   UserRound,
   Wrench,
+  X,
 } from "lucide-react";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
   Cell,
-  LabelList,
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
 } from "recharts";
 import { useScopedI18n } from "../../i18n/useScopedI18n";
 import { getReportLocale } from "./reportLocale";
@@ -60,6 +54,14 @@ const TRANSLATIONS = {
       readyHint: "พร้อมรองรับการใช้งาน",
       attention: "ต้องติดตาม",
       attentionHint: "เสียหรืออยู่ระหว่างซ่อม",
+    },
+    metricDialog: {
+      eyebrow: "รายการตามตัวชี้วัด",
+      title: "รายการอุปกรณ์: {{metric}}",
+      search: "ค้นหา Asset Code, ชื่ออุปกรณ์, Serial Number หรือผู้ใช้งานในรายการนี้",
+      count: "แสดง {{shown}} จาก {{total}} รายการ",
+      empty: "ไม่พบอุปกรณ์ที่ตรงกับคำค้นหา",
+      close: "ปิดหน้าต่าง",
     },
     overview: {
       title: "ภาพรวมความพร้อม",
@@ -144,6 +146,14 @@ const TRANSLATIONS = {
       attention: "Needs attention",
       attentionHint: "Broken or under repair",
     },
+    metricDialog: {
+      eyebrow: "Metric equipment list",
+      title: "Equipment: {{metric}}",
+      search: "Search Asset Code, equipment, serial number, or owner in this list",
+      count: "Showing {{shown}} of {{total}} assets",
+      empty: "No equipment matches your search",
+      close: "Close dialog",
+    },
     overview: {
       title: "Readiness overview",
       subtitle: "Select a status to filter the asset registry below.",
@@ -226,6 +236,14 @@ const TRANSLATIONS = {
       readyHint: "새 수요에 배포 가능",
       attention: "확인 필요",
       attentionHint: "고장 또는 수리 중",
+    },
+    metricDialog: {
+      eyebrow: "지표별 장비 목록",
+      title: "장비 목록: {{metric}}",
+      search: "이 목록에서 Asset Code, 장비명, 일련번호 또는 사용자 검색",
+      count: "전체 {{total}}개 중 {{shown}}개 표시",
+      empty: "검색과 일치하는 장비가 없습니다",
+      close: "창 닫기",
     },
     overview: {
       title: "준비도 개요",
@@ -340,15 +358,6 @@ const STATUS_GROUPS = [
   },
 ];
 
-const CATEGORY_COLORS = [
-  ["#2563eb", "#38bdf8"],
-  ["#7c3aed", "#a78bfa"],
-  ["#0f766e", "#2dd4bf"],
-  ["#ea580c", "#fb923c"],
-  ["#db2777", "#f472b6"],
-  ["#475569", "#94a3b8"],
-];
-
 const DEVICE_TYPES = [
   { icon: Laptop, keywords: ["notebook", "laptop", "macbook", "โน้ตบุ๊ก", "노트북"] },
   { icon: Monitor, keywords: ["monitor", "display", "screen", "จอ", "มอนิเตอร์", "모니터"] },
@@ -404,7 +413,7 @@ function AssetThumb({ asset, noPhoto }) {
   const DeviceIcon = getDeviceIcon(asset);
 
   return (
-    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50 to-slate-100 text-[#2b59b0]">
+    <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-[#2b59b0]">
       <DeviceIcon size={18} />
       {attachment ? (
         <img
@@ -424,10 +433,10 @@ function AssetPreview({ asset, noPhoto, photoLabel }) {
   const DeviceIcon = getDeviceIcon(asset);
 
   return (
-    <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-blue-50 via-slate-50 to-cyan-100">
+    <div className="relative aspect-[16/9] overflow-hidden bg-slate-100">
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-400">
-        <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-white bg-white/80 text-[#2b59b0] shadow-sm">
-          <DeviceIcon size={26} strokeWidth={1.8} />
+        <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#2b59b0] shadow-sm">
+          <DeviceIcon size={23} strokeWidth={1.8} />
         </span>
         <span className="text-[9px] font-black uppercase tracking-[0.12em]">{noPhoto}</span>
       </div>
@@ -441,7 +450,7 @@ function AssetPreview({ asset, noPhoto, photoLabel }) {
         />
       ) : null}
       {attachments.length ? (
-        <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2.5 py-1 text-[9px] font-bold text-white shadow-sm backdrop-blur">
+        <span className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-md bg-slate-950/75 px-2 py-1 text-[9px] font-bold text-white shadow-sm backdrop-blur">
           <Image size={10} />
           {photoLabel(attachments.length)}
         </span>
@@ -456,40 +465,243 @@ function MetricButton({ icon: Icon, label, value, helper, tone, active, onClick 
       type="button"
       onClick={onClick}
       aria-pressed={active}
+      aria-haspopup="dialog"
       className={clsx(
-        "group cursor-pointer rounded-2xl border bg-white p-4 text-left shadow-[0_8px_24px_-20px_rgba(15,23,42,0.7)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-22px_rgba(37,99,235,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-5",
-        active ? tone.panel : "border-slate-200 hover:border-blue-200",
+        "group w-full rounded-xl border bg-white p-3 text-left shadow-[0_3px_14px_rgba(15,23,42,0.04)] outline-none transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_8px_22px_rgba(15,23,42,0.08)] focus-visible:ring-2 focus-visible:ring-blue-200 sm:p-3.5",
+        active ? clsx(tone.panel, "ring-2 ring-blue-100") : "border-slate-200",
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-bold text-slate-600 sm:text-sm">{label}</p>
-          <p className="mt-1.5 text-3xl font-black tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 truncate text-[11px] text-slate-500 sm:text-xs">{helper}</p>
+          <p className="text-xs font-semibold text-slate-600 sm:text-sm">{label}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-[28px]">{value}</p>
+          <p className="mt-0.5 truncate text-[10px] leading-4 text-slate-500" title={helper}>{helper}</p>
         </div>
-        <span className={clsx("inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border", tone.chip)}>
-          <Icon size={18} />
+        <span className={clsx("inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border", tone.chip)}>
+          <Icon size={17} strokeWidth={2} />
         </span>
       </div>
     </button>
   );
 }
 
-function ChartTooltip({ active, payload, formatter }) {
-  if (!active || !payload?.length) return null;
-  const point = payload[0];
-  const item = point.payload || {};
+function AssetMetricDialog({ metricKey, assets, formatter, locale, tt, formatStatus, onClose }) {
+  const [query, setQuery] = useState("");
+  const dialogRef = useRef(null);
+  const metricLabelKey = metricKey === "all" ? "total" : metricKey;
+  const metricGroup = STATUS_GROUPS.find((group) => group.key === metricKey);
+  const MetricIcon = metricKey === "all" ? Database : (metricGroup?.icon || HardDrive);
+  const metricTone = metricKey === "all"
+    ? "border-blue-200 bg-blue-50 text-blue-700"
+    : metricGroup?.chip || "border-slate-200 bg-slate-50 text-slate-700";
+
+  const visibleAssets = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return [...assets]
+      .filter((asset) => !normalizedQuery || [
+        asset?.asset_tag,
+        asset?.asset_name,
+        asset?.asset_category,
+        asset?.brand,
+        asset?.model,
+        asset?.serial_number,
+        asset?.owner_name,
+        asset?.department,
+        asset?.location,
+        asset?.factory,
+      ].some((value) => String(value || "").toLowerCase().includes(normalizedQuery)))
+      .sort((left, right) => String(left?.asset_tag || getAssetName(left)).localeCompare(
+        String(right?.asset_tag || getAssetName(right)),
+        locale,
+        { numeric: true, sensitivity: "base" },
+      ));
+  }, [assets, locale, query]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusableElements = dialogRef.current?.querySelectorAll(
+        "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
+      );
+      if (!focusableElements?.length) return;
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [onClose]);
+
+  const dialogTitle = tt("metricDialog.title", { metric: tt("metrics." + metricLabelKey) });
 
   return (
-    <div className="min-w-[132px] rounded-xl border border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_14px_35px_-14px_rgba(15,23,42,0.35)] backdrop-blur">
-      <div className="flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color || point.color }} />
-        <p className="text-[11px] font-bold text-slate-600">{item.label || point.name || "-"}</p>
-      </div>
-      <div className="mt-1.5 flex items-end justify-between gap-4">
-        <strong className="text-xl font-black tracking-tight text-slate-950">{formatter.format(numberValue(point.value))}</strong>
-        {Number.isFinite(item.percentage) ? <span className="pb-0.5 text-[10px] font-bold text-slate-400">{item.percentage}%</span> : null}
-      </div>
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-3 backdrop-blur-[2px] sm:p-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="asset-metric-dialog-title"
+        className="flex max-h-[min(90vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_28px_80px_-24px_rgba(15,23,42,0.5)]"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className={clsx("inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border", metricTone)}>
+              <MetricIcon size={18} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{tt("metricDialog.eyebrow")}</p>
+              <h2 id="asset-metric-dialog-title" className="mt-0.5 truncate text-lg font-bold text-slate-950 sm:text-xl">
+                {dialogTitle}
+              </h2>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                {tt("metrics." + metricLabelKey + "Hint")}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            autoFocus
+            aria-label={tt("metricDialog.close")}
+            title={tt("metricDialog.close")}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
+          >
+            <X size={17} />
+          </button>
+        </header>
+
+        <div className="border-b border-slate-200 bg-slate-50/80 p-3 sm:px-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="relative block w-full sm:max-w-xl">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={tt("metricDialog.search")}
+                aria-label={tt("metricDialog.search")}
+                className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+            <span className="shrink-0 text-[11px] font-semibold text-slate-500">
+              {tt("metricDialog.count", { shown: formatter.format(visibleAssets.length), total: formatter.format(assets.length) })}
+            </span>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {visibleAssets.length ? (
+            <>
+              <div className="divide-y divide-slate-100 lg:hidden">
+                {visibleAssets.map((asset) => {
+                  const group = getStatusGroup(asset?.status);
+                  return (
+                    <article key={"metric-mobile-" + asset.id} className="p-3.5">
+                      <div className="flex items-start gap-3">
+                        <AssetThumb asset={asset} noPhoto={tt("registry.noPhoto")} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <h3 className="truncate text-sm font-bold text-slate-900">{getAssetName(asset)}</h3>
+                              <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-blue-700">{asset.asset_tag || "-"}</p>
+                            </div>
+                            <span className={clsx("shrink-0 rounded-md border px-2 py-1 text-[9px] font-bold", group.chip)}>
+                              {formatStatus(asset.status)}
+                            </span>
+                          </div>
+                          <p className="mt-2 truncate text-[10px] font-semibold text-slate-600">
+                            {asset.asset_category || tt("registry.noCategory")}
+                          </p>
+                          <div className="mt-1.5 grid gap-1 text-[10px] text-slate-500 sm:grid-cols-2">
+                            <p className="flex min-w-0 items-center gap-1.5"><UserRound size={11} className="shrink-0" /><span className="truncate">{asset.owner_name || tt("registry.noOwner")}</span></p>
+                            <p className="flex min-w-0 items-center gap-1.5"><MapPin size={11} className="shrink-0" /><span className="truncate">{getLocation(asset, tt("registry.noLocation"))}</span></p>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <table className="hidden w-full min-w-[860px] table-fixed text-left text-xs lg:table">
+                <colgroup>
+                  <col className="w-[135px]" />
+                  <col className="w-[260px]" />
+                  <col className="w-[135px]" />
+                  <col className="w-[135px]" />
+                  <col />
+                  <col className="w-[115px]" />
+                </colgroup>
+                <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
+                  <tr className="border-b border-slate-200 text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                    <th className="px-4 py-3">{tt("registry.code")}</th>
+                    <th className="px-4 py-3">{tt("registry.asset")}</th>
+                    <th className="px-4 py-3">{tt("registry.category")}</th>
+                    <th className="px-4 py-3">{tt("registry.status")}</th>
+                    <th className="px-4 py-3">{tt("registry.owner")}</th>
+                    <th className="px-4 py-3">{tt("registry.updated")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleAssets.map((asset) => {
+                    const group = getStatusGroup(asset?.status);
+                    return (
+                      <tr key={"metric-table-" + asset.id} className="border-b border-slate-100 align-middle transition hover:bg-blue-50/45">
+                        <td className="truncate px-4 py-3 font-mono text-[11px] font-bold text-blue-700" title={asset.asset_tag || "-"}>{asset.asset_tag || "-"}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <AssetThumb asset={asset} noPhoto={tt("registry.noPhoto")} />
+                            <div className="min-w-0">
+                              <p className="truncate font-bold text-slate-900" title={getAssetName(asset)}>{getAssetName(asset)}</p>
+                              <p className="mt-0.5 truncate text-[10px] text-slate-500" title={[asset.brand, asset.model, asset.serial_number].filter(Boolean).join(" • ")}>
+                                {[asset.brand, asset.model, asset.serial_number].filter(Boolean).join(" • ") || "-"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3"><span className="inline-flex max-w-full truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">{asset.asset_category || tt("registry.noCategory")}</span></td>
+                        <td className="px-4 py-3"><span className={clsx("inline-flex rounded-md border px-2 py-1 text-[10px] font-bold", group.chip)}>{formatStatus(asset.status)}</span></td>
+                        <td className="px-4 py-3">
+                          <p className="truncate font-semibold text-slate-700" title={asset.owner_name || tt("registry.noOwner")}>{asset.owner_name || tt("registry.noOwner")}</p>
+                          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-slate-500"><MapPin size={10} className="shrink-0" /><span className="truncate">{getLocation(asset, tt("registry.noLocation"))}</span></p>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-[10px] font-semibold text-slate-500">{formatDate(asset.updated_at || asset.created_at, locale)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          ) : (
+            <div className="flex min-h-[280px] flex-col items-center justify-center px-6 text-center">
+              <span className="inline-flex h-14 w-14 items-center justify-center rounded-xl bg-slate-100 text-slate-400"><Search size={24} /></span>
+              <p className="mt-3 text-sm font-bold text-slate-600">{tt("metricDialog.empty")}</p>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
@@ -503,6 +715,7 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [viewMode, setViewMode] = useState("gallery");
+  const [selectedMetricKey, setSelectedMetricKey] = useState(null);
   const registryRef = useRef(null);
 
   const statusRows = useMemo(() => {
@@ -558,18 +771,16 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
     setCategoryFilter("all");
   };
   const filtersActive = Boolean(searchQuery || statusFilter !== "all" || categoryFilter !== "all");
-  const statusChartRows = statusRows
-    .filter((group) => group.value > 0)
-    .map((group) => ({
-      ...group,
-      label: tt("status." + group.key),
-      percentage: assets.length ? Math.round((group.value / assets.length) * 100) : 0,
-    }));
-  const categoryChartRows = categories.slice(0, 6).map((category, index) => ({
-    ...category,
-    color: CATEGORY_COLORS[index % CATEGORY_COLORS.length][0],
-    colorEnd: CATEGORY_COLORS[index % CATEGORY_COLORS.length][1],
-  }));
+  const readinessChartRows = [
+    { key: "operational", value: readinessRate, color: "#2563eb" },
+    { key: "remaining", value: Math.max(100 - readinessRate, 0), color: "#e2e8f0" },
+  ];
+  const categoryChartRows = categories.slice(0, 6);
+  const categoryMaximum = Math.max(...categoryChartRows.map((category) => category.value), 1);
+  const selectedMetricAssets = useMemo(() => {
+    if (!selectedMetricKey || selectedMetricKey === "all") return assets;
+    return assets.filter((asset) => getStatusGroup(asset?.status).key === selectedMetricKey);
+  }, [assets, selectedMetricKey]);
 
   const formatStatus = (status) => {
     const normalized = normalizeStatus(status);
@@ -582,48 +793,35 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
   };
 
   const showMetricAssets = (key) => {
-    setSearchQuery("");
-    setCategoryFilter("all");
-    setStatusFilter(key);
-    setViewMode("gallery");
-    window.requestAnimationFrame(() => {
-      registryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    setSelectedMetricKey(key);
   };
 
   return (
-    <div className="space-y-4">
-      <section className="relative overflow-hidden rounded-[1.5rem] border border-blue-100 bg-white shadow-[0_18px_50px_-40px_rgba(30,64,175,0.7)]">
-        <div className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full bg-blue-300/25 blur-3xl" />
-        <div className="pointer-events-none absolute left-1/3 top-0 h-40 w-40 rounded-full bg-cyan-200/25 blur-3xl" />
-        <div className="relative flex flex-col gap-4 bg-gradient-to-br from-white via-blue-50/40 to-cyan-50/60 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-start gap-3 sm:items-center">
-            <span className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2b59b0] to-[#173b80] text-white shadow-[0_14px_30px_-16px_rgba(43,89,176,0.95)]">
-              <HardDrive size={22} />
-              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
-            </span>
-            <div className="min-w-0 max-w-4xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#2b59b0]">{tt("eyebrow")}</p>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  {tt("live")}
-                </span>
-              </div>
-              <h1 className="mt-1 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{tt("title")}</h1>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 sm:text-sm">{tt("description")}</p>
+    <div className="space-y-3">
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+        <div className="h-0.5 bg-blue-700" />
+        <div className="flex flex-col gap-3 px-4 py-3.5 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 max-w-4xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">{tt("eyebrow")}</p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{tt("title")}</h1>
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                {tt("live")}
+              </span>
             </div>
+            <p className="mt-1 line-clamp-2 max-w-3xl text-xs leading-5 text-slate-500 lg:line-clamp-1">{tt("description")}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <p className="hidden text-right text-[10px] leading-4 text-slate-500 sm:block">
-              <span className="block font-bold text-slate-700">{tt("updated")}</span>
+          <div className="flex shrink-0 items-end justify-between gap-3 sm:justify-end">
+            <p className="text-left text-[10px] leading-4 text-slate-500 sm:text-right">
+              <span className="block font-semibold text-slate-600">{tt("updated")}</span>
               {new Date(data?.generatedAt || Date.now()).toLocaleString(locale)}
             </p>
             <button
               type="button"
               onClick={onRefresh}
               disabled={loading}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#2b59b0] px-4 text-xs font-bold text-white shadow-[0_10px_24px_-15px_rgba(43,89,176,0.9)] transition hover:-translate-y-0.5 hover:bg-[#244a95] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 text-xs font-bold text-white transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
               {tt("refresh")}
@@ -632,14 +830,14 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricButton
           icon={Database}
           label={tt("metrics.total")}
           value={formatter.format(assets.length)}
           helper={tt("metrics.totalHint")}
           tone={STATUS_GROUPS[0]}
-          active={statusFilter === "all"}
+          active={selectedMetricKey === "all"}
           onClick={() => showMetricAssets("all")}
         />
         <MetricButton
@@ -648,7 +846,7 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
           value={formatter.format(statusCounts.deployed)}
           helper={tt("metrics.deployedHint")}
           tone={STATUS_GROUPS[0]}
-          active={statusFilter === "deployed"}
+          active={selectedMetricKey === "deployed"}
           onClick={() => showMetricAssets("deployed")}
         />
         <MetricButton
@@ -657,7 +855,7 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
           value={formatter.format(statusCounts.ready)}
           helper={tt("metrics.readyHint")}
           tone={STATUS_GROUPS[1]}
-          active={statusFilter === "ready"}
+          active={selectedMetricKey === "ready"}
           onClick={() => showMetricAssets("ready")}
         />
         <MetricButton
@@ -666,183 +864,169 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
           value={formatter.format(statusCounts.attention)}
           helper={tt("metrics.attentionHint")}
           tone={STATUS_GROUPS[2]}
-          active={statusFilter === "attention"}
+          active={selectedMetricKey === "attention"}
           onClick={() => showMetricAssets("attention")}
         />
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(370px,0.92fr)_minmax(0,1.08fr)]">
-        <article className="relative overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[0_18px_45px_-36px_rgba(37,99,235,0.55)]">
-          <div className="h-1 bg-gradient-to-r from-blue-600 via-cyan-400 to-emerald-400" />
-          <div className="pointer-events-none absolute -left-16 top-20 h-40 w-40 rounded-full bg-blue-100/55 blur-3xl" />
-          <header className="relative border-b border-slate-100 px-5 py-4">
-            <h2 className="text-base font-black text-slate-950">{tt("overview.title")}</h2>
-            <p className="mt-1 text-xs text-slate-500">{tt("overview.subtitle")}</p>
-          </header>
-          <div className="relative p-5">
-            <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-stretch">
-              <div className="relative h-[250px] w-full max-w-[270px] shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <defs>
-                      {STATUS_GROUPS.map((group) => (
-                        <linearGradient key={group.key} id={"asset-status-" + group.key} x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stopColor={group.color} />
-                          <stop offset="100%" stopColor={group.colorEnd} />
-                        </linearGradient>
-                      ))}
-                      <filter id="asset-pie-shadow" x="-30%" y="-30%" width="160%" height="160%">
-                        <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor="#0f172a" floodOpacity="0.12" />
-                      </filter>
-                    </defs>
-                    <Pie
-                      data={statusChartRows}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={67}
-                      outerRadius={99}
-                      paddingAngle={3}
-                      cornerRadius={9}
-                      dataKey="value"
-                      nameKey="label"
-                      stroke="#ffffff"
-                      strokeWidth={3}
-                      animationDuration={750}
-                      style={{ filter: "url(#asset-pie-shadow)" }}
-                    >
-                      {statusChartRows.map((group) => (
-                        <Cell
-                          key={group.key}
-                          fill={"url(#asset-status-" + group.key + ")"}
-                          opacity={statusFilter === "all" || statusFilter === group.key ? 1 : 0.3}
-                          cursor="pointer"
-                          onClick={() => selectStatus(group.key)}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip formatter={formatter} />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-black tracking-tight text-slate-950">{formatter.format(readinessRate)}%</span>
-                  <span className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">{tt("readiness")}</span>
-                </div>
+      <section className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+          <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700"><ShieldCheck size={17} /></span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{tt("eyebrow")}</p>
+                <h2 className="mt-0.5 text-sm font-bold text-slate-950 sm:text-base">{tt("overview.title")}</h2>
+                <p className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-slate-500">{tt("overview.subtitle")}</p>
               </div>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />{formatter.format(readinessRate)}%
+            </span>
+          </header>
 
-              <div className="w-full min-w-0 py-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">{tt("overview.distribution")}</p>
-                <div className="mt-2 space-y-1.5">
-                  {statusRows.map((group) => {
-                    const percentage = assets.length ? Math.round((group.value / assets.length) * 100) : 0;
-                    return (
-                      <button
-                        key={group.key}
-                        type="button"
-                        onClick={() => selectStatus(group.key)}
-                        aria-pressed={statusFilter === group.key}
-                        className={clsx(
-                          "group w-full rounded-xl border px-3 py-2 text-left transition",
-                          statusFilter === group.key ? group.panel : "border-transparent hover:border-slate-200 hover:bg-slate-50/80",
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: group.color }} />
-                          <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-slate-600">{tt("status." + group.key)}</span>
-                          <strong className="text-xs text-slate-900">{formatter.format(group.value)}</strong>
-                          <span className="w-7 text-right text-[9px] font-bold text-slate-400">{percentage}%</span>
-                        </div>
-                        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{ width: percentage + "%", background: "linear-gradient(90deg, " + group.color + ", " + group.colorEnd + ")" }}
-                          />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+          <div className="grid gap-3 p-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
+            <div className="relative mx-auto h-[210px] w-[210px]">
+              <div className="absolute inset-4 rounded-full bg-blue-50/60" />
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={readinessChartRows}
+                    dataKey="value"
+                    nameKey="key"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={68}
+                    outerRadius={84}
+                    startAngle={90}
+                    endAngle={-270}
+                    stroke="none"
+                    cornerRadius={10}
+                    animationDuration={650}
+                  >
+                    {readinessChartRows.map((item) => <Cell key={item.key} fill={item.color} />)}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-[34px] font-bold leading-none tracking-tight text-slate-950">{formatter.format(readinessRate)}%</span>
+                <span className="mt-2 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">{tt("readiness")}</span>
+                <span className="mt-1 text-[10px] font-semibold text-slate-500">{formatter.format(operationalCount)} / {formatter.format(assets.length)}</span>
               </div>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <div className="min-w-0">
               <div className="flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 text-xs font-black text-emerald-800">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/80 shadow-sm"><CheckCircle2 size={15} /></span>
-                  {tt("operational")}
-                </span>
-                <strong className="text-lg text-emerald-800">{formatter.format(operationalCount)} / {formatter.format(assets.length)}</strong>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">{tt("overview.distribution")}</p>
+                <span className="text-[10px] font-semibold text-slate-400">{formatter.format(assets.length)}</span>
               </div>
-              <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-white shadow-inner">
-                <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-700" style={{ width: readinessRate + "%" }} />
+              <div className="mt-1 divide-y divide-slate-100">
+                {statusRows.map((group) => {
+                  const percentage = assets.length ? Math.round((group.value / assets.length) * 100) : 0;
+                  return (
+                    <button
+                      key={group.key}
+                      type="button"
+                      onClick={() => selectStatus(group.key)}
+                      aria-pressed={statusFilter === group.key}
+                      className={clsx(
+                        "group w-full rounded-lg border border-transparent px-2 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200",
+                        statusFilter === group.key ? clsx(group.panel, "border-current/10") : "hover:bg-slate-50",
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: group.color }} />
+                        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-600">{tt("status." + group.key)}</span>
+                        <strong className="text-xs text-slate-900">{formatter.format(group.value)}</strong>
+                        <span className="w-8 text-right text-[9px] font-bold text-slate-400">{percentage}%</span>
+                      </div>
+                      <div className="mt-1.5 ml-[18px] h-1 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: percentage + "%", backgroundColor: group.color }} />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <p className="mt-2 text-[10px] text-emerald-700/80">{tt("ofAssets")}</p>
+            </div>
+          </div>
+
+          <div className="mx-4 mb-4 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2.5">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-700"><CheckCircle2 size={15} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-[11px] font-bold text-emerald-800">{tt("operational")}</p>
+                  <strong className="text-sm text-emerald-800">{formatter.format(operationalCount)} / {formatter.format(assets.length)}</strong>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-emerald-100">
+                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: readinessRate + "%" }} />
+                </div>
+              </div>
             </div>
           </div>
         </article>
 
-        <article className="relative overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[0_18px_45px_-36px_rgba(124,58,237,0.45)]">
-          <div className="h-1 bg-gradient-to-r from-violet-600 via-fuchsia-400 to-orange-400" />
-          <div className="pointer-events-none absolute -right-14 top-14 h-44 w-44 rounded-full bg-violet-100/55 blur-3xl" />
-          <header className="relative flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-100 to-fuchsia-50 text-violet-700 shadow-sm"><LayoutGrid size={17} /></span>
-            <div>
-              <h2 className="text-base font-black text-slate-950">{tt("overview.category")}</h2>
-              <p className="mt-0.5 text-xs text-slate-500">{tt("overview.categoryHint")}</p>
+        <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+          <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700"><LayoutGrid size={17} /></span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{tt("eyebrow")}</p>
+                <h2 className="mt-0.5 text-sm font-bold text-slate-950 sm:text-base">{tt("overview.category")}</h2>
+                <p className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-slate-500">{tt("overview.categoryHint")}</p>
+              </div>
             </div>
+            <span className="inline-flex shrink-0 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700">{formatter.format(categoryChartRows.length)}</span>
           </header>
-          <div className="relative p-5">
+
+          <div className="p-4">
             {categoryChartRows.length ? (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={categoryChartRows} layout="vertical" margin={{ top: 8, right: 34, bottom: 6, left: 8 }}>
-                    <defs>
-                      {categoryChartRows.map((category, index) => (
-                        <linearGradient key={category.label} id={"asset-category-" + index} x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor={category.color} />
-                          <stop offset="100%" stopColor={category.colorEnd} />
-                        </linearGradient>
-                      ))}
-                    </defs>
-                    <CartesianGrid horizontal={false} stroke="#e2e8f0" strokeDasharray="3 4" />
-                    <XAxis type="number" hide />
-                    <YAxis
-                      type="category"
-                      dataKey="label"
-                      axisLine={false}
-                      tickLine={false}
-                      width={96}
-                      tick={{ fill: "#475569", fontSize: 10, fontWeight: 700 }}
-                    />
-                    <Tooltip cursor={{ fill: "#eff6ff", radius: 10 }} content={<ChartTooltip formatter={formatter} />} />
-                    <Bar dataKey="value" barSize={18} radius={[0, 9, 9, 0]} background={{ fill: "#f1f5f9", radius: 9 }} animationDuration={750}>
-                      {categoryChartRows.map((category, index) => (
-                        <Cell
-                          key={category.label}
-                          fill={"url(#asset-category-" + index + ")"}
-                          opacity={categoryFilter === "all" || categoryFilter === category.label ? 1 : 0.28}
-                          cursor="pointer"
-                          onClick={() => setCategoryFilter((current) => current === category.label ? "all" : category.label)}
-                        />
-                      ))}
-                      <LabelList dataKey="value" position="right" formatter={(value) => formatter.format(value)} style={{ fill: "#334155", fontSize: 10, fontWeight: 800 }} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="space-y-2">
+                {categoryChartRows.map((category, index) => {
+                  const percentage = assets.length ? Math.round((category.value / assets.length) * 100) : 0;
+                  const relativeWidth = Math.max((category.value / categoryMaximum) * 100, 3);
+                  const active = categoryFilter === category.label;
+                  return (
+                    <button
+                      key={category.label}
+                      type="button"
+                      onClick={() => setCategoryFilter((current) => current === category.label ? "all" : category.label)}
+                      aria-pressed={active}
+                      className={clsx(
+                        "group w-full rounded-lg border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200",
+                        active ? "border-blue-300 bg-blue-50/70 ring-1 ring-blue-100" : "border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50/70",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={clsx("inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold", active ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-700")}>{String(index + 1).padStart(2, "0")}</span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700" title={category.label}>{category.label}</span>
+                        <strong className="text-sm text-slate-950">{formatter.format(category.value)}</strong>
+                        <span className="w-9 text-right text-[10px] font-bold text-slate-400">{percentage}%</span>
+                      </div>
+                      <div className="mt-2 ml-10 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-gradient-to-r from-blue-700 via-blue-600 to-sky-400 transition-all duration-500" style={{ width: relativeWidth + "%" }} />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             ) : <p className="py-24 text-center text-sm text-slate-400">{tt("registry.noData")}</p>}
 
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
               {[
-                { icon: Clock3, label: tt("overview.aging"), helper: tt("overview.agingHint"), value: riskyCount, className: "border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 text-amber-700" },
-                { icon: Image, label: tt("overview.evidence"), helper: tt("overview.evidenceHint"), value: photoCount, className: "border-sky-200 bg-gradient-to-br from-sky-50 to-cyan-50 text-sky-700" },
-                { icon: Archive, label: tt("overview.inactive"), helper: tt("overview.inactiveHint"), value: statusCounts.inactive, className: "border-rose-200 bg-gradient-to-br from-rose-50 to-pink-50 text-rose-700" },
+                { icon: Clock3, label: tt("overview.aging"), helper: tt("overview.agingHint"), value: riskyCount, className: "border-amber-200 bg-amber-50/70 text-amber-700" },
+                { icon: Image, label: tt("overview.evidence"), helper: tt("overview.evidenceHint"), value: photoCount, className: "border-blue-200 bg-blue-50/70 text-blue-700" },
+                { icon: Archive, label: tt("overview.inactive"), helper: tt("overview.inactiveHint"), value: statusCounts.inactive, className: "border-rose-200 bg-rose-50/70 text-rose-700" },
               ].map((item) => {
                 const SignalIcon = item.icon;
                 return (
-                  <div key={item.label} className={clsx("min-w-0 rounded-xl border p-3 shadow-[0_8px_20px_-18px_currentColor]", item.className)} title={item.helper}>
-                    <SignalIcon size={14} />
-                    <p className="mt-2 truncate text-[10px] font-bold">{item.label}</p>
-                    <p className="mt-0.5 text-xl font-black">{formatter.format(item.value)}</p>
+                  <div key={item.label} className={clsx("flex min-w-0 items-center gap-2.5 rounded-lg border p-2.5", item.className)} title={item.helper}>
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-current/10 bg-white"><SignalIcon size={14} /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[10px] font-semibold">{item.label}</p>
+                      <p className="mt-0.5 truncate text-[9px] opacity-70">{item.helper}</p>
+                    </div>
+                    <p className="text-lg font-bold">{formatter.format(item.value)}</p>
                   </div>
                 );
               })}
@@ -851,19 +1035,20 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
         </article>
       </section>
 
-      <section ref={registryRef} className="scroll-mt-4 overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[0_16px_42px_-36px_rgba(15,23,42,0.75)]">
-        <header className="flex flex-col gap-3 border-b border-slate-200 bg-gradient-to-r from-white to-blue-50/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <section ref={registryRef} className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+        <div className="h-0.5 bg-blue-700" />
+        <header className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#2b59b0]">{tt("registry.eyebrow")}</p>
-            <h2 className="mt-1 text-lg font-black text-slate-950">{tt("registry.title")}</h2>
-            <p className="mt-0.5 text-xs text-slate-500">{tt("registry.subtitle")}</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{tt("registry.eyebrow")}</p>
+            <h2 className="mt-0.5 text-sm font-bold text-slate-950 sm:text-base">{tt("registry.title")}</h2>
+            <p className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-slate-500">{tt("registry.subtitle")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700">
               <Database size={12} />
               {tt("registry.visible", { shown: formatter.format(filteredAssets.length), total: formatter.format(assets.length) })}
             </span>
-            <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
               <button
                 type="button"
                 onClick={() => setViewMode("gallery")}
@@ -871,7 +1056,7 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
                 aria-label={tt("registry.galleryView")}
                 aria-pressed={viewMode === "gallery"}
                 className={clsx(
-                  "inline-flex h-7 w-8 items-center justify-center rounded-lg transition",
+                  "inline-flex h-7 w-8 items-center justify-center rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200",
                   viewMode === "gallery" ? "bg-[#2b59b0] text-white shadow-sm" : "text-slate-500 hover:bg-slate-100",
                 )}
               >
@@ -884,7 +1069,7 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
                 aria-label={tt("registry.tableView")}
                 aria-pressed={viewMode === "table"}
                 className={clsx(
-                  "inline-flex h-7 w-8 items-center justify-center rounded-lg transition",
+                  "inline-flex h-7 w-8 items-center justify-center rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200",
                   viewMode === "table" ? "bg-[#2b59b0] text-white shadow-sm" : "text-slate-500 hover:bg-slate-100",
                 )}
               >
@@ -894,7 +1079,7 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
           </div>
         </header>
 
-        <div className="border-b border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+        <div className="border-b border-slate-200 bg-slate-50/70 p-3">
           <div className="grid grid-cols-[minmax(0,1fr)_40px] gap-2 md:grid-cols-[minmax(280px,1fr)_180px_190px_40px]">
             <label className="relative col-span-2 md:col-span-1">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -904,14 +1089,14 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder={tt("registry.search")}
                 aria-label={tt("registry.search")}
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </label>
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
               aria-label={tt("registry.allStatuses")}
-              className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-9 min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="all">{tt("registry.allStatuses")}</option>
               {STATUS_GROUPS.map((group) => <option key={group.key} value={group.key}>{tt("status." + group.key)}</option>)}
@@ -920,7 +1105,7 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
               aria-label={tt("registry.allCategories")}
-              className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-9 min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="all">{tt("registry.allCategories")}</option>
               {categories.map((category) => <option key={category.label} value={category.label}>{category.label}</option>)}
@@ -931,7 +1116,7 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
               disabled={!filtersActive}
               title={tt("registry.reset")}
               aria-label={tt("registry.reset")}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-9 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <RotateCcw size={14} />
             </button>
@@ -940,13 +1125,13 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
 
         {filteredAssets.length ? (
           viewMode === "gallery" ? (
-            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {filteredAssets.map((asset) => {
                 const group = getStatusGroup(asset?.status);
                 return (
                   <article
                     key={"gallery-" + asset.id}
-                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_22px_-18px_rgba(15,23,42,0.65)] transition duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-[0_20px_38px_-22px_rgba(37,99,235,0.38)]"
+                    className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_3px_12px_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_8px_22px_rgba(15,23,42,0.08)]"
                   >
                     <div className="relative">
                       <AssetPreview
@@ -954,17 +1139,17 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
                         noPhoto={tt("registry.noPhoto")}
                         photoLabel={(count) => tt("registry.photos", { count: formatter.format(count) })}
                       />
-                      <span className={clsx("absolute left-3 top-3 rounded-full border px-2.5 py-1 text-[9px] font-black shadow-sm backdrop-blur", group.chip)}>
+                      <span className={clsx("absolute left-2.5 top-2.5 rounded-md border px-2 py-1 text-[9px] font-bold shadow-sm backdrop-blur", group.chip)}>
                         {formatStatus(asset.status)}
                       </span>
                     </div>
-                    <div className="p-4">
+                    <div className="p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h3 className="truncate text-sm font-black text-slate-950" title={getAssetName(asset)}>{getAssetName(asset)}</h3>
+                          <h3 className="truncate text-sm font-bold text-slate-950" title={getAssetName(asset)}>{getAssetName(asset)}</h3>
                           <p className="mt-1 truncate font-mono text-[11px] font-bold text-[#2b59b0]">{asset.asset_tag || "-"}</p>
                         </div>
-                        <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                        <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
                           {asset.asset_category || tt("registry.noCategory")}
                         </span>
                       </div>
@@ -973,11 +1158,11 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
                       </p>
                       <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 text-[11px] text-slate-600">
                         <p className="flex min-w-0 items-center gap-2">
-                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><UserRound size={12} /></span>
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600"><UserRound size={12} /></span>
                           <span className="truncate">{asset.owner_name || tt("registry.noOwner")}</span>
                         </p>
                         <p className="flex min-w-0 items-center gap-2">
-                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><MapPin size={12} /></span>
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-600"><MapPin size={12} /></span>
                           <span className="truncate">{getLocation(asset, tt("registry.noLocation"))}</span>
                         </p>
                       </div>
@@ -1002,14 +1187,14 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <h3 className="truncate text-sm font-black text-slate-900">{getAssetName(asset)}</h3>
+                          <h3 className="truncate text-sm font-bold text-slate-900">{getAssetName(asset)}</h3>
                             <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-[#2b59b0]">{asset.asset_tag || "-"}</p>
                           </div>
-                          <span className={clsx("shrink-0 rounded-full border px-2 py-1 text-[9px] font-bold", group.chip)}>{formatStatus(asset.status)}</span>
+                          <span className={clsx("shrink-0 rounded-md border px-2 py-1 text-[9px] font-bold", group.chip)}>{formatStatus(asset.status)}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-600">{asset.asset_category || tt("registry.noCategory")}</span>
-                          <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[9px] text-slate-500"><UserRound size={10} /><span className="truncate">{asset.owner_name || tt("registry.noOwner")}</span></span>
+                          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-600">{asset.asset_category || tt("registry.noCategory")}</span>
+                          <span className="inline-flex min-w-0 items-center gap-1 rounded-md bg-slate-50 px-2 py-0.5 text-[9px] text-slate-500"><UserRound size={10} /><span className="truncate">{asset.owner_name || tt("registry.noOwner")}</span></span>
                         </div>
                         <p className="mt-2 flex min-w-0 items-center gap-1.5 text-[10px] text-slate-500"><MapPin size={11} className="shrink-0" /><span className="truncate">{getLocation(asset, tt("registry.noLocation"))}</span></p>
                       </div>
@@ -1056,8 +1241,8 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3"><span className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">{asset.asset_category || tt("registry.noCategory")}</span></td>
-                        <td className="px-4 py-3"><span className={clsx("inline-flex rounded-full border px-2 py-1 text-[10px] font-bold", group.chip)}>{formatStatus(asset.status)}</span></td>
+                        <td className="px-4 py-3"><span className="inline-flex max-w-full truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">{asset.asset_category || tt("registry.noCategory")}</span></td>
+                        <td className="px-4 py-3"><span className={clsx("inline-flex rounded-md border px-2 py-1 text-[10px] font-bold", group.chip)}>{formatStatus(asset.status)}</span></td>
                         <td className="px-4 py-3">
                           <p className="truncate font-semibold text-slate-700" title={asset.owner_name || tt("registry.noOwner")}>{asset.owner_name || tt("registry.noOwner")}</p>
                           <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-slate-500"><MapPin size={10} className="shrink-0" /><span className="truncate">{getLocation(asset, tt("registry.noLocation"))}</span></p>
@@ -1073,14 +1258,26 @@ export default function AssetReadinessDashboard({ data, onRefresh, loading }) {
           )
         ) : (
           <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
-            <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400"><HardDrive size={25} /></span>
+            <span className="inline-flex h-14 w-14 items-center justify-center rounded-xl bg-slate-100 text-slate-400"><HardDrive size={25} /></span>
             <p className="mt-3 text-sm font-bold text-slate-600">{filtersActive ? tt("registry.noResults") : tt("registry.noData")}</p>
             {filtersActive ? (
-              <button type="button" onClick={clearFilters} className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"><RotateCcw size={13} />{tt("registry.reset")}</button>
+              <button type="button" onClick={clearFilters} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"><RotateCcw size={13} />{tt("registry.reset")}</button>
             ) : null}
           </div>
         )}
       </section>
+
+      {selectedMetricKey ? (
+        <AssetMetricDialog
+          metricKey={selectedMetricKey}
+          assets={selectedMetricAssets}
+          formatter={formatter}
+          locale={locale}
+          tt={tt}
+          formatStatus={formatStatus}
+          onClose={() => setSelectedMetricKey(null)}
+        />
+      ) : null}
     </div>
   );
 }

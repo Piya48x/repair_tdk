@@ -138,7 +138,7 @@ export default function ExecutiveReportPage() {
 
   return (
     <>
-      <ReportsTopbar />
+      <ReportsTopbar compact />
       <ExecutiveDashboard data={data} onRefresh={loadData} loading={loading} />
     </>
   );

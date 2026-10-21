@@ -94,6 +94,7 @@ export default function ReportsTopbar({
   backTo,
   backLabel,
   showHub = true,
+  compact = false,
   currentUser: currentUserProp = null,
   messengerOpenSignal = 0,
   messengerOpenSignalTarget = "support",
@@ -185,8 +186,8 @@ export default function ReportsTopbar({
 
   return (
     <>
-      <header className="app-safe-top relative z-20 mb-5 rounded-2xl border border-slate-200 bg-white/95 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-xl">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-3 sm:flex-nowrap sm:gap-3 sm:px-4">
+      <header className={`app-safe-top relative z-20 border border-slate-200 bg-white/95 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-xl ${compact ? "mb-3 rounded-xl" : "mb-5 rounded-2xl"}`}>
+        <div className={`flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 sm:flex-nowrap sm:px-4 ${compact ? "py-1.5 sm:gap-2" : "py-3 sm:gap-3"}`}>
           <div className="flex min-w-0 items-center gap-2">
             {hasSidebar ? (
               <button
@@ -210,8 +211,8 @@ export default function ReportsTopbar({
               </Link>
             ) : null}
             <div className="min-w-0 pl-1">
-              <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">{tt("reports")}</p>
-              <p className="truncate text-sm font-bold text-slate-800 sm:text-base">{pageTitle}</p>
+              <p className={`truncate font-bold uppercase text-blue-700 ${compact ? "text-[9px] tracking-[0.14em]" : "text-[10px] tracking-[0.16em]"}`}>{tt("reports")}</p>
+              <p className={`truncate font-bold text-slate-800 ${compact ? "text-sm" : "text-sm sm:text-base"}`}>{pageTitle}</p>
             </div>
           </div>
 

@@ -205,6 +205,13 @@ const COPY = {
       utilization: "อัตราการใช้งาน",
       latest: "License ที่อัปเดตล่าสุด",
       seats: "สิทธิ์",
+      usageBreakdown: "สัดส่วนการใช้สิทธิ์",
+      usageHint: "เปรียบเทียบสิทธิ์ที่ใช้งานแล้วกับสิทธิ์คงเหลือทั้งหมด",
+      expiring30: "หมดอายุภายใน 30 วัน",
+      expiring90: "หมดอายุภายใน 90 วัน",
+      capacity: "การใช้สิทธิ์ราย License",
+      capacityHint: "เรียงตามจำนวนสิทธิ์ทั้งหมดจากมากไปน้อย",
+      empty: "ยังไม่มีข้อมูล Software License",
     },
     statusCodes: {
       in_use: "ใช้งานอยู่",
@@ -385,6 +392,13 @@ const COPY = {
       utilization: "Utilization",
       latest: "Recently updated licenses",
       seats: "seats",
+      usageBreakdown: "Seat usage breakdown",
+      usageHint: "Compare assigned seats with the total available capacity.",
+      expiring30: "Expiring within 30 days",
+      expiring90: "Expiring within 90 days",
+      capacity: "Usage by license",
+      capacityHint: "Sorted by total seat capacity, highest first.",
+      empty: "No software license data yet",
     },
     statusCodes: {
       in_use: "In use",
@@ -565,6 +579,13 @@ const COPY = {
       utilization: "사용률",
       latest: "최근 업데이트 라이선스",
       seats: "개",
+      usageBreakdown: "라이선스 사용 비율",
+      usageHint: "사용 중인 수량과 전체 가용 수량을 비교합니다.",
+      expiring30: "30일 이내 만료",
+      expiring90: "90일 이내 만료",
+      capacity: "라이선스별 사용량",
+      capacityHint: "전체 수량이 많은 순서로 표시합니다.",
+      empty: "소프트웨어 라이선스 데이터가 없습니다",
     },
     statusCodes: {
       in_use: "사용 중",
@@ -788,31 +809,31 @@ function MetricCard({ active, icon: Icon, label, value, hint, tone, onClick }) {
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`group min-h-[138px] rounded-2xl border p-4 text-left shadow-[0_4px_18px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(15,23,42,0.10)] ${tone} ${active ? "ring-2 ring-blue-700/20" : ""}`}
+      className={`group min-h-[100px] rounded-xl border p-3 text-left shadow-[0_3px_14px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_22px_rgba(15,23,42,0.08)] ${tone} ${active ? "ring-2 ring-blue-700/20" : ""}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold">{label}</p>
-          <p className="mt-3 text-3xl font-black tracking-tight">{value}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold">{label}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>
         </div>
-        <span className="rounded-xl border border-current/10 bg-white/70 p-2.5"><Icon size={18} /></span>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-current/10 bg-white/70"><Icon size={16} /></span>
       </div>
-      <p className="mt-2 text-xs leading-5 opacity-70">{hint}</p>
+      <p className="mt-1 truncate text-[10px] leading-4 opacity-70" title={hint}>{hint}</p>
     </button>
   );
 }
 
-function SectionHeading({ eyebrow, title, subtitle, icon: Icon = Activity, action = null }) {
+function SectionHeading({ eyebrow, title, subtitle, icon: Icon = Activity, action = null, compact = false }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="mt-0.5 hidden rounded-xl border border-blue-100 bg-blue-50 p-2.5 text-blue-700 sm:inline-flex">
-          <Icon size={18} />
+    <div className={`flex flex-col sm:flex-row sm:justify-between ${compact ? "gap-2 sm:items-center" : "gap-3 sm:items-end"}`}>
+      <div className={`flex min-w-0 items-start ${compact ? "gap-2.5" : "gap-3"}`}>
+        <span className={`mt-0.5 hidden items-center justify-center border border-blue-100 bg-blue-50 text-blue-700 sm:inline-flex ${compact ? "h-9 w-9 rounded-lg" : "rounded-xl p-2.5"}`}>
+          <Icon size={compact ? 16 : 18} />
         </span>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">{eyebrow}</p>
-          <h2 className="mt-1.5 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{title}</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">{subtitle}</p>
+        <div className="min-w-0">
+          <p className={`font-bold uppercase text-blue-700 ${compact ? "text-[9px] tracking-[0.18em]" : "text-[10px] tracking-[0.22em]"}`}>{eyebrow}</p>
+          <h2 className={`font-bold tracking-tight text-slate-950 ${compact ? "mt-0.5 text-base sm:text-lg" : "mt-1.5 text-xl sm:text-2xl"}`}>{title}</h2>
+          <p className={`max-w-3xl text-slate-500 ${compact ? "mt-0.5 line-clamp-1 text-[11px] leading-4" : "mt-1 text-sm leading-6"}`}>{subtitle}</p>
         </div>
       </div>
       {action}
@@ -844,18 +865,18 @@ function ExecutiveKpiCard({ icon: Icon, label, value, hint, tone = "slate", prog
 
 function PriorityRow({ icon: Icon, label, hint, count, tone, href }) {
   const urgent = count > 0;
-  const toneClasses = urgent ? tone : "border-slate-200 bg-white text-slate-500";
+  const toneClasses = urgent ? tone : "border-slate-200 bg-slate-50 text-slate-500";
   return (
-    <a href={href} className={`group flex items-center gap-3 rounded-xl border px-3.5 py-3 transition hover:-translate-y-0.5 hover:shadow-md ${toneClasses}`}>
-      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-current/10 bg-white/75">
-        <Icon size={17} />
+    <a href={href} className={`group flex min-h-[62px] items-center gap-3 rounded-lg border px-3 py-2.5 outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-200 ${toneClasses}`}>
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-current/10 bg-white shadow-sm">
+        <Icon size={16} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-black">{label}</span>
-        <span className="mt-0.5 block truncate text-[11px] opacity-70">{hint}</span>
+        <span className="block text-xs font-bold sm:text-sm">{label}</span>
+        <span className="mt-0.5 block truncate text-[10px] text-slate-500 sm:text-[11px]">{hint}</span>
       </span>
-      <span className="text-xl font-black tabular-nums">{count}</span>
-      <ArrowRight size={15} className="shrink-0 opacity-40 transition group-hover:translate-x-0.5 group-hover:opacity-80" />
+      <span className="inline-flex min-w-8 items-center justify-center rounded-md border border-current/10 bg-white px-2 py-1 text-sm font-bold tabular-nums shadow-sm">{count}</span>
+      <ArrowRight size={14} className="shrink-0 opacity-40 transition group-hover:translate-x-0.5 group-hover:opacity-80" />
     </a>
   );
 }
@@ -865,7 +886,7 @@ function RankingList({ items, emptyLabel, unitLabel, tone = "blue" }) {
   const maximum = Math.max(...rows.map((item) => toNumber(item?.value)), 1);
   const barClass = tone === "indigo" ? "bg-indigo-500" : tone === "emerald" ? "bg-emerald-500" : "bg-blue-600";
   return rows.length ? (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {rows.map((item, index) => {
         const value = toNumber(item?.value);
         return (
@@ -950,6 +971,19 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
   }, 0);
   const availableLicenseSeats = Math.max(totalLicenseSeats - assignedLicenseSeats, 0);
   const licenseUtilization = totalLicenseSeats > 0 ? Math.round((assignedLicenseSeats / totalLicenseSeats) * 100) : 0;
+  const licenseCapacityRows = useMemo(() => licenses
+    .map((license) => {
+      const total = Math.max(toNumber(license?.quantity_total), 0);
+      const assigned = Math.min(Math.max(toNumber(license?.quantity_assigned), 0), total);
+      return {
+        license,
+        total,
+        assigned,
+        utilization: total > 0 ? Math.round((assigned / total) * 100) : 0,
+      };
+    })
+    .sort((left, right) => right.total - left.total || right.assigned - left.assigned)
+    .slice(0, 6), [licenses]);
 
   const kpi = data?.kpi || {};
   const trend = Array.isArray(data?.trend) ? data.trend : [];
@@ -1038,18 +1072,19 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
   const categoryLabel = categoryFilter === "all" ? copy.category.all : copy.category[categoryFilter];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <ReportPageHero
         eyebrow={copy.heroBadge}
         title={copy.heroTitle}
         description={copy.heroDescription}
         status={`${copy.updated}: ${formatDateTime(data?.generatedAt, locale)}`}
+        compact
         action={(
           <button
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-blue-700 px-3.5 text-xs font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             {copy.refresh}
@@ -1057,21 +1092,173 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         )}
       />
 
-      <nav aria-label={copy.heroTitle} className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+      <nav aria-label={copy.heroTitle} className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
         <div className="flex min-w-max items-center gap-1">
           {[
+            ["#asset-health", HardDrive, copy.navigation.assets],
             ["#executive-summary", LayoutDashboard, copy.navigation.summary],
             ["#service-performance", Activity, copy.navigation.performance],
-            ["#asset-health", HardDrive, copy.navigation.assets],
             ["#asset-gallery", Images, copy.navigation.gallery],
             ["#license-health", KeyRound, copy.navigation.licenses],
           ].map(([href, Icon, label]) => (
-            <a key={href} href={href} className="inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-bold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700">
+            <a key={href} href={href} className="inline-flex h-8 items-center gap-2 rounded-lg px-2.5 text-[11px] font-bold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700">
               <Icon size={14} /> {label}
             </a>
           ))}
         </div>
       </nav>
+
+      <section id="asset-health" className="scroll-mt-20">
+        <SectionHeading
+          eyebrow={copy.assetSection.eyebrow}
+          title={copy.assetSection.title}
+          subtitle={copy.assetSection.subtitle}
+          icon={HardDrive}
+          compact
+          action={(
+            <span className="inline-flex items-center gap-1.5 self-start rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-700 sm:self-auto">
+              <Images size={14} />
+              {replaceTokens(copy.gallery.photoCoverage, {
+                withPhoto: formatCount(photoAssetCount),
+                total: formatCount(assets.length),
+              })}
+            </span>
+          )}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricCard
+          active={statusFilter === "all"}
+          icon={Box}
+          label={copy.metrics.total}
+          value={formatCount(assets.length)}
+          hint={copy.metrics.totalHint}
+          tone="border-slate-200 bg-white text-slate-900"
+          onClick={clearFilters}
+        />
+        {STATUS_GROUPS.map((group) => {
+          const Icon = group.icon;
+          return (
+            <MetricCard
+              key={group.key}
+              active={statusFilter === group.key}
+              icon={Icon}
+              label={copy.metrics[group.key]}
+              value={formatCount(statusCounts[group.key])}
+              hint={copy.metrics[`${group.key}Hint`]}
+              tone={group.card}
+              onClick={() => setStatusFilter(group.key)}
+            />
+          );
+        })}
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+        <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+          <div className="h-0.5 bg-blue-700" />
+          <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700">
+                <Gauge size={17} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{copy.status.eyebrow}</p>
+                <h2 className="mt-0.5 text-sm font-bold text-slate-950 sm:text-base">{copy.status.title}</h2>
+                <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500">{copy.status.subtitle}</p>
+              </div>
+            </div>
+            <span className="inline-flex shrink-0 items-baseline gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-emerald-800">
+              <strong className="text-base leading-none">{formatCount(readinessRate)}%</strong>
+              <span className="hidden text-[10px] font-semibold sm:inline">{copy.healthScore}</span>
+            </span>
+          </div>
+
+          <div className="p-4">
+            <div className="grid gap-4 sm:grid-cols-[132px_1fr] sm:items-center">
+              <div
+                className="relative mx-auto h-[126px] w-[126px] shrink-0 rounded-full p-[12px] shadow-[0_8px_24px_rgba(37,99,235,0.10)]"
+                style={{ background: assets.length ? `conic-gradient(${statusSegments.join(", ")})` : "#e2e8f0" }}
+                role="img"
+                aria-label={`${copy.status.title} ${readinessRate}%`}
+              >
+                <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-slate-100 bg-white">
+                  <p className="text-2xl font-bold tracking-tight text-slate-950">{formatCount(readinessRate)}%</p>
+                  <p className="mt-0.5 max-w-[92px] text-center text-[9px] font-semibold text-slate-500">{copy.healthScore}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {STATUS_GROUPS.map((group) => (
+                  <button
+                    key={group.key}
+                    type="button"
+                    onClick={() => setStatusFilter(group.key)}
+                    aria-pressed={statusFilter === group.key}
+                    className={`rounded-lg border px-3 py-2 text-left outline-none transition hover:-translate-y-0.5 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-200 ${statusFilter === group.key ? `${group.chip} ring-1 ring-current/10` : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white"}`}
+                  >
+                    <span className="flex items-center justify-between gap-2 text-[10px] font-semibold sm:text-[11px]">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: group.color }} />
+                        <span className="truncate">{copy.status[group.key]}</span>
+                      </span>
+                      <span className="text-[9px] text-slate-400">{formatCount(toPercent(statusCounts[group.key], assets.length))}%</span>
+                    </span>
+                    <span className="mt-1 block text-lg font-bold leading-none text-slate-950">{formatCount(statusCounts[group.key])}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className={`mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 ${statusCounts.attention > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+              {statusCounts.attention > 0 ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+              <p className="text-xs font-semibold">{statusCounts.attention > 0 ? replaceToken(copy.needsAttention, "count", formatCount(statusCounts.attention)) : copy.healthy}</p>
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-blue-700">{copy.category.eyebrow}</p>
+          <h2 className="mt-0.5 text-sm font-bold text-slate-950 sm:text-base">{copy.category.title}</h2>
+          <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">{copy.category.subtitle}</p>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {categoryMetrics.map((category) => {
+              const Icon = category.icon;
+              const active = categoryFilter === category.key;
+              return (
+                <button
+                  key={category.key}
+                  type="button"
+                  onClick={() => setCategoryFilter(category.key)}
+                  aria-pressed={active}
+                  className={`rounded-lg border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-md ${active ? `${category.accent} ring-2 ring-current/10` : "border-slate-200 bg-slate-50/60 text-slate-800"}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-md border border-current/10 bg-white p-1.5"><Icon size={15} /></span>
+                    <span className="text-xl font-bold">{formatCount(category.total)}</span>
+                  </div>
+                  <p className="mt-2 text-xs font-bold">{copy.category[category.key]}</p>
+                  <div className="mt-1 flex items-center justify-between text-[10px] opacity-70">
+                    <span>{copy.category.ready} {formatCount(category.operational)}</span>
+                    <span>{copy.category.risk} {formatCount(category.attention)}</span>
+                  </div>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("all")}
+              aria-pressed={categoryFilter === "all"}
+              className={`rounded-lg border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-md ${categoryFilter === "all" ? "border-blue-200 bg-blue-50 text-blue-800 ring-2 ring-blue-700/10" : "border-slate-200 bg-white text-slate-800"}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="rounded-md border border-current/10 bg-white p-1.5"><Box size={15} /></span>
+                <span className="text-xl font-bold">{formatCount(assets.length)}</span>
+              </div>
+              <p className="mt-2 text-xs font-bold">{copy.category.all}</p>
+              <p className="mt-1 truncate text-[10px] opacity-70">{copy.metrics.totalHint}</p>
+            </button>
+          </div>
+        </article>
+      </section>
 
       <section id="executive-summary" className="scroll-mt-20 space-y-4">
         <SectionHeading
@@ -1210,20 +1397,36 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
             </div>
           </article>
 
-          <article className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-[0_8px_28px_rgba(15,23,42,0.13)] sm:p-5">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">{copy.priorities.eyebrow}</p>
-            <h3 className="mt-2 text-xl font-black">{copy.priorities.title}</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-400">{copy.priorities.subtitle}</p>
-            {managementAttentionTotal === 0 ? (
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200">
-                <CheckCircle2 size={16} /> {copy.priorities.clear}
+          <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+            <div className={`h-0.5 ${managementAttentionTotal > 0 ? "bg-amber-500" : "bg-emerald-500"}`} />
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${managementAttentionTotal > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                  {managementAttentionTotal > 0 ? <AlertTriangle size={17} /> : <CheckCircle2 size={17} />}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{copy.priorities.eyebrow}</p>
+                  <h3 className="mt-0.5 text-sm font-bold text-slate-950 sm:text-base">{copy.priorities.title}</h3>
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500">{copy.priorities.subtitle}</p>
+                </div>
               </div>
-            ) : null}
-            <div className="mt-5 space-y-2.5">
-              <PriorityRow icon={Clock3} label={copy.priorities.overdue} hint={copy.priorities.overdueHint} count={overdueTickets} tone="border-rose-300/30 bg-rose-400/10 text-rose-100" href="#service-performance" />
-              <PriorityRow icon={Wrench} label={copy.priorities.assets} hint={copy.priorities.assetsHint} count={statusCounts.attention} tone="border-amber-300/30 bg-amber-400/10 text-amber-100" href="#asset-health" />
-              <PriorityRow icon={KeyRound} label={copy.priorities.licenses} hint={copy.priorities.licensesHint} count={expiringLicenses} tone="border-indigo-300/30 bg-indigo-400/10 text-indigo-100" href="#license-health" />
-              <PriorityRow icon={Users} label={copy.priorities.access} hint={copy.priorities.accessHint} count={pendingAccessRequests} tone="border-blue-300/30 bg-blue-400/10 text-blue-100" href="#executive-summary" />
+              <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold ${managementAttentionTotal > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                <span className="text-base leading-none tabular-nums">{formatCount(managementAttentionTotal)}</span>
+                <span className="hidden sm:inline">{copy.priorities.items}</span>
+              </span>
+            </div>
+            <div className="p-3 sm:p-4">
+              {managementAttentionTotal === 0 ? (
+                <div className="mb-2.5 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-700">
+                  <CheckCircle2 size={15} /> {copy.priorities.clear}
+                </div>
+              ) : null}
+              <div className="space-y-2">
+                <PriorityRow icon={Clock3} label={copy.priorities.overdue} hint={copy.priorities.overdueHint} count={overdueTickets} tone="border-rose-200 bg-rose-50/70 text-rose-700" href="#service-performance" />
+                <PriorityRow icon={Wrench} label={copy.priorities.assets} hint={copy.priorities.assetsHint} count={statusCounts.attention} tone="border-amber-200 bg-amber-50/70 text-amber-700" href="#asset-health" />
+                <PriorityRow icon={KeyRound} label={copy.priorities.licenses} hint={copy.priorities.licensesHint} count={expiringLicenses} tone="border-indigo-200 bg-indigo-50/70 text-indigo-700" href="#license-health" />
+                <PriorityRow icon={Users} label={copy.priorities.access} hint={copy.priorities.accessHint} count={pendingAccessRequests} tone="border-blue-200 bg-blue-50/70 text-blue-700" href="#executive-summary" />
+              </div>
             </div>
           </article>
         </div>
@@ -1260,137 +1463,6 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
             <div className="mt-5"><RankingList items={ticketStatusBreakdown} emptyLabel={copy.insights.empty} unitLabel={copy.insights.requests} tone="emerald" /></div>
           </article>
         </div>
-      </section>
-
-      <section id="asset-health" className="scroll-mt-20">
-        <SectionHeading
-          eyebrow={copy.assetSection.eyebrow}
-          title={copy.assetSection.title}
-          subtitle={copy.assetSection.subtitle}
-          icon={HardDrive}
-          action={(
-            <span className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 sm:self-auto">
-              <Images size={14} />
-              {replaceTokens(copy.gallery.photoCoverage, {
-                withPhoto: formatCount(photoAssetCount),
-                total: formatCount(assets.length),
-              })}
-            </span>
-          )}
-        />
-      </section>
-
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard
-          active={statusFilter === "all"}
-          icon={Box}
-          label={copy.metrics.total}
-          value={formatCount(assets.length)}
-          hint={copy.metrics.totalHint}
-          tone="border-slate-200 bg-white text-slate-900"
-          onClick={clearFilters}
-        />
-        {STATUS_GROUPS.map((group) => {
-          const Icon = group.icon;
-          return (
-            <MetricCard
-              key={group.key}
-              active={statusFilter === group.key}
-              icon={Icon}
-              label={copy.metrics[group.key]}
-              value={formatCount(statusCounts[group.key])}
-              hint={copy.metrics[`${group.key}Hint`]}
-              tone={group.card}
-              onClick={() => setStatusFilter(group.key)}
-            />
-          );
-        })}
-      </section>
-
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-        <article className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white shadow-[0_8px_28px_rgba(15,23,42,0.12)] sm:p-6">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-            <div
-              className="relative mx-auto h-44 w-44 shrink-0 rounded-full"
-              style={{ background: assets.length ? `conic-gradient(${statusSegments.join(", ")})` : "#334155" }}
-            >
-              <div className="absolute inset-[15px] flex flex-col items-center justify-center rounded-full bg-slate-950">
-                <p className="text-4xl font-black tracking-tight">{readinessRate}%</p>
-                <p className="mt-1 max-w-[110px] text-center text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">{copy.healthScore}</p>
-              </div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-300">{copy.status.eyebrow}</p>
-              <h2 className="mt-2 text-xl font-black">{copy.status.title}</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-400">{copy.status.subtitle}</p>
-              <div className="mt-5 grid grid-cols-2 gap-2">
-                {STATUS_GROUPS.map((group) => (
-                  <button
-                    key={group.key}
-                    type="button"
-                    onClick={() => setStatusFilter(group.key)}
-                    aria-pressed={statusFilter === group.key}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left transition hover:bg-white/[0.09]"
-                  >
-                    <span className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: group.color }} />
-                      {copy.status[group.key]}
-                    </span>
-                    <span className="mt-1 block text-xl font-black">{formatCount(statusCounts[group.key])}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className={`mt-5 flex items-center gap-3 rounded-xl border px-4 py-3 ${statusCounts.attention > 0 ? "border-amber-400/30 bg-amber-400/10 text-amber-100" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"}`}>
-            {statusCounts.attention > 0 ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
-            <p className="text-sm font-bold">{statusCounts.attention > 0 ? replaceToken(copy.needsAttention, "count", formatCount(statusCounts.attention)) : copy.healthy}</p>
-          </div>
-        </article>
-
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:p-6">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">{copy.category.eyebrow}</p>
-          <h2 className="mt-2 text-xl font-black text-slate-950">{copy.category.title}</h2>
-          <p className="mt-1 text-sm text-slate-500">{copy.category.subtitle}</p>
-          <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {categoryMetrics.map((category) => {
-              const Icon = category.icon;
-              const active = categoryFilter === category.key;
-              return (
-                <button
-                  key={category.key}
-                  type="button"
-                  onClick={() => setCategoryFilter(category.key)}
-                  aria-pressed={active}
-                  className={`rounded-xl border p-3.5 text-left transition hover:-translate-y-0.5 hover:shadow-md ${active ? `${category.accent} ring-2 ring-current/10` : "border-slate-200 bg-slate-50/60 text-slate-800"}`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="rounded-lg border border-current/10 bg-white p-2"><Icon size={17} /></span>
-                    <span className="text-2xl font-black">{formatCount(category.total)}</span>
-                  </div>
-                  <p className="mt-3 text-sm font-black">{copy.category[category.key]}</p>
-                  <div className="mt-2 flex items-center justify-between text-[11px] opacity-70">
-                    <span>{copy.category.ready} {formatCount(category.operational)}</span>
-                    <span>{copy.category.risk} {formatCount(category.attention)}</span>
-                  </div>
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setCategoryFilter("all")}
-              aria-pressed={categoryFilter === "all"}
-              className={`rounded-xl border p-3.5 text-left transition hover:-translate-y-0.5 hover:shadow-md ${categoryFilter === "all" ? "border-blue-200 bg-blue-50 text-blue-800 ring-2 ring-blue-700/10" : "border-slate-200 bg-white text-slate-800"}`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="rounded-lg border border-current/10 bg-white p-2"><Box size={17} /></span>
-                <span className="text-2xl font-black">{formatCount(assets.length)}</span>
-              </div>
-              <p className="mt-3 text-sm font-black">{copy.category.all}</p>
-              <p className="mt-2 text-[11px] opacity-70">{copy.metrics.totalHint}</p>
-            </button>
-          </div>
-        </article>
       </section>
 
       <section id="asset-gallery" className="scroll-mt-20 rounded-2xl border border-slate-200 bg-white shadow-[0_5px_22px_rgba(15,23,42,0.04)]">
@@ -1563,60 +1635,151 @@ export default function ExecutiveDashboard({ data, onRefresh, loading }) {
         </div>
       </section>
 
-      <section id="license-health" className="scroll-mt-20 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_22px_rgba(15,23,42,0.04)] sm:p-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-xl">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">{copy.licenses.eyebrow}</p>
-            <h2 className="mt-2 text-xl font-black text-slate-950">{copy.licenses.title}</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500">{copy.licenses.subtitle}</p>
+      <section
+        id="license-health"
+        aria-labelledby="license-health-title"
+        className="scroll-mt-20 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)]"
+      >
+        <div className="h-0.5 bg-blue-700" />
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700">
+              <KeyRound size={17} strokeWidth={2.2} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">{copy.licenses.eyebrow}</p>
+              <h2 id="license-health-title" className="mt-0.5 text-sm font-bold text-slate-950 sm:text-base">{copy.licenses.title}</h2>
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500 sm:line-clamp-1">{copy.licenses.subtitle}</p>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              [copy.licenses.records, licenses.length, "text-slate-900"],
-              [copy.licenses.total, totalLicenseSeats, "text-indigo-700"],
-              [copy.licenses.assigned, assignedLicenseSeats, "text-blue-700"],
-              [copy.licenses.available, availableLicenseSeats, "text-emerald-700"],
-            ].map(([label, value, tone]) => (
-              <div key={label} className="min-w-[120px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-                <p className={`mt-1 text-2xl font-black ${tone}`}>{formatCount(value)}</p>
-              </div>
-            ))}
+          <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-800">
+            <Gauge size={15} />
+            <span className="text-[11px] font-semibold">{copy.licenses.utilization}</span>
+            <strong className="text-sm font-bold">{formatCount(licenseUtilization)}%</strong>
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-black text-indigo-900"><KeyRound size={17} />{copy.licenses.utilization}</div>
-              <span className="text-2xl font-black text-indigo-900">{licenseUtilization}%</span>
+
+        <div className="grid grid-cols-2 gap-2.5 p-3 sm:gap-3 sm:p-4 lg:grid-cols-4">
+          {[
+            { label: copy.licenses.records, value: licenses.length, icon: KeyRound, tone: "border-slate-200 bg-slate-50 text-slate-700" },
+            { label: copy.licenses.total, value: totalLicenseSeats, icon: PackageCheck, tone: "border-blue-100 bg-blue-50 text-blue-700" },
+            { label: copy.licenses.assigned, value: assignedLicenseSeats, icon: UserRound, tone: "border-indigo-100 bg-indigo-50 text-indigo-700" },
+            { label: copy.licenses.available, value: availableLicenseSeats, icon: ShieldCheck, tone: "border-emerald-100 bg-emerald-50 text-emerald-700" },
+          ].map(({ label, value, icon: Icon, tone }) => (
+            <article key={label} className="rounded-xl border border-slate-200 bg-white p-3 shadow-[0_3px_14px_rgba(15,23,42,0.04)] sm:p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-[11px] font-semibold text-slate-600 sm:text-xs">{label}</p>
+                  <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-[28px]">{formatCount(value)}</p>
+                </div>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${tone}`}>
+                  <Icon size={17} strokeWidth={2} />
+                </span>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="grid gap-3 border-t border-slate-100 bg-slate-50/50 p-3 sm:p-4 xl:grid-cols-[minmax(310px,0.82fr)_minmax(0,1.18fr)]">
+          <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">{copy.licenses.utilization}</p>
+              <h3 className="mt-0.5 text-sm font-bold text-slate-950">{copy.licenses.usageBreakdown}</h3>
+              <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{copy.licenses.usageHint}</p>
             </div>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-white">
-              <div className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-blue-500" style={{ width: `${licenseUtilization}%` }} />
-            </div>
-            <div className="mt-3 flex items-center justify-between text-xs font-semibold text-indigo-700">
-              <span>{formatCount(assignedLicenseSeats)} {copy.licenses.seats}</span>
-              <span>{formatCount(availableLicenseSeats)} {copy.licenses.available}</span>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{copy.licenses.latest}</p>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {licenses.slice(0, 4).map((license) => {
-                const total = Math.max(toNumber(license?.quantity_total), 0);
-                const assigned = Math.min(Math.max(toNumber(license?.quantity_assigned), 0), total);
-                return (
-                  <div key={license.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-slate-800">{license.license_name || "-"}</p>
-                      <p className="truncate text-[11px] text-slate-400">{license.vendor || license.license_type || "-"}</p>
-                    </div>
-                    <span className="shrink-0 text-xs font-black text-slate-700">{formatCount(assigned)}/{formatCount(total)}</span>
+
+            <div className="p-4">
+              <div className="grid gap-4 sm:grid-cols-[142px_1fr] sm:items-center xl:grid-cols-1 2xl:grid-cols-[142px_1fr]">
+                <div
+                  className="relative mx-auto h-[132px] w-[132px] rounded-full p-[13px] shadow-[0_8px_24px_rgba(37,99,235,0.12)]"
+                  style={{ background: `conic-gradient(#2563eb 0 ${Math.min(licenseUtilization, 100)}%, #e2e8f0 ${Math.min(licenseUtilization, 100)}% 100%)` }}
+                  role="img"
+                  aria-label={`${copy.licenses.utilization} ${licenseUtilization}%`}
+                >
+                  <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-slate-100 bg-white">
+                    <span className="text-3xl font-bold tracking-tight text-slate-950">{formatCount(licenseUtilization)}%</span>
+                    <span className="mt-0.5 text-[10px] font-semibold text-slate-500">{copy.licenses.utilization}</span>
                   </div>
-                );
-              })}
-              {!licenses.length ? <p className="text-sm text-slate-400">-</p> : null}
+                </div>
+
+                <div className="min-w-0 space-y-3">
+                  {[
+                    { label: copy.licenses.assigned, value: assignedLicenseSeats, percent: licenseUtilization, color: "bg-blue-600", dot: "bg-blue-600" },
+                    { label: copy.licenses.available, value: availableLicenseSeats, percent: Math.max(100 - licenseUtilization, 0), color: "bg-emerald-500", dot: "bg-emerald-500" },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="flex min-w-0 items-center gap-2 font-semibold text-slate-600">
+                          <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${item.dot}`} />
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                        <span className="shrink-0 font-bold text-slate-900">{formatCount(item.value)} <span className="font-medium text-slate-400">({formatCount(item.percent)}%)</span></span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${item.color}`} style={{ width: `${Math.min(item.percent, 100)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs">
+                    <span className="font-semibold text-slate-500">{copy.licenses.total}</span>
+                    <strong className="text-slate-950">{formatCount(totalLicenseSeats)} {copy.licenses.seats}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 text-amber-700"><AlertTriangle size={14} /><span className="text-[10px] font-semibold">{copy.licenses.expiring30}</span></div>
+                  <p className="mt-1 text-xl font-bold text-amber-800">{formatCount(licenseSummary.expiring30)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 text-slate-600"><Clock3 size={14} /><span className="text-[10px] font-semibold">{copy.licenses.expiring90}</span></div>
+                  <p className="mt-1 text-xl font-bold text-slate-800">{formatCount(licenseSummary.expiring90)}</p>
+                </div>
+              </div>
             </div>
-          </div>
+          </article>
+
+          <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">{copy.licenses.latest}</p>
+              <h3 className="mt-0.5 text-sm font-bold text-slate-950">{copy.licenses.capacity}</h3>
+              <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{copy.licenses.capacityHint}</p>
+            </div>
+
+            {licenseCapacityRows.length ? (
+              <div className="space-y-3 p-4">
+                {licenseCapacityRows.map(({ license, total, assigned, utilization }, index) => (
+                  <div key={license.id || `${license.license_name}-${index}`} className="group">
+                    <div className="mb-1.5 flex items-end justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-500">{index + 1}</span>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-slate-800 sm:text-sm">{license.license_name || "-"}</p>
+                          <p className="truncate text-[10px] text-slate-400">{[license.vendor, license.license_type].filter(Boolean).join(" · ") || "-"}</p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs font-bold text-slate-900">{formatCount(assigned)} / {formatCount(total)}</p>
+                        <p className="text-[10px] font-semibold text-blue-700">{formatCount(utilization)}%</p>
+                      </div>
+                    </div>
+                    <div className="ml-9 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-blue-700 to-sky-400 transition-[width] duration-500"
+                        style={{ width: `${Math.min(utilization, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-[280px] flex-col items-center justify-center px-6 text-center text-slate-400">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100"><KeyRound size={22} /></span>
+                <p className="mt-3 text-sm font-semibold">{copy.licenses.empty}</p>
+              </div>
+            )}
+          </article>
         </div>
       </section>
 
