@@ -12,9 +12,16 @@ import bgImage1 from "../assets/1.png";
 import bgImage2 from "../assets/14.png";
 import bgImage3 from "../assets/9.png";
 import bgImage4 from "../assets/6.png";
-import bgImage5 from "../assets/4.png";
+import brandLogoImage from "../assets/5.png";
+import incomeImage from "../assets/income.png";
 
-const HERO_IMAGES = [bgImage1, bgImage2, bgImage3, bgImage4, bgImage5];
+const HERO_IMAGES = [bgImage1, bgImage2, bgImage3, bgImage4, brandLogoImage, incomeImage];
+const HERO_SLIDE_INTERVAL_MS = 8000;
+const HERO_IMAGE_TRANSITION_SECONDS = 4;
+const HERO_COPY_EXIT_LEAD_MS = 1000;
+const HERO_COPY_RETURN_DELAY_MS = HERO_IMAGE_TRANSITION_SECONDS * 1000 + 100;
+const BRAND_LOGO_SLIDE_INDEX = HERO_IMAGES.indexOf(brandLogoImage);
+const INCOME_SLIDE_INDEX = HERO_IMAGES.indexOf(incomeImage);
 
 const AUTH_PAGE_TRANSLATIONS = {
   th: {
@@ -148,7 +155,7 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const isFinalSlide = currentImageIndex === HERO_IMAGES.length - 1;
+  const [isHeroCopyVisible, setIsHeroCopyVisible] = useState(true);
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -375,18 +382,54 @@ export default function AuthPage() {
   }, [message]);
 
   useEffect(() => {
-    const slider = setInterval(() => {
+    const slider = setTimeout(() => {
       setCurrentImageIndex((prev) => (prev + 1) % HERO_IMAGES.length);
-    }, 8000);
+    }, HERO_SLIDE_INTERVAL_MS);
 
-    return () => clearInterval(slider);
-  }, []);
+    return () => clearTimeout(slider);
+  }, [currentImageIndex]);
+
+  useEffect(() => {
+    const nextImageIndex = (currentImageIndex + 1) % HERO_IMAGES.length;
+
+    if (currentImageIndex === BRAND_LOGO_SLIDE_INDEX) {
+      setIsHeroCopyVisible(false);
+      return undefined;
+    }
+
+    if (currentImageIndex === INCOME_SLIDE_INDEX) {
+      const showTimer = setTimeout(() => {
+        setIsHeroCopyVisible(true);
+      }, HERO_COPY_RETURN_DELAY_MS);
+
+      return () => clearTimeout(showTimer);
+    }
+
+    if (nextImageIndex === BRAND_LOGO_SLIDE_INDEX) {
+      const hideTimer = setTimeout(() => {
+        setIsHeroCopyVisible(false);
+      }, HERO_SLIDE_INTERVAL_MS - HERO_COPY_EXIT_LEAD_MS);
+
+      return () => clearTimeout(hideTimer);
+    }
+
+    setIsHeroCopyVisible(true);
+    return undefined;
+  }, [currentImageIndex]);
 
   return (
-    <div className="app-theme min-h-screen flex text-slate-900 overflow-hidden bg-[#F8FAFC]">
+    <div className="app-theme relative min-h-screen flex text-slate-900 overflow-hidden bg-[#f4f7fb]">
       <MessageAlert message={message} />
 
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+      <div
+        className="relative z-10 hidden overflow-hidden lg:-mr-14 lg:flex lg:w-[calc(50%+3.5rem)]"
+        style={{
+          WebkitMaskImage:
+            "linear-gradient(to right, #000 0%, #000 calc(100% - 72px), rgba(0, 0, 0, 0.98) calc(100% - 64px), rgba(0, 0, 0, 0.94) calc(100% - 56px), rgba(0, 0, 0, 0.84) calc(100% - 44px), rgba(0, 0, 0, 0.68) calc(100% - 32px), rgba(0, 0, 0, 0.46) calc(100% - 20px), rgba(0, 0, 0, 0.22) calc(100% - 10px), transparent 100%)",
+          maskImage:
+            "linear-gradient(to right, #000 0%, #000 calc(100% - 72px), rgba(0, 0, 0, 0.98) calc(100% - 64px), rgba(0, 0, 0, 0.94) calc(100% - 56px), rgba(0, 0, 0, 0.84) calc(100% - 44px), rgba(0, 0, 0, 0.68) calc(100% - 32px), rgba(0, 0, 0, 0.46) calc(100% - 20px), rgba(0, 0, 0, 0.22) calc(100% - 10px), transparent 100%)",
+        }}
+      >
         <AnimatePresence initial={false}>
           <motion.img
             key={HERO_IMAGES[currentImageIndex]}
@@ -396,7 +439,7 @@ export default function AuthPage() {
             initial={{ opacity: 0, scale: 1.08 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
-            transition={{ duration: 4, ease: "easeInOut" }}
+            transition={{ duration: HERO_IMAGE_TRANSITION_SECONDS, ease: "easeInOut" }}
             className="absolute inset-0 w-full h-full object-cover"
           />
         </AnimatePresence>
@@ -425,7 +468,7 @@ export default function AuthPage() {
 
           <div className="max-w-xl">
             <AnimatePresence mode="wait">
-              {!isFinalSlide && (
+              {isHeroCopyVisible && (
                 <motion.div
                   key="hero-copy"
                   variants={heroTextContainerVariants}
@@ -472,7 +515,34 @@ export default function AuthPage() {
         </div>
       </div>
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-10 relative bg-white lg:bg-transparent">
+      <div className="relative isolate flex w-full items-center justify-center overflow-hidden bg-white px-6 py-10 lg:w-1/2 lg:bg-[#f4f7fb]">
+        <div aria-hidden="true" className="absolute inset-0 z-0 hidden overflow-hidden lg:block">
+          <div
+            className="absolute inset-0 opacity-50"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(43, 89, 176, 0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(43, 89, 176, 0.045) 1px, transparent 1px)",
+              backgroundSize: "36px 36px",
+            }}
+          />
+
+          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-[#2b59b0]/10 bg-[#2b59b0]/[0.035]" />
+          <div className="absolute -right-10 -top-10 h-52 w-52 rounded-full border border-[#2b59b0]/[0.08] bg-[#2b59b0]/[0.028]" />
+          <div className="absolute right-20 top-20 h-24 w-24 rounded-full border border-[#2b59b0]/[0.07] bg-[#2b59b0]/[0.025]" />
+
+          <div className="absolute -bottom-44 -left-36 h-[30rem] w-[30rem] rounded-full border border-[#2b59b0]/10 bg-[#2b59b0]/[0.03]" />
+          <div className="absolute -bottom-24 -left-16 h-[21rem] w-[21rem] rounded-full border border-[#2b59b0]/[0.08] bg-[#2b59b0]/[0.025]" />
+          <div className="absolute bottom-8 left-20 h-36 w-36 rounded-full border border-[#2b59b0]/[0.07] bg-[#2b59b0]/[0.022]" />
+
+          <div className="absolute bottom-8 right-10 select-none text-[9rem] font-black leading-none tracking-[-0.08em] text-[#2b59b0]/[0.06]">
+            TDK
+          </div>
+          <div className="absolute left-14 top-10 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-[#2b59b0]/40">
+            <span className="h-px w-10 bg-[#2b59b0]/35" />
+            Enterprise Portal
+          </div>
+        </div>
+
         <div className="lg:hidden absolute inset-0 -z-20 overflow-hidden">
           <AnimatePresence initial={false}>
             <motion.img
@@ -492,10 +562,10 @@ export default function AuthPage() {
 
         <div className="lg:hidden absolute inset-0 bg-indigo-50/50 -z-10" />
 
-        <div className="w-full max-w-[480px]">
+        <div className="relative z-10 w-full max-w-[480px]">
           <motion.div
             layout
-            className="bg-white rounded-[2.5rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 relative overflow-hidden"
+            className="relative overflow-hidden rounded-[2.5rem] border border-blue-100/80 bg-white p-10 shadow-[0_24px_60px_-26px_rgba(30,64,175,0.28)]"
           >
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 to-blue-500" />
 
