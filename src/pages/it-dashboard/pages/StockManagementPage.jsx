@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Building2, Camera, CheckCircle2, Eye, FileImage, LayoutGrid, List, Loader2, Package, Paperclip, PenLine, PencilLine, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, UserRound, X } from "lucide-react";
+import { AlertCircle, Building2, CalendarDays, Camera, CheckCircle2, Clock3, Eye, FileImage, LayoutGrid, List, Loader2, Package, Paperclip, PenLine, PencilLine, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, UserRound, X } from "lucide-react";
 import toast from "react-hot-toast";
 import AttachmentPreviewModal from "../../work-notes/AttachmentPreviewModal";
 import { formatFileSize, isImageAttachment } from "../../../services/workNotesService";
@@ -22,6 +22,37 @@ const normalizeLookupText = (value) => normalizeText(value).toLowerCase();
 const formatQuantity = (value) => NUMBER_FORMATTER.format(Number(value || 0));
 const buildAvatarFallback = (name, color = "2b59b0") => `https://ui-avatars.com/api/?name=${encodeURIComponent(String(name || "U"))}&background=${color}&color=fff&size=96`;
 const formatDateTime = (value) => !value ? "-" : (Number.isNaN(new Date(value).getTime()) ? "-" : new Date(value).toLocaleString("th-TH", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }));
+const getLocalDateKey = (value) => {
+  const date = new Date(value || 0);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+const getStockEntryMeta = (item = {}) => {
+  const date = new Date(item?.created_at || 0);
+  const hasValidDate = !Number.isNaN(date.getTime()) && Boolean(item?.created_at);
+  const notes = normalizeText(item?.notes);
+  const importedFile = notes.match(/Imported from file:\s*([^|]+)/i)?.[1]?.trim() || "";
+
+  if (!hasValidDate) {
+    return {
+      monthKey: "unknown",
+      monthLabel: "ไม่พบเดือนที่นำเข้า",
+      dateLabel: "ไม่พบวันเวลาที่นำเข้า",
+      timeLabel: "-",
+      timestamp: 0,
+      sourceLabel: normalizeText(item?.source_ref) || importedFile || "ไม่ระบุแหล่งที่มา",
+    };
+  }
+
+  return {
+    monthKey: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+    monthLabel: date.toLocaleDateString("th-TH", { month: "long", year: "numeric" }),
+    dateLabel: date.toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "numeric" }),
+    timeLabel: date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
+    timestamp: date.getTime(),
+    sourceLabel: normalizeText(item?.source_ref) || importedFile || "เพิ่มเข้าระบบด้วยตนเอง",
+  };
+};
 const isLowStock = (item) => Number(item?.minimum_quantity || 0) > 0 && Number(item?.quantity_on_hand || 0) <= Number(item?.minimum_quantity || 0);
 const getAvailabilityLabel = (item) => Number(item?.quantity_on_hand || 0) <= 0 ? "หมด stock" : isLowStock(item) ? "ใกล้หมด" : "พร้อมเบิก";
 const getAvailabilityClass = (item) => Number(item?.quantity_on_hand || 0) <= 0 ? "border-rose-200 bg-rose-50 text-rose-700" : isLowStock(item) ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700";
@@ -150,6 +181,9 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   const [errorMessage, setErrorMessage] = useState("");
   const [stockSearchQuery, setStockSearchQuery] = useState("");
   const [stockFilter, setStockFilter] = useState("ALL");
+  const [stockEntryDateFilter, setStockEntryDateFilter] = useState("");
+  const [stockViewMode, setStockViewMode] = useState("list");
+  const [receiveViewMode, setReceiveViewMode] = useState("grid");
   const [historyViewMode, setHistoryViewMode] = useState("card");
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [issueModalOpen, setIssueModalOpen] = useState(false);
@@ -325,9 +359,33 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
       if (stockFilter === "READY" && quantity <= 0) return false;
       if (stockFilter === "LOW" && !isLowStock(item)) return false;
       if (stockFilter === "OUT" && quantity > 0) return false;
+      if (stockManagementSection === "receive" && stockEntryDateFilter && getLocalDateKey(item?.created_at) !== stockEntryDateFilter) return false;
       return !keyword || [item?.stock_code, item?.item_name, item?.item_category, item?.category_th, item?.reference_item_code, item?.brand, item?.model, item?.location, item?.source_ref, item?.lot_number, item?.notes].map(normalizeLookupText).join(" ").includes(keyword);
     });
-  }, [stockFilter, stockItems, stockSearchQuery]);
+  }, [stockEntryDateFilter, stockFilter, stockItems, stockManagementSection, stockSearchQuery]);
+  const stockItemsByEntryMonth = useMemo(() => {
+    const groups = new Map();
+
+    filteredStockItems.forEach((item) => {
+      const entryMeta = getStockEntryMeta(item);
+      const current = groups.get(entryMeta.monthKey) || {
+        key: entryMeta.monthKey,
+        label: entryMeta.monthLabel,
+        timestamp: entryMeta.timestamp,
+        items: [],
+      };
+      current.timestamp = Math.max(current.timestamp, entryMeta.timestamp);
+      current.items.push(item);
+      groups.set(entryMeta.monthKey, current);
+    });
+
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        items: [...group.items].sort((left, right) => getStockEntryMeta(right).timestamp - getStockEntryMeta(left).timestamp),
+      }))
+      .sort((left, right) => right.timestamp - left.timestamp || left.label.localeCompare(right.label, "th"));
+  }, [filteredStockItems]);
   const summary = useMemo(() => ({
     totalUnits: stockItems.reduce((sum, item) => sum + Number(item?.quantity_on_hand || 0), 0),
     lowStockCount: stockItems.filter(isLowStock).length,
@@ -622,51 +680,33 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   const showReceivePage = normalizedStockSection === "receive";
   const showHistoryPage = normalizedStockSection === "history";
   const showStockList = !showHistoryPage;
-  const pageMeta = {
-    issue: {
-      title: "บันทึกการเบิกแบบ walk-in",
-      description: "ค้นหาพนักงาน เลือก stock ระบุจำนวน และแนบรูปหลักฐานก่อนบันทึก เพื่อไม่ปนกับงานรับเข้าและประวัติ",
-    },
-    receive: {
-      title: "รับเข้า stock จากจัดซื้อ",
-      description: "เพิ่มหรือแก้ไข lot จากจัดซื้อ เก็บ PR/PO และหลักฐานรับเข้าแยกจากงานเบิก",
-    },
-    history: {
-      title: "ประวัติการเบิกจาก stock",
-      description: "ดูรายการเบิกย้อนหลังและรูปหลักฐานเท่านั้น ไม่มีฟอร์มรับเข้า/เบิกมาปะปน",
-    },
-  }[normalizedStockSection];
+  const showIssueGrid = showIssuePage && stockViewMode === "grid";
+  const showIssueDetailList = showIssuePage && stockViewMode === "list";
+  const showReceiveGrid = showReceivePage && receiveViewMode === "grid";
+  const showReceiveCompactList = showReceivePage && receiveViewMode === "list";
+  const showCompactStockList = showIssueDetailList || showReceiveCompactList;
+  const stockDisplayEntries = showIssuePage
+    ? stockItemsByEntryMonth.flatMap((group) => [
+        { type: "month", key: `month-${group.key}`, group },
+        ...group.items.map((item) => ({ type: "item", key: `item-${item.id}`, item })),
+      ])
+    : showReceivePage
+      ? stockItemsByEntryMonth.flatMap((group) => [
+          { type: "month", key: `month-${group.key}`, group },
+          ...group.items.map((item) => ({ type: "item", key: `item-${item.id}`, item })),
+        ])
+      : filteredStockItems.map((item) => ({ type: "item", key: `item-${item.id}`, item }));
   return (
     <>
-      <section className="mb-4"><p className={`text-xs font-black uppercase tracking-[0.16em] ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>จัดการ stock IT</p><h2 className={`mt-1 text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{pageMeta.title}</h2><p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>{pageMeta.description}</p></section>
       {schemaOutdated ? <section className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><p className="font-semibold">schema stock management ยังไม่พร้อม</p><p className="mt-1">กรุณารัน migration ที่ <span className="font-mono">{MIGRATION_PATH}</span> ใน Supabase ก่อนใช้งานหน้าเมนูนี้</p></section> : null}
       <DashboardSummaryGrid items={summaryCards} theme={theme} uiTheme={uiTheme} />
-      {showReceivePage ? (
-        <section className="mt-4">
-          <article className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h3 className={`text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>รับเข้า stock จากจัดซื้อ</h3>
-                <p className={`mt-1 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>เลือกหมวดมาตรฐานและรหัสอุปกรณ์ก่อนบันทึก lot / PR / PO</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={handleOpenReceiveModal} className="inline-flex items-center gap-2 rounded-lg bg-[#2b59b0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#244a95]">
-                  <Plus size={14} />
-                  รับเข้า lot ใหม่
-                </button>
-                <StockProcurementImportButton currentUser={currentUser} onImported={handleImportedProcurementStock} />
-              </div>
-            </div>
-          </article>
-        </section>
-      ) : null}
       {showReceivePage && receiveModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 px-3 py-4 backdrop-blur-sm sm:py-8">
           <div className={`w-full max-w-5xl overflow-hidden rounded-lg border shadow-2xl ${theme === "dark" ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-white"}`}>
             <div className={`flex items-start justify-between gap-3 border-b px-4 py-4 sm:px-5 ${theme === "dark" ? "border-slate-800" : "border-slate-200"}`}>
               <div>
                 <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>stock receiving</p>
-                <h3 className={`mt-1 text-lg font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{editingId ? "แก้ไข lot / ตรวจ stock" : "รับเข้า stock จากจัดซื้อ"}</h3>
+                <h3 className={`mt-1 text-lg font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{editingId ? "แก้ไข lot / ตรวจ stock" : "รับเข้า lot ใหม่"}</h3>
                 <p className={`mt-1 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>หมวดมาตรฐานและรหัสอุปกรณ์เป็นข้อมูลตั้งต้นก่อนบันทึก lot / PR / PO</p>
               </div>
               <button type="button" onClick={handleCloseReceiveModal} disabled={savingStock} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-60 ${uiTheme.statusButton}`} aria-label="ปิด popup รับเข้า stock">
@@ -910,6 +950,42 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
               <input value={stockSearchQuery} onChange={(event) => setStockSearchQuery(event.target.value)} placeholder="ค้นหารหัส stock, lot, รหัสอ้างอิง, ชื่ออุปกรณ์, ยี่ห้อ, ที่เก็บ, PR/PO" className={`w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm ${uiTheme.searchInputMobile}`} />
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {showReceivePage ? (
+                <>
+                  <button type="button" onClick={handleOpenReceiveModal} className="inline-flex items-center gap-2 rounded-lg bg-[#2b59b0] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[#244a95]">
+                    <Plus size={14} />
+                    รับเข้า lot ใหม่
+                  </button>
+                  <StockProcurementImportButton currentUser={currentUser} onImported={handleImportedProcurementStock} />
+                  <div className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 ${theme === "dark" ? "border-slate-700 bg-slate-900 text-slate-300" : "border-slate-200 bg-white text-slate-600"}`} title="กรอง lot ตามวันที่รับเข้าระบบ">
+                    <CalendarDays size={14} className="shrink-0" />
+                    <input
+                      type="date"
+                      value={stockEntryDateFilter}
+                      onChange={(event) => setStockEntryDateFilter(event.target.value)}
+                      aria-label="กรองวันที่รับเข้า lot"
+                      className={`w-[132px] border-0 bg-transparent p-0 text-xs font-semibold outline-none ${theme === "dark" ? "text-slate-200 [color-scheme:dark]" : "text-slate-700"}`}
+                    />
+                    {stockEntryDateFilter ? (
+                      <button type="button" onClick={() => setStockEntryDateFilter("")} className={`inline-flex h-5 w-5 items-center justify-center rounded-md transition ${theme === "dark" ? "hover:bg-slate-800 hover:text-white" : "hover:bg-slate-100 hover:text-slate-900"}`} aria-label="ล้างตัวกรองวันที่">
+                        <X size={12} />
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+              {showIssuePage || showReceivePage ? (
+                <div className={`inline-flex rounded-lg border p-1 ${theme === "dark" ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-slate-50"}`} aria-label="เลือกรูปแบบการแสดง stock">
+                  <button type="button" onClick={() => showReceivePage ? setReceiveViewMode("list") : setStockViewMode("list")} className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${(showReceivePage ? receiveViewMode : stockViewMode) === "list" ? "bg-[#2b59b0] text-white shadow-sm" : theme === "dark" ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-white"}`} title={showReceivePage ? "มุมมองแถวเล็ก" : "มุมมองรายการละเอียด"}>
+                    <List size={14} />
+                    {showReceivePage ? "แถวเล็ก" : "รายการ"}
+                  </button>
+                  <button type="button" onClick={() => showReceivePage ? setReceiveViewMode("grid") : setStockViewMode("grid")} className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${(showReceivePage ? receiveViewMode : stockViewMode) === "grid" ? "bg-[#2b59b0] text-white shadow-sm" : theme === "dark" ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-white"}`} title={showReceivePage ? "มุมมองบล็อก" : "มุมมองการ์ด"}>
+                    <LayoutGrid size={14} />
+                    {showReceivePage ? "บล็อก" : "การ์ด"}
+                  </button>
+                </div>
+              ) : null}
               <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value)} className={`rounded-lg border px-3 py-2.5 text-sm ${uiTheme.searchInputMobile}`}>
                 <option value="ALL">ทุกสถานะ</option>
                 <option value="READY">พร้อมเบิก</option>
@@ -928,12 +1004,39 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
               <span>{errorMessage}</span>
             </div>
           ) : null}
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {(showIssuePage || showReceivePage) && !loading && filteredStockItems.length > 0 ? (
+            <div className={`mt-4 flex items-start gap-3 rounded-xl border px-3 py-3 ${theme === "dark" ? "border-blue-500/25 bg-blue-500/10 text-blue-100" : "border-blue-100 bg-blue-50 text-blue-900"}`}>
+              <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${theme === "dark" ? "bg-blue-400/15 text-blue-300" : "bg-white text-blue-600 shadow-sm"}`}>
+                <CalendarDays size={17} />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">{showReceivePage ? "แยก lot ตามเดือนที่รับเข้า stock" : "แยกรายการตามเดือนที่นำ stock เข้าระบบ"}</p>
+                <p className={`mt-0.5 text-xs leading-5 ${theme === "dark" ? "text-blue-200/75" : "text-blue-700"}`}>{showReceivePage ? "แต่ละเดือนมีเส้นคั่นและจำนวน lot / SKU พร้อมวันเวลาและเลขอ้างอิงในทุกรายการ" : "หัวข้อเดือนและเส้นคั่นช่วยให้เห็นแต่ละรอบนำเข้า ส่วนวัน เวลา และเลขอ้างอิงจะแสดงในทุกรายการ"}</p>
+              </div>
+            </div>
+          ) : null}
+          <div className={`mt-4 grid grid-cols-1 gap-3 ${showIssueGrid || showReceiveGrid ? "md:grid-cols-2" : ""}`}>
             {loading ? (
               <div className={`rounded-lg border px-4 py-5 text-center text-sm ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>กำลังโหลดข้อมูล stock...</div>
             ) : filteredStockItems.length === 0 ? (
-              <div className={`rounded-lg border px-4 py-5 text-center text-sm ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>ไม่พบรายการ stock</div>
-            ) : filteredStockItems.map((item) => {
+              <div className={`rounded-lg border px-4 py-5 text-center text-sm ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>{showReceivePage && stockEntryDateFilter ? "ไม่พบ lot ที่รับเข้าในวันที่เลือก" : "ไม่พบรายการ stock"}</div>
+            ) : stockDisplayEntries.map((entry) => {
+              if (entry.type === "month") {
+                return (
+                  <div key={entry.key} className={`${showIssueGrid || showReceiveGrid ? "md:col-span-2" : ""} flex items-center gap-3 py-1 first:pt-0`}>
+                    <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${theme === "dark" ? "border-violet-400/25 bg-violet-400/10 text-violet-300" : "border-violet-100 bg-violet-50 text-violet-600"}`}>
+                      <CalendarDays size={18} />
+                    </span>
+                    <div className="shrink-0">
+                      <h4 className={`text-sm font-black ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{entry.group.label}</h4>
+                      <p className={`mt-0.5 text-[11px] ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{formatQuantity(entry.group.items.length)} {showReceivePage ? "lot / SKU" : "รายการ"} ในเดือนนี้</p>
+                    </div>
+                    <div className={`h-px flex-1 ${theme === "dark" ? "bg-gradient-to-r from-violet-400/35 to-transparent" : "bg-gradient-to-r from-violet-200 to-transparent"}`} />
+                  </div>
+                );
+              }
+
+              const item = entry.item;
               const stockImage = getPrimaryStockImage(item);
               const stockAttachments = getSafeAttachments(item.stock_attachments);
               const evidencePreview = stockAttachments.find((attachment) => stockImage ? String(attachment?.id || "") !== String(stockImage?.id || "") : true) || stockImage || null;
@@ -942,9 +1045,19 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
               const issueSummary = stockIssueSummaryById.get(String(item.id || ""));
               const latestIssueLog = issueSummary?.latestLog || null;
               const latestIssueLabel = latestIssueLog ? `${formatQuantity(latestIssueLog.quantity)} ${latestIssueLog.unit_snapshot || item.unit || "ชิ้น"} • ${formatDateTime(latestIssueLog.issued_at || latestIssueLog.created_at)}` : "ยังไม่มีประวัติเบิก";
-              const stockCreatedLabel = formatDateTime(item.created_at);
+              const stockEntryMeta = getStockEntryMeta(item);
               return (
-                <article key={item.id} className={`rounded-lg border p-4 ${theme === "dark" ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
+                <article key={entry.key} className={`overflow-hidden rounded-xl border ${theme === "dark" ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white shadow-sm"}`}>
+                  {showIssuePage || showReceivePage ? (
+                    <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5 ${theme === "dark" ? "border-slate-700 bg-slate-800/75" : "border-slate-100 bg-slate-50/90"}`}>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Clock3 size={14} className={theme === "dark" ? "text-violet-300" : "text-violet-600"} />
+                        <p className={`truncate text-xs font-semibold ${theme === "dark" ? "text-slate-200" : "text-slate-700"}`}>{showReceivePage ? "รับเข้า" : "นำเข้า"} {stockEntryMeta.dateLabel} • {stockEntryMeta.timeLabel} น.</p>
+                      </div>
+                      <span className={`rounded-md px-2 py-1 text-[10px] font-black ${theme === "dark" ? "bg-violet-400/10 text-violet-300" : "bg-violet-50 text-violet-700"}`}>{stockEntryMeta.monthLabel}</span>
+                    </div>
+                  ) : null}
+                  <div className="p-4">
                   <div className="flex gap-3">
                     {stockImage ? (
                       <button type="button" onClick={() => handleOpenAttachmentPreview(stockImage)} className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
@@ -963,10 +1076,13 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                         </div>
                         <span className={`inline-flex shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold ${getAvailabilityClass(item)}`}>{getAvailabilityLabel(item)}</span>
                       </div>
-                      <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                      <div className={`mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 ${showCompactStockList ? "xl:grid-cols-4" : ""}`}>
                         <div className={`rounded-lg border px-3 py-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>ประเภท: {itemCategoryLabel}</div>
                         <div className={`rounded-lg border px-3 py-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>รหัสอุปกรณ์: {itemCodeLabel}</div>
-                        <div className={`rounded-lg border px-3 py-2 sm:col-span-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>วันที่นำ stock เข้าระบบ: {stockCreatedLabel}</div>
+                        <div className={`rounded-lg border px-3 py-2 sm:col-span-2 ${theme === "dark" ? "border-violet-400/25 bg-violet-400/10 text-violet-100" : "border-violet-100 bg-violet-50 text-violet-900"}`}>
+                          <p className="font-semibold">เข้าระบบ: {stockEntryMeta.dateLabel} เวลา {stockEntryMeta.timeLabel} น.</p>
+                          <p className={`mt-1 truncate ${theme === "dark" ? "text-violet-200/75" : "text-violet-700"}`}>เดือน: {stockEntryMeta.monthLabel} • อ้างอิง: {stockEntryMeta.sourceLabel}</p>
+                        </div>
                         <div className={`rounded-lg border px-3 py-2 sm:col-span-2 ${theme === "dark" ? "border-blue-500/30 bg-blue-500/10 text-blue-100" : "border-blue-100 bg-blue-50 text-blue-800"}`}>
                           <p className="font-semibold">เบิกล่าสุด: {latestIssueLabel}</p>
                           <p className={`mt-1 ${theme === "dark" ? "text-blue-200/80" : "text-blue-700"}`}>เบิกสะสม: {formatQuantity(issueSummary?.totalIssued || 0)} {item.unit || "ชิ้น"}{issueSummary?.issueCount ? ` • ${formatQuantity(issueSummary.issueCount)} ครั้ง` : ""}</p>
@@ -978,11 +1094,12 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3 flex gap-2">
-                    {evidencePreview ? <button type="button" onClick={() => handleOpenAttachmentPreview(evidencePreview)} className="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูหลักฐาน</button> : null}
-                    {showIssuePage ? <button type="button" onClick={() => handlePrefillIssue(item)} disabled={Number(item?.quantity_on_hand || 0) <= 0} className="flex-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">เบิกออก</button> : null}
-                    {showReceivePage ? <button type="button" onClick={() => handleEditItem(item)} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">แก้ไข</button> : null}
-                    {showReceivePage ? <button type="button" onClick={() => handleDeleteStock(item)} disabled={deletingStockId === String(item.id || "")} className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60">{deletingStockId === String(item.id || "") ? "กำลังลบ..." : "ลบรายการ"}</button> : null}
+                  <div className={`mt-3 flex gap-2 ${showCompactStockList ? `justify-end border-t pt-3 ${theme === "dark" ? "border-slate-700" : "border-slate-100"}` : ""}`}>
+                    {evidencePreview ? <button type="button" onClick={() => handleOpenAttachmentPreview(evidencePreview)} className={`${showCompactStockList ? "min-w-32" : "flex-1"} rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700`}>ดูหลักฐาน</button> : null}
+                    {showIssuePage ? <button type="button" onClick={() => handlePrefillIssue(item)} disabled={Number(item?.quantity_on_hand || 0) <= 0} className={`${showCompactStockList ? "min-w-32" : "flex-1"} rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50`}>เบิกออก</button> : null}
+                    {showReceivePage ? <button type="button" onClick={() => handleEditItem(item)} className={`${showReceiveCompactList ? "min-w-28" : "flex-1"} rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600`}>แก้ไข</button> : null}
+                    {showReceivePage ? <button type="button" onClick={() => handleDeleteStock(item)} disabled={deletingStockId === String(item.id || "")} className={`${showReceiveCompactList ? "min-w-28" : "flex-1"} rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60`}>{deletingStockId === String(item.id || "") ? "กำลังลบ..." : "ลบรายการ"}</button> : null}
+                  </div>
                   </div>
                 </article>
               );
@@ -994,7 +1111,6 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
         <section className={`mt-4 rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className={`text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>ประวัติการเบิกจาก stock</h3>
               <p className={`mt-1 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ล่าสุด {Math.min(issueLogs.length, 80)} รายการ สำหรับติดตามการเบิก walk-in และรูปหลักฐานการจ่ายของ</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

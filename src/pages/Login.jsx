@@ -151,16 +151,31 @@ export default function Login({
           type="submit"
           disabled={loading}
           className={`
-            w-full py-5 rounded-2xl text-xl font-black text-white
-            transition-all duration-300 shadow-xl
+            relative isolate w-full overflow-hidden rounded-2xl border py-5
+            text-xl font-black text-white
+            transition-[transform,box-shadow,border-color] duration-300 ease-out
+            focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/25
+            focus-visible:ring-offset-2 motion-reduce:transition-none
             ${
               loading
-                ? "bg-slate-300 cursor-not-allowed shadow-none"
-                : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 active:scale-[0.98] shadow-blue-200"
+                ? "cursor-not-allowed border-slate-300 bg-slate-300 shadow-none"
+                : "group border-blue-100 bg-gradient-to-r from-[#2f62bd] via-[#6f8fc8] to-[#f8fbff] shadow-[0_14px_28px_-14px_rgba(59,130,246,0.5)] hover:-translate-y-0.5 hover:scale-[1.012] hover:border-[#6f96d8]/70 hover:shadow-[0_22px_40px_-16px_rgba(43,89,176,0.78)] active:translate-y-0 active:scale-[0.99] motion-reduce:hover:translate-y-0 motion-reduce:hover:scale-100"
             }
           `}
         >
-          {loading ? tt("submitting") : tt("submit")}
+          {!loading && (
+            <>
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 z-0 bg-gradient-to-r from-[#1f4b9b] via-[#326bc2] to-[#214f9e] opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100"
+              />
+              <span
+                aria-hidden="true"
+                className="absolute inset-y-0 -left-1/3 z-0 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[430%] motion-reduce:hidden"
+              />
+            </>
+          )}
+          <span className="relative z-10">{loading ? tt("submitting") : tt("submit")}</span>
         </button>
       </form>
     </div>

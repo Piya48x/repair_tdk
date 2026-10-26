@@ -86,14 +86,10 @@ const LOCALE_BY_LANGUAGE = {
 };
 
 const TicketWorkspacePage = ({
-  title,
-  subtitle,
   theme,
   uiTheme,
   statCards,
-  tabItems,
   activeTab,
-  onTabChange,
   searchQuery,
   onSearchQueryChange,
   activeFilterCount,
@@ -139,6 +135,8 @@ const TicketWorkspacePage = ({
     title: stat.title,
     value: stat.value,
     valueClass: stat.valueClass,
+    hint: stat.hint,
+    onClick: stat.onClick,
   }));
 
   const sortOptions = [
@@ -154,15 +152,6 @@ const TicketWorkspacePage = ({
   if (isMobile) {
     return (
       <>
-        <section className="mb-4">
-          <h2 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-            {title}
-          </h2>
-          <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-            {subtitle}
-          </p>
-        </section>
-
         <DashboardSummaryGrid items={summaryItems} theme={theme} uiTheme={uiTheme} />
 
         <section className={`mb-4 rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
@@ -185,27 +174,6 @@ const TicketWorkspacePage = ({
                   <X size={14} />
                 </button>
               )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <select
-                  value={activeTab}
-                  onChange={(event) => onTabChange(event.target.value)}
-                  className={`w-full appearance-none rounded-lg border py-2.5 pl-3 pr-8 text-sm ${uiTheme.searchInputMobile}`}
-                >
-                  {tabItems.map((tab) => (
-                    <option key={tab.id} value={tab.id}>
-                      {tab.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
-              </div>
-
-              <span className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold ${uiTheme.statusBadge}`}>
-                {sortedTickets.length.toLocaleString(locale)} รายการ
-              </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -303,44 +271,7 @@ const TicketWorkspacePage = ({
 
   return (
     <>
-      <section className="mb-4">
-        <h2 className={`text-base font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-          {title}
-        </h2>
-        <p className={`mt-1 text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
-          {subtitle}
-        </p>
-      </section>
-
       <DashboardSummaryGrid items={summaryItems} theme={theme} uiTheme={uiTheme} />
-
-      <section className="mb-4">
-        <div className={`rounded-lg border p-2 ${uiTheme.surfaceCard}`}>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {tabItems.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 transition ${
-                  activeTab === tab.id ? uiTheme.tabActive : uiTheme.tabInactive
-                }`}
-              >
-                <span className="inline-flex min-w-0 items-center gap-2">
-                  <tab.icon size={16} />
-                  <span className="truncate text-xs font-semibold sm:text-sm">{tab.label}</span>
-                </span>
-                <span
-                  className={`rounded-md px-1.5 py-0.5 text-xs ${
-                    activeTab === tab.id ? uiTheme.tabBadgeActive : uiTheme.badgeMuted
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
 
       <section className="mb-4">
         <div className={`rounded-lg border p-4 ${uiTheme.surfaceCard}`}>

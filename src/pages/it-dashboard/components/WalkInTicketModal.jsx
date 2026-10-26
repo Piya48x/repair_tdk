@@ -25,24 +25,23 @@ const MAX_ATTACHMENTS = 8;
 const FIELD_CLASS_BASE =
   "w-full rounded-xl border px-3 py-2 text-sm outline-none transition focus:ring-2 sm:py-2.5";
 const CUSTOM_CATEGORY_VALUE = "__custom__";
-const LEGACY_WALK_IN_CATEGORY_OPTIONS = [
-  { value: "Hardware", label: "คอมพิวเตอร์ / อุปกรณ์" },
-  { value: "Network", label: "เครือข่าย / Wi-Fi" },
-  { value: "Printer", label: "เครื่องพิมพ์ / สแกน" },
-  { value: "Email", label: "อีเมล / บัญชี" },
-  { value: "System", label: "ระบบงาน / ซอฟต์แวร์" },
-  { value: "Access", label: "สิทธิ์ / บัญชีผู้ใช้" },
-  { value: "Walk-in", label: "อื่น ๆ / Walk-in" },
+const WORK_TYPE_OPTIONS = [
+  { value: "repair", label: "ซ่อมอุปกรณ์" },
+  { value: "system", label: "ปัญหาระบบ / เครือข่าย" },
+  { value: "service", label: "งานบริการ / คำขอทั่วไป" },
 ];
 
-const WALK_IN_CATEGORY_OPTIONS = [
-  { value: "Hardware", label: "คอมพิวเตอร์ / อุปกรณ์" },
-  { value: "Network", label: "เครือข่าย / Wi-Fi" },
-  { value: "Printer", label: "เครื่องพิมพ์ / สแกน" },
-  { value: "Email", label: "อีเมลองค์กร" },
-  { value: "System", label: "ระบบงาน / ซอฟต์แวร์" },
-  { value: "CCTV", label: "CCTV" },
-  { value: CUSTOM_CATEGORY_VALUE, label: "อื่นๆ (พิมพ์เอง)" },
+const CATEGORY_OPTIONS_BY_WORK_TYPE = {
+  repair: ["คอมพิวเตอร์", "Notebook", "จอภาพ", "Printer", "อุปกรณ์ต่อพ่วง"],
+  system: ["Wi-Fi", "Internet", "โปรแกรม", "Email", "Account / Login"],
+  service: ["เปลี่ยนหมึก", "ติดตั้งโปรแกรม", "ย้ายอุปกรณ์", "ให้คำปรึกษา", CUSTOM_CATEGORY_VALUE],
+};
+
+const OUTCOME_OPTIONS = [
+  { value: "success", label: "สำเร็จ" },
+  { value: "temporary", label: "แก้ชั่วคราว" },
+  { value: "waiting_parts", label: "รออะไหล่" },
+  { value: "follow_up", label: "ต้องติดตามต่อ" },
 ];
 
 function toLocalDatetimeValue(date = new Date()) {
@@ -63,6 +62,7 @@ function buildInitialForm(currentUser = null) {
     requester_emp_id: "",
     department: "",
     location: String(currentUser?.location || "").trim(),
+    work_type: "",
     category: "",
     custom_category: "",
     issue_title: "",
@@ -72,7 +72,11 @@ function buildInitialForm(currentUser = null) {
     channel: "walk-in",
     start_time: nowValue,
     end_time: nowValue,
-    resolution_note: "",
+    root_cause: "",
+    action_taken: "",
+    outcome: "success",
+    materials_used: "",
+    technician_name: String(currentUser?.name || "IT Support").trim(),
     reporter_avatar_url: "",
   };
 }
@@ -173,6 +177,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       "requester_emp_id",
       "department",
       "location",
+      "work_type",
       "category",
       "custom_category",
       "issue_title",
@@ -180,7 +185,11 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       "priority",
       "start_time",
       "end_time",
-      "resolution_note",
+      "root_cause",
+      "action_taken",
+      "outcome",
+      "materials_used",
+      "technician_name",
       "reporter_avatar_url",
     ];
 
@@ -301,13 +310,18 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     setForm((prev) => ({
       ...prev,
       [key]: value,
+      ...(key === "work_type" ? { category: "", custom_category: "" } : {}),
       ...(key === "category" && value !== CUSTOM_CATEGORY_VALUE ? { custom_category: "" } : {}),
     }));
-    if (errors[key] || (key === "category" && errors.custom_category)) {
+    if (errors[key] || (key === "category" && errors.custom_category) || (key === "work_type" && errors.category)) {
       setErrors((prev) => {
         const next = { ...prev };
         delete next[key];
         if (key === "category") delete next.custom_category;
+        if (key === "work_type") {
+          delete next.category;
+          delete next.custom_category;
+        }
         return next;
       });
     }
@@ -516,7 +530,11 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
     }
 
     if (!String(form.issue_title || "").trim()) {
-      nextErrors.issue_title = "กรุณาระบุหัวข้อปัญหา";
+      nextErrors.issue_title = "กรุณาระบุหัวข้องาน";
+    }
+
+    if (!String(form.work_type || "").trim()) {
+      nextErrors.work_type = "กรุณาเลือกประเภทงาน";
     }
 
     if (!String(form.category || "").trim()) {
@@ -525,6 +543,10 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
 
     if (form.category === CUSTOM_CATEGORY_VALUE && !String(form.custom_category || "").trim()) {
       nextErrors.custom_category = "กรุณาพิมพ์หมวดหมู่งาน";
+    }
+
+    if (!String(form.technician_name || "").trim()) {
+      nextErrors.technician_name = "กรุณาระบุผู้ดำเนินการ";
     }
 
     if (form.end_time && form.start_time) {
@@ -560,19 +582,24 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
         requester_emp_id: String(form.requester_emp_id || "").trim(),
         department: String(form.department || "").trim(),
         location: String(form.location || "").trim(),
+        work_type: String(form.work_type || "").trim(),
         category: submittedCategory,
         custom_category: String(form.custom_category || "").trim(),
         issue_title: String(form.issue_title || "").trim(),
         issue_description: String(form.issue_description || "").trim(),
-        resolution_note: String(form.resolution_note || "").trim(),
+        root_cause: String(form.root_cause || "").trim(),
+        action_taken: String(form.action_taken || "").trim(),
+        outcome: String(form.outcome || "").trim(),
+        materials_used: String(form.materials_used || "").trim(),
+        technician_name: String(form.technician_name || "").trim(),
         reporter_avatar_url: String(form.reporter_avatar_url || "").trim(),
         created_by: currentUser?.id || null,
         created_by_name: currentUser?.name || "IT Support",
         assigned_to: currentUser?.id || null,
-        assigned_name: currentUser?.name || "IT Support",
+        assigned_name: String(form.technician_name || "").trim() || currentUser?.name || "IT Support",
         assigned_employee_id: currentUser?.employeeId || null,
         closed_by: currentUser?.id || null,
-        closed_by_name: currentUser?.name || "IT Support",
+        closed_by_name: String(form.technician_name || "").trim() || currentUser?.name || "IT Support",
         before_attachments: beforeAttachments.map((item) => item.file),
         after_attachments: afterAttachments.map((item) => item.file),
       });
@@ -633,6 +660,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
   const lookupItemClass = isDark
     ? "flex w-full items-center gap-3 border-b border-slate-800 px-3 py-3 text-left transition last:border-b-0 hover:bg-slate-800"
     : "flex w-full items-center gap-3 border-b border-slate-100 px-3 py-3 text-left transition last:border-b-0 hover:bg-slate-50";
+  const categoryOptions = CATEGORY_OPTIONS_BY_WORK_TYPE[form.work_type] || [];
 
   const renderLookupDropdown = (field) =>
     activeLookupField === field &&
@@ -844,6 +872,27 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
+              ประเภทงาน <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={form.work_type}
+              onChange={(event) => setField("work_type", event.target.value)}
+              className={`${inputClass} ${errors.work_type ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""}`}
+            >
+              <option value="">เลือกประเภทงาน</option>
+              {WORK_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {errors.work_type && (
+              <p className="mt-1 text-xs font-medium text-rose-600">{errors.work_type}</p>
+            )}
+          </div>
+
+          <div>
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
               หมวดหมู่ <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
@@ -851,12 +900,13 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
               <select
                 value={form.category}
                 onChange={(event) => setField("category", event.target.value)}
+                disabled={!form.work_type}
                 className={`${inputClass} pl-10 ${errors.category ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""}`}
               >
-                <option value="">เลือกหมวดหมู่</option>
-                {WALK_IN_CATEGORY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                <option value="">{form.work_type ? "เลือกหมวดหมู่" : "เลือกประเภทงานก่อน"}</option>
+                {categoryOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === CUSTOM_CATEGORY_VALUE ? "อื่น ๆ" : option}
                   </option>
                 ))}
               </select>
@@ -868,14 +918,12 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                   onChange={(event) => setField("custom_category", event.target.value)}
                   className={`${inputClass} ${errors.custom_category ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
                     }`}
-                  placeholder="พิมพ์หมวดหมู่อื่นๆ เช่น ขอเปิดไฟล์ย้อนหลัง / ตรวจสอบระบบ"
+                  placeholder="ระบุงานบริการอื่น ๆ"
                   autoComplete="off"
                 />
                 {errors.custom_category ? (
                   <p className="mt-1 text-xs font-medium text-rose-600">{errors.custom_category}</p>
-                ) : (
-                  <p className={`mt-1 text-xs ${mutedClass}`}>ระบบจะบันทึกหมวดหมู่ตามข้อความที่พิมพ์</p>
-                )}
+                ) : null}
               </div>
             ) : null}
             {errors.category && (
@@ -884,7 +932,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
           </div>
           <div className="sm:col-span-2">
             <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
-              หัวข้อปัญหา <span className="text-rose-500">*</span>
+              หัวข้องาน <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
               <FileImage size={16} className="pointer-events-none absolute left-3 top-3 text-slate-400" />
@@ -893,7 +941,7 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                 onChange={(event) => setField("issue_title", event.target.value)}
                 className={`${inputClass} pl-10 ${errors.issue_title ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""
                   }`}
-                placeholder="หัวข้อปัญหา"
+                placeholder="สรุปงานสั้น ๆ"
                 autoComplete="off"
               />
             </div>
@@ -903,9 +951,9 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
           </div>
 
           <div className="sm:col-span-2">
-            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>รายละเอียดปัญหา</label>
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>รายละเอียดงาน</label>
             <textarea
-              rows="4"
+              rows="3"
               value={form.issue_description}
               onChange={(event) => setField("issue_description", event.target.value)}
               className={inputClass}
@@ -961,14 +1009,65 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
       </div>
 
       <div className={`${surfaceClass} p-4 sm:p-5`}>
-        <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>สรุปการแก้ไข</label>
-        <textarea
-          rows="3"
-          value={form.resolution_note}
-          onChange={(event) => setField("resolution_note", event.target.value)}
-          className={inputClass}
-          placeholder="สรุปสิ่งที่ทีม IT ดำเนินการ หรือผลลัพธ์ที่ได้"
-        />
+        <div className="mb-4">
+          <p className={`text-sm font-semibold ${labelClass}`}>ผลการดำเนินงาน</p>
+          <p className={`mt-1 text-xs ${mutedClass}`}>สรุปสั้น ๆ สำหรับบันทึกลงประวัติ</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>สาเหตุที่พบ</label>
+            <textarea
+              rows="2"
+              value={form.root_cause}
+              onChange={(event) => setField("root_cause", event.target.value)}
+              className={inputClass}
+              placeholder="ระบุสาเหตุแบบสั้น ๆ"
+            />
+          </div>
+          <div>
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>วิธีดำเนินการ</label>
+            <textarea
+              rows="2"
+              value={form.action_taken}
+              onChange={(event) => setField("action_taken", event.target.value)}
+              className={inputClass}
+              placeholder="สรุปสิ่งที่ดำเนินการ"
+            />
+          </div>
+          <div>
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>ผลลัพธ์</label>
+            <select value={form.outcome} onChange={(event) => setField("outcome", event.target.value)} className={inputClass}>
+              {OUTCOME_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>วัสดุหรืออะไหล่ที่ใช้</label>
+            <input
+              value={form.materials_used}
+              onChange={(event) => setField("materials_used", event.target.value)}
+              className={inputClass}
+              placeholder="ไม่ใช้ สามารถเว้นว่างได้"
+              autoComplete="off"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={`mb-1.5 block text-sm font-semibold ${labelClass}`}>
+              ผู้ดำเนินการ <span className="text-rose-500">*</span>
+            </label>
+            <input
+              value={form.technician_name}
+              onChange={(event) => setField("technician_name", event.target.value)}
+              className={`${inputClass} ${errors.technician_name ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200" : ""}`}
+              placeholder="ชื่อผู้ดำเนินการ"
+              autoComplete="off"
+            />
+            {errors.technician_name && (
+              <p className="mt-1 text-xs font-medium text-rose-600">{errors.technician_name}</p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1259,10 +1358,10 @@ const WalkInTicketModal = ({ isOpen, onClose, onSubmit, currentUser, theme = "li
                 <span className={chipClass}>popup mode</span>
               </div>
               <h2 id="walk-in-ticket-title" className="text-lg font-bold sm:text-2xl">
-                บันทึกงานแจ้งซ่อมแบบปากเปล่า
+                บันทึกงานแจ้งปัญหา / ขอรับบริการ IT
               </h2>
               <p className={`mt-1 text-sm leading-6 ${mutedClass}`}>
-                ฟอร์มนี้จะบันทึกงานเข้าประวัติทันที พร้อมช่วงเวลาปฏิบัติงานของ IT และหลักฐาน Before / After
+                บันทึกงานพร้อมผลการดำเนินงานเข้าประวัติทันที
               </p>
             </div>
 

@@ -49,7 +49,8 @@ const SIDEBAR_TRANSLATIONS = {
       stockWalkIn: "บันทึกการเบิกแบบ walk-in",
       stockReceive: "รับเข้า stock จากจัดซื้อ",
       stockHistory: "ประวัติการเบิกจาก stock",
-      active: "กำลังดำเนินการ",
+      incoming: "งานใหม่",
+      active: "กำลังทำ",
       history: "ประวัติ",
       assetManagementGroup: "IT Asset Operations",
       assetManagement: "Asset Management / จัดการทรัพย์สิน",
@@ -87,6 +88,7 @@ const SIDEBAR_TRANSLATIONS = {
       stockWalkIn: "Walk-in issue record",
       stockReceive: "Receive stock from purchase",
       stockHistory: "Stock issue history",
+      incoming: "New tickets",
       active: "In progress",
       history: "History",
       assetManagementGroup: "IT assets",
@@ -125,6 +127,7 @@ const SIDEBAR_TRANSLATIONS = {
       stockWalkIn: "워크인 출고 기록",
       stockReceive: "구매 입고 등록",
       stockHistory: "재고 출고 이력",
+      incoming: "새 작업",
       active: "진행 중",
       history: "이력",
       assetManagementGroup: "IT 자산",
@@ -255,7 +258,20 @@ function SubMenu({ open, items, isActive, onSelect, isDarkTheme = false }) {
                 className={`group flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm font-semibold transition-all duration-200 ${active ? isDarkTheme ? "bg-[#2b59b0] text-white" : "bg-[#2b59b0] text-white" : isDarkTheme ? "text-slate-400 hover:bg-[#162136] hover:text-[#9bbcff]" : "text-slate-600 hover:bg-[#f4f8ff] hover:text-[#2b59b0]"}`}
               >
                 <Icon size={14} strokeWidth={2.25} className={active ? "text-white" : isDarkTheme ? "text-slate-500 group-hover:text-[#9bbcff]" : "text-slate-400 group-hover:text-[#2b59b0]"} />
-                <span className="min-w-0 leading-5">{item.label}</span>
+                <span className="min-w-0 flex-1 leading-5">{item.label}</span>
+                {item.count != null ? (
+                  <span
+                    className={`inline-flex min-w-7 shrink-0 items-center justify-center rounded-md px-1.5 py-0.5 text-[11px] font-black ${
+                      active
+                        ? "bg-white/20 text-white"
+                        : isDarkTheme
+                          ? "bg-slate-800 text-slate-300"
+                          : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {Number(item.count || 0).toLocaleString()}
+                  </span>
+                ) : null}
               </button>
             </li>
           );
@@ -278,6 +294,7 @@ const ITDashboardSidebar = ({
   notificationCount = 0,
   serviceRequestNotificationCount = 0,
   notebookNotificationCount = 0,
+  repairCounts = {},
 }) => {
   const { tt } = useScopedI18n(SIDEBAR_TRANSLATIONS);
   const isDarkTheme = theme === "dark";
@@ -300,7 +317,12 @@ const ITDashboardSidebar = ({
     ? "[scrollbar-width:thin] [scrollbar-color:#475569_transparent]"
     : "[scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent]";
   const [repairMenuExpanded, setRepairMenuExpanded] = useState(
-    currentPage === DASHBOARD_PAGE_IDS.ACTIVE || currentPage === DASHBOARD_PAGE_IDS.HISTORY,
+    [
+      DASHBOARD_PAGE_IDS.DASHBOARD,
+      DASHBOARD_PAGE_IDS.TICKETS,
+      DASHBOARD_PAGE_IDS.ACTIVE,
+      DASHBOARD_PAGE_IDS.HISTORY,
+    ].includes(currentPage),
   );
   const [stockMenuExpanded, setStockMenuExpanded] = useState(
     STOCK_SECTION_PAGE_IDS.includes(currentPage),
@@ -316,9 +338,10 @@ const ITDashboardSidebar = ({
   );
 
   const repairSubItems = useMemo(() => [
-    { id: DASHBOARD_PAGE_IDS.ACTIVE, label: tt("nav.active"), icon: Activity },
-    { id: DASHBOARD_PAGE_IDS.HISTORY, label: tt("nav.history"), icon: History },
-  ], [tt]);
+    { id: DASHBOARD_PAGE_IDS.TICKETS, label: tt("nav.incoming"), icon: Ticket, count: repairCounts.incoming },
+    { id: DASHBOARD_PAGE_IDS.ACTIVE, label: tt("nav.active"), icon: Activity, count: repairCounts.active },
+    { id: DASHBOARD_PAGE_IDS.HISTORY, label: tt("nav.history"), icon: History, count: repairCounts.history },
+  ], [repairCounts.active, repairCounts.history, repairCounts.incoming, tt]);
 
   const stockSubItems = useMemo(() => [
     { id: "issue", pageId: DASHBOARD_PAGE_IDS.STOCK_WALK_IN, label: tt("nav.stockWalkIn"), icon: Activity },
@@ -362,7 +385,12 @@ const ITDashboardSidebar = ({
   ], [tt]);
 
   useEffect(() => {
-    if (currentPage === DASHBOARD_PAGE_IDS.ACTIVE || currentPage === DASHBOARD_PAGE_IDS.HISTORY) {
+    if ([
+      DASHBOARD_PAGE_IDS.DASHBOARD,
+      DASHBOARD_PAGE_IDS.TICKETS,
+      DASHBOARD_PAGE_IDS.ACTIVE,
+      DASHBOARD_PAGE_IDS.HISTORY,
+    ].includes(currentPage)) {
       setRepairMenuExpanded(true);
     }
     if (STOCK_SECTION_PAGE_IDS.includes(currentPage)) {
@@ -379,7 +407,8 @@ const ITDashboardSidebar = ({
     }
   }, [currentPage]);
 
-  const isRepairActive = currentPage === DASHBOARD_PAGE_IDS.TICKETS ||
+  const isRepairActive = currentPage === DASHBOARD_PAGE_IDS.DASHBOARD ||
+    currentPage === DASHBOARD_PAGE_IDS.TICKETS ||
     currentPage === DASHBOARD_PAGE_IDS.ACTIVE ||
     currentPage === DASHBOARD_PAGE_IDS.HISTORY;
   const isStockActive = STOCK_SECTION_PAGE_IDS.includes(currentPage);
@@ -431,7 +460,10 @@ const ITDashboardSidebar = ({
             open={repairMenuExpanded}
             items={repairSubItems}
             isDarkTheme={isDarkTheme}
-            isActive={(subItem) => currentPage === subItem.id}
+            isActive={(subItem) => (
+              currentPage === subItem.id
+              || (currentPage === DASHBOARD_PAGE_IDS.DASHBOARD && subItem.id === DASHBOARD_PAGE_IDS.TICKETS)
+            )}
             onSelect={(subItem) => navigate(subItem.id)}
           />
         </li>

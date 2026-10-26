@@ -1696,6 +1696,18 @@ const ITDashboard = () => {
     Boolean(dateRange.start || dateRange.end),
   ].filter(Boolean).length;
 
+  const handleOpenRepairFromOverview = ({
+    tab = "INCOMING",
+    searchQuery: nextSearch = "",
+    quickFilter: nextQuickFilter = "ALL",
+    sortBy: nextSort = "latest",
+  } = {}) => {
+    handleTabChange(tab);
+    setSearchQuery(String(nextSearch || ""));
+    setQuickFilter(nextQuickFilter);
+    setSortBy(nextSort);
+  };
+
   const statCards = [
     {
       key: "new",
@@ -1703,6 +1715,8 @@ const ITDashboard = () => {
       value: incomingTickets.length,
       icon: Bell,
       trend: "รอรับงาน",
+      hint: "คลิกเพื่อดูงานใหม่",
+      onClick: () => handleOpenRepairFromOverview({ tab: "INCOMING" }),
       valueClass: theme === "dark" ? "text-red-400" : "text-red-600",
       iconWrapClass:
         theme === "dark" ? "border border-slate-700 bg-[#1e293b]" : "bg-red-500/10",
@@ -1714,6 +1728,8 @@ const ITDashboard = () => {
       value: myActiveTickets.length,
       icon: Wrench,
       trend: "งานที่กำลังดำเนินการ",
+      hint: "คลิกเพื่อดูงานที่กำลังทำ",
+      onClick: () => handleOpenRepairFromOverview({ tab: "ACTIVE" }),
       valueClass: theme === "dark" ? "text-amber-400" : "text-amber-600",
       iconWrapClass:
         theme === "dark" ? "border border-slate-700 bg-[#1e293b]" : "bg-amber-500/10",
@@ -1725,10 +1741,25 @@ const ITDashboard = () => {
       value: stats.urgentCount,
       icon: AlertCircle,
       trend: "ต้องดำเนินการด่วน",
+      hint: "คลิกเพื่อดูงานด่วน",
+      onClick: () => handleOpenRepairFromOverview({ tab: "INCOMING", quickFilter: "URGENT" }),
       valueClass: theme === "dark" ? "text-red-400" : "text-red-600",
       iconWrapClass:
         theme === "dark" ? "border border-slate-700 bg-[#1e293b]" : "bg-red-500/10",
       iconClass: theme === "dark" ? "text-red-400" : "text-red-600",
+    },
+    {
+      key: "history",
+      title: "ประวัติ",
+      value: historyTickets.length,
+      icon: History,
+      trend: "งานที่ปิดแล้ว",
+      hint: "คลิกเพื่อดูประวัติ",
+      onClick: () => handleOpenRepairFromOverview({ tab: "HISTORY" }),
+      valueClass: theme === "dark" ? "text-emerald-400" : "text-emerald-600",
+      iconWrapClass:
+        theme === "dark" ? "border border-slate-700 bg-[#1e293b]" : "bg-emerald-500/10",
+      iconClass: theme === "dark" ? "text-emerald-400" : "text-emerald-600",
     },
     {
       key: "response",
@@ -1742,39 +1773,6 @@ const ITDashboard = () => {
       iconClass: theme === "dark" ? "text-slate-300" : "text-slate-600",
     },
   ];
-
-  const tabItems = [
-    {
-      id: "INCOMING",
-      label: "งานใหม่",
-      icon: Bell,
-      count: incomingTickets.length,
-    },
-    {
-      id: "ACTIVE",
-      label: "กำลังทำ",
-      icon: Activity,
-      count: myActiveTickets.length,
-    },
-    {
-      id: "HISTORY",
-      label: "ประวัติ",
-      icon: History,
-      count: historyTickets.length,
-    },
-  ];
-
-  const handleOpenRepairFromOverview = ({
-    tab = "INCOMING",
-    searchQuery: nextSearch = "",
-    quickFilter: nextQuickFilter = "ALL",
-    sortBy: nextSort = "latest",
-  } = {}) => {
-    handleTabChange(tab);
-    setSearchQuery(String(nextSearch || ""));
-    setQuickFilter(nextQuickFilter);
-    setSortBy(nextSort);
-  };
 
   return (
     <div
@@ -1794,6 +1792,11 @@ const ITDashboard = () => {
         notificationCount={notificationCount}
         serviceRequestNotificationCount={serviceRequestNotificationCount}
         notebookNotificationCount={notebookNotificationCount}
+        repairCounts={{
+          incoming: incomingTickets.length,
+          active: myActiveTickets.length,
+          history: historyTickets.length,
+        }}
       />
 
       <div
@@ -1828,9 +1831,7 @@ const ITDashboard = () => {
             theme={theme}
             uiTheme={uiTheme}
             statCards={statCards}
-            tabItems={tabItems}
             activeTab={activeTab}
-            onTabChange={handleTabChange}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             activeFilterCount={activeFilterCount}

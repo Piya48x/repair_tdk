@@ -29,6 +29,40 @@ function mapPriorityToSystemValue(priority) {
   }
 }
 
+const WORK_TYPE_LABELS = {
+  repair: "ซ่อมอุปกรณ์",
+  system: "ปัญหาระบบ / เครือข่าย",
+  service: "งานบริการ / คำขอทั่วไป",
+};
+
+const OUTCOME_LABELS = {
+  success: "สำเร็จ",
+  temporary: "แก้ชั่วคราว",
+  waiting_parts: "รออะไหล่",
+  follow_up: "ต้องติดตามต่อ",
+};
+
+function buildWalkInDescription(workType, description) {
+  const typeLabel = WORK_TYPE_LABELS[normalizeText(workType)] || normalizeText(workType);
+  const detail = normalizeText(description);
+  return [typeLabel ? `ประเภทงาน: ${typeLabel}` : "", detail].filter(Boolean).join("\n\n");
+}
+
+function buildWalkInResolution({ rootCause, actionTaken, outcome, materialsUsed, technicianName, fallbackNote }) {
+  const hasStructuredResult = [rootCause, actionTaken, outcome, materialsUsed, technicianName].some(
+    (value) => normalizeText(value),
+  );
+  if (!hasStructuredResult) return normalizeText(fallbackNote);
+
+  return [
+    `สาเหตุที่พบ: ${normalizeText(rootCause) || "-"}`,
+    `วิธีดำเนินการ: ${normalizeText(actionTaken) || "-"}`,
+    `ผลลัพธ์: ${OUTCOME_LABELS[normalizeText(outcome)] || normalizeText(outcome) || "-"}`,
+    `วัสดุหรืออะไหล่ที่ใช้: ${normalizeText(materialsUsed) || "ไม่มี"}`,
+    `ผู้ดำเนินการ: ${normalizeText(technicianName) || "IT Support"}`,
+  ].join("\n");
+}
+
 function normalizeAttachmentGroup(attachments, type) {
   return (Array.isArray(attachments) ? attachments : [])
     .map((attachment) => {
@@ -75,6 +109,7 @@ export async function createWalkInTicket({
   requester_emp_id,
   department,
   location,
+  work_type,
   category,
   issue_title,
   issue_description,
@@ -82,6 +117,11 @@ export async function createWalkInTicket({
   start_time,
   end_time,
   resolution_note,
+  root_cause,
+  action_taken,
+  outcome,
+  materials_used,
+  technician_name,
   reporter_avatar_url,
   created_by,
   created_by_name,
@@ -109,12 +149,20 @@ export async function createWalkInTicket({
   const startTimeIso = toIsoString(start_time) || new Date().toISOString();
   const endTimeIso = toIsoString(end_time);
   const closedAtIso = endTimeIso || startTimeIso || new Date().toISOString();
-  const note = normalizeText(resolution_note);
+  const note = buildWalkInResolution({
+    rootCause: root_cause,
+    actionTaken: action_taken,
+    outcome,
+    materialsUsed: materials_used,
+    technicianName: technician_name,
+    fallbackNote: resolution_note,
+  });
   const systemPriority = mapPriorityToSystemValue(priority);
   const departmentValue = normalizeText(department) || null;
   const locationValue = normalizeText(location) || departmentValue;
   const categoryValue = normalizeText(category) || "Walk-in";
-  const assignedNameValue = normalizeText(assigned_name) || normalizeText(created_by_name) || "IT Support";
+  const assignedNameValue =
+    normalizeText(technician_name) || normalizeText(assigned_name) || normalizeText(created_by_name) || "IT Support";
   const closedByNameValue =
     normalizeText(closed_by_name) ||
     normalizeText(created_by_name) ||
@@ -130,8 +178,9 @@ export async function createWalkInTicket({
     location: locationValue || null,
     category: categoryValue,
     title: issueTitle,
-    description: normalizeText(issue_description) || null,
+    description: buildWalkInDescription(work_type, issue_description) || null,
     service_type: "walk-in",
+    parts_used: normalizeText(materials_used) || null,
     priority: systemPriority,
     status: "IN_PROGRESS",
     channel: "walk-in",
