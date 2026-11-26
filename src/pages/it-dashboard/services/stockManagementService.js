@@ -166,8 +166,7 @@ export async function loadStockIssueLogs() {
   const { data, error } = await supabase
     .from("it_stock_issue_logs")
     .select("*, it_stock_issue_attachments(*)")
-    .order("issued_at", { ascending: false })
-    .limit(80);
+    .order("issued_at", { ascending: false });
 
   return {
     data: Array.isArray(data)

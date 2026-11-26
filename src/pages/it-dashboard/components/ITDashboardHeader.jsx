@@ -7,6 +7,7 @@ import {
   LogOut,
   RefreshCw,
   Menu,
+  ScanLine,
 } from "lucide-react";
 import { getITDashboardTheme } from "../theme/itDashboardTheme";
 import { useI18n } from "../../../i18n/LanguageProvider";
@@ -25,6 +26,7 @@ const ITDashboardHeader = ({
   syncText,
   syncAgoText,
   isOnline,
+  onScanAsset,
 }) => {
   const { t } = useI18n();
   const uiTheme = getITDashboardTheme(theme);
@@ -134,6 +136,16 @@ const ITDashboardHeader = ({
 
             <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
               <button
+                type="button"
+                onClick={onScanAsset}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10 text-blue-500 transition hover:border-blue-500/50 hover:bg-blue-500/20"
+                aria-label={t("itDashboard.scanAsset")}
+                title={t("itDashboard.scanAsset")}
+              >
+                <ScanLine size={17} />
+              </button>
+
+              <button
                 onClick={handleNotificationClick}
                 className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border transition-colors ${compactSurfaceClass} ${uiTheme.iconButton}`}
                 aria-label={t("common.notifications")}
@@ -210,6 +222,18 @@ const ITDashboardHeader = ({
               <RefreshCw size={12} />
               <span>{t("common.syncing")} {syncText || "--:--"}</span>
             </div>
+
+            <button
+              type="button"
+              onClick={onScanAsset}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 text-xs font-bold text-blue-500 transition hover:border-blue-500/50 hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              aria-label={t("itDashboard.scanAsset")}
+              title={t("itDashboard.scanAsset")}
+            >
+              <ScanLine size={17} />
+              <span className="hidden xl:inline">{t("itDashboard.scanAsset")}</span>
+              <span className="hidden md:inline xl:hidden">{t("itDashboard.scanShort")}</span>
+            </button>
 
             <button
               onClick={handleNotificationClick}

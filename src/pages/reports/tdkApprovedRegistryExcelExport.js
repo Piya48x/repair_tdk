@@ -143,6 +143,8 @@ const COPY = {
 };
 
 const clean = (value) => String(value ?? "").trim();
+const registryPlateKey = (row) => clean(row?.plate_key)
+  || clean(row?.vehicle_plate).normalize("NFKC").replace(/[\s-]+/g, "").toUpperCase();
 const toExcelDate = (value) => {
   const normalized = clean(value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
@@ -253,15 +255,35 @@ export async function buildTdkApprovedMonthlyWorkbook(payload = {}) {
   const removed = changes.filter((row) => row.change_type === "REMOVED").length;
   const updated = changes.filter((row) => row.change_type === "UPDATED").length;
   const historyChanges = Array.isArray(allChanges) ? allChanges : changes;
+  const latestRegistryByPlate = new Map(
+    registry.map((row) => [registryPlateKey(row), row]).filter(([key]) => key),
+  );
   const addedSinceBaselineMap = new Map();
   [...historyChanges]
     .filter((row) => row.change_type === "ADDED" && clean(row.change_date) >= baselineDate)
     .sort((a, b) => `${a.change_date}|${a.created_at || ""}`.localeCompare(`${b.change_date}|${b.created_at || ""}`))
     .forEach((row) => {
-      const key = clean(row.plate_key) || clean(row.vehicle_plate).replace(/[\s-]+/g, "").toUpperCase();
+      const key = registryPlateKey(row);
       if (key && !addedSinceBaselineMap.has(key)) addedSinceBaselineMap.set(key, row);
     });
-  const addedSinceBaselineRows = [...addedSinceBaselineMap.values()];
+  const addedSinceBaselineRows = [...addedSinceBaselineMap.entries()].map(([key, addedChange]) => {
+    const latest = latestRegistryByPlate.get(key);
+    if (!latest) return addedChange;
+
+    // Keep the original addition date, but always show the latest master data.
+    // The change event's after_data is only a historical snapshot and becomes
+    // stale after somebody edits the registry record.
+    return {
+      ...addedChange,
+      vehicle_plate: latest.vehicle_plate || addedChange.vehicle_plate,
+      full_name: latest.full_name,
+      company_name: latest.company_name,
+      after_data: {
+        ...(addedChange.after_data && typeof addedChange.after_data === "object" ? addedChange.after_data : {}),
+        ...latest,
+      },
+    };
+  });
   const monthDate = new Date(`${month}-01T00:00:00`);
   const monthLabel = new Intl.DateTimeFormat(copy.locale, { month: "long", year: "numeric" }).format(monthDate);
   const workbook = new ExcelJS.Workbook();

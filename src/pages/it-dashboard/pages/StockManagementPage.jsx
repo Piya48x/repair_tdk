@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Building2, CalendarDays, Camera, CheckCircle2, Clock3, Eye, FileImage, LayoutGrid, List, Loader2, Package, Paperclip, PenLine, PencilLine, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, UserRound, X } from "lucide-react";
+import { AlertCircle, Building2, CalendarDays, Camera, CheckCircle2, Clock3, Download, Eye, FileImage, LayoutGrid, List, Loader2, Package, Paperclip, PenLine, PencilLine, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, UserRound, X } from "lucide-react";
 import toast from "react-hot-toast";
 import AttachmentPreviewModal from "../../work-notes/AttachmentPreviewModal";
 import { formatFileSize, isImageAttachment } from "../../../services/workNotesService";
@@ -184,7 +184,12 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   const [stockEntryDateFilter, setStockEntryDateFilter] = useState("");
   const [stockViewMode, setStockViewMode] = useState("list");
   const [receiveViewMode, setReceiveViewMode] = useState("grid");
-  const [historyViewMode, setHistoryViewMode] = useState("card");
+  const [historyViewMode, setHistoryViewMode] = useState("list");
+  const [historyStockItemId, setHistoryStockItemId] = useState("");
+  const [historySearchQuery, setHistorySearchQuery] = useState("");
+  const [historyModalStockItemId, setHistoryModalStockItemId] = useState("");
+  const [exportLanguage, setExportLanguage] = useState("th");
+  const [exportingScope, setExportingScope] = useState("");
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [issueModalOpen, setIssueModalOpen] = useState(false);
   const [stockForm, setStockForm] = useState(EMPTY_STOCK_FORM);
@@ -330,6 +335,12 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
   useEffect(() => { pendingIssueFilesRef.current = pendingIssueFiles; }, [pendingIssueFiles]);
   useEffect(() => () => { pendingStockImageFilesRef.current.forEach(revokePendingPreview); pendingStockFilesRef.current.forEach(revokePendingPreview); pendingIssueFilesRef.current.forEach(revokePendingPreview); }, []);
   useEffect(() => {
+    if (stockManagementSection !== "history") {
+      setHistoryStockItemId("");
+      setHistorySearchQuery("");
+    }
+  }, [stockManagementSection]);
+  useEffect(() => {
     if (!issueModalOpen) {
       issueSignatureDrawingRef.current = false;
       issueSignatureHasInkRef.current = false;
@@ -419,6 +430,52 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
     });
     return summaryById;
   }, [issueLogs]);
+  const stockItemById = useMemo(() => {
+    const lookup = new Map();
+    stockItems.forEach((item) => lookup.set(String(item?.id || ""), item));
+    return lookup;
+  }, [stockItems]);
+  const selectedHistoryStockItem = useMemo(
+    () => stockItemById.get(String(historyStockItemId || "")) || null,
+    [historyStockItemId, stockItemById],
+  );
+  const historyModalStockItem = useMemo(
+    () => stockItemById.get(String(historyModalStockItemId || "")) || null,
+    [historyModalStockItemId, stockItemById],
+  );
+  const historyModalLogs = useMemo(
+    () => issueLogs.filter((log) => String(log?.stock_item_id || "") === String(historyModalStockItemId || "")),
+    [historyModalStockItemId, issueLogs],
+  );
+  const historyModalSummary = useMemo(() => ({
+    totalIssued: historyModalLogs.reduce((sum, log) => sum + Number(log?.quantity || 0), 0),
+    requesterCount: new Set(historyModalLogs.map((log) => normalizeLookupText(log?.requester_emp_id) || normalizeLookupText(log?.requester_name)).filter(Boolean)).size,
+  }), [historyModalLogs]);
+  const filteredIssueLogs = useMemo(() => {
+    const keyword = normalizeLookupText(historySearchQuery);
+    return issueLogs.filter((log) => {
+      if (historyStockItemId && String(log?.stock_item_id || "") !== String(historyStockItemId)) return false;
+      if (!keyword) return true;
+      const stockItem = stockItemById.get(String(log?.stock_item_id || ""));
+      return [
+        log?.item_name_snapshot,
+        log?.stock_code_snapshot,
+        log?.requester_name,
+        log?.requester_emp_id,
+        log?.requester_department,
+        log?.purpose,
+        log?.notes,
+        stockItem?.reference_item_code,
+        stockItem?.brand,
+        stockItem?.model,
+        stockItem?.lot_number,
+      ].map(normalizeLookupText).join(" ").includes(keyword);
+    });
+  }, [historySearchQuery, historyStockItemId, issueLogs, stockItemById]);
+  const filteredHistorySummary = useMemo(() => ({
+    totalIssued: filteredIssueLogs.reduce((sum, log) => sum + Number(log?.quantity || 0), 0),
+    requesterCount: new Set(filteredIssueLogs.map((log) => normalizeLookupText(log?.requester_emp_id) || normalizeLookupText(log?.requester_name)).filter(Boolean)).size,
+  }), [filteredIssueLogs]);
   const requesterDirectoryLookup = useMemo(() => {
     const byProfileId = new Map();
     const byEmployeeCode = new Map();
@@ -570,6 +627,65 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
     onStockManagementSectionChange?.("issue");
     setIssueForm((prev) => ({ ...prev, stock_item_id: item.id, stock_item_search: `${item.stock_code || "-"} • ${item.item_name || "-"}` }));
     setIssueModalOpen(true);
+  };
+  const handleViewIssueHistory = (item) => {
+    if (!item?.id) return;
+    setHistoryModalStockItemId(String(item.id));
+  };
+  const handleExportIssueReport = async ({ logs = filteredIssueLogs, selectedItem = selectedHistoryStockItem, scopeKey = "history" } = {}) => {
+    if (exportingScope) return;
+    const safeLogs = Array.isArray(logs) ? logs : [];
+    if (safeLogs.length === 0) {
+      toast.error("ไม่มีข้อมูลประวัติสำหรับ Export");
+      return;
+    }
+
+    setExportingScope(scopeKey);
+    try {
+      const rows = safeLogs.map((log) => {
+        const stockItem = stockItemById.get(String(log?.stock_item_id || "")) || selectedItem || null;
+        const requesterProfile = resolveRequesterProfile(log);
+        const requesterName = log.requester_name || requesterProfile?.full_name || "-";
+        const requesterEmpId = log.requester_emp_id || requesterProfile?.employee_code || "";
+        const evidenceUrls = Array.from(new Set(
+          getSafeAttachments(log?.issue_attachments)
+            .filter((attachment) => isImageAttachment(attachment))
+            .map((attachment) => String(attachment?.file_url || "").trim())
+            .filter(Boolean),
+        ));
+        return {
+          stockItemId: String(log?.stock_item_id || stockItem?.id || ""),
+          stockCode: log.stock_code_snapshot || stockItem?.stock_code || "-",
+          itemName: log.item_name_snapshot || stockItem?.item_name || "-",
+          itemDetails: [stockItem?.reference_item_code, stockItem?.brand, stockItem?.model].filter(Boolean).join(" • "),
+          requesterKey: normalizeLookupText(requesterEmpId) || normalizeLookupText(requesterName),
+          requesterName,
+          requesterEmpId,
+          requesterDepartment: log.requester_department || requesterProfile?.department || "-",
+          quantity: Number(log.quantity || 0),
+          unit: log.unit_snapshot || stockItem?.unit || "ชิ้น",
+          issuedAt: log.issued_at || log.created_at || null,
+          purpose: log.purpose || log.notes || "-",
+          issuedByName: log.issued_by_name || "-",
+          evidenceUrls,
+          deviceImageUrl: getPrimaryStockImage(stockItem)?.file_url || "",
+        };
+      });
+      const { exportStockIssueReport } = await import("../utils/exportStockIssueReport");
+      await exportStockIssueReport({
+        rows,
+        language: exportLanguage,
+        currentUser,
+        selectedItemName: selectedItem?.item_name || "",
+        hasActiveFilter: Boolean(selectedItem || historyStockItemId || normalizeText(historySearchQuery)),
+      });
+      toast.success(exportLanguage === "en" ? "Excel report exported" : "Export รายงาน Excel แล้ว");
+    } catch (error) {
+      console.error("Export stock issue report error:", error);
+      toast.error("Export Excel ไม่สำเร็จ");
+    } finally {
+      setExportingScope("");
+    }
   };
   const handleSelectProfile = (member) => { setIssueForm((prev) => ({ ...prev, requester_name: member.full_name || prev.requester_name, requester_emp_id: member.employee_code || prev.requester_emp_id, requester_department: member.department || prev.requester_department, requester_profile_id: member.id || "" })); setActiveLookupField(""); };
   const handleSelectStockItem = (item) => { setIssueForm((prev) => ({ ...prev, stock_item_id: item.id, stock_item_search: `${item.stock_code || "-"} • ${item.item_name || "-"}` })); setActiveLookupField(""); };
@@ -938,6 +1054,80 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
           </div>
         </div>
       ) : null}
+      {historyModalStockItem ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm sm:p-6" onClick={() => setHistoryModalStockItemId("")}>
+          <div role="dialog" aria-modal="true" aria-labelledby="stock-history-modal-title" onClick={(event) => event.stopPropagation()} className={`flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-2xl ${theme === "dark" ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-white"}`}>
+            <div className={`flex flex-wrap items-start gap-3 border-b p-4 sm:flex-nowrap sm:p-5 ${theme === "dark" ? "border-slate-800" : "border-slate-200"}`}>
+              {getPrimaryStockImage(historyModalStockItem) ? (
+                <button type="button" onClick={() => handleOpenAttachmentPreview(getPrimaryStockImage(historyModalStockItem))} className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
+                  <img src={getPrimaryStockImage(historyModalStockItem).file_url} alt={historyModalStockItem.item_name || "stock"} className="h-full w-full object-cover" />
+                </button>
+              ) : (
+                <span className={`inline-flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border ${theme === "dark" ? "border-slate-700 bg-slate-900 text-slate-500" : "border-slate-200 bg-slate-50 text-slate-400"}`}><Package size={26} /></span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${theme === "dark" ? "text-violet-300" : "text-violet-600"}`}>ประวัติการเบิกอุปกรณ์</p>
+                <h3 id="stock-history-modal-title" className={`mt-1 truncate text-lg font-bold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{historyModalStockItem.item_name || "-"}</h3>
+                <p className={`mt-1 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{historyModalStockItem.stock_code || "-"} • {historyModalStockItem.reference_item_code || historyModalStockItem.item_category || "-"}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700">เบิกสะสม {formatQuantity(historyModalSummary.totalIssued)} {historyModalStockItem.unit || "ชิ้น"}</span>
+                  <span className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-bold text-violet-700">{formatQuantity(historyModalLogs.length)} ครั้ง</span>
+                  <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700">{formatQuantity(historyModalSummary.requesterCount)} ผู้เบิก</span>
+                </div>
+              </div>
+              <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+                <select value={exportLanguage} onChange={(event) => setExportLanguage(event.target.value)} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${uiTheme.searchInputMobile}`} aria-label="เลือกภาษารายงาน Excel">
+                  <option value="th">ไทย</option>
+                  <option value="en">English</option>
+                </select>
+                <button type="button" onClick={() => handleExportIssueReport({ logs: historyModalLogs, selectedItem: historyModalStockItem, scopeKey: "modal" })} disabled={Boolean(exportingScope) || historyModalLogs.length === 0} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  {exportingScope === "modal" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  <span className="hidden sm:inline">Export Excel</span>
+                </button>
+                <button type="button" onClick={() => setHistoryModalStockItemId("")} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition ${uiTheme.statusButton}`} aria-label="ปิดประวัติการเบิก"><X size={17} /></button>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
+              {historyModalLogs.length === 0 ? (
+                <div className={`rounded-xl border border-dashed px-4 py-12 text-center ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-300 text-slate-500"}`}>
+                  <Clock3 size={28} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm font-semibold">อุปกรณ์นี้ยังไม่มีประวัติการเบิก</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className={`hidden grid-cols-[minmax(210px,1.2fr)_100px_150px_minmax(160px,1fr)_105px] gap-3 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] lg:grid ${theme === "dark" ? "bg-slate-900 text-slate-400" : "bg-slate-50 text-slate-500"}`}>
+                    <span>ผู้เบิก</span><span>จำนวน</span><span>วันที่เบิก</span><span>วัตถุประสงค์</span><span>หลักฐาน</span>
+                  </div>
+                  {historyModalLogs.map((log) => {
+                    const requesterProfile = resolveRequesterProfile(log);
+                    const requesterName = log.requester_name || requesterProfile?.full_name || "-";
+                    const requesterAvatar = requesterProfile?.avatar_url || buildAvatarFallback(requesterName || log.requester_emp_id || "U");
+                    return (
+                      <article key={log.id} className={`grid grid-cols-1 gap-3 rounded-xl border p-3 lg:grid-cols-[minmax(210px,1.2fr)_100px_150px_minmax(160px,1fr)_105px] lg:items-center ${theme === "dark" ? "border-slate-700 bg-slate-900/70 text-slate-200" : "border-slate-200 bg-white text-slate-700"}`}>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <img src={requesterAvatar} alt={requesterName} onError={(event) => { event.currentTarget.src = buildAvatarFallback(requesterName || log.requester_emp_id || "U"); }} className="h-11 w-11 shrink-0 rounded-full border border-slate-200 bg-white object-cover" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold">{requesterName}</p>
+                            <p className={`truncate text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{log.requester_emp_id || "ไม่ระบุรหัส"}{log.requester_department ? ` • ${log.requester_department}` : ""}</p>
+                          </div>
+                        </div>
+                        <div><span className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-sm font-bold text-blue-700">{formatQuantity(log.quantity)} {log.unit_snapshot || historyModalStockItem.unit || "ชิ้น"}</span></div>
+                        <p className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{formatDateTime(log.issued_at || log.created_at)}</p>
+                        <div className="min-w-0">
+                          <p className="line-clamp-2 text-sm">{log.purpose || log.notes || "-"}</p>
+                          <p className={`mt-1 truncate text-[11px] ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>ผู้บันทึก: {log.issued_by_name || "-"}</p>
+                        </div>
+                        <div>{Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => handleOpenAttachmentGallery(log.issue_attachments)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดู {log.issue_attachments.length} รูป</button> : <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>ไม่มีรูป</span>}</div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {showStockList ? (
         <section className={`mt-4 rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1096,6 +1286,7 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
                   </div>
                   <div className={`mt-3 flex gap-2 ${showCompactStockList ? `justify-end border-t pt-3 ${theme === "dark" ? "border-slate-700" : "border-slate-100"}` : ""}`}>
                     {evidencePreview ? <button type="button" onClick={() => handleOpenAttachmentPreview(evidencePreview)} className={`${showCompactStockList ? "min-w-32" : "flex-1"} rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700`}>ดูหลักฐาน</button> : null}
+                    {showIssuePage ? <button type="button" onClick={() => handleViewIssueHistory(item)} className={`${showCompactStockList ? "min-w-32" : "flex-1"} inline-flex items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700`}><Clock3 size={13} />ดูประวัติ</button> : null}
                     {showIssuePage ? <button type="button" onClick={() => handlePrefillIssue(item)} disabled={Number(item?.quantity_on_hand || 0) <= 0} className={`${showCompactStockList ? "min-w-32" : "flex-1"} rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50`}>เบิกออก</button> : null}
                     {showReceivePage ? <button type="button" onClick={() => handleEditItem(item)} className={`${showReceiveCompactList ? "min-w-28" : "flex-1"} rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600`}>แก้ไข</button> : null}
                     {showReceivePage ? <button type="button" onClick={() => handleDeleteStock(item)} disabled={deletingStockId === String(item.id || "")} className={`${showReceiveCompactList ? "min-w-28" : "flex-1"} rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60`}>{deletingStockId === String(item.id || "") ? "กำลังลบ..." : "ลบรายการ"}</button> : null}
@@ -1109,52 +1300,112 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
       ) : null}
       {showHistoryPage ? (
         <section className={`mt-4 rounded-lg border p-4 ${uiTheme.surfaceCard}`}>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className={`mt-1 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>ล่าสุด {Math.min(issueLogs.length, 80)} รายการ สำหรับติดตามการเบิก walk-in และรูปหลักฐานการจ่ายของ</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="space-y-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className={`text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>ประวัติการเบิกอุปกรณ์</h3>
+                <p className={`mt-1 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>เห็นรูปอุปกรณ์ จำนวน และผู้เบิกในรายการเดียว</p>
+              </div>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+                <div className="relative min-w-[220px] flex-1 lg:max-w-md">
+                  <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input value={historySearchQuery} onChange={(event) => setHistorySearchQuery(event.target.value)} placeholder="ค้นหาอุปกรณ์ รหัส ผู้เบิก หรือแผนก" className={`w-full rounded-lg border py-2 pl-9 pr-3 text-xs ${uiTheme.searchInputMobile}`} />
+                </div>
               <div className={`inline-flex rounded-lg border p-1 ${theme === "dark" ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-slate-50"}`}>
                 <button type="button" onClick={() => setHistoryViewMode("card")} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${historyViewMode === "card" ? "bg-[#2b59b0] text-white" : theme === "dark" ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-white"}`} title="มุมมองการ์ด">
                   <LayoutGrid size={14} />
-                  Card
+                  การ์ด
                 </button>
                 <button type="button" onClick={() => setHistoryViewMode("list")} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${historyViewMode === "list" ? "bg-[#2b59b0] text-white" : theme === "dark" ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-white"}`} title="มุมมอง list">
                   <List size={14} />
-                  List
+                  รายการ
                 </button>
               </div>
-              <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>หมด stock {formatQuantity(summary.outOfStockCount)} รายการ</div>
+              <select value={exportLanguage} onChange={(event) => setExportLanguage(event.target.value)} className={`rounded-lg border px-2.5 py-2 text-xs font-semibold ${uiTheme.searchInputMobile}`} aria-label="เลือกภาษารายงาน Excel">
+                <option value="th">ไทย</option>
+                <option value="en">English</option>
+              </select>
+              <button type="button" onClick={() => handleExportIssueReport()} disabled={Boolean(exportingScope) || filteredIssueLogs.length === 0} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                {exportingScope === "history" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                Export Excel
+              </button>
+              </div>
             </div>
+
+            {selectedHistoryStockItem ? (
+              <div className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center ${theme === "dark" ? "border-violet-400/25 bg-violet-400/10" : "border-violet-200 bg-violet-50"}`}>
+                {getPrimaryStockImage(selectedHistoryStockItem) ? (
+                  <button type="button" onClick={() => handleOpenAttachmentPreview(getPrimaryStockImage(selectedHistoryStockItem))} className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-white/70 bg-white shadow-sm">
+                    <img src={getPrimaryStockImage(selectedHistoryStockItem).file_url} alt={selectedHistoryStockItem.item_name || "stock"} className="h-full w-full object-cover" />
+                  </button>
+                ) : (
+                  <span className={`inline-flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border ${theme === "dark" ? "border-slate-700 bg-slate-900 text-slate-500" : "border-white bg-white text-slate-400"}`}><Package size={26} /></span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className={`truncate text-base font-bold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{selectedHistoryStockItem.item_name || "-"}</p>
+                      <p className={`mt-1 text-xs ${theme === "dark" ? "text-violet-200/80" : "text-violet-700"}`}>{selectedHistoryStockItem.stock_code || "-"} • {selectedHistoryStockItem.reference_item_code || selectedHistoryStockItem.item_category || "-"}</p>
+                    </div>
+                    <button type="button" onClick={() => setHistoryStockItemId("")} className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${theme === "dark" ? "border-slate-600 bg-slate-900 text-slate-200" : "border-violet-200 bg-white text-violet-700"}`}><X size={13} />ดูทุกอุปกรณ์</button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className={`rounded-lg border px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-violet-300/20 bg-slate-900/40 text-violet-100" : "border-violet-100 bg-white text-violet-900"}`}>เบิกสะสม {formatQuantity(filteredHistorySummary.totalIssued)} {selectedHistoryStockItem.unit || "ชิ้น"}</span>
+                    <span className={`rounded-lg border px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-violet-300/20 bg-slate-900/40 text-violet-100" : "border-violet-100 bg-white text-violet-900"}`}>{formatQuantity(filteredIssueLogs.length)} ครั้ง</span>
+                    <span className={`rounded-lg border px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-violet-300/20 bg-slate-900/40 text-violet-100" : "border-violet-100 bg-white text-violet-900"}`}>{formatQuantity(filteredHistorySummary.requesterCount)} ผู้เบิก</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <span className={`rounded-lg border px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>{formatQuantity(filteredIssueLogs.length)} รายการเบิก</span>
+                <span className={`rounded-lg border px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>รวม {formatQuantity(filteredHistorySummary.totalIssued)} ชิ้น/หน่วย</span>
+                <span className={`rounded-lg border px-3 py-2 text-xs font-semibold ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>{formatQuantity(filteredHistorySummary.requesterCount)} ผู้เบิก</span>
+              </div>
+            )}
           </div>
-          {issueLogs.length === 0 ? (
-            <div className={`mt-4 rounded-lg border px-4 py-5 text-center text-sm ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>ยังไม่มีประวัติการเบิก</div>
+          {filteredIssueLogs.length === 0 ? (
+            <div className={`mt-4 rounded-lg border px-4 py-8 text-center text-sm ${theme === "dark" ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>{historyStockItemId || historySearchQuery ? "ไม่พบประวัติการเบิกตามตัวกรอง" : "ยังไม่มีประวัติการเบิก"}</div>
           ) : historyViewMode === "card" ? (
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              {issueLogs.map((log) => {
+              {filteredIssueLogs.map((log) => {
+                const stockItem = stockItemById.get(String(log?.stock_item_id || ""));
+                const stockImage = getPrimaryStockImage(stockItem);
                 const requesterProfile = resolveRequesterProfile(log);
                 const requesterName = log.requester_name || requesterProfile?.full_name || "-";
                 const requesterAvatar = requesterProfile?.avatar_url || buildAvatarFallback(requesterName || log.requester_emp_id || "U");
                 return (
-                  <article key={log.id} className={`rounded-lg border p-4 ${theme === "dark" ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <img src={requesterAvatar} alt={requesterName || "requester"} onError={(event) => { event.currentTarget.src = buildAvatarFallback(requesterName || log.requester_emp_id || "U"); }} className="h-12 w-12 shrink-0 rounded-lg border border-slate-200 bg-white object-cover" />
-                        <div className="min-w-0">
-                          <p className={`truncate text-sm font-semibold ${theme === "dark" ? "text-slate-100" : "text-slate-800"}`}>{log.item_name_snapshot || "-"}</p>
-                          <p className={`mt-1 truncate text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{log.stock_code_snapshot || "-"} • {formatDateTime(log.issued_at || log.created_at)}</p>
+                  <article key={log.id} className={`overflow-hidden rounded-xl border ${theme === "dark" ? "border-slate-700 bg-slate-900/60" : "border-slate-200 bg-white shadow-sm"}`}>
+                    <div className="flex items-start gap-3 p-4">
+                      {stockImage ? (
+                        <button type="button" onClick={() => handleOpenAttachmentPreview(stockImage)} className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50"><img src={stockImage.file_url} alt={stockImage.file_name || log.item_name_snapshot || "stock"} className="h-full w-full object-cover" /></button>
+                      ) : (
+                        <span className={`inline-flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border ${theme === "dark" ? "border-slate-700 bg-slate-800 text-slate-500" : "border-slate-200 bg-slate-50 text-slate-400"}`}><Package size={24} /></span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className={`truncate text-sm font-bold ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>{log.item_name_snapshot || "-"}</p>
+                            <p className={`mt-1 truncate text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{log.stock_code_snapshot || "-"}</p>
+                          </div>
+                          <span className="inline-flex shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700">{formatQuantity(log.quantity)} {log.unit_snapshot || "ชิ้น"}</span>
+                        </div>
+                        <p className={`mt-3 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{formatDateTime(log.issued_at || log.created_at)}</p>
+                      </div>
+                    </div>
+                    <div className={`border-t px-4 py-3 ${theme === "dark" ? "border-slate-700 bg-slate-900" : "border-slate-100 bg-slate-50/80"}`}>
+                      <div className="flex items-center gap-3">
+                        <img src={requesterAvatar} alt={requesterName || "requester"} onError={(event) => { event.currentTarget.src = buildAvatarFallback(requesterName || log.requester_emp_id || "U"); }} className="h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-white object-cover" />
+                        <div className="min-w-0 flex-1">
+                          <p className={`truncate text-sm font-semibold ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>{requesterName}</p>
+                          <p className={`truncate text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{log.requester_emp_id || "ไม่ระบุรหัส"}{log.requester_department ? ` • ${log.requester_department}` : ""}</p>
                         </div>
                       </div>
-                      <span className="inline-flex shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">{formatQuantity(log.quantity)} {log.unit_snapshot || "ชิ้น"}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
-                      <div className={`rounded-lg border px-3 py-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>ผู้เบิก: {requesterName} {log.requester_emp_id ? `(${log.requester_emp_id})` : ""}{log.requester_department ? ` • ${log.requester_department}` : ""}</div>
-                      <div className={`rounded-lg border px-3 py-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>วัตถุประสงค์: {log.purpose || log.notes || "-"}</div>
-                      <div className={`rounded-lg border px-3 py-2 ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>หลักฐาน: {Array.isArray(log.issue_attachments) ? log.issue_attachments.length : 0} รูป</div>
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      {Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => handleOpenAttachmentGallery(log.issue_attachments)} className="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูหลักฐานทั้งหมด</button> : null}
-                      <div className={`flex-1 rounded-lg border px-3 py-2 text-xs ${theme === "dark" ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>ผู้บันทึก: {log.issued_by_name || "-"}</div>
+                      <p className={`mt-3 line-clamp-2 text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>ใช้เพื่อ: {log.purpose || log.notes || "-"}</p>
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <span className={`text-[11px] ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>ผู้บันทึก: {log.issued_by_name || "-"}</span>
+                        {Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => handleOpenAttachmentGallery(log.issue_attachments)} className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700">ดูหลักฐาน {log.issue_attachments.length} รูป</button> : <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>ไม่มีรูปหลักฐาน</span>}
+                      </div>
                     </div>
                   </article>
                 );
@@ -1162,33 +1413,42 @@ export default function StockManagementPage({ theme, uiTheme, currentUser, stock
             </div>
           ) : (
             <div className={`mt-4 overflow-hidden rounded-lg border ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`}>
-              <div className={`hidden grid-cols-[minmax(220px,1.4fr)_minmax(180px,1fr)_120px_150px_100px] gap-3 border-b px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] lg:grid ${theme === "dark" ? "border-slate-700 bg-slate-900 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+              <div className={`hidden grid-cols-[minmax(270px,1.5fr)_minmax(190px,1fr)_110px_150px_115px] gap-3 border-b px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] lg:grid ${theme === "dark" ? "border-slate-700 bg-slate-900 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
                 <span>อุปกรณ์</span>
                 <span>ผู้เบิก</span>
                 <span>จำนวน</span>
                 <span>วันที่เบิก</span>
                 <span>หลักฐาน</span>
               </div>
-              {issueLogs.map((log) => {
+              {filteredIssueLogs.map((log) => {
+                const stockItem = stockItemById.get(String(log?.stock_item_id || ""));
+                const stockImage = getPrimaryStockImage(stockItem);
                 const requesterProfile = resolveRequesterProfile(log);
                 const requesterName = log.requester_name || requesterProfile?.full_name || "-";
                 const requesterAvatar = requesterProfile?.avatar_url || buildAvatarFallback(requesterName || log.requester_emp_id || "U");
                 return (
-                  <div key={log.id} className={`grid grid-cols-1 gap-3 border-b px-3 py-3 text-sm last:border-b-0 lg:grid-cols-[minmax(220px,1.4fr)_minmax(180px,1fr)_120px_150px_100px] lg:items-center ${theme === "dark" ? "border-slate-700 bg-slate-900/60 text-slate-200" : "border-slate-100 bg-white text-slate-700"}`}>
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold">{log.item_name_snapshot || "-"}</p>
-                      <p className={`mt-1 truncate text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{log.stock_code_snapshot || "-"} • {log.purpose || log.notes || "-"}</p>
+                  <div key={log.id} className={`grid grid-cols-1 gap-3 border-b px-3 py-3 text-sm last:border-b-0 lg:grid-cols-[minmax(270px,1.5fr)_minmax(190px,1fr)_110px_150px_115px] lg:items-center ${theme === "dark" ? "border-slate-700 bg-slate-900/60 text-slate-200" : "border-slate-100 bg-white text-slate-700"}`}>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {stockImage ? (
+                        <button type="button" onClick={() => handleOpenAttachmentPreview(stockImage)} className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50"><img src={stockImage.file_url} alt={stockImage.file_name || log.item_name_snapshot || "stock"} className="h-full w-full object-cover" /></button>
+                      ) : (
+                        <span className={`inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border ${theme === "dark" ? "border-slate-700 bg-slate-800 text-slate-500" : "border-slate-200 bg-slate-50 text-slate-400"}`}><Package size={20} /></span>
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{log.item_name_snapshot || "-"}</p>
+                        <p className={`mt-1 truncate text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{log.stock_code_snapshot || "-"} • {log.purpose || log.notes || "-"}</p>
+                      </div>
                     </div>
                     <div className="flex min-w-0 items-center gap-3">
-                      <img src={requesterAvatar} alt={requesterName || "requester"} onError={(event) => { event.currentTarget.src = buildAvatarFallback(requesterName || log.requester_emp_id || "U"); }} className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 bg-white object-cover" />
+                      <img src={requesterAvatar} alt={requesterName || "requester"} onError={(event) => { event.currentTarget.src = buildAvatarFallback(requesterName || log.requester_emp_id || "U"); }} className="h-9 w-9 shrink-0 rounded-full border border-slate-200 bg-white object-cover" />
                       <div className="min-w-0">
                         <p className="truncate font-semibold">{requesterName}</p>
                         <p className={`truncate text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{log.requester_emp_id || "-"}{log.requester_department ? ` • ${log.requester_department}` : ""}</p>
                       </div>
                     </div>
-                    <div className="text-sm font-semibold">{formatQuantity(log.quantity)} {log.unit_snapshot || "ชิ้น"}</div>
+                    <div className="text-sm font-bold text-blue-600">{formatQuantity(log.quantity)} {log.unit_snapshot || "ชิ้น"}</div>
                     <div className={`text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{formatDateTime(log.issued_at || log.created_at)}</div>
-                    <div>{Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => handleOpenAttachmentGallery(log.issue_attachments)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดูทุกรูป</button> : <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>ไม่มีรูป</span>}</div>
+                    <div>{Array.isArray(log.issue_attachments) && log.issue_attachments.length > 0 ? <button type="button" onClick={() => handleOpenAttachmentGallery(log.issue_attachments)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">ดู {log.issue_attachments.length} รูป</button> : <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>ไม่มีรูป</span>}</div>
                   </div>
                 );
               })}

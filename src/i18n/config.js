@@ -77,6 +77,8 @@ export const translations = {
     itDashboard: {
       title: "IT Service Hub",
       subtitle: "แดชบอร์ดช่างเทคนิค",
+      scanAsset: "สแกนเพื่อดูข้อมูลอุปกรณ์",
+      scanShort: "สแกนอุปกรณ์",
     },
   },
   en: {
@@ -141,6 +143,8 @@ export const translations = {
     itDashboard: {
       title: "IT Service Hub",
       subtitle: "Technician Dashboard",
+      scanAsset: "Scan to view device details",
+      scanShort: "Scan device",
     },
   },
   ko: {
@@ -205,6 +209,8 @@ export const translations = {
     itDashboard: {
       title: "IT Service Hub",
       subtitle: "기술자 대시보드",
+      scanAsset: "스캔하여 장치 정보 보기",
+      scanShort: "장치 스캔",
     },
   },
 };

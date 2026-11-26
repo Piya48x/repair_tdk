@@ -237,7 +237,9 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
     };
     const channel = supabase
       .channel("tdk-approved-registry-live")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tdk_approved_registry_imports" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tdk_approved_registry" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tdk_approved_registry_imports" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tdk_approved_registry_changes" }, scheduleRefresh)
       .subscribe();
     return () => {
       window.clearTimeout(realtimeRefreshRef.current);
@@ -401,7 +403,10 @@ export default function TdkApprovedRegistryPanel({ theme = "light", pendingFile 
       const historyEndMonth = reportMonth > currentMonth ? reportMonth : currentMonth;
       const historyBounds = { from: TDK_APPROVED_INCEPTION_DATE, to: monthBounds(historyEndMonth).to };
       const [currentRows, monthChanges, allChanges, allImports] = await Promise.all([
-        fetchTdkApprovedRegistry({ includeInactive: false }),
+        // Fetch the complete master at click time. The workbook filters the
+        // current sheet to active rows, while historical additions can still
+        // be enriched with the latest details of a subsequently removed row.
+        fetchTdkApprovedRegistry({ includeInactive: true }),
         fetchTdkApprovedRegistryChanges(bounds),
         fetchTdkApprovedRegistryChanges(historyBounds),
         fetchTdkApprovedRegistryImports(500),

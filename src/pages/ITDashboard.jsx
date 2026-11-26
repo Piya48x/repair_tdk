@@ -95,6 +95,7 @@ import ITDashboardGlobalStyles from "./it-dashboard/components/ITDashboardGlobal
 import TicketDetailModal from "./dashboard/components/TicketDetailModal";
 import CloseJobModal from "./it-dashboard/components/CloseJobModal";
 import WalkInTicketModal from "./it-dashboard/components/WalkInTicketModal";
+import AssetViewScannerModal, { extractAssetTagFromQr } from "./it-dashboard/components/AssetViewScannerModal";
 import { createWalkInTicket } from "./it-dashboard/services/walkInTicketService";
 
 // New Refactored Components
@@ -272,6 +273,7 @@ const ITDashboard = () => {
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
   const [detailTicket, setDetailTicket] = useState(null);
   const [isWalkInTicketOpen, setIsWalkInTicketOpen] = useState(false);
+  const [isAssetScannerOpen, setIsAssetScannerOpen] = useState(false);
   const [closingTicket, setClosingTicket] = useState(null);
   const [isCloseJobSubmitting, setIsCloseJobSubmitting] = useState(false);
   const [chatOpenSignal, setChatOpenSignal] = useState(0);
@@ -354,6 +356,18 @@ const ITDashboard = () => {
   const handleNavigateStockSection = (sectionId = "issue", pageId) => {
     setStockManagementSection(sectionId);
     setCurrentPage(pageId || STOCK_SECTION_TO_PAGE[sectionId] || DASHBOARD_PAGE_IDS.STOCK_WALK_IN);
+  };
+
+  const handleAssetScanDetected = (rawValue) => {
+    const assetTag = extractAssetTagFromQr(rawValue);
+    setIsAssetScannerOpen(false);
+
+    if (!assetTag) {
+      toast.error("ไม่พบ Asset Code ใน QR Code");
+      return;
+    }
+
+    navigate(`/asset-qr/${encodeURIComponent(assetTag)}`);
   };
 
   const loadNotebookNotifications = async () => {
@@ -1820,6 +1834,7 @@ const ITDashboard = () => {
               : "กำลังโหลด..."
           }
           syncAgoText={getTimeSinceRefresh()}
+          onScanAsset={() => setIsAssetScannerOpen(true)}
         />
 
         <main className="app-safe-bottom mx-auto max-w-[1440px] px-3 py-4 sm:px-6 lg:py-5">
@@ -1911,6 +1926,15 @@ const ITDashboard = () => {
           currentUser={currentUser}
           theme={theme}
         />
+
+        {isAssetScannerOpen ? (
+          <AssetViewScannerModal
+            title="สแกนเพื่อดูข้อมูลอุปกรณ์"
+            subtitle="สแกน QR Code หรือกรอก Asset Code เพื่อเปิดข้อมูลอุปกรณ์ล่าสุด"
+            onDetected={handleAssetScanDetected}
+            onClose={() => setIsAssetScannerOpen(false)}
+          />
+        ) : null}
 
         <CloseJobModal
           isOpen={Boolean(closingTicket)}
